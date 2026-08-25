@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import CommentSection from '../components/CommentSection';
 import { fetchProjectDetail } from '../lib/api/project';
 import {
   createSubtask,
@@ -504,6 +505,8 @@ export default function TaskDetailPage() {
           </button>
         </form>
       </div>
+
+      <CommentSection taskId={task.id} />
     </div>
   );
 }
