@@ -63,4 +63,8 @@ export const env = {
     .filter((origin) => origin.length > 0),
   /** Chuoi ket noi PostgreSQL, bat buoc phai co */
   databaseUrl: getString('DATABASE_URL'),
+  /** Khoa bi mat de ky JWT, bat buoc phai co va nen du dai/kho doan */
+  jwtSecret: getString('JWT_SECRET'),
+  /** Thoi gian song cua JWT, vi du "7d", "1h" */
+  jwtExpiresIn: getString('JWT_EXPIRES_IN', '7d'),
 };

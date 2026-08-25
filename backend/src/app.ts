@@ -1,6 +1,9 @@
+import cookieParser from 'cookie-parser';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { env } from './config/env';
+import authRoutes from './modules/auth/auth.routes';
+import { AppError } from './utils/AppError';
 
 /**
  * Tao va cau hinh Express app.
@@ -20,6 +23,8 @@ export function createApp() {
   // Doc du lieu JSON gui len (gioi han 1mb de tranh request qua lon)
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true }));
+  // Doc cookie (dung de lay JWT luu trong cookie httpOnly)
+  app.use(cookieParser());
 
   // Route kiem tra server con song hay khong
   app.get('/api/health', (_req: Request, res: Response) => {
@@ -31,6 +36,8 @@ export function createApp() {
     });
   });
 
+  app.use('/api/auth', authRoutes);
+
   // Khong khop route nao -> tra ve 404 dang JSON
   app.use((req: Request, res: Response) => {
     res.status(404).json({
@@ -41,6 +48,11 @@ export function createApp() {
 
   // Bat moi loi phat sinh trong app va tra ve dang JSON thong nhat
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    if (err instanceof AppError) {
+      res.status(err.statusCode).json({ success: false, message: err.message });
+      return;
+    }
+
     const message =
       err instanceof Error ? err.message : 'Loi khong xac dinh tu server';
 
