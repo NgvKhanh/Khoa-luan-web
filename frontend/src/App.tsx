@@ -3,6 +3,7 @@ import MainLayout from './layouts/MainLayout';
 import LoginPage from './pages/LoginPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
+import ProjectKanbanPage from './pages/ProjectKanbanPage';
 import ProjectsPage from './pages/ProjectsPage';
 import RegisterPage from './pages/RegisterPage';
 import TeamDetailPage from './pages/TeamDetailPage';
@@ -29,6 +30,10 @@ function App() {
           <Route path="/teams/:teamId" element={<TeamDetailPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
+          <Route
+            path="/projects/:projectId/kanban"
+            element={<ProjectKanbanPage />}
+          />
         </Route>
       </Route>
 
