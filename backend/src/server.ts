@@ -1,0 +1,47 @@
+import { createApp } from './app';
+import { env } from './config/env';
+
+function startServer() {
+  try {
+    const app = createApp();
+
+    const server = app.listen(env.port, () => {
+      console.log(`Server dang chay tai http://localhost:${env.port}`);
+      console.log(`Moi truong: ${env.nodeEnv}`);
+      console.log(`Kiem tra: http://localhost:${env.port}/api/health`);
+    });
+
+    // Cong da bi chuong trinh khac chiem -> bao loi ro rang thay vi crash kho hieu
+    server.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(
+          `Cong ${env.port} dang bi chuong trinh khac su dung. Hay doi PORT trong file .env.`
+        );
+      } else {
+        console.error('Khong khoi dong duoc server:', error.message);
+      }
+      process.exit(1);
+    });
+
+    // Tat server mot cach an toan khi nhan tin hieu dung (Ctrl + C)
+    const shutdown = (signal: string) => {
+      console.log(`\nNhan tin hieu ${signal}, dang tat server...`);
+      server.close(() => {
+        console.log('Server da dung.');
+        process.exit(0);
+      });
+    };
+
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+  } catch (error) {
+    // Thuong gap khi thieu hoac sai bien moi truong
+    console.error(
+      'Loi cau hinh khi khoi dong server:',
+      error instanceof Error ? error.message : error
+    );
+    process.exit(1);
+  }
+}
+
+startServer();
