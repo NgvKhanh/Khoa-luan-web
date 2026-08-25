@@ -166,7 +166,11 @@ export default function ProjectTaskListPage() {
             <tbody>
               {tasks.map((task) => (
                 <tr key={task.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2 text-slate-800">{task.title}</td>
+                  <td className="px-4 py-2 text-slate-800">
+                    <Link to={`/tasks/${task.id}`} className="hover:text-indigo-600 hover:underline">
+                      {task.title}
+                    </Link>
+                  </td>
                   <td className="px-4 py-2 text-slate-600">
                     {TASK_STATUS_LABELS[task.status]}
                   </td>

@@ -9,7 +9,7 @@ const TASK_INCLUDE = {
   assignee: { select: { id: true, name: true, email: true, avatarUrl: true } },
 } as const;
 
-async function getActiveTaskOrThrow(taskId: string) {
+export async function getActiveTaskOrThrow(taskId: string) {
   const task = await prisma.task.findFirst({
     where: { id: taskId, deletedAt: null },
   });

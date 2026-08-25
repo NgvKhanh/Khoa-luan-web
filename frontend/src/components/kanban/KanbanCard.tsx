@@ -1,5 +1,6 @@
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { Link } from 'react-router-dom';
 import {
   TASK_PRIORITY_COLORS,
   TASK_PRIORITY_LABELS,
@@ -46,6 +47,13 @@ export default function KanbanCard({ task }: { task: Task }) {
           style={{ width: `${task.progress}%` }}
         />
       </div>
+      <Link
+        to={`/tasks/${task.id}`}
+        onPointerDown={(e) => e.stopPropagation()}
+        className="mt-2 block text-xs font-medium text-indigo-600 hover:underline"
+      >
+        Xem chi tiết →
+      </Link>
     </div>
   );
 }

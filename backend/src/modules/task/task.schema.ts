@@ -31,8 +31,11 @@ export const updateTaskSchema = z
     assigneeId: z.union([z.string().min(1), z.null()]).optional(),
     status: taskStatusEnum.optional(),
     priority: taskPriorityEnum.optional(),
-    startDate: z.union([z.coerce.date(), z.null()]).optional(),
-    dueDate: z.union([z.coerce.date(), z.null()]).optional(),
+    // Luu y: z.null() phai dat TRUOC z.coerce.date() trong union.
+    // Ly do: z.coerce.date() goi new Date(null) va JS tra ve epoch (1970-01-01)
+    // thay vi bao loi, nen se "nuot" gia tri null truoc khi toi luot z.null().
+    startDate: z.union([z.null(), z.coerce.date()]).optional(),
+    dueDate: z.union([z.null(), z.coerce.date()]).optional(),
     progress: z
       .number()
       .int('Tien do phai la so nguyen')

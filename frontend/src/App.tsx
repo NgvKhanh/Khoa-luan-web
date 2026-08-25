@@ -7,6 +7,7 @@ import ProjectKanbanPage from './pages/ProjectKanbanPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectTaskListPage from './pages/ProjectTaskListPage';
 import RegisterPage from './pages/RegisterPage';
+import TaskDetailPage from './pages/TaskDetailPage';
 import TeamDetailPage from './pages/TeamDetailPage';
 import TeamsPage from './pages/TeamsPage';
 import ProtectedRoute from './routes/ProtectedRoute';
@@ -39,6 +40,7 @@ function App() {
             path="/projects/:projectId/tasks"
             element={<ProjectTaskListPage />}
           />
+          <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
         </Route>
       </Route>
 
