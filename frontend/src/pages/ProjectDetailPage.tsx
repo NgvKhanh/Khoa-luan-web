@@ -131,12 +131,20 @@ export default function ProjectDetailPage() {
           {project.description && (
             <p className="mt-1 text-sm text-slate-500">{project.description}</p>
           )}
-          <Link
-            to={`/projects/${project.id}/kanban`}
-            className="mt-2 inline-block text-sm font-medium text-indigo-600 hover:underline"
-          >
-            Xem bảng Kanban →
-          </Link>
+          <div className="mt-2 flex gap-4">
+            <Link
+              to={`/projects/${project.id}/kanban`}
+              className="text-sm font-medium text-indigo-600 hover:underline"
+            >
+              Xem bảng Kanban →
+            </Link>
+            <Link
+              to={`/projects/${project.id}/tasks`}
+              className="text-sm font-medium text-indigo-600 hover:underline"
+            >
+              Xem danh sách công việc →
+            </Link>
+          </div>
         </div>
         {isManager && (
           <button

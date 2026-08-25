@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { AppError } from '../../utils/AppError';
 import { asyncHandler } from '../../utils/asyncHandler';
-import type { CreateTaskInput, UpdateTaskInput } from './task.schema';
+import type { CreateTaskInput, TaskQueryInput, UpdateTaskInput } from './task.schema';
 import {
   createTask,
   deleteTask,
@@ -30,11 +30,12 @@ export const createTaskHandler = asyncHandler(
 
 export const listProjectTasksHandler = asyncHandler(
   async (req: Request, res: Response) => {
-    const tasks = await listProjectTasks(
+    const result = await listProjectTasks(
       requireUserId(req),
-      req.params.projectId as string
+      req.params.projectId as string,
+      res.locals.query as TaskQueryInput
     );
-    res.json({ success: true, data: { tasks } });
+    res.json({ success: true, data: result });
   }
 );
 

@@ -57,5 +57,17 @@ export const updateTaskSchema = z
     }
   );
 
+export const taskQuerySchema = z.object({
+  search: z.string().trim().max(200).optional(),
+  status: taskStatusEnum.optional(),
+  priority: taskPriorityEnum.optional(),
+  assigneeId: z.string().min(1).optional(),
+  sortBy: z.enum(['dueDate', 'createdAt']).optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
+});
+
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
+export type TaskQueryInput = z.infer<typeof taskQuerySchema>;

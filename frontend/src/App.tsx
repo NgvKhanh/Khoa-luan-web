@@ -5,6 +5,7 @@ import PlaceholderPage from './pages/PlaceholderPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import ProjectKanbanPage from './pages/ProjectKanbanPage';
 import ProjectsPage from './pages/ProjectsPage';
+import ProjectTaskListPage from './pages/ProjectTaskListPage';
 import RegisterPage from './pages/RegisterPage';
 import TeamDetailPage from './pages/TeamDetailPage';
 import TeamsPage from './pages/TeamsPage';
@@ -33,6 +34,10 @@ function App() {
           <Route
             path="/projects/:projectId/kanban"
             element={<ProjectKanbanPage />}
+          />
+          <Route
+            path="/projects/:projectId/tasks"
+            element={<ProjectTaskListPage />}
           />
         </Route>
       </Route>

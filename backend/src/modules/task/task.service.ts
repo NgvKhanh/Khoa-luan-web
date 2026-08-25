@@ -2,7 +2,7 @@ import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity-log/activityLog.service';
 import { assertProjectMember } from '../project/project.service';
-import type { CreateTaskInput, UpdateTaskInput } from './task.schema';
+import type { CreateTaskInput, TaskQueryInput, UpdateTaskInput } from './task.schema';
 
 const TASK_INCLUDE = {
   creator: { select: { id: true, name: true, email: true, avatarUrl: true } },
@@ -75,14 +75,57 @@ export async function createTask(
   return task;
 }
 
-export async function listProjectTasks(userId: string, projectId: string) {
+export async function listProjectTasks(
+  userId: string,
+  projectId: string,
+  query: TaskQueryInput
+) {
   await assertProjectMember(projectId, userId);
 
-  return prisma.task.findMany({
-    where: { projectId, deletedAt: null },
+  const where = {
+    projectId,
+    deletedAt: null,
+    ...(query.search
+      ? { title: { contains: query.search, mode: 'insensitive' as const } }
+      : {}),
+    ...(query.status ? { status: query.status } : {}),
+    ...(query.priority ? { priority: query.priority } : {}),
+    ...(query.assigneeId ? { assigneeId: query.assigneeId } : {}),
+  };
+
+  const sortBy = query.sortBy ?? 'createdAt';
+  const sortOrder = query.sortOrder ?? (sortBy === 'dueDate' ? 'asc' : 'desc');
+  const orderBy =
+    sortBy === 'dueDate'
+      ? { dueDate: { sort: sortOrder, nulls: 'last' as const } }
+      : { createdAt: sortOrder };
+
+  const total = await prisma.task.count({ where });
+
+  // Chi phan trang khi client thuc su yeu cau (co truyen page hoac pageSize),
+  // de trang Kanban van goi duoc toan bo cong viec ma khong bi cat bot.
+  const shouldPaginate = query.page !== undefined || query.pageSize !== undefined;
+  const page = query.page ?? 1;
+  const pageSize = query.pageSize ?? 20;
+
+  const tasks = await prisma.task.findMany({
+    where,
     include: TASK_INCLUDE,
-    orderBy: { createdAt: 'desc' },
+    orderBy,
+    ...(shouldPaginate
+      ? { skip: (page - 1) * pageSize, take: pageSize }
+      : {}),
   });
+
+  return {
+    tasks,
+    pagination: {
+      page,
+      pageSize: shouldPaginate ? pageSize : total,
+      total,
+      totalPages: shouldPaginate ? Math.max(1, Math.ceil(total / pageSize)) : 1,
+    },
+  };
 }
 
 export async function getTaskDetail(userId: string, taskId: string) {

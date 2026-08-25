@@ -1,11 +1,42 @@
 import { api } from '../axios';
 import type { Task, TaskPriority, TaskStatus } from '../../types/task';
 
-export async function fetchProjectTasks(projectId: string): Promise<Task[]> {
-  const res = await api.get<{ data: { tasks: Task[] } }>(
-    `/projects/${projectId}/tasks`
+export interface TaskListQuery {
+  search?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  assigneeId?: string;
+  sortBy?: 'dueDate' | 'createdAt';
+  sortOrder?: 'asc' | 'desc';
+  page?: number;
+  pageSize?: number;
+}
+
+export interface TaskListResult {
+  tasks: Task[];
+  pagination: { page: number; pageSize: number; total: number; totalPages: number };
+}
+
+export async function fetchProjectTasks(
+  projectId: string,
+  query: TaskListQuery = {}
+): Promise<Task[]> {
+  const res = await api.get<{ data: TaskListResult }>(
+    `/projects/${projectId}/tasks`,
+    { params: query }
   );
   return res.data.data.tasks;
+}
+
+export async function fetchProjectTasksPaged(
+  projectId: string,
+  query: TaskListQuery
+): Promise<TaskListResult> {
+  const res = await api.get<{ data: TaskListResult }>(
+    `/projects/${projectId}/tasks`,
+    { params: query }
+  );
+  return res.data.data;
 }
 
 export async function fetchTaskDetail(taskId: string): Promise<Task> {

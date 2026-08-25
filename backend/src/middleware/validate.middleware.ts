@@ -26,3 +26,29 @@ export function validateBody(schema: z.ZodTypeAny) {
     next();
   };
 }
+
+/**
+ * Tao middleware validate req.query theo 1 Zod schema (dung cho loc/sap xep/phan trang).
+ * Ket qua da validate/chuyen kieu duoc luu vao res.locals.query vi Express 5
+ * khong cho phep gan de len req.query.
+ */
+export function validateQuery(schema: z.ZodTypeAny) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const result = schema.safeParse(req.query);
+
+    if (!result.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Tham so tim kiem khong hop le',
+        errors: result.error.issues.map((issue) => ({
+          field: issue.path.join('.'),
+          message: issue.message,
+        })),
+      });
+      return;
+    }
+
+    res.locals.query = result.data;
+    next();
+  };
+}
