@@ -61,4 +61,6 @@ export const env = {
     .split(',')
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0),
+  /** Chuoi ket noi PostgreSQL, bat buoc phai co */
+  databaseUrl: getString('DATABASE_URL'),
 };
