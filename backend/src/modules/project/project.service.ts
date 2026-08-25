@@ -19,7 +19,7 @@ async function getProjectMembership(projectId: string, userId: string) {
   });
 }
 
-async function assertProjectMember(projectId: string, userId: string) {
+export async function assertProjectMember(projectId: string, userId: string) {
   const membership = await getProjectMembership(projectId, userId);
   if (!membership) {
     throw new AppError('Ban khong phai thanh vien cua du an nay', 403);

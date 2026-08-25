@@ -4,6 +4,7 @@ import cors from 'cors';
 import { env } from './config/env';
 import authRoutes from './modules/auth/auth.routes';
 import projectRoutes from './modules/project/project.routes';
+import { projectTaskRoutes, taskRoutes } from './modules/task/task.routes';
 import teamRoutes from './modules/team/team.routes';
 import { AppError } from './utils/AppError';
 
@@ -41,6 +42,8 @@ export function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/teams', teamRoutes);
   app.use('/api/projects', projectRoutes);
+  app.use('/api/projects/:projectId/tasks', projectTaskRoutes);
+  app.use('/api/tasks', taskRoutes);
 
   // Khong khop route nao -> tra ve 404 dang JSON
   app.use((req: Request, res: Response) => {
