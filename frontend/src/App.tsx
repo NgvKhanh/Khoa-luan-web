@@ -3,6 +3,8 @@ import MainLayout from './layouts/MainLayout';
 import LoginPage from './pages/LoginPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import RegisterPage from './pages/RegisterPage';
+import TeamDetailPage from './pages/TeamDetailPage';
+import TeamsPage from './pages/TeamsPage';
 import ProtectedRoute from './routes/ProtectedRoute';
 
 function App() {
@@ -21,7 +23,8 @@ function App() {
             path="/my-tasks"
             element={<PlaceholderPage title="Công việc của tôi" />}
           />
-          <Route path="/teams" element={<PlaceholderPage title="Nhóm" />} />
+          <Route path="/teams" element={<TeamsPage />} />
+          <Route path="/teams/:teamId" element={<TeamDetailPage />} />
           <Route
             path="/projects"
             element={<PlaceholderPage title="Dự án" />}

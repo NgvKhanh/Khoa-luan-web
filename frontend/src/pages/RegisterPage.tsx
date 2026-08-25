@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { getErrorMessage } from '../lib/errorMessage';
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -22,11 +22,7 @@ export default function RegisterPage() {
       await register(name, email, password);
       navigate('/', { replace: true });
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.data?.message) {
-        setError(err.response.data.message);
-      } else {
-        setError('Không thể đăng ký. Vui lòng thử lại.');
-      }
+      setError(getErrorMessage(err, 'Không thể đăng ký. Vui lòng thử lại.'));
     } finally {
       setIsSubmitting(false);
     }
