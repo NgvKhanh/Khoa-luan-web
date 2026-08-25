@@ -1,11 +1,37 @@
+import { Navigate, Route, Routes } from 'react-router-dom';
+import MainLayout from './layouts/MainLayout';
+import LoginPage from './pages/LoginPage';
+import PlaceholderPage from './pages/PlaceholderPage';
+import RegisterPage from './pages/RegisterPage';
+import ProtectedRoute from './routes/ProtectedRoute';
+
 function App() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <h1 className="text-2xl font-semibold text-slate-800">
-        TaskFlow — Website quản lý công việc và dự án
-      </h1>
-    </div>
-  )
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+
+      <Route element={<ProtectedRoute />}>
+        <Route element={<MainLayout />}>
+          <Route
+            path="/"
+            element={<PlaceholderPage title="Bảng điều khiển" />}
+          />
+          <Route
+            path="/my-tasks"
+            element={<PlaceholderPage title="Công việc của tôi" />}
+          />
+          <Route path="/teams" element={<PlaceholderPage title="Nhóm" />} />
+          <Route
+            path="/projects"
+            element={<PlaceholderPage title="Dự án" />}
+          />
+        </Route>
+      </Route>
+
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 }
 
-export default App
+export default App;
