@@ -1,1 +1,24 @@
 @import "tailwindcss";
+
+:root {
+  --nav-bg: #1558bc;
+  --app-bg: #f1f2f4;
+}
+
+body {
+  background-color: var(--app-bg);
+}
+
+/* Thanh cuon ngang cua board cho giong Trello (nen mo, thumb sang) */
+.board-scroll::-webkit-scrollbar {
+  height: 14px;
+}
+.board-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.12);
+}
+.board-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
