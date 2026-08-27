@@ -4,6 +4,7 @@ import cors from 'cors';
 import { env } from './config/env';
 import authRoutes from './modules/auth/auth.routes';
 import { commentRoutes, taskCommentRoutes } from './modules/comment/comment.routes';
+import { listRoutes, projectListRoutes } from './modules/list/list.routes';
 import projectRoutes from './modules/project/project.routes';
 import { subtaskRoutes, taskSubtaskRoutes } from './modules/subtask/subtask.routes';
 import {
@@ -49,6 +50,8 @@ export function createApp() {
   app.use('/api/teams', teamRoutes);
   app.use('/api/projects', projectRoutes);
   app.use('/api/projects/:projectId/tasks', projectTaskRoutes);
+  app.use('/api/projects/:projectId/lists', projectListRoutes);
+  app.use('/api/lists', listRoutes);
   app.use('/api/tasks/:taskId/subtasks', taskSubtaskRoutes);
   app.use('/api/tasks/:taskId/dependencies', taskDependencyRoutes);
   app.use('/api/tasks/:taskId/comments', taskCommentRoutes);

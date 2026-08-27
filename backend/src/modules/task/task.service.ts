@@ -4,7 +4,7 @@ import { logActivity } from '../activity-log/activityLog.service';
 import { assertProjectMember } from '../project/project.service';
 import type { CreateTaskInput, TaskQueryInput, UpdateTaskInput } from './task.schema';
 
-const TASK_INCLUDE = {
+export const TASK_INCLUDE = {
   creator: { select: { id: true, name: true, email: true, avatarUrl: true } },
   assignee: { select: { id: true, name: true, email: true, avatarUrl: true } },
 } as const;
