@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 import { useAuth } from '../context/AuthContext';
 import { getErrorMessage } from '../lib/errorMessage';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -13,6 +14,11 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  function redirectAfterAuth() {
+    const redirectTo = (location.state as { from?: string } | null)?.from ?? '/';
+    navigate(redirectTo, { replace: true });
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -20,11 +26,22 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      const redirectTo =
-        (location.state as { from?: string } | null)?.from ?? '/';
-      navigate(redirectTo, { replace: true });
+      redirectAfterAuth();
     } catch (err) {
       setError(getErrorMessage(err, 'Không thể đăng nhập. Vui lòng thử lại.'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleGoogle(idToken: string) {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await loginWithGoogle(idToken);
+      redirectAfterAuth();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Đăng nhập bằng Google thất bại.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -78,6 +95,14 @@ export default function LoginPage() {
             {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </button>
         </form>
+
+        <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
+          <span className="h-px flex-1 bg-slate-200" />
+          hoặc
+          <span className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        <GoogleSignInButton text="signin_with" onCredential={handleGoogle} />
 
         <p className="mt-4 text-center text-sm text-slate-500">
           Chưa có tài khoản?{' '}
