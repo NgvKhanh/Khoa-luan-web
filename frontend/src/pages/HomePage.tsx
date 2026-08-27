@@ -2,41 +2,10 @@ import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchMyTeams } from '../lib/api/team';
 import { createProject, fetchMyProjects } from '../lib/api/project';
+import { colorForId, initialsOf } from '../lib/avatar';
 import { getErrorMessage } from '../lib/errorMessage';
 import type { TeamListItem } from '../types/team';
 import type { ProjectListItem } from '../types/project';
-
-// Bang mau kieu Trello: moi "board" duoc gan 1 mau nen dac dua tren id,
-// nen mau on dinh qua moi lan tai lai trang (khong random moi render).
-const BOARD_COLORS = [
-  '#0079BF',
-  '#D29034',
-  '#519839',
-  '#B04632',
-  '#89609E',
-  '#CD5A91',
-  '#4BBF6B',
-  '#00AECC',
-  '#838C91',
-  '#172B4D',
-];
-
-function colorForId(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i += 1) {
-    hash = (hash * 31 + id.charCodeAt(i)) % BOARD_COLORS.length;
-  }
-  return BOARD_COLORS[hash]!;
-}
-
-function initialsOf(name: string): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(-2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('');
-}
 
 interface NewBoardTileProps {
   teamId: string;
@@ -77,7 +46,7 @@ function NewBoardTile({ teamId, onCreated, onCancel }: NewBoardTileProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex h-24 flex-col justify-between rounded-lg bg-slate-100 p-3"
+      className="flex h-24 flex-col justify-between rounded-lg bg-slate-200 p-2"
     >
       <input
         autoFocus
@@ -87,8 +56,8 @@ function NewBoardTile({ teamId, onCreated, onCancel }: NewBoardTileProps) {
         onChange={(e) => setName(e.target.value)}
         onKeyDown={handleKeyDown}
         onBlur={submit}
-        placeholder="Tên bảng..."
-        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm focus:border-indigo-500 focus:outline-none"
+        placeholder="Nhập tên bảng..."
+        className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
       />
       {error && <p className="text-xs text-red-600">{error}</p>}
       {!error && (
@@ -96,7 +65,7 @@ function NewBoardTile({ teamId, onCreated, onCancel }: NewBoardTileProps) {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="rounded bg-indigo-600 px-2 py-1 font-medium text-white hover:bg-indigo-700"
+            className="rounded bg-blue-600 px-2 py-1 font-medium text-white hover:bg-blue-700"
           >
             Tạo
           </button>
@@ -152,6 +121,10 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col gap-8">
+      <h1 className="text-lg font-semibold text-slate-700">
+        Các không gian làm việc của bạn
+      </h1>
+
       {teams.length === 0 && (
         <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center">
           <p className="text-sm text-slate-600">
@@ -159,7 +132,7 @@ export default function HomePage() {
           </p>
           <Link
             to="/teams"
-            className="mt-2 inline-block text-sm font-medium text-indigo-600 hover:underline"
+            className="mt-2 inline-block text-sm font-medium text-blue-600 hover:underline"
           >
             Tạo nhóm đầu tiên →
           </Link>
@@ -181,7 +154,7 @@ export default function HomePage() {
               </span>
               <Link
                 to={`/teams/${team.id}`}
-                className="text-sm font-semibold text-slate-700 hover:text-indigo-600"
+                className="text-sm font-semibold text-slate-700 hover:text-blue-600"
               >
                 {team.name}
               </Link>
@@ -194,16 +167,17 @@ export default function HomePage() {
               {teamProjects.map((project) => (
                 <Link
                   key={project.id}
-                  to={`/projects/${project.id}/kanban`}
-                  className="flex h-24 flex-col justify-between rounded-lg p-3 text-white shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
+                  to={`/projects/${project.id}/board`}
+                  className="group relative flex h-24 flex-col justify-between overflow-hidden rounded-lg p-3 font-semibold text-white shadow-sm"
                   style={{ backgroundColor: colorForId(project.id) }}
                 >
-                  <span className="font-semibold leading-snug line-clamp-2">
+                  <span className="relative z-10 leading-snug line-clamp-2">
                     {project.name}
                   </span>
-                  <span className="text-xs text-white/80">
+                  <span className="relative z-10 text-xs font-normal text-white/80">
                     {project.memberCount} thành viên
                   </span>
+                  <span className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
                 </Link>
               ))}
 
@@ -220,7 +194,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => setCreatingForTeamId(team.id)}
-                  className="flex h-24 flex-col items-center justify-center gap-1 rounded-lg bg-slate-100 text-sm font-medium text-slate-500 hover:bg-slate-200"
+                  className="flex h-24 flex-col items-center justify-center gap-1 rounded-lg bg-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-300"
                 >
                   <span className="text-lg leading-none">+</span>
                   Tạo bảng mới

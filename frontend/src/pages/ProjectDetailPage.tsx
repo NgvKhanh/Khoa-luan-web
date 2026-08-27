@@ -133,14 +133,14 @@ export default function ProjectDetailPage() {
           )}
           <div className="mt-2 flex gap-4">
             <Link
-              to={`/projects/${project.id}/kanban`}
-              className="text-sm font-medium text-indigo-600 hover:underline"
+              to={`/projects/${project.id}/board`}
+              className="text-sm font-medium text-blue-600 hover:underline"
             >
-              Xem bảng Kanban →
+              Mở bảng →
             </Link>
             <Link
               to={`/projects/${project.id}/tasks`}
-              className="text-sm font-medium text-indigo-600 hover:underline"
+              className="text-sm font-medium text-blue-600 hover:underline"
             >
               Xem danh sách công việc →
             </Link>
