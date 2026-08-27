@@ -48,6 +48,16 @@ async function assertTeamMember(teamId: string, userId: string) {
   return membership;
 }
 
+// 5 list mac dinh sinh kem khi tao du an, tuong ung 5 trang thai cong viec.
+// Nho vay bang moi tao da co cot san (giong Trello), nguoi dung van doi/them/xoa duoc sau.
+const DEFAULT_LIST_NAMES = [
+  'Cần làm',
+  'Đang làm',
+  'Chờ duyệt',
+  'Hoàn thành',
+  'Bị chặn',
+];
+
 export async function createProject(userId: string, input: CreateProjectInput) {
   const team = await prisma.team.findFirst({
     where: { id: input.teamId, deletedAt: null },
@@ -65,6 +75,12 @@ export async function createProject(userId: string, input: CreateProjectInput) {
       description: input.description,
       members: {
         create: { userId, role: 'MANAGER' },
+      },
+      lists: {
+        create: DEFAULT_LIST_NAMES.map((name, index) => ({
+          name,
+          position: index,
+        })),
       },
     },
   });
