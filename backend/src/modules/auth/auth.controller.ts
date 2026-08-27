@@ -6,10 +6,16 @@ import { asyncHandler } from '../../utils/asyncHandler';
 import {
   getUserProfile,
   loginUser,
+  loginWithGoogle,
   registerUser,
   updateUserProfile,
 } from './auth.service';
-import type { LoginInput, RegisterInput, UpdateProfileInput } from './auth.schema';
+import type {
+  GoogleAuthInput,
+  LoginInput,
+  RegisterInput,
+  UpdateProfileInput,
+} from './auth.schema';
 
 const TOKEN_COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 ngay
 
@@ -40,6 +46,17 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   res.json({
     success: true,
     message: 'Dang nhap thanh cong',
+    data: { user, token },
+  });
+});
+
+export const googleAuth = asyncHandler(async (req: Request, res: Response) => {
+  const { user, token } = await loginWithGoogle(req.body as GoogleAuthInput);
+
+  res.cookie(TOKEN_COOKIE_NAME, token, tokenCookieOptions());
+  res.json({
+    success: true,
+    message: 'Dang nhap bang Google thanh cong',
     data: { user, token },
   });
 });

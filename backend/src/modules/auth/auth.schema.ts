@@ -18,6 +18,11 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Vui long nhap mat khau'),
 });
 
+// ID token nhan tu Google Identity Services o phia frontend
+export const googleAuthSchema = z.object({
+  idToken: z.string().min(10, 'Thieu ID token cua Google'),
+});
+
 export const updateProfileSchema = z.object({
   name: z
     .string()
@@ -32,4 +37,5 @@ export const updateProfileSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type GoogleAuthInput = z.infer<typeof googleAuthSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
