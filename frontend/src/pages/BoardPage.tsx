@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   DndContext,
   DragOverlay,
@@ -21,6 +21,7 @@ import {
 import BoardList from '../components/board/BoardList';
 import BoardCard from '../components/board/BoardCard';
 import AddListForm from '../components/board/AddListForm';
+import CardModal from '../components/board/CardModal';
 import { colorForId } from '../lib/avatar';
 import { getErrorMessage } from '../lib/errorMessage';
 import {
@@ -42,6 +43,8 @@ function listIdFromDnd(id: string): string | null {
 
 export default function BoardPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openCardId = searchParams.get('card');
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [lists, setLists] = useState<BoardListType[]>([]);
@@ -250,8 +253,12 @@ export default function BoardPage() {
   }
 
   function handleOpenCard(taskId: string) {
-    // Buoc sau se thay bang modal; tam thoi mo trang chi tiet
-    window.location.assign(`/tasks/${taskId}`);
+    setSearchParams({ card: taskId });
+  }
+
+  function handleCloseCard() {
+    setSearchParams({});
+    loadBoard(); // dong bo lai bang sau khi sua the trong modal
   }
 
   const boardColor = project ? colorForId(project.id) : '#0079BF';
@@ -338,6 +345,14 @@ export default function BoardPage() {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {openCardId && (
+        <CardModal
+          taskId={openCardId}
+          onClose={handleCloseCard}
+          onChanged={loadBoard}
+        />
+      )}
     </div>
   );
 }
