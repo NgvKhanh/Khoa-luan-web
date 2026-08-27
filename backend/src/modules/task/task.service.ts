@@ -2,7 +2,12 @@ import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity-log/activityLog.service';
 import { assertProjectMember } from '../project/project.service';
-import type { CreateTaskInput, TaskQueryInput, UpdateTaskInput } from './task.schema';
+import type {
+  CreateTaskInput,
+  MoveTaskInput,
+  TaskQueryInput,
+  UpdateTaskInput,
+} from './task.schema';
 
 export const TASK_INCLUDE = {
   creator: { select: { id: true, name: true, email: true, avatarUrl: true } },
@@ -31,6 +36,26 @@ async function assertAssigneeIsProjectMember(projectId: string, userId: string) 
   }
 }
 
+// Tra ve cot (List) hop le thuoc dung du an. Neu khong truyen listId thi lay cot dau tien.
+async function resolveListForProject(
+  projectId: string,
+  listId: string | undefined
+) {
+  if (listId) {
+    const list = await prisma.list.findFirst({
+      where: { id: listId, projectId, deletedAt: null },
+    });
+    if (!list) {
+      throw new AppError('Cot khong ton tai trong du an nay', 400);
+    }
+    return list;
+  }
+  return prisma.list.findFirst({
+    where: { projectId, deletedAt: null },
+    orderBy: { position: 'asc' },
+  });
+}
+
 export async function createTask(
   userId: string,
   projectId: string,
@@ -49,9 +74,23 @@ export async function createTask(
     await assertAssigneeIsProjectMember(projectId, input.assigneeId);
   }
 
+  const list = await resolveListForProject(projectId, input.listId);
+
+  // The moi xep xuong cuoi cot
+  const lastInList = list
+    ? await prisma.task.findFirst({
+        where: { listId: list.id, deletedAt: null },
+        orderBy: { position: 'desc' },
+        select: { position: true },
+      })
+    : null;
+  const nextPosition = lastInList ? lastInList.position + 1 : 0;
+
   const task = await prisma.task.create({
     data: {
       projectId,
+      listId: list?.id ?? null,
+      position: nextPosition,
       creatorId: userId,
       title: input.title,
       description: input.description,
@@ -209,6 +248,70 @@ export async function updateTask(
   ]);
 
   return updatedTask;
+}
+
+/**
+ * Keo tha the tren bang: chuyen the sang cot `listId` va chen vao vi tri `position`.
+ * Sau khi chen se danh so lai position cua cac the trong cot nguon va cot dich
+ * de thu tu luon lien mach (0,1,2...).
+ */
+export async function moveTask(
+  userId: string,
+  taskId: string,
+  input: MoveTaskInput
+) {
+  const task = await getActiveTaskOrThrow(taskId);
+  await assertProjectMember(task.projectId, userId);
+
+  const targetList = await prisma.list.findFirst({
+    where: { id: input.listId, projectId: task.projectId, deletedAt: null },
+  });
+  if (!targetList) {
+    throw new AppError('Cot dich khong ton tai trong du an nay', 400);
+  }
+
+  const sourceListId = task.listId;
+
+  // Danh sach the trong cot dich (khong tinh the dang keo), theo thu tu hien tai
+  const targetTasks = await prisma.task.findMany({
+    where: { listId: targetList.id, deletedAt: null, id: { not: taskId } },
+    orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+    select: { id: true },
+  });
+
+  const targetIndex = Math.min(Math.max(input.position, 0), targetTasks.length);
+  const orderedIds = [
+    ...targetTasks.slice(0, targetIndex).map((t) => t.id),
+    taskId,
+    ...targetTasks.slice(targetIndex).map((t) => t.id),
+  ];
+
+  const writes = [
+    ...orderedIds.map((id, index) =>
+      prisma.task.update({
+        where: { id },
+        data: { position: index, listId: targetList.id },
+      })
+    ),
+  ];
+
+  // Neu doi cot, danh so lai cot nguon cho lien mach
+  if (sourceListId && sourceListId !== targetList.id) {
+    const remaining = await prisma.task.findMany({
+      where: { listId: sourceListId, deletedAt: null, id: { not: taskId } },
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    });
+    remaining.forEach((row, index) => {
+      writes.push(
+        prisma.task.update({ where: { id: row.id }, data: { position: index } })
+      );
+    });
+  }
+
+  await prisma.$transaction(writes);
+
+  return prisma.task.findFirst({ where: { id: taskId }, include: TASK_INCLUDE });
 }
 
 export async function deleteTask(userId: string, taskId: string) {

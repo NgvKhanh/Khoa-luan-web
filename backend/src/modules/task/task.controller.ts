@@ -1,12 +1,18 @@
 import type { Request, Response } from 'express';
 import { AppError } from '../../utils/AppError';
 import { asyncHandler } from '../../utils/asyncHandler';
-import type { CreateTaskInput, TaskQueryInput, UpdateTaskInput } from './task.schema';
+import type {
+  CreateTaskInput,
+  MoveTaskInput,
+  TaskQueryInput,
+  UpdateTaskInput,
+} from './task.schema';
 import {
   createTask,
   deleteTask,
   getTaskDetail,
   listProjectTasks,
+  moveTask,
   updateTask,
 } from './task.service';
 
@@ -54,6 +60,17 @@ export const updateTaskHandler = asyncHandler(
       req.body as UpdateTaskInput
     );
     res.json({ success: true, message: 'Cap nhat cong viec thanh cong', data: { task } });
+  }
+);
+
+export const moveTaskHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const task = await moveTask(
+      requireUserId(req),
+      req.params.taskId as string,
+      req.body as MoveTaskInput
+    );
+    res.json({ success: true, message: 'Da di chuyen the', data: { task } });
   }
 );
 

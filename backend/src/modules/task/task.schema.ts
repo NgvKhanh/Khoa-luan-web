@@ -10,11 +10,22 @@ export const createTaskSchema = z.object({
     .min(2, 'Tieu de phai co it nhat 2 ky tu')
     .max(200, 'Tieu de qua dai'),
   description: z.string().trim().max(5000, 'Mo ta qua dai').optional(),
+  // Cot (List) chua the moi. Neu khong truyen, backend xep vao cot dau tien cua du an.
+  listId: z.string().min(1).optional(),
   assigneeId: z.string().min(1).optional(),
   priority: taskPriorityEnum.optional(),
   startDate: z.coerce.date().optional(),
   dueDate: z.coerce.date().optional(),
   estimatedHours: z.number().nonnegative('Gio du kien khong the am').optional(),
+});
+
+// Keo tha the tren bang: chuyen the sang cot listId, chen vao vi tri position
+export const moveTaskSchema = z.object({
+  listId: z.string().min(1, 'Thieu cot dich'),
+  position: z
+    .number()
+    .int('Vi tri phai la so nguyen')
+    .min(0, 'Vi tri khong hop le'),
 });
 
 export const updateTaskSchema = z
@@ -73,4 +84,5 @@ export const taskQuerySchema = z.object({
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
+export type MoveTaskInput = z.infer<typeof moveTaskSchema>;
 export type TaskQueryInput = z.infer<typeof taskQuerySchema>;

@@ -6,9 +6,15 @@ import {
   deleteTaskHandler,
   getTaskDetailHandler,
   listProjectTasksHandler,
+  moveTaskHandler,
   updateTaskHandler,
 } from './task.controller';
-import { createTaskSchema, taskQuerySchema, updateTaskSchema } from './task.schema';
+import {
+  createTaskSchema,
+  moveTaskSchema,
+  taskQuerySchema,
+  updateTaskSchema,
+} from './task.schema';
 
 // Gan vao /api/projects/:projectId/tasks
 export const projectTaskRoutes = Router({ mergeParams: true });
@@ -21,4 +27,5 @@ export const taskRoutes = Router();
 taskRoutes.use(requireAuth);
 taskRoutes.get('/:taskId', getTaskDetailHandler);
 taskRoutes.patch('/:taskId', validateBody(updateTaskSchema), updateTaskHandler);
+taskRoutes.patch('/:taskId/move', validateBody(moveTaskSchema), moveTaskHandler);
 taskRoutes.delete('/:taskId', deleteTaskHandler);
