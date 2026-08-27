@@ -49,6 +49,7 @@ export async function createTask(
   input: {
     title: string;
     description?: string;
+    listId?: string;
     assigneeId?: string;
     priority?: TaskPriority;
     startDate?: string;
@@ -82,6 +83,18 @@ export async function updateTask(
 ): Promise<Task> {
   const res = await api.patch<{ data: { task: Task } }>(
     `/tasks/${taskId}`,
+    input
+  );
+  return res.data.data.task;
+}
+
+// Keo tha the sang cot khac / doi thu tu: position la chi so dich trong cot (tu 0)
+export async function moveTask(
+  taskId: string,
+  input: { listId: string; position: number }
+): Promise<Task> {
+  const res = await api.patch<{ data: { task: Task } }>(
+    `/tasks/${taskId}/move`,
     input
   );
   return res.data.data.task;
