@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
+import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
@@ -20,10 +21,7 @@ function App() {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
-          <Route
-            path="/"
-            element={<PlaceholderPage title="Bảng điều khiển" />}
-          />
+          <Route path="/" element={<HomePage />} />
           <Route
             path="/my-tasks"
             element={<PlaceholderPage title="Công việc của tôi" />}

@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 
 const navItems = [
-  { to: '/', label: 'Bảng điều khiển' },
+  { to: '/', label: 'Trang chủ' },
   { to: '/my-tasks', label: 'Công việc của tôi' },
   { to: '/teams', label: 'Nhóm' },
   { to: '/projects', label: 'Dự án' },
