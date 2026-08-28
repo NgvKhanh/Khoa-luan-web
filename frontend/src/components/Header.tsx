@@ -1,13 +1,6 @@
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { initialsOf } from '../lib/avatar';
-
-// Chi dung cho man hinh nho (khi sidebar bi an). Man hinh lon dung Sidebar.
-const navLinks = [
-  { to: '/', label: 'Bảng', end: true },
-  { to: '/my-tasks', label: 'Việc của tôi', end: false },
-  { to: '/teams', label: 'Nhóm', end: false },
-];
 
 export default function Header() {
   const { user, logout } = useAuth();
@@ -20,7 +13,7 @@ export default function Header() {
 
   return (
     <header
-      className="flex h-12 shrink-0 items-center gap-2 px-3 text-white sm:gap-4 sm:px-4"
+      className="flex h-12 shrink-0 items-center gap-3 px-4 text-white"
       style={{ backgroundColor: 'var(--nav-bg)' }}
     >
       <Link
@@ -36,25 +29,7 @@ export default function Header() {
         TaskFlow
       </Link>
 
-      <nav className="board-scroll flex min-w-0 flex-1 items-center gap-1 overflow-x-auto lg:hidden">
-        {navLinks.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            end={link.end}
-            className={({ isActive }) =>
-              `shrink-0 rounded px-3 py-1.5 text-sm font-medium transition-colors ${
-                isActive ? 'bg-white/25' : 'hover:bg-white/15'
-              }`
-            }
-          >
-            {link.label}
-          </NavLink>
-        ))}
-      </nav>
-
-      {/* Giu khoang cach khi da an nav tren man hinh lon */}
-      <div className="hidden flex-1 lg:block" />
+      <div className="flex-1" />
 
       <div className="flex shrink-0 items-center gap-2">
         <span
@@ -63,6 +38,7 @@ export default function Header() {
         >
           {user ? initialsOf(user.name) : '?'}
         </span>
+        <span className="hidden text-sm sm:block">{user?.name}</span>
         <button
           type="button"
           onClick={handleLogout}

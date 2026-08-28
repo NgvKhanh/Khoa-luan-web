@@ -19,23 +19,6 @@ function Logo({ className = '' }: { className?: string }) {
   );
 }
 
-function Feature({ children }: { children: ReactNode }) {
-  return (
-    <li className="flex items-start gap-3">
-      <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/20">
-        <svg viewBox="0 0 20 20" className="h-3 w-3" fill="currentColor">
-          <path
-            fillRule="evenodd"
-            d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 011.4-1.4l3.3 3.29 6.8-6.8a1 1 0 011.4 0z"
-            clipRule="evenodd"
-          />
-        </svg>
-      </span>
-      <span className="text-sm text-white/90">{children}</span>
-    </li>
-  );
-}
-
 interface Props {
   title: string;
   subtitle: string;
@@ -70,17 +53,11 @@ export default function AuthShell({ title, subtitle, children, footer }: Props) 
 
         <div className="relative max-w-md">
           <h2 className="text-3xl font-bold leading-snug">
-            Quản lý công việc nhóm trực quan như những tấm thẻ trên bảng.
+            Chào mừng đến với TaskFlow.
           </h2>
           <p className="mt-4 text-sm text-white/80">
-            TaskFlow giúp nhóm của bạn sắp xếp công việc theo danh sách, kéo–thả
-            để cập nhật tiến độ và trao đổi ngay trên từng thẻ.
+            Đăng nhập để tiếp tục.
           </p>
-          <ul className="mt-8 flex flex-col gap-3">
-            <Feature>Bảng Kanban kéo–thả, danh sách tuỳ biến</Feature>
-            <Feature>Phân công, mức ưu tiên, deadline, % tiến độ</Feature>
-            <Feature>Bình luận, nhắc tên và lịch sử hoạt động</Feature>
-          </ul>
         </div>
 
         <p className="relative text-xs text-white/60">

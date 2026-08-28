@@ -67,9 +67,4 @@ export const env = {
   jwtSecret: getString('JWT_SECRET'),
   /** Thoi gian song cua JWT, vi du "7d", "1h" */
   jwtExpiresIn: getString('JWT_EXPIRES_IN', '7d'),
-  /**
-   * OAuth Client ID cua Google (dang *.apps.googleusercontent.com).
-   * De trong neu chua bat tinh nang "Dang nhap bang Google".
-   */
-  googleClientId: getString('GOOGLE_CLIENT_ID', ''),
 };

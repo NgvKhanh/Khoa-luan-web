@@ -2,12 +2,11 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthShell, { authFieldClass } from '../components/auth/AuthShell';
 import PasswordField from '../components/auth/PasswordField';
-import GoogleSignInButton from '../components/GoogleSignInButton';
 import { useAuth } from '../context/AuthContext';
 import { getErrorMessage } from '../lib/errorMessage';
 
 export default function RegisterPage() {
-  const { register, loginWithGoogle } = useAuth();
+  const { register } = useAuth();
   const navigate = useNavigate();
 
   const [name, setName] = useState('');
@@ -25,19 +24,6 @@ export default function RegisterPage() {
       navigate('/', { replace: true });
     } catch (err) {
       setError(getErrorMessage(err, 'Không thể đăng ký. Vui lòng thử lại.'));
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  async function handleGoogle(idToken: string) {
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      await loginWithGoogle(idToken);
-      navigate('/', { replace: true });
-    } catch (err) {
-      setError(getErrorMessage(err, 'Đăng ký bằng Google thất bại.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -111,14 +97,6 @@ export default function RegisterPage() {
           {isSubmitting ? 'Đang tạo tài khoản...' : 'Đăng ký'}
         </button>
       </form>
-
-      <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
-        <span className="h-px flex-1 bg-slate-200" />
-        HOẶC
-        <span className="h-px flex-1 bg-slate-200" />
-      </div>
-
-      <GoogleSignInButton text="signup_with" onCredential={handleGoogle} />
     </AuthShell>
   );
 }

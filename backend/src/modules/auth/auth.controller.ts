@@ -6,12 +6,10 @@ import { asyncHandler } from '../../utils/asyncHandler';
 import {
   getUserProfile,
   loginUser,
-  loginWithGoogle,
   registerUser,
   updateUserProfile,
 } from './auth.service';
 import type {
-  GoogleAuthInput,
   LoginInput,
   RegisterInput,
   UpdateProfileInput,
@@ -55,17 +53,6 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   res.json({
     success: true,
     message: 'Dang nhap thanh cong',
-    data: { user, token },
-  });
-});
-
-export const googleAuth = asyncHandler(async (req: Request, res: Response) => {
-  const { user, token } = await loginWithGoogle(req.body as GoogleAuthInput);
-
-  res.cookie(TOKEN_COOKIE_NAME, token, tokenCookieOptions());
-  res.json({
-    success: true,
-    message: 'Dang nhap bang Google thanh cong',
     data: { user, token },
   });
 });
