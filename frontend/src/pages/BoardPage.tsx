@@ -1,24 +1,71 @@
 import {
   useEffect,
+  useMemo,
   useState,
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCorners,
+  useSensor,
+  useSensors,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable';
 import AddListForm from '../components/board/AddListForm';
+import CardItem from '../components/board/CardItem';
 import ListColumn from '../components/board/ListColumn';
 import ConfirmDialog from '../components/ConfirmDialog';
 import type { BoardOutletContext } from '../layouts/BoardViewLayout';
 import { updateBoard } from '../lib/api/board';
+import { createCard, deleteCard, moveCard } from '../lib/api/card';
 import {
   createList,
   deleteList,
   fetchBoardLists,
+  reorderList,
   updateList,
 } from '../lib/api/list';
 import { assetUrl } from '../lib/assets';
 import { getErrorMessage } from '../lib/errorMessage';
+import type { Card } from '../types/card';
 import type { BoardList } from '../types/list';
+
+function listIdFromDnd(id: string): string | null {
+  return id.startsWith('list-') ? id.slice('list-'.length) : null;
+}
+
+// Khi keo 1 CỘT: chi xet va cham voi cac cot khac (bo qua the ben trong)
+// -> "over" luon la 1 cot, hoat hinh + tha dung. Keo the thi giu mac dinh.
+const collisionDetectionStrategy: CollisionDetection = (args) => {
+  if (args.active.data.current?.type === 'list') {
+    return closestCorners({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((c) =>
+        String(c.id).startsWith('list-')
+      ),
+    });
+  }
+  return closestCorners(args);
+};
+
+type DeleteTarget =
+  | { kind: 'list'; list: BoardList }
+  | { kind: 'card'; card: Card }
+  | null;
 
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
@@ -26,17 +73,28 @@ export default function BoardPage() {
     useOutletContext<BoardOutletContext>();
   const board = boards.find((b) => b.id === boardId);
 
-  // ----- Ten bang -----
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // ----- Danh sach trong bang -----
   const [lists, setLists] = useState<BoardList[]>([]);
   const [listsLoading, setListsLoading] = useState(true);
   const [listsError, setListsError] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<BoardList | null>(null);
+
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [activeCard, setActiveCard] = useState<Card | null>(null);
+  const [activeList, setActiveList] = useState<BoardList | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  function reloadLists() {
+    if (boardId) fetchBoardLists(boardId).then(setLists).catch(() => {});
+  }
 
   useEffect(() => {
     if (!boardId) return;
@@ -51,6 +109,13 @@ export default function BoardPage() {
       .finally(() => setListsLoading(false));
   }, [boardId]);
 
+  const listDndIds = useMemo(() => lists.map((l) => `list-${l.id}`), [lists]);
+
+  function findListIdByCard(cardId: string): string | undefined {
+    return lists.find((l) => l.cards.some((c) => c.id === cardId))?.id;
+  }
+
+  // ---------- Ten bang ----------
   async function saveName() {
     if (!board) return;
     const name = draft.trim();
@@ -62,46 +127,189 @@ export default function BoardPage() {
       setSaveError(getErrorMessage(err, 'Không đổi được tên bảng.'));
     }
   }
-
   function onNameKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') saveName();
     if (e.key === 'Escape') setEditing(false);
   }
-
   function onNameSubmit(e: FormEvent) {
     e.preventDefault();
     saveName();
   }
 
+  // ---------- Them / doi ten danh sach & the ----------
   async function handleAddList(name: string) {
     if (!boardId) return;
     const created = await createList(boardId, name);
-    setLists((cur) => [...cur, created]);
+    setLists((cur) => [...cur, { ...created, cards: [] }]);
   }
 
   async function handleRenameList(listId: string, name: string) {
-    setLists((cur) =>
-      cur.map((l) => (l.id === listId ? { ...l, name } : l))
-    );
+    setLists((cur) => cur.map((l) => (l.id === listId ? { ...l, name } : l)));
     try {
       await updateList(listId, { name });
     } catch (err) {
       setListsError(getErrorMessage(err, 'Không đổi được tên danh sách.'));
-      if (boardId) fetchBoardLists(boardId).then(setLists);
+      reloadLists();
     }
   }
 
-  async function confirmDeleteList() {
+  async function handleAddCard(listId: string, title: string) {
+    const created = await createCard(listId, title);
+    setLists((cur) =>
+      cur.map((l) =>
+        l.id === listId ? { ...l, cards: [...l.cards, created] } : l
+      )
+    );
+  }
+
+  async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await deleteList(deleteTarget.id);
-      setLists((cur) => cur.filter((l) => l.id !== deleteTarget.id));
+      if (deleteTarget.kind === 'list') {
+        await deleteList(deleteTarget.list.id);
+        setLists((cur) => cur.filter((l) => l.id !== deleteTarget.list.id));
+      } else {
+        await deleteCard(deleteTarget.card.id);
+        setLists((cur) =>
+          cur.map((l) => ({
+            ...l,
+            cards: l.cards.filter((c) => c.id !== deleteTarget.card.id),
+          }))
+        );
+      }
       setDeleteTarget(null);
     } catch (err) {
-      setListsError(getErrorMessage(err, 'Không xoá được danh sách.'));
+      setListsError(getErrorMessage(err, 'Xoá không thành công.'));
     } finally {
       setDeleting(false);
+    }
+  }
+
+  // ---------- Keo tha ----------
+  function handleDragStart(event: DragStartEvent) {
+    const { active } = event;
+    const type = active.data.current?.type;
+    if (type === 'list') {
+      const id = listIdFromDnd(active.id as string);
+      setActiveList(lists.find((l) => l.id === id) ?? null);
+    } else if (type === 'card') {
+      const listId = findListIdByCard(active.id as string);
+      const card = lists
+        .find((l) => l.id === listId)
+        ?.cards.find((c) => c.id === active.id);
+      setActiveCard(card ?? null);
+    }
+  }
+
+  function handleDragOver(event: DragOverEvent) {
+    const { active, over } = event;
+    if (!over || active.data.current?.type !== 'card') return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+    const fromListId = findListIdByCard(activeId);
+    const toListId =
+      over.data.current?.type === 'card'
+        ? findListIdByCard(overId)
+        : (listIdFromDnd(overId) ?? undefined);
+
+    if (!fromListId || !toListId || fromListId === toListId) return;
+
+    setLists((prev) => {
+      const fromList = prev.find((l) => l.id === fromListId);
+      const toList = prev.find((l) => l.id === toListId);
+      if (!fromList || !toList) return prev;
+      const moving = fromList.cards.find((c) => c.id === activeId);
+      if (!moving) return prev;
+
+      const overIndex =
+        over.data.current?.type === 'card'
+          ? toList.cards.findIndex((c) => c.id === overId)
+          : toList.cards.length;
+      const insertAt = overIndex >= 0 ? overIndex : toList.cards.length;
+
+      return prev.map((l) => {
+        if (l.id === fromListId) {
+          return { ...l, cards: l.cards.filter((c) => c.id !== activeId) };
+        }
+        if (l.id === toListId) {
+          const next = [...l.cards];
+          next.splice(insertAt, 0, { ...moving, listId: toListId });
+          return { ...l, cards: next };
+        }
+        return l;
+      });
+    });
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    const type = active.data.current?.type;
+    setActiveCard(null);
+    setActiveList(null);
+    if (!over) return;
+
+    // ---- Sap xep lai cot ----
+    if (type === 'list') {
+      const overListId =
+        listIdFromDnd(over.id as string) ??
+        (over.data.current?.type === 'card'
+          ? (over.data.current.listId as string)
+          : null);
+      const oldIndex = lists.findIndex((l) => `list-${l.id}` === active.id);
+      const newIndex = lists.findIndex((l) => l.id === overListId);
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+      const reordered = arrayMove(lists, oldIndex, newIndex);
+      setLists(reordered);
+      try {
+        await reorderList(reordered[newIndex]!.id, newIndex);
+      } catch (err) {
+        setListsError(getErrorMessage(err, 'Không lưu được thứ tự danh sách.'));
+        reloadLists();
+      }
+      return;
+    }
+
+    // ---- Keo tha the ----
+    if (type === 'card') {
+      const activeId = active.id as string;
+      const overId = over.id as string;
+      const toListId =
+        over.data.current?.type === 'card'
+          ? findListIdByCard(overId)
+          : (listIdFromDnd(overId) ?? undefined);
+      if (!toListId) return;
+
+      const toList = lists.find((l) => l.id === toListId);
+      if (!toList) return;
+
+      const oldIndex = toList.cards.findIndex((c) => c.id === activeId);
+      const overIndex =
+        over.data.current?.type === 'card'
+          ? toList.cards.findIndex((c) => c.id === overId)
+          : toList.cards.length - 1;
+      const newIndex = overIndex >= 0 ? overIndex : toList.cards.length - 1;
+
+      let finalIndex = oldIndex;
+      if (oldIndex !== -1 && oldIndex !== newIndex) {
+        const reorderedCards = arrayMove(toList.cards, oldIndex, newIndex);
+        finalIndex = reorderedCards.findIndex((c) => c.id === activeId);
+        setLists((prev) =>
+          prev.map((l) =>
+            l.id === toListId ? { ...l, cards: reorderedCards } : l
+          )
+        );
+      } else if (oldIndex === -1) {
+        finalIndex = toList.cards.length;
+      }
+
+      try {
+        await moveCard(activeId, { listId: toListId, position: finalIndex });
+      } catch (err) {
+        setListsError(getErrorMessage(err, 'Không di chuyển được thẻ.'));
+        reloadLists();
+      }
     }
   }
 
@@ -169,38 +377,72 @@ export default function BoardPage() {
       )}
 
       {/* Hang cac danh sach */}
-      <div className="flex flex-1 items-start gap-3 overflow-x-auto p-3">
-        {listsLoading ? (
-          <p className="rounded bg-white/80 px-3 py-2 text-sm text-slate-600">
-            Đang tải danh sách...
-          </p>
-        ) : (
-          <>
-            {lists.map((list) => (
-              <ListColumn
-                key={list.id}
-                list={list}
-                onRename={handleRenameList}
-                onRequestDelete={setDeleteTarget}
-              />
-            ))}
+      {listsLoading ? (
+        <p className="m-4 w-fit rounded bg-white/80 px-3 py-2 text-sm text-slate-600">
+          Đang tải danh sách...
+        </p>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={collisionDetectionStrategy}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="flex flex-1 items-start gap-3 overflow-x-auto p-3">
+            <SortableContext
+              items={listDndIds}
+              strategy={horizontalListSortingStrategy}
+            >
+              {lists.map((list) => (
+                <ListColumn
+                  key={list.id}
+                  list={list}
+                  onRename={handleRenameList}
+                  onRequestDeleteList={(l) =>
+                    setDeleteTarget({ kind: 'list', list: l })
+                  }
+                  onAddCard={handleAddCard}
+                  onRequestDeleteCard={(c) =>
+                    setDeleteTarget({ kind: 'card', card: c })
+                  }
+                />
+              ))}
+            </SortableContext>
+
             <AddListForm onAdd={handleAddList} />
-          </>
-        )}
-      </div>
+          </div>
+
+          <DragOverlay>
+            {activeCard ? (
+              <div className="w-64">
+                <CardItem card={activeCard} overlay />
+              </div>
+            ) : activeList ? (
+              <div className="w-72 rounded-xl bg-[#f1f2f4] p-2 opacity-90 shadow-xl">
+                <p className="px-1 text-sm font-semibold text-slate-700">
+                  {activeList.name}
+                </p>
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      )}
 
       <ConfirmDialog
         open={deleteTarget !== null}
-        title="Xoá danh sách?"
+        title={deleteTarget?.kind === 'card' ? 'Xoá thẻ?' : 'Xoá danh sách?'}
         message={
-          deleteTarget
-            ? `Danh sách "${deleteTarget.name}" sẽ bị xoá.`
-            : undefined
+          deleteTarget?.kind === 'card'
+            ? `Thẻ "${deleteTarget.card.title}" sẽ bị xoá.`
+            : deleteTarget?.kind === 'list'
+              ? `Danh sách "${deleteTarget.list.name}" (và các thẻ bên trong) sẽ bị xoá.`
+              : undefined
         }
-        confirmLabel="Xoá danh sách"
+        confirmLabel={deleteTarget?.kind === 'card' ? 'Xoá thẻ' : 'Xoá danh sách'}
         danger
         busy={deleting}
-        onConfirm={confirmDeleteList}
+        onConfirm={confirmDelete}
         onCancel={() => !deleting && setDeleteTarget(null)}
       />
     </div>

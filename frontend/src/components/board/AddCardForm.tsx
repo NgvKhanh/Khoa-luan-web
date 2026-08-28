@@ -1,0 +1,93 @@
+import { useState, type FormEvent, type KeyboardEvent } from 'react';
+
+interface Props {
+  onAdd: (title: string) => Promise<void>;
+}
+
+export default function AddCardForm({ onAdd }: Props) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function close() {
+    setIsOpen(false);
+    setTitle('');
+    setError(null);
+  }
+
+  async function submit() {
+    const value = title.trim();
+    if (!value) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await onAdd(value);
+      setTitle(''); // giu form mo de them nhieu the lien tiep
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không thêm được thẻ.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    submit();
+  }
+
+  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      submit();
+    }
+    if (e.key === 'Escape') close();
+  }
+
+  if (!isOpen) {
+    return (
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-sm text-slate-500 hover:bg-black/5"
+      >
+        <span className="text-base leading-none">+</span> Thêm thẻ
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="flex flex-col gap-2">
+      <textarea
+        autoFocus
+        rows={2}
+        value={title}
+        disabled={isSubmitting}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder="Nhập nội dung cho thẻ này..."
+        className="w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 text-sm shadow-sm focus:border-[#0c66e4] focus:outline-none"
+      />
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex items-center gap-2">
+        <button
+          type="submit"
+          disabled={isSubmitting || !title.trim()}
+          className="rounded bg-[#0c66e4] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+        >
+          {isSubmitting ? 'Đang thêm...' : 'Thêm thẻ'}
+        </button>
+        <button
+          type="button"
+          onClick={close}
+          aria-label="Đóng"
+          className="rounded p-1 text-slate-500 hover:bg-black/10"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+    </form>
+  );
+}

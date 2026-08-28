@@ -21,13 +21,21 @@ export async function createList(
 
 export async function updateList(
   listId: string,
-  input: { name?: string }
+  input: { name?: string; position?: number }
 ): Promise<BoardList> {
   const res = await api.patch<{ data: { list: BoardList } }>(
     `/lists/${listId}`,
     input
   );
   return res.data.data.list;
+}
+
+// Keo sap xep lai cot: dua cot toi vi tri index (tu 0)
+export async function reorderList(
+  listId: string,
+  position: number
+): Promise<void> {
+  await api.patch(`/lists/${listId}`, { position });
 }
 
 export async function deleteList(listId: string): Promise<void> {

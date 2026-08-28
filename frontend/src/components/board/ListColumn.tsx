@@ -1,17 +1,42 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import type { Card } from '../../types/card';
 import type { BoardList } from '../../types/list';
+import AddCardForm from './AddCardForm';
+import CardItem from './CardItem';
 
 interface Props {
   list: BoardList;
   onRename: (listId: string, name: string) => void;
-  onRequestDelete: (list: BoardList) => void;
+  onRequestDeleteList: (list: BoardList) => void;
+  onAddCard: (listId: string, title: string) => Promise<void>;
+  onRequestDeleteCard: (card: Card) => void;
 }
 
-export default function ListColumn({ list, onRename, onRequestDelete }: Props) {
+export default function ListColumn({
+  list,
+  onRename,
+  onRequestDeleteList,
+  onAddCard,
+  onRequestDeleteCard,
+}: Props) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: `list-${list.id}`, data: { type: 'list' } });
+
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(list.name);
 
-  function save() {
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+  };
+
+  function saveName() {
     setEditing(false);
     const name = draft.trim();
     if (!name || name === list.name) {
@@ -22,7 +47,7 @@ export default function ListColumn({ list, onRename, onRequestDelete }: Props) {
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') save();
+    if (e.key === 'Enter') saveName();
     if (e.key === 'Escape') {
       setDraft(list.name);
       setEditing(false);
@@ -31,20 +56,34 @@ export default function ListColumn({ list, onRename, onRequestDelete }: Props) {
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    save();
+    saveName();
   }
 
   return (
-    <div className="group flex max-h-full w-72 shrink-0 flex-col rounded-xl bg-[#f1f2f4] shadow-sm">
-      <div className="flex items-start gap-1 p-2">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`group flex max-h-full w-72 shrink-0 flex-col rounded-xl bg-[#f1f2f4] shadow-sm ${
+        isDragging ? 'opacity-50' : ''
+      }`}
+    >
+      {/* Header - cung la tay cam de keo cot.
+          Khong stopPropagation o nut ten/xoa: PointerSensor chi kich hoat keo khi
+          di chuyen > 5px, nen bam thuong (khong di chuyen) van vao onClick binh thuong. */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="flex cursor-grab items-start gap-1 p-2 active:cursor-grabbing"
+      >
         {editing ? (
           <form onSubmit={onSubmit} className="flex-1">
             <input
               autoFocus
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              onBlur={save}
+              onBlur={saveName}
               onKeyDown={onKeyDown}
+              onPointerDown={(e) => e.stopPropagation()}
               className="w-full rounded border border-[#0c66e4] bg-white px-2 py-1 text-sm font-semibold text-slate-800 focus:outline-none"
             />
           </form>
@@ -63,7 +102,7 @@ export default function ListColumn({ list, onRename, onRequestDelete }: Props) {
 
         <button
           type="button"
-          onClick={() => onRequestDelete(list)}
+          onClick={() => onRequestDeleteList(list)}
           aria-label="Xoá danh sách"
           className="mt-0.5 shrink-0 rounded p-1 text-slate-500 opacity-0 hover:bg-black/10 hover:text-slate-700 group-hover:opacity-100"
         >
@@ -73,9 +112,24 @@ export default function ListColumn({ list, onRename, onRequestDelete }: Props) {
         </button>
       </div>
 
-      {/* Vung the - se lam o buoc sau */}
-      <div className="min-h-[8px] flex-1 overflow-y-auto px-2 pb-2 text-xs text-slate-400">
-        {/* Thẻ sẽ được thêm ở bước tiếp theo */}
+      {/* Vung the */}
+      <div className="flex min-h-[8px] flex-1 flex-col gap-2 overflow-y-auto px-2">
+        <SortableContext
+          items={list.cards.map((c) => c.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {list.cards.map((card) => (
+            <CardItem
+              key={card.id}
+              card={card}
+              onRequestDelete={onRequestDeleteCard}
+            />
+          ))}
+        </SortableContext>
+      </div>
+
+      <div className="p-2">
+        <AddCardForm onAdd={(title) => onAddCard(list.id, title)} />
       </div>
     </div>
   );
