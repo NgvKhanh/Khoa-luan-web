@@ -3,6 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { env } from './config/env';
 import authRoutes from './modules/auth/auth.routes';
+import boardRoutes from './modules/board/board.routes';
 import { AppError } from './utils/AppError';
 
 /**
@@ -37,6 +38,7 @@ export function createApp() {
   });
 
   app.use('/api/auth', authRoutes);
+  app.use('/api/boards', boardRoutes);
 
   // Khong khop route nao -> tra ve 404 dang JSON
   app.use((req: Request, res: Response) => {

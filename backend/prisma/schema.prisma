@@ -22,5 +22,24 @@ model User {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
+  boards Board[]
+
   @@index([email])
+}
+
+// ===================== BANG (BOARD) =====================
+
+// Bang lam viec kieu Trello. Buoc dau: thuoc thang ve nguoi tao (chua co nhom).
+model Board {
+  id        String    @id @default(cuid())
+  ownerId   String
+  name      String
+  color     String    @default("#0079BF") // Mau nen the bang
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
 }
