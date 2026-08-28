@@ -21,19 +21,30 @@ export default function CardItem({ card, onRequestDelete, overlay }: Props) {
     transition,
   };
 
+  // Ban "noi" theo con tro khi keo
+  if (overlay) {
+    return (
+      <div className="rotate-3 scale-[1.03] cursor-grabbing rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-2xl ring-1 ring-black/5">
+        <p className="break-words">{card.title}</p>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={setNodeRef}
-      style={overlay ? undefined : style}
+      style={{ ...style, touchAction: 'none' }}
       {...attributes}
       {...listeners}
-      className={`group/card relative cursor-grab rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm active:cursor-grabbing ${
-        isDragging ? 'opacity-40' : ''
-      } ${overlay ? 'rotate-2 shadow-lg' : ''}`}
+      className={
+        isDragging
+          ? 'rounded-lg border-2 border-dashed border-slate-300 bg-slate-200/60 px-3 py-2 text-sm [&>*]:invisible'
+          : 'group/card relative cursor-grab rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing'
+      }
     >
       <p className="pr-5 break-words">{card.title}</p>
 
-      {onRequestDelete && !overlay && (
+      {onRequestDelete && (
         <button
           type="button"
           onPointerDown={(e) => e.stopPropagation()}

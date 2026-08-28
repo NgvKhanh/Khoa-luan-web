@@ -12,12 +12,14 @@ import {
   KeyboardSensor,
   PointerSensor,
   closestCorners,
+  defaultDropAnimationSideEffects,
   useSensor,
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type DropAnimation,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -28,6 +30,7 @@ import {
 import AddListForm from '../components/board/AddListForm';
 import CardItem from '../components/board/CardItem';
 import ListColumn from '../components/board/ListColumn';
+import ListColumnOverlay from '../components/board/ListColumnOverlay';
 import ConfirmDialog from '../components/ConfirmDialog';
 import type { BoardOutletContext } from '../layouts/BoardViewLayout';
 import { updateBoard } from '../lib/api/board';
@@ -47,6 +50,15 @@ import type { BoardList } from '../types/list';
 function listIdFromDnd(id: string): string | null {
   return id.startsWith('list-') ? id.slice('list-'.length) : null;
 }
+
+// Hieu ung khi tha: ban goc mo dan trong luc "ban noi" bay ve cho -> muot hon
+const dropAnimation: DropAnimation = {
+  duration: 200,
+  easing: 'cubic-bezier(0.2, 0, 0, 1)',
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: { active: { opacity: '0.35' } },
+  }),
+};
 
 // Khi keo 1 CỘT: chi xet va cham voi cac cot khac (bo qua the ben trong)
 // -> "over" luon la 1 cot, hoat hinh + tha dung. Keo the thi giu mac dinh.
@@ -187,9 +199,14 @@ export default function BoardPage() {
   }
 
   // ---------- Keo tha ----------
+  function endDragCursor() {
+    document.body.style.cursor = '';
+  }
+
   function handleDragStart(event: DragStartEvent) {
     const { active } = event;
     const type = active.data.current?.type;
+    document.body.style.cursor = 'grabbing';
     if (type === 'list') {
       const id = listIdFromDnd(active.id as string);
       setActiveList(lists.find((l) => l.id === id) ?? null);
@@ -248,6 +265,7 @@ export default function BoardPage() {
     const type = active.data.current?.type;
     setActiveCard(null);
     setActiveList(null);
+    endDragCursor();
     if (!over) return;
 
     // ---- Sap xep lai cot ----
@@ -388,8 +406,17 @@ export default function BoardPage() {
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
+          onDragCancel={() => {
+            setActiveCard(null);
+            setActiveList(null);
+            endDragCursor();
+          }}
         >
-          <div className="flex flex-1 items-start gap-3 overflow-x-auto p-3">
+          <div
+            className={`flex flex-1 items-start gap-3 overflow-x-auto p-3 ${
+              activeCard || activeList ? 'select-none' : ''
+            }`}
+          >
             <SortableContext
               items={listDndIds}
               strategy={horizontalListSortingStrategy}
@@ -413,17 +440,13 @@ export default function BoardPage() {
             <AddListForm onAdd={handleAddList} />
           </div>
 
-          <DragOverlay>
+          <DragOverlay dropAnimation={dropAnimation}>
             {activeCard ? (
               <div className="w-64">
                 <CardItem card={activeCard} overlay />
               </div>
             ) : activeList ? (
-              <div className="w-72 rounded-xl bg-[#f1f2f4] p-2 opacity-90 shadow-xl">
-                <p className="px-1 text-sm font-semibold text-slate-700">
-                  {activeList.name}
-                </p>
-              </div>
+              <ListColumnOverlay list={activeList} />
             ) : null}
           </DragOverlay>
         </DndContext>

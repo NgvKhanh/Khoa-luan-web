@@ -63,9 +63,11 @@ export default function ListColumn({
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex max-h-full w-72 shrink-0 flex-col rounded-xl bg-[#f1f2f4] shadow-sm ${
-        isDragging ? 'opacity-50' : ''
-      }`}
+      className={
+        isDragging
+          ? 'flex max-h-full w-72 shrink-0 flex-col rounded-xl border-2 border-dashed border-white/60 bg-white/20 [&>*]:invisible'
+          : 'group flex max-h-full w-72 shrink-0 flex-col rounded-xl bg-[#f1f2f4] shadow-sm'
+      }
     >
       {/* Header - cung la tay cam de keo cot.
           Khong stopPropagation o nut ten/xoa: PointerSensor chi kich hoat keo khi
@@ -73,6 +75,7 @@ export default function ListColumn({
       <div
         {...attributes}
         {...listeners}
+        style={{ touchAction: 'none' }}
         className="flex cursor-grab items-start gap-1 p-2 active:cursor-grabbing"
       >
         {editing ? (
