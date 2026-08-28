@@ -1,0 +1,189 @@
+import { useState } from 'react';
+import {
+  clearBoardBackground,
+  updateBoard,
+} from '../../lib/api/board';
+import { trackUnsplashDownload } from '../../lib/api/unsplash';
+import { BOARD_COLORS } from '../../lib/boardColors';
+import { getErrorMessage } from '../../lib/errorMessage';
+import { useUnsplashPhotos } from '../../lib/useUnsplashPhotos';
+import type { Board } from '../../types/board';
+
+interface Props {
+  board: Board;
+  onChanged: (board: Board) => void;
+  onClose: () => void;
+  className?: string;
+}
+
+// Menu "Thay doi hinh nen" cho 1 bang dang mo: chon mau hoac anh Unsplash.
+export default function BoardBackgroundMenu({
+  board,
+  onChanged,
+  onClose,
+  className = '',
+}: Props) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const {
+    photos,
+    loading,
+    loadingMore,
+    error: photosError,
+    unavailable,
+    search,
+    setSearch,
+    loadMore,
+    canLoadMore,
+  } = useUnsplashPhotos();
+
+  const hasImage = Boolean(board.backgroundImage);
+
+  async function run(action: () => Promise<Board>) {
+    setBusy(true);
+    setError(null);
+    try {
+      onChanged(await action());
+    } catch (err) {
+      setError(getErrorMessage(err, 'Không đổi được hình nền.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className={`w-72 rounded-xl border border-slate-200 bg-white p-3 text-slate-800 shadow-2xl ${className}`}
+    >
+      <div className="mb-2 flex items-center">
+        <p className="flex-1 text-center text-sm font-semibold">
+          Thay đổi hình nền
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Đóng"
+          className="rounded p-1 text-slate-500 hover:bg-slate-100"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+
+      <p className="mb-1.5 text-xs font-semibold text-slate-500">Màu</p>
+      <div className="mb-3 grid grid-cols-4 gap-1.5">
+        {BOARD_COLORS.map((c) => {
+          const selected = !hasImage && board.color === c;
+          return (
+            <button
+              key={c}
+              type="button"
+              disabled={busy}
+              aria-label={`Màu ${c}`}
+              onClick={() => void run(() => updateBoard(board.id, { color: c }))}
+              className={`h-8 rounded-md disabled:opacity-50 ${
+                selected ? 'ring-2 ring-slate-800 ring-offset-1' : ''
+              }`}
+              style={{ backgroundColor: c }}
+            />
+          );
+        })}
+      </div>
+
+      {unavailable ? (
+        <p className="rounded-lg bg-slate-50 px-2 py-1.5 text-[11px] text-slate-400">
+          Chưa cấu hình Unsplash trên server nên chưa chọn ảnh được.
+        </p>
+      ) : (
+        <>
+          <p className="mb-1.5 text-xs font-semibold text-slate-500">
+            Ảnh của Unsplash
+          </p>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Tìm ảnh (biển, núi, bầu trời...)"
+            className="mb-2 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+          />
+
+          {(error || photosError) && (
+            <p className="mb-2 text-xs text-red-600">{error ?? photosError}</p>
+          )}
+
+          <div className="max-h-56 overflow-y-auto">
+            {loading ? (
+              <p className="py-6 text-center text-sm text-slate-400">
+                Đang tải...
+              </p>
+            ) : photos.length === 0 ? (
+              <p className="py-6 text-center text-sm text-slate-400">
+                Không có ảnh nào.
+              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {photos.map((p) => {
+                    const selected = board.backgroundImage === p.fullUrl;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        disabled={busy}
+                        title={`Ảnh của ${p.attributionName} / Unsplash`}
+                        onClick={() =>
+                          void run(async () => {
+                            const b = await updateBoard(board.id, {
+                              backgroundImage: p.fullUrl,
+                            });
+                            void trackUnsplashDownload(p.downloadLocation);
+                            return b;
+                          })
+                        }
+                        className={`relative h-14 overflow-hidden rounded-md bg-cover bg-center transition disabled:opacity-50 ${
+                          selected
+                            ? 'ring-2 ring-[#0c66e4] ring-offset-1'
+                            : 'hover:opacity-90'
+                        }`}
+                        style={{
+                          backgroundImage: `url(${p.thumbUrl})`,
+                          backgroundColor: p.color,
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+
+                {canLoadMore && (
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="mt-2 w-full rounded-lg border border-slate-200 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {loadingMore ? 'Đang tải...' : 'Tải thêm ảnh'}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+
+          <p className="mt-2 text-center text-[11px] text-slate-400">
+            Ảnh cung cấp bởi Unsplash
+          </p>
+        </>
+      )}
+
+      {hasImage && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void run(() => clearBoardBackground(board.id))}
+          className="mt-2 w-full rounded-lg py-1.5 text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+        >
+          Bỏ hình nền (quay về màu)
+        </button>
+      )}
+    </div>
+  );
+}

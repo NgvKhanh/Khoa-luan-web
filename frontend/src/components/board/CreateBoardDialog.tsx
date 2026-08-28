@@ -7,12 +7,12 @@ import {
 } from 'react';
 import { createBoard } from '../../lib/api/board';
 import {
-  searchUnsplashPhotos,
   trackUnsplashDownload,
   type UnsplashPhoto,
 } from '../../lib/api/unsplash';
 import { BOARD_COLORS } from '../../lib/boardColors';
 import { getErrorMessage } from '../../lib/errorMessage';
+import { useUnsplashPhotos } from '../../lib/useUnsplashPhotos';
 import type { Board } from '../../types/board';
 
 type Background =
@@ -80,60 +80,25 @@ export default function CreateBoardDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Anh Unsplash
-  const [photos, setPhotos] = useState<UnsplashPhoto[]>([]);
-  const [unsplashOff, setUnsplashOff] = useState(false);
-  const [photosError, setPhotosError] = useState<string | null>(null);
-  const [loadingPhotos, setLoadingPhotos] = useState(true);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState<number | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const {
+    photos,
+    loading: loadingPhotos,
+    loadingMore,
+    error: photosError,
+    unavailable: unsplashOff,
+    search,
+    setSearch,
+    loadMore,
+    canLoadMore,
+    onFirstLoad,
+  } = useUnsplashPhotos();
 
-  // Tai anh (lan dau + khi doi tu khoa). Debounce 400ms cho o tim kiem.
+  // Chua chon gi -> lay anh dau lam mac dinh (giong Trello)
   useEffect(() => {
-    let alive = true;
-    setLoadingPhotos(true);
-    setPhotosError(null);
-    const t = setTimeout(() => {
-      searchUnsplashPhotos(search, 1)
-        .then((res) => {
-          if (!alive) return;
-          setPhotos(res.photos);
-          setPage(1);
-          setTotalPages(res.totalPages);
-          // Chua chon gi -> lay anh dau lam mac dinh (giong Trello)
-          if (!touched.current && !search && res.photos[0]) {
-            setBg(bgToImage(res.photos[0]));
-          }
-        })
-        .catch((err) => {
-          if (!alive) return;
-          const status = err?.response?.status;
-          if (status === 503) setUnsplashOff(true);
-          else setPhotosError(getErrorMessage(err, 'Không tải được ảnh.'));
-        })
-        .finally(() => alive && setLoadingPhotos(false));
-    }, search ? 400 : 0);
-    return () => {
-      alive = false;
-      clearTimeout(t);
-    };
-  }, [search]);
-
-  async function loadMore() {
-    setLoadingMore(true);
-    try {
-      const res = await searchUnsplashPhotos(search, page + 1);
-      setPhotos((cur) => [...cur, ...res.photos]);
-      setPage((p) => p + 1);
-      setTotalPages(res.totalPages);
-    } catch (err) {
-      setPhotosError(getErrorMessage(err, 'Không tải được ảnh.'));
-    } finally {
-      setLoadingMore(false);
-    }
-  }
+    onFirstLoad((ps) => {
+      if (!touched.current && ps[0]) setBg(bgToImage(ps[0]));
+    });
+  }, [onFirstLoad]);
 
   function pick(next: Background) {
     touched.current = true;
@@ -164,7 +129,6 @@ export default function CreateBoardDialog({
   }
 
   const quickPhotos = photos.slice(0, 4);
-  const canLoadMore = totalPages === null || page < totalPages;
 
   // ---------- Man hinh chon anh ----------
   if (view === 'photos') {

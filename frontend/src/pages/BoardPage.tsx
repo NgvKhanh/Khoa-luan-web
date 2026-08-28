@@ -28,6 +28,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import AddListForm from '../components/board/AddListForm';
+import BoardBackgroundMenu from '../components/board/BoardBackgroundMenu';
 import BoardMembers from '../components/board/BoardMembers';
 import CardItem from '../components/board/CardItem';
 import ListColumn from '../components/board/ListColumn';
@@ -107,6 +108,7 @@ export default function BoardPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [deleting, setDeleting] = useState(false);
+  const [bgMenuOpen, setBgMenuOpen] = useState(false);
 
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [activeList, setActiveList] = useState<BoardList | null>(null);
@@ -452,7 +454,38 @@ export default function BoardPage() {
           </button>
         )}
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setBgMenuOpen((v) => !v)}
+              className="flex items-center gap-1.5 rounded bg-white/25 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-white/40"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <circle cx="9" cy="10" r="2" />
+                <path d="M21 16l-5-5-4 4-2-2-4 4" />
+              </svg>
+              Hình nền
+            </button>
+            {bgMenuOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Đóng"
+                  onClick={() => setBgMenuOpen(false)}
+                  className="fixed inset-0 z-30 cursor-default"
+                />
+                <BoardBackgroundMenu
+                  className="absolute right-0 top-11 z-40"
+                  board={board}
+                  onChanged={patchBoard}
+                  onClose={() => setBgMenuOpen(false)}
+                />
+              </>
+            )}
+          </div>
+
           <BoardMembers
             members={members}
             currentUserId={user?.id}
