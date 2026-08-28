@@ -1,9 +1,13 @@
 import type { Request, Response } from 'express';
 import { AppError } from '../../utils/AppError';
 import { asyncHandler } from '../../utils/asyncHandler';
-import type { AddBoardMemberInput } from './boardMember.schema';
+import type {
+  AddBoardMemberInput,
+  ChangeMemberRoleInput,
+} from './boardMember.schema';
 import {
   addBoardMember,
+  changeMemberRole,
   listBoardMembers,
   removeBoardMember,
 } from './boardMember.service';
@@ -35,6 +39,18 @@ export const addBoardMemberHandler = asyncHandler(
     res
       .status(201)
       .json({ success: true, message: 'Da them thanh vien', data: { member } });
+  }
+);
+
+export const changeMemberRoleHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const member = await changeMemberRole(
+      requireUserId(req),
+      req.params.boardId as string,
+      req.params.userId as string,
+      req.body as ChangeMemberRoleInput
+    );
+    res.json({ success: true, message: 'Da doi vai tro', data: { member } });
   }
 );
 

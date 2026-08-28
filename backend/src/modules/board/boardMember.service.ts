@@ -1,7 +1,10 @@
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
-import { assertBoardAccess, assertBoardOwner } from './board.service';
-import type { AddBoardMemberInput } from './boardMember.schema';
+import { assertBoardAccess, assertBoardManage } from './board.service';
+import type {
+  AddBoardMemberInput,
+  ChangeMemberRoleInput,
+} from './boardMember.schema';
 
 const MEMBER_USER_SELECT = {
   id: true,
@@ -24,7 +27,7 @@ export async function addBoardMember(
   boardId: string,
   input: AddBoardMemberInput
 ) {
-  await assertBoardOwner(actorId, boardId);
+  await assertBoardManage(actorId, boardId);
 
   const targetUser = await prisma.user.findFirst({
     where: { email: input.email, deletedAt: null },
@@ -45,13 +48,38 @@ export async function addBoardMember(
   return existing
     ? prisma.boardMember.update({
         where: { id: existing.id },
-        data: { deletedAt: null, role: 'MEMBER', joinedAt: new Date() },
+        data: { deletedAt: null, role: input.role, joinedAt: new Date() },
         include: { user: { select: MEMBER_USER_SELECT } },
       })
     : prisma.boardMember.create({
-        data: { boardId, userId: targetUser.id, role: 'MEMBER' },
+        data: { boardId, userId: targetUser.id, role: input.role },
         include: { user: { select: MEMBER_USER_SELECT } },
       });
+}
+
+export async function changeMemberRole(
+  actorId: string,
+  boardId: string,
+  targetUserId: string,
+  input: ChangeMemberRoleInput
+) {
+  await assertBoardManage(actorId, boardId);
+
+  const membership = await prisma.boardMember.findFirst({
+    where: { boardId, userId: targetUserId, deletedAt: null },
+  });
+  if (!membership) {
+    throw new AppError('Nguoi nay khong phai thanh vien cua bang', 404);
+  }
+  if (membership.role === 'OWNER') {
+    throw new AppError('Khong the doi vai tro cua chu bang', 400);
+  }
+
+  return prisma.boardMember.update({
+    where: { id: membership.id },
+    data: { role: input.role },
+    include: { user: { select: MEMBER_USER_SELECT } },
+  });
 }
 
 export async function removeBoardMember(
@@ -59,7 +87,7 @@ export async function removeBoardMember(
   boardId: string,
   targetUserId: string
 ) {
-  await assertBoardOwner(actorId, boardId);
+  await assertBoardManage(actorId, boardId);
 
   const membership = await prisma.boardMember.findFirst({
     where: { boardId, userId: targetUserId, deletedAt: null },
@@ -70,6 +98,7 @@ export async function removeBoardMember(
   if (membership.role === 'OWNER') {
     throw new AppError('Khong the xoa chu bang khoi bang', 400);
   }
+  // Cho phep tu roi bang (targetUserId === actorId) hoac quan tri vien xoa nguoi khac
 
   await prisma.boardMember.update({
     where: { id: membership.id },

@@ -1,5 +1,12 @@
 import { api } from '../axios';
-import type { Board, BoardMember } from '../../types/board';
+import type {
+  Board,
+  BoardMember,
+  BoardRole,
+  InviteLink,
+  InvitePreview,
+  JoinRequest,
+} from '../../types/board';
 
 export async function fetchMyBoards(): Promise<Board[]> {
   const res = await api.get<{ data: { boards: Board[] } }>('/boards');
@@ -64,11 +71,24 @@ export async function fetchBoardMembers(
 
 export async function addBoardMember(
   boardId: string,
-  email: string
+  email: string,
+  role: Exclude<BoardRole, 'OWNER'> = 'MEMBER'
 ): Promise<BoardMember> {
   const res = await api.post<{ data: { member: BoardMember } }>(
     `/boards/${boardId}/members`,
-    { email }
+    { email, role }
+  );
+  return res.data.data.member;
+}
+
+export async function changeMemberRole(
+  boardId: string,
+  userId: string,
+  role: Exclude<BoardRole, 'OWNER'>
+): Promise<BoardMember> {
+  const res = await api.patch<{ data: { member: BoardMember } }>(
+    `/boards/${boardId}/members/${userId}`,
+    { role }
   );
   return res.data.data.member;
 }
@@ -78,4 +98,65 @@ export async function removeBoardMember(
   userId: string
 ): Promise<void> {
   await api.delete(`/boards/${boardId}/members/${userId}`);
+}
+
+// ----- Link moi -----
+export async function getInviteLink(boardId: string): Promise<InviteLink> {
+  const res = await api.get<{ data: InviteLink }>(
+    `/boards/${boardId}/invite-link`
+  );
+  return res.data.data;
+}
+
+export async function createInviteLink(boardId: string): Promise<InviteLink> {
+  const res = await api.post<{ data: InviteLink }>(
+    `/boards/${boardId}/invite-link`
+  );
+  return res.data.data;
+}
+
+export async function disableInviteLink(boardId: string): Promise<void> {
+  await api.delete(`/boards/${boardId}/invite-link`);
+}
+
+// ----- Yeu cau tham gia -----
+export async function fetchJoinRequests(
+  boardId: string
+): Promise<JoinRequest[]> {
+  const res = await api.get<{ data: { requests: JoinRequest[] } }>(
+    `/boards/${boardId}/join-requests`
+  );
+  return res.data.data.requests;
+}
+
+export async function approveJoinRequest(
+  boardId: string,
+  requestId: string
+): Promise<BoardMember> {
+  const res = await api.post<{ data: { member: BoardMember } }>(
+    `/boards/${boardId}/join-requests/${requestId}/approve`
+  );
+  return res.data.data.member;
+}
+
+export async function rejectJoinRequest(
+  boardId: string,
+  requestId: string
+): Promise<void> {
+  await api.post(`/boards/${boardId}/join-requests/${requestId}/reject`);
+}
+
+// ----- Vao bang bang link -----
+export async function previewInvite(token: string): Promise<InvitePreview> {
+  const res = await api.get<{ data: InvitePreview }>(`/boards/join/${token}`);
+  return res.data.data;
+}
+
+export async function requestToJoin(
+  token: string
+): Promise<{ boardName: string }> {
+  const res = await api.post<{ data: { boardName: string } }>(
+    `/boards/join/${token}`
+  );
+  return res.data.data;
 }

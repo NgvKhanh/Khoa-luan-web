@@ -3,6 +3,7 @@ import BoardViewLayout from './layouts/BoardViewLayout';
 import MainLayout from './layouts/MainLayout';
 import BoardPage from './pages/BoardPage';
 import HomePage from './pages/HomePage';
+import JoinBoardPage from './pages/JoinBoardPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ProtectedRoute from './routes/ProtectedRoute';
@@ -17,6 +18,8 @@ function App() {
         <Route element={<MainLayout />}>
           <Route path="/" element={<HomePage />} />
         </Route>
+
+        <Route path="/join/:token" element={<JoinBoardPage />} />
 
         <Route element={<BoardViewLayout />}>
           <Route path="/boards/:boardId" element={<BoardPage />} />

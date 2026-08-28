@@ -38,6 +38,7 @@ import { useAuth } from '../context/AuthContext';
 import type { BoardOutletContext } from '../layouts/BoardViewLayout';
 import {
   addBoardMember,
+  changeMemberRole,
   fetchBoardMembers,
   removeBoardMember,
   updateBoard,
@@ -136,12 +137,34 @@ export default function BoardPage() {
       .catch(() => {});
   }, [boardId]);
 
-  async function handleAddMember(email: string) {
+  async function handleAddMember(email: string, role: 'ADMIN' | 'MEMBER') {
     if (!boardId) return;
-    const created = await addBoardMember(boardId, email);
+    const created = await addBoardMember(boardId, email, role);
     setMembers((cur) =>
-      cur.some((m) => m.userId === created.userId) ? cur : [...cur, created]
+      cur.some((m) => m.userId === created.userId)
+        ? cur.map((m) => (m.userId === created.userId ? created : m))
+        : [...cur, created]
     );
+  }
+
+  async function handleChangeMemberRole(
+    userId: string,
+    role: 'ADMIN' | 'MEMBER'
+  ) {
+    if (!boardId) return;
+    const prev = members;
+    setMembers((cur) =>
+      cur.map((m) => (m.userId === userId ? { ...m, role } : m))
+    );
+    try {
+      const updated = await changeMemberRole(boardId, userId, role);
+      setMembers((cur) =>
+        cur.map((m) => (m.userId === userId ? updated : m))
+      );
+    } catch (err) {
+      setMembers(prev);
+      setListsError(getErrorMessage(err, 'Không đổi được vai trò.'));
+    }
   }
 
   async function handleRemoveMember(userId: string) {
@@ -546,11 +569,20 @@ export default function BoardPage() {
           </div>
 
           <BoardMembers
+            boardId={board.id}
             members={members}
             currentUserId={user?.id}
             isOwner={isOwner}
             onAdd={handleAddMember}
+            onChangeRole={handleChangeMemberRole}
             onRemove={handleRemoveMember}
+            onApproved={(member) =>
+              setMembers((cur) =>
+                cur.some((m) => m.userId === member.userId)
+                  ? cur.map((m) => (m.userId === member.userId ? member : m))
+                  : [...cur, member]
+              )
+            }
           />
         </div>
       </div>

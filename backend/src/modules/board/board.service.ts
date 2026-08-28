@@ -41,6 +41,27 @@ export async function assertBoardAccess(userId: string, boardId: string) {
   return board;
 }
 
+// Kiem tra nguoi dung CO QUYEN QUAN LY thanh vien: chu bang HOAC Quan tri vien (ADMIN).
+// Dung cho: moi/xoa thanh vien, doi vai tro, link moi, duyet yeu cau tham gia.
+export async function assertBoardManage(userId: string, boardId: string) {
+  const board = await prisma.board.findFirst({
+    where: { id: boardId, deletedAt: null },
+  });
+  if (!board) {
+    throw new AppError('Khong tim thay bang', 404);
+  }
+  if (board.ownerId === userId) {
+    return board;
+  }
+  const membership = await prisma.boardMember.findFirst({
+    where: { boardId, userId, deletedAt: null },
+  });
+  if (!membership || membership.role === 'MEMBER') {
+    throw new AppError('Chi Quan tri vien moi thuc hien duoc thao tac nay', 403);
+  }
+  return board;
+}
+
 export async function listMyBoards(userId: string) {
   const boards = await prisma.board.findMany({
     where: {

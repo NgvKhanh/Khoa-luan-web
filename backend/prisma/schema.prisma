@@ -14,7 +14,14 @@ datasource db {
 
 enum BoardRole {
   OWNER
+  ADMIN
   MEMBER
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model User {
@@ -29,6 +36,7 @@ model User {
 
   boards       Board[]
   boardMembers BoardMember[]
+  joinRequests BoardJoinRequest[]
 
   @@index([email])
 }
@@ -42,15 +50,33 @@ model Board {
   name            String
   color           String    @default("#0079BF") // Mau nen khi khong dat anh
   backgroundImage String? // Duong dan anh nen (vd /uploads/boards/xxx.jpg); null = dung mau
+  inviteToken     String?   @unique // Token cho link moi; null = link dang tat
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
-  owner   User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  lists   List[]
-  members BoardMember[]
+  owner        User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  lists        List[]
+  members      BoardMember[]
+  joinRequests BoardJoinRequest[]
 
   @@index([ownerId])
+}
+
+// Yeu cau xin vao bang (khi mo link moi). Quan tri vien duyet: dong y -> them thanh vien.
+model BoardJoinRequest {
+  id        String            @id @default(cuid())
+  boardId   String
+  userId    String
+  status    JoinRequestStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, userId])
+  @@index([boardId])
 }
 
 // Thanh vien cua 1 bang. OWNER = chu bang (duy nhat), MEMBER = nguoi duoc chia se.
