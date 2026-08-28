@@ -1,5 +1,12 @@
 import { api } from '../axios';
-import type { Card } from '../../types/card';
+import type {
+  Card,
+  CardComment,
+  CardDetail,
+  Checklist,
+  ChecklistItem,
+  Label,
+} from '../../types/card';
 
 export async function createCard(listId: string, title: string): Promise<Card> {
   const res = await api.post<{ data: { card: Card } }>(
@@ -9,9 +16,19 @@ export async function createCard(listId: string, title: string): Promise<Card> {
   return res.data.data.card;
 }
 
+export async function fetchCardDetail(cardId: string): Promise<CardDetail> {
+  const res = await api.get<{ data: { card: CardDetail } }>(`/cards/${cardId}`);
+  return res.data.data.card;
+}
+
 export async function updateCard(
   cardId: string,
-  input: { title?: string; description?: string | null; isDone?: boolean }
+  input: {
+    title?: string;
+    description?: string | null;
+    isDone?: boolean;
+    dueDate?: string | null;
+  }
 ): Promise<Card> {
   const res = await api.patch<{ data: { card: Card } }>(
     `/cards/${cardId}`,
@@ -24,7 +41,6 @@ export async function deleteCard(cardId: string): Promise<void> {
   await api.delete(`/cards/${cardId}`);
 }
 
-// Keo tha: chuyen the sang danh sach listId, chen vao vi tri position (tu 0)
 export async function moveCard(
   cardId: string,
   input: { listId: string; position: number }
@@ -34,4 +50,91 @@ export async function moveCard(
     input
   );
   return res.data.data.card;
+}
+
+// ----- Thanh vien the -----
+export async function addCardMember(cardId: string, userId: string) {
+  await api.post(`/cards/${cardId}/members`, { userId });
+}
+export async function removeCardMember(cardId: string, userId: string) {
+  await api.delete(`/cards/${cardId}/members/${userId}`);
+}
+
+// ----- Nhan tren the -----
+export async function attachCardLabel(cardId: string, labelId: string) {
+  await api.put(`/cards/${cardId}/labels/${labelId}`);
+}
+export async function detachCardLabel(cardId: string, labelId: string) {
+  await api.delete(`/cards/${cardId}/labels/${labelId}`);
+}
+
+// ----- Checklist -----
+export async function addChecklist(
+  cardId: string,
+  title: string
+): Promise<Checklist> {
+  const res = await api.post<{ data: { checklist: Checklist } }>(
+    `/cards/${cardId}/checklists`,
+    { title }
+  );
+  return res.data.data.checklist;
+}
+export async function deleteChecklist(checklistId: string) {
+  await api.delete(`/checklists/${checklistId}`);
+}
+export async function addChecklistItem(
+  checklistId: string,
+  content: string
+): Promise<ChecklistItem> {
+  const res = await api.post<{ data: { item: ChecklistItem } }>(
+    `/checklists/${checklistId}/items`,
+    { content }
+  );
+  return res.data.data.item;
+}
+export async function updateChecklistItem(
+  itemId: string,
+  input: { content?: string; isDone?: boolean }
+): Promise<ChecklistItem> {
+  const res = await api.patch<{ data: { item: ChecklistItem } }>(
+    `/checklist-items/${itemId}`,
+    input
+  );
+  return res.data.data.item;
+}
+export async function deleteChecklistItem(itemId: string) {
+  await api.delete(`/checklist-items/${itemId}`);
+}
+
+// ----- Binh luan -----
+export async function addComment(
+  cardId: string,
+  text: string
+): Promise<CardComment> {
+  const res = await api.post<{ data: { comment: CardComment } }>(
+    `/cards/${cardId}/comments`,
+    { text }
+  );
+  return res.data.data.comment;
+}
+export async function updateComment(
+  commentId: string,
+  text: string
+): Promise<CardComment> {
+  const res = await api.patch<{ data: { comment: CardComment } }>(
+    `/comments/${commentId}`,
+    { text }
+  );
+  return res.data.data.comment;
+}
+export async function deleteComment(commentId: string) {
+  await api.delete(`/comments/${commentId}`);
+}
+
+// ----- Nhan cua bang -----
+export async function fetchBoardLabels(boardId: string): Promise<Label[]> {
+  const res = await api.get<{ data: { labels: Label[] } }>(
+    `/boards/${boardId}/labels`
+  );
+  return res.data.data.labels;
 }

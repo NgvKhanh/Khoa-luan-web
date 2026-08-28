@@ -30,6 +30,7 @@ import {
 import AddListForm from '../components/board/AddListForm';
 import BoardBackgroundMenu from '../components/board/BoardBackgroundMenu';
 import BoardMembers from '../components/board/BoardMembers';
+import CardModal from '../components/board/CardModal';
 import CardItem from '../components/board/CardItem';
 import ListColumn from '../components/board/ListColumn';
 import ListColumnOverlay from '../components/board/ListColumnOverlay';
@@ -116,6 +117,7 @@ export default function BoardPage() {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [deleting, setDeleting] = useState(false);
   const [bgMenuOpen, setBgMenuOpen] = useState(false);
+  const [openCardId, setOpenCardId] = useState<string | null>(null);
 
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [activeList, setActiveList] = useState<BoardList | null>(null);
@@ -634,6 +636,7 @@ export default function BoardPage() {
                   onRequestDeleteCard={(c) =>
                     setDeleteTarget({ kind: 'card', card: c })
                   }
+                  onOpenCard={setOpenCardId}
                   onCopyList={handleCopyList}
                   onMoveList={handleMoveList}
                   onMoveAllCards={handleMoveAllCards}
@@ -690,6 +693,17 @@ export default function BoardPage() {
         onConfirm={confirmDelete}
         onCancel={() => !deleting && setDeleteTarget(null)}
       />
+
+      {openCardId && (
+        <CardModal
+          cardId={openCardId}
+          lists={lists.map((l) => ({ id: l.id, name: l.name }))}
+          boardMembers={members}
+          currentUserId={user?.id}
+          onClose={() => setOpenCardId(null)}
+          onChanged={reloadLists}
+        />
+      )}
     </div>
   );
 }

@@ -30,6 +30,18 @@ export async function listBoardLists(userId: string, boardId: string) {
       cards: {
         where: { deletedAt: null },
         orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        include: {
+          labels: { include: { label: true } },
+          members: {
+            include: {
+              user: {
+                select: { id: true, name: true, email: true, avatarUrl: true },
+              },
+            },
+          },
+          checklists: { select: { items: { select: { isDone: true } } } },
+          comments: { where: { deletedAt: null }, select: { id: true } },
+        },
       },
     },
   });

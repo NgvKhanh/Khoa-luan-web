@@ -19,6 +19,7 @@ interface Props {
   onAddCard: (listId: string, title: string) => Promise<void>;
   onToggleCardDone: (card: Card) => void;
   onRequestDeleteCard: (card: Card) => void;
+  onOpenCard: (cardId: string) => void;
   onCopyList: (list: BoardList) => void;
   onMoveList: (list: BoardList, to: 'start' | 'end') => void;
   onMoveAllCards: (list: BoardList, targetListId: string) => void;
@@ -46,6 +47,7 @@ export default function ListColumn({
   onAddCard,
   onToggleCardDone,
   onRequestDeleteCard,
+  onOpenCard,
   onCopyList,
   onMoveList,
   onMoveAllCards,
@@ -358,6 +360,7 @@ export default function ListColumn({
               card={card}
               onToggleDone={onToggleCardDone}
               onRequestDelete={onRequestDeleteCard}
+              onOpen={onOpenCard}
             />
           ))}
         </SortableContext>

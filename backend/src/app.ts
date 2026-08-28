@@ -6,8 +6,15 @@ import { UPLOAD_ROOT } from './config/upload';
 import authRoutes from './modules/auth/auth.routes';
 import boardRoutes from './modules/board/board.routes';
 import { boardMemberRoutes } from './modules/board/boardMember.routes';
-import { cardRoutes, listCardRoutes } from './modules/card/card.routes';
+import {
+  cardRoutes,
+  checklistItemRoutes,
+  checklistRoutes,
+  commentRoutes,
+  listCardRoutes,
+} from './modules/card/card.routes';
 import { boardListRoutes, listRoutes } from './modules/list/list.routes';
+import { boardLabelRoutes, labelRoutes } from './modules/label/label.routes';
 import unsplashRoutes from './modules/unsplash/unsplash.routes';
 import { AppError } from './utils/AppError';
 
@@ -48,10 +55,15 @@ export function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/boards/:boardId/lists', boardListRoutes);
   app.use('/api/boards/:boardId/members', boardMemberRoutes);
+  app.use('/api/boards/:boardId/labels', boardLabelRoutes);
   app.use('/api/boards', boardRoutes);
   app.use('/api/lists/:listId/cards', listCardRoutes);
   app.use('/api/lists', listRoutes);
   app.use('/api/cards', cardRoutes);
+  app.use('/api/checklists', checklistRoutes);
+  app.use('/api/checklist-items', checklistItemRoutes);
+  app.use('/api/comments', commentRoutes);
+  app.use('/api/labels', labelRoutes);
   app.use('/api/unsplash', unsplashRoutes);
 
   // Khong khop route nao -> tra ve 404 dang JSON

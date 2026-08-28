@@ -6,6 +6,7 @@ interface Props {
   card: Card;
   onToggleDone?: (card: Card) => void;
   onRequestDelete?: (card: Card) => void;
+  onOpen?: (cardId: string) => void;
   overlay?: boolean;
 }
 
@@ -28,6 +29,7 @@ export default function CardItem({
   card,
   onToggleDone,
   onRequestDelete,
+  onOpen,
   overlay,
 }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -42,12 +44,25 @@ export default function CardItem({
     transition,
   };
 
+  const checklistItems = card.checklists?.flatMap((c) => c.items) ?? [];
+  const clDone = checklistItems.filter((i) => i.isDone).length;
+  const commentCount = card.comments?.length ?? 0;
+  const hasBadges =
+    (card.labels?.length ?? 0) > 0 ||
+    !!card.dueDate ||
+    checklistItems.length > 0 ||
+    commentCount > 0 ||
+    (card.members?.length ?? 0) > 0;
+
   const body = (
     <>
       <button
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
-        onClick={() => onToggleDone?.(card)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleDone?.(card);
+        }}
         aria-label={card.isDone ? 'Bỏ đánh dấu hoàn thành' : 'Đánh dấu hoàn thành'}
         className="mt-0.5 shrink-0"
       >
@@ -55,6 +70,19 @@ export default function CardItem({
       </button>
 
       <div className="min-w-0 flex-1">
+        {/* Nhan mau */}
+        {(card.labels?.length ?? 0) > 0 && (
+          <div className="mb-1 flex flex-wrap gap-1">
+            {card.labels!.map((l) => (
+              <span
+                key={l.labelId}
+                className="h-1.5 w-8 rounded-full"
+                style={{ backgroundColor: l.label.color }}
+              />
+            ))}
+          </div>
+        )}
+
         <p
           className={`break-words ${
             card.isDone ? 'text-slate-400 line-through' : 'text-[#172b4d]'
@@ -62,12 +90,61 @@ export default function CardItem({
         >
           {card.title}
         </p>
-        {card.description && (
-          <span className="mt-1 inline-flex text-slate-400" title="Có mô tả">
-            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M4 6h16M4 12h16M4 18h10" />
-            </svg>
-          </span>
+
+        {hasBadges && (
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+            {card.description && (
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-label="Có mô tả">
+                <path d="M4 6h16M4 12h16M4 18h10" />
+              </svg>
+            )}
+            {card.dueDate && (
+              <span className="inline-flex items-center gap-0.5 rounded bg-slate-100 px-1">
+                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" />
+                  <path d="M3 10h18M8 2v4M16 2v4" />
+                </svg>
+                {new Date(card.dueDate).toLocaleDateString('vi-VN', {
+                  day: '2-digit',
+                  month: '2-digit',
+                })}
+              </span>
+            )}
+            {checklistItems.length > 0 && (
+              <span
+                className={`inline-flex items-center gap-0.5 rounded px-1 ${
+                  clDone === checklistItems.length ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100'
+                }`}
+              >
+                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+                </svg>
+                {clDone}/{checklistItems.length}
+              </span>
+            )}
+            {commentCount > 0 && (
+              <span className="inline-flex items-center gap-0.5">
+                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                </svg>
+                {commentCount}
+              </span>
+            )}
+            {(card.members?.length ?? 0) > 0 && (
+              <span className="ml-auto flex -space-x-1">
+                {card.members!.slice(0, 3).map((m) => (
+                  <span
+                    key={m.userId}
+                    title={m.user.name}
+                    className="grid h-5 w-5 place-items-center rounded-full text-[9px] font-semibold text-white ring-1 ring-white"
+                    style={{ backgroundColor: '#7f5ad5' }}
+                  >
+                    {m.user.name.charAt(0).toUpperCase()}
+                  </span>
+                ))}
+              </span>
+            )}
+          </div>
         )}
       </div>
     </>
@@ -87,10 +164,11 @@ export default function CardItem({
       style={{ ...style, touchAction: 'none' }}
       {...attributes}
       {...listeners}
+      onClick={() => onOpen?.(card.id)}
       className={
         isDragging
           ? 'rounded-lg border-2 border-dashed border-slate-300 bg-slate-200/60 px-3 py-2 text-sm [&_*]:invisible'
-          : 'group/card relative flex cursor-grab gap-2 rounded-lg bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-black/[0.04] transition-shadow hover:shadow-md active:cursor-grabbing'
+          : 'group/card relative flex cursor-pointer gap-2 rounded-lg bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-black/[0.04] transition-shadow hover:shadow-md'
       }
     >
       {body}
@@ -99,9 +177,12 @@ export default function CardItem({
         <button
           type="button"
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => onRequestDelete(card)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRequestDelete(card);
+          }}
           aria-label="Xoá thẻ"
-          className="absolute right-1 top-1 rounded p-0.5 text-slate-400 opacity-0 hover:bg-slate-100 hover:text-slate-600 group-hover/card:opacity-100"
+          className="absolute right-1 top-1 rounded bg-white/80 p-0.5 text-slate-400 opacity-0 hover:bg-slate-100 hover:text-slate-600 group-hover/card:opacity-100"
         >
           <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M6 6l12 12M18 6L6 18" />
