@@ -44,11 +44,16 @@ import {
 } from '../lib/api/board';
 import { createCard, deleteCard, moveCard, updateCard } from '../lib/api/card';
 import {
+  copyList,
   createList,
+  deleteAllCards,
   deleteList,
   fetchBoardLists,
+  moveAllCards,
   reorderList,
+  sortListCards,
   updateList,
+  type SortListBy,
 } from '../lib/api/list';
 import { assetUrl } from '../lib/assets';
 import { getErrorMessage } from '../lib/errorMessage';
@@ -86,6 +91,7 @@ const collisionDetectionStrategy: CollisionDetection = (args) => {
 type DeleteTarget =
   | { kind: 'list'; list: BoardList }
   | { kind: 'card'; card: Card }
+  | { kind: 'cards-in-list'; list: BoardList }
   | null;
 
 export default function BoardPage() {
@@ -216,6 +222,52 @@ export default function BoardPage() {
     );
   }
 
+  // ---------- Menu "..." cua danh sach ----------
+  async function handleCopyList(list: BoardList) {
+    try {
+      const created = await copyList(list.id);
+      setLists((cur) => {
+        const at = cur.findIndex((l) => l.id === list.id);
+        const next = [...cur];
+        next.splice(at + 1, 0, created);
+        return next;
+      });
+    } catch (err) {
+      setListsError(getErrorMessage(err, 'Không sao chép được danh sách.'));
+    }
+  }
+
+  async function handleMoveList(list: BoardList, to: 'start' | 'end') {
+    const position = to === 'start' ? 0 : lists.length - 1;
+    const oldIndex = lists.findIndex((l) => l.id === list.id);
+    if (oldIndex === -1 || oldIndex === position) return;
+    setLists((cur) => arrayMove(cur, oldIndex, position));
+    try {
+      await reorderList(list.id, position);
+    } catch (err) {
+      setListsError(getErrorMessage(err, 'Không di chuyển được danh sách.'));
+      reloadLists();
+    }
+  }
+
+  async function handleMoveAllCards(list: BoardList, targetListId: string) {
+    try {
+      await moveAllCards(list.id, targetListId);
+      reloadLists();
+    } catch (err) {
+      setListsError(getErrorMessage(err, 'Không di chuyển được thẻ.'));
+    }
+  }
+
+  async function handleSortList(list: BoardList, by: SortListBy) {
+    try {
+      await sortListCards(list.id, by);
+      reloadLists();
+    } catch (err) {
+      setListsError(getErrorMessage(err, 'Không sắp xếp được danh sách.'));
+    }
+  }
+
   function patchCard(updated: Card) {
     setLists((cur) =>
       cur.map((l) => ({
@@ -242,6 +294,13 @@ export default function BoardPage() {
       if (deleteTarget.kind === 'list') {
         await deleteList(deleteTarget.list.id);
         setLists((cur) => cur.filter((l) => l.id !== deleteTarget.list.id));
+      } else if (deleteTarget.kind === 'cards-in-list') {
+        await deleteAllCards(deleteTarget.list.id);
+        setLists((cur) =>
+          cur.map((l) =>
+            l.id === deleteTarget.list.id ? { ...l, cards: [] } : l
+          )
+        );
       } else {
         await deleteCard(deleteTarget.card.id);
         setLists((cur) =>
@@ -533,6 +592,7 @@ export default function BoardPage() {
                 <ListColumn
                   key={list.id}
                   list={list}
+                  allLists={lists}
                   onRename={handleRenameList}
                   onRequestDeleteList={(l) =>
                     setDeleteTarget({ kind: 'list', list: l })
@@ -541,6 +601,13 @@ export default function BoardPage() {
                   onToggleCardDone={handleToggleCardDone}
                   onRequestDeleteCard={(c) =>
                     setDeleteTarget({ kind: 'card', card: c })
+                  }
+                  onCopyList={handleCopyList}
+                  onMoveList={handleMoveList}
+                  onMoveAllCards={handleMoveAllCards}
+                  onSortList={handleSortList}
+                  onRequestDeleteAllCards={(l) =>
+                    setDeleteTarget({ kind: 'cards-in-list', list: l })
                   }
                 />
               ))}
@@ -563,15 +630,29 @@ export default function BoardPage() {
 
       <ConfirmDialog
         open={deleteTarget !== null}
-        title={deleteTarget?.kind === 'card' ? 'Xoá thẻ?' : 'Xoá danh sách?'}
+        title={
+          deleteTarget?.kind === 'card'
+            ? 'Xoá thẻ?'
+            : deleteTarget?.kind === 'cards-in-list'
+              ? 'Xoá tất cả thẻ?'
+              : 'Xoá danh sách?'
+        }
         message={
           deleteTarget?.kind === 'card'
             ? `Thẻ "${deleteTarget.card.title}" sẽ bị xoá.`
-            : deleteTarget?.kind === 'list'
-              ? `Danh sách "${deleteTarget.list.name}" (và các thẻ bên trong) sẽ bị xoá.`
-              : undefined
+            : deleteTarget?.kind === 'cards-in-list'
+              ? `Toàn bộ ${deleteTarget.list.cards.length} thẻ trong danh sách "${deleteTarget.list.name}" sẽ bị xoá.`
+              : deleteTarget?.kind === 'list'
+                ? `Danh sách "${deleteTarget.list.name}" (và các thẻ bên trong) sẽ bị xoá.`
+                : undefined
         }
-        confirmLabel={deleteTarget?.kind === 'card' ? 'Xoá thẻ' : 'Xoá danh sách'}
+        confirmLabel={
+          deleteTarget?.kind === 'card'
+            ? 'Xoá thẻ'
+            : deleteTarget?.kind === 'cards-in-list'
+              ? 'Xoá tất cả thẻ'
+              : 'Xoá danh sách'
+        }
         danger
         busy={deleting}
         onConfirm={confirmDelete}

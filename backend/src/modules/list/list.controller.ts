@@ -1,11 +1,20 @@
 import type { Request, Response } from 'express';
 import { AppError } from '../../utils/AppError';
 import { asyncHandler } from '../../utils/asyncHandler';
-import type { CreateListInput, UpdateListInput } from './list.schema';
+import type {
+  CreateListInput,
+  MoveAllCardsInput,
+  SortListInput,
+  UpdateListInput,
+} from './list.schema';
 import {
+  copyList,
   createList,
+  deleteAllCards,
   deleteList,
   listBoardLists,
+  moveAllCards,
+  sortListCards,
   updateList,
 } from './list.service';
 
@@ -54,5 +63,46 @@ export const deleteListHandler = asyncHandler(
   async (req: Request, res: Response) => {
     await deleteList(requireUserId(req), req.params.listId as string);
     res.json({ success: true, message: 'Da xoa danh sach' });
+  }
+);
+
+export const copyListHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const list = await copyList(
+      requireUserId(req),
+      req.params.listId as string
+    );
+    res
+      .status(201)
+      .json({ success: true, message: 'Da sao chep danh sach', data: { list } });
+  }
+);
+
+export const moveAllCardsHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await moveAllCards(
+      requireUserId(req),
+      req.params.listId as string,
+      req.body as MoveAllCardsInput
+    );
+    res.json({ success: true, message: 'Da di chuyen toan bo the' });
+  }
+);
+
+export const sortListHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await sortListCards(
+      requireUserId(req),
+      req.params.listId as string,
+      req.body as SortListInput
+    );
+    res.json({ success: true, message: 'Da sap xep danh sach' });
+  }
+);
+
+export const deleteAllCardsHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await deleteAllCards(requireUserId(req), req.params.listId as string);
+    res.json({ success: true, message: 'Da xoa toan bo the trong danh sach' });
   }
 );

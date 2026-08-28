@@ -27,5 +27,17 @@ export const updateListSchema = z
     message: 'Khong co du lieu nao de cap nhat',
   });
 
+// Di chuyen tat ca the trong danh sach nay sang danh sach khac (cung bang)
+export const moveAllCardsSchema = z.object({
+  targetListId: z.string().min(1, 'Thieu danh sach dich'),
+});
+
+// Sap xep lai the trong danh sach
+export const sortListSchema = z.object({
+  by: z.enum(['created-desc', 'created-asc', 'title-asc', 'done']),
+});
+
 export type CreateListInput = z.infer<typeof createListSchema>;
 export type UpdateListInput = z.infer<typeof updateListSchema>;
+export type MoveAllCardsInput = z.infer<typeof moveAllCardsSchema>;
+export type SortListInput = z.infer<typeof sortListSchema>;

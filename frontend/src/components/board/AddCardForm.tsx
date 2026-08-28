@@ -2,10 +2,18 @@ import { useState, type FormEvent, type KeyboardEvent } from 'react';
 
 interface Props {
   onAdd: (title: string) => Promise<void>;
+  // Cho phep dieu khien tu ben ngoai (vd menu "..." bam "Them the")
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export default function AddCardForm({ onAdd }: Props) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function AddCardForm({ onAdd, open, onOpenChange }: Props) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = open ?? internalOpen;
+  const setIsOpen = (v: boolean) => {
+    setInternalOpen(v);
+    onOpenChange?.(v);
+  };
   const [title, setTitle] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -41,3 +41,34 @@ export async function reorderList(
 export async function deleteList(listId: string): Promise<void> {
   await api.delete(`/lists/${listId}`);
 }
+
+// Sao chep danh sach (kem toan bo the), chen ngay sau danh sach goc
+export async function copyList(listId: string): Promise<BoardList> {
+  const res = await api.post<{ data: { list: BoardList } }>(
+    `/lists/${listId}/copy`
+  );
+  return res.data.data.list;
+}
+
+// Chuyen toan bo the sang danh sach khac cung bang
+export async function moveAllCards(
+  listId: string,
+  targetListId: string
+): Promise<void> {
+  await api.post(`/lists/${listId}/move-all-cards`, { targetListId });
+}
+
+export type SortListBy = 'created-desc' | 'created-asc' | 'title-asc' | 'done';
+
+// Sap xep lai the trong danh sach
+export async function sortListCards(
+  listId: string,
+  by: SortListBy
+): Promise<void> {
+  await api.patch(`/lists/${listId}/sort`, { by });
+}
+
+// Xoa toan bo the trong danh sach
+export async function deleteAllCards(listId: string): Promise<void> {
+  await api.delete(`/lists/${listId}/cards`);
+}
