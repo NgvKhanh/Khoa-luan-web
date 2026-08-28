@@ -31,7 +31,7 @@ export default function BoardCard({ board, onChanged, onRequestDelete }: Props) 
   }, [menuOpen]);
 
   const hasImage = Boolean(board.backgroundImage);
-  const style = hasImage
+  const bgStyle = hasImage
     ? {
         backgroundImage: `url(${assetUrl(board.backgroundImage)})`,
         backgroundSize: 'cover',
@@ -64,24 +64,29 @@ export default function BoardCard({ board, onChanged, onRequestDelete }: Props) 
 
   return (
     <div
-      title={board.name}
-      style={style}
-      className="group relative flex h-28 flex-col justify-end overflow-hidden rounded-xl shadow-sm ring-1 ring-black/5 transition-transform hover:-translate-y-0.5 hover:shadow-md"
+      className={`group relative h-28 rounded-xl shadow-sm ring-1 ring-black/5 transition-transform hover:-translate-y-0.5 hover:shadow-md ${
+        menuOpen ? 'z-40' : ''
+      }`}
     >
-      {/* Lop phu gradient de chu de doc tren moi nen */}
-      <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
-
-      <p className="relative z-10 line-clamp-2 px-3 pb-2.5 text-sm font-semibold leading-snug text-white drop-shadow">
-        {board.name}
-      </p>
+      {/* Lop hinh anh - bo cat rieng de menu ben ngoai khong bi che */}
+      <div
+        title={board.name}
+        style={bgStyle}
+        className="absolute inset-0 overflow-hidden rounded-xl"
+      >
+        <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+        <p className="absolute inset-x-0 bottom-0 line-clamp-2 px-3 pb-2.5 text-sm font-semibold leading-snug text-white drop-shadow">
+          {board.name}
+        </p>
+      </div>
 
       {/* Nut ... */}
       <button
         type="button"
         onClick={() => setMenuOpen((v) => !v)}
         aria-label="Tuỳ chọn bảng"
-        className="absolute right-1.5 top-1.5 z-20 grid h-7 w-7 place-items-center rounded-lg bg-black/30 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/50 group-hover:opacity-100 aria-expanded:opacity-100"
         aria-expanded={menuOpen}
+        className="absolute right-1.5 top-1.5 z-10 grid h-7 w-7 place-items-center rounded-lg bg-black/30 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/50 group-hover:opacity-100 aria-expanded:opacity-100"
       >
         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
           <circle cx="5" cy="12" r="2" />
@@ -96,9 +101,9 @@ export default function BoardCard({ board, onChanged, onRequestDelete }: Props) 
             type="button"
             aria-label="Đóng menu"
             onClick={() => setMenuOpen(false)}
-            className="fixed inset-0 z-20 cursor-default"
+            className="fixed inset-0 z-30 cursor-default"
           />
-          <div className="absolute right-1.5 top-10 z-30 w-56 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-xl">
+          <div className="absolute right-0 top-[calc(100%+4px)] z-40 w-56 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-xl">
             <p className="mb-1.5 text-xs font-semibold text-slate-500">Ảnh nền</p>
 
             <div className="grid grid-cols-4 gap-1.5">
