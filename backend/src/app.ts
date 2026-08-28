@@ -5,6 +5,7 @@ import { env } from './config/env';
 import { UPLOAD_ROOT } from './config/upload';
 import authRoutes from './modules/auth/auth.routes';
 import boardRoutes from './modules/board/board.routes';
+import { boardMemberRoutes } from './modules/board/boardMember.routes';
 import { cardRoutes, listCardRoutes } from './modules/card/card.routes';
 import { boardListRoutes, listRoutes } from './modules/list/list.routes';
 import { AppError } from './utils/AppError';
@@ -45,6 +46,7 @@ export function createApp() {
 
   app.use('/api/auth', authRoutes);
   app.use('/api/boards/:boardId/lists', boardListRoutes);
+  app.use('/api/boards/:boardId/members', boardMemberRoutes);
   app.use('/api/boards', boardRoutes);
   app.use('/api/lists/:listId/cards', listCardRoutes);
   app.use('/api/lists', listRoutes);

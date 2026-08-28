@@ -6,8 +6,7 @@ import {
 import { AppError } from '../../utils/AppError';
 import type { CreateBoardInput, UpdateBoardInput } from './board.schema';
 
-// Lay 1 bang con hoat dong va kiem tra dung chu so huu.
-// Export de module khac (vd list) tai su dung kiem tra quyen.
+// Kiem tra nguoi dung la CHU bang. Dung cho: xoa bang, quan ly thanh vien.
 export async function assertBoardOwner(userId: string, boardId: string) {
   const board = await prisma.board.findFirst({
     where: { id: boardId, deletedAt: null },
@@ -16,16 +15,49 @@ export async function assertBoardOwner(userId: string, boardId: string) {
     throw new AppError('Khong tim thay bang', 404);
   }
   if (board.ownerId !== userId) {
-    throw new AppError('Ban khong co quyen voi bang nay', 403);
+    throw new AppError('Chi chu bang moi thuc hien duoc thao tac nay', 403);
+  }
+  return board;
+}
+
+// Kiem tra nguoi dung CO QUYEN TRUY CAP bang: la chu HOAC la thanh vien.
+// Dung cho: xem/sua bang, danh sach, the. Export de module list/card dung chung.
+export async function assertBoardAccess(userId: string, boardId: string) {
+  const board = await prisma.board.findFirst({
+    where: { id: boardId, deletedAt: null },
+  });
+  if (!board) {
+    throw new AppError('Khong tim thay bang', 404);
+  }
+  if (board.ownerId === userId) {
+    return board;
+  }
+  const membership = await prisma.boardMember.findFirst({
+    where: { boardId, userId, deletedAt: null },
+  });
+  if (!membership) {
+    throw new AppError('Ban khong co quyen truy cap bang nay', 403);
   }
   return board;
 }
 
 export async function listMyBoards(userId: string) {
-  return prisma.board.findMany({
-    where: { ownerId: userId, deletedAt: null },
+  const boards = await prisma.board.findMany({
+    where: {
+      deletedAt: null,
+      members: { some: { userId, deletedAt: null } },
+    },
     orderBy: { createdAt: 'desc' },
+    include: {
+      _count: { select: { members: { where: { deletedAt: null } } } },
+    },
   });
+
+  return boards.map(({ _count, ...board }) => ({
+    ...board,
+    memberCount: _count.members,
+    isOwner: board.ownerId === userId,
+  }));
 }
 
 export async function createBoard(userId: string, input: CreateBoardInput) {
@@ -34,6 +66,7 @@ export async function createBoard(userId: string, input: CreateBoardInput) {
       ownerId: userId,
       name: input.name,
       ...(input.color ? { color: input.color } : {}),
+      members: { create: { userId, role: 'OWNER' } },
     },
   });
 }
@@ -43,7 +76,7 @@ export async function updateBoard(
   boardId: string,
   input: UpdateBoardInput
 ) {
-  const board = await assertBoardOwner(userId, boardId);
+  const board = await assertBoardAccess(userId, boardId);
 
   // Doi sang mau nen -> bo anh nen dang co (va xoa file cu tren dia)
   const switchingToColor =
@@ -70,7 +103,7 @@ export async function setBoardBackground(
   boardId: string,
   filename: string
 ) {
-  const board = await assertBoardOwner(userId, boardId);
+  const board = await assertBoardAccess(userId, boardId);
 
   const updated = await prisma.board.update({
     where: { id: boardId },
@@ -84,7 +117,7 @@ export async function setBoardBackground(
 }
 
 export async function clearBoardBackground(userId: string, boardId: string) {
-  const board = await assertBoardOwner(userId, boardId);
+  const board = await assertBoardAccess(userId, boardId);
 
   const updated = await prisma.board.update({
     where: { id: boardId },

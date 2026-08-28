@@ -1,0 +1,50 @@
+import type { Request, Response } from 'express';
+import { AppError } from '../../utils/AppError';
+import { asyncHandler } from '../../utils/asyncHandler';
+import type { AddBoardMemberInput } from './boardMember.schema';
+import {
+  addBoardMember,
+  listBoardMembers,
+  removeBoardMember,
+} from './boardMember.service';
+
+function requireUserId(req: Request): string {
+  if (!req.user) {
+    throw new AppError('Ban chua dang nhap', 401);
+  }
+  return req.user.id;
+}
+
+export const listBoardMembersHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const members = await listBoardMembers(
+      requireUserId(req),
+      req.params.boardId as string
+    );
+    res.json({ success: true, data: { members } });
+  }
+);
+
+export const addBoardMemberHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const member = await addBoardMember(
+      requireUserId(req),
+      req.params.boardId as string,
+      req.body as AddBoardMemberInput
+    );
+    res
+      .status(201)
+      .json({ success: true, message: 'Da them thanh vien', data: { member } });
+  }
+);
+
+export const removeBoardMemberHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await removeBoardMember(
+      requireUserId(req),
+      req.params.boardId as string,
+      req.params.userId as string
+    );
+    res.json({ success: true, message: 'Da xoa thanh vien' });
+  }
+);

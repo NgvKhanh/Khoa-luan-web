@@ -12,6 +12,11 @@ datasource db {
 
 // ===================== NGUOI DUNG =====================
 
+enum BoardRole {
+  OWNER
+  MEMBER
+}
+
 model User {
   id           String    @id @default(cuid())
   email        String    @unique
@@ -22,7 +27,8 @@ model User {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  boards Board[]
+  boards       Board[]
+  boardMembers BoardMember[]
 
   @@index([email])
 }
@@ -40,10 +46,29 @@ model Board {
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
-  owner User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  lists List[]
+  owner   User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  lists   List[]
+  members BoardMember[]
 
   @@index([ownerId])
+}
+
+// Thanh vien cua 1 bang. OWNER = chu bang (duy nhat), MEMBER = nguoi duoc chia se.
+model BoardMember {
+  id        String    @id @default(cuid())
+  boardId   String
+  userId    String
+  role      BoardRole @default(MEMBER)
+  joinedAt  DateTime  @default(now())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, userId])
+  @@index([userId])
 }
 
 // ===================== DANH SACH (LIST) =====================

@@ -1,7 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
-import { assertBoardOwner } from '../board/board.service';
-import { assertListOwner } from '../list/list.service';
+import { assertBoardAccess } from '../board/board.service';
+import { assertListAccess } from '../list/list.service';
 import type {
   CreateCardInput,
   MoveCardInput,
@@ -9,14 +9,14 @@ import type {
 } from './card.schema';
 
 // Lay 1 the con hoat dong + kiem tra nguoi dung so huu bang chua no
-async function assertCardOwner(userId: string, cardId: string) {
+async function assertCardAccess(userId: string, cardId: string) {
   const card = await prisma.card.findFirst({
     where: { id: cardId, deletedAt: null },
   });
   if (!card) {
     throw new AppError('Khong tim thay the', 404);
   }
-  await assertListOwner(userId, card.listId);
+  await assertListAccess(userId, card.listId);
   return card;
 }
 
@@ -25,7 +25,7 @@ export async function createCard(
   listId: string,
   input: CreateCardInput
 ) {
-  await assertListOwner(userId, listId);
+  await assertListAccess(userId, listId);
 
   const last = await prisma.card.findFirst({
     where: { listId, deletedAt: null },
@@ -44,7 +44,7 @@ export async function updateCard(
   cardId: string,
   input: UpdateCardInput
 ) {
-  await assertCardOwner(userId, cardId);
+  await assertCardAccess(userId, cardId);
   return prisma.card.update({
     where: { id: cardId },
     data: {
@@ -58,7 +58,7 @@ export async function updateCard(
 }
 
 export async function deleteCard(userId: string, cardId: string) {
-  await assertCardOwner(userId, cardId);
+  await assertCardAccess(userId, cardId);
   await prisma.card.update({
     where: { id: cardId },
     data: { deletedAt: new Date() },
@@ -75,7 +75,7 @@ export async function moveCard(
   cardId: string,
   input: MoveCardInput
 ) {
-  const card = await assertCardOwner(userId, cardId);
+  const card = await assertCardAccess(userId, cardId);
 
   const targetList = await prisma.list.findFirst({
     where: { id: input.listId, deletedAt: null },
@@ -83,7 +83,7 @@ export async function moveCard(
   if (!targetList) {
     throw new AppError('Danh sach dich khong ton tai', 400);
   }
-  await assertBoardOwner(userId, targetList.boardId);
+  await assertBoardAccess(userId, targetList.boardId);
 
   const sourceList = await prisma.list.findFirst({
     where: { id: card.listId },

@@ -1,23 +1,23 @@
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
-import { assertBoardOwner } from '../board/board.service';
+import { assertBoardAccess } from '../board/board.service';
 import type { CreateListInput, UpdateListInput } from './list.schema';
 
 // Lay 1 danh sach con hoat dong va kiem tra nguoi dung so huu bang chua no.
 // Export de module card tai su dung.
-export async function assertListOwner(userId: string, listId: string) {
+export async function assertListAccess(userId: string, listId: string) {
   const list = await prisma.list.findFirst({
     where: { id: listId, deletedAt: null },
   });
   if (!list) {
     throw new AppError('Khong tim thay danh sach', 404);
   }
-  await assertBoardOwner(userId, list.boardId);
+  await assertBoardAccess(userId, list.boardId);
   return list;
 }
 
 export async function listBoardLists(userId: string, boardId: string) {
-  await assertBoardOwner(userId, boardId);
+  await assertBoardAccess(userId, boardId);
   return prisma.list.findMany({
     where: { boardId, deletedAt: null },
     orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
@@ -35,7 +35,7 @@ export async function createList(
   boardId: string,
   input: CreateListInput
 ) {
-  await assertBoardOwner(userId, boardId);
+  await assertBoardAccess(userId, boardId);
 
   const last = await prisma.list.findFirst({
     where: { boardId, deletedAt: null },
@@ -54,7 +54,7 @@ export async function updateList(
   listId: string,
   input: UpdateListInput
 ) {
-  const list = await assertListOwner(userId, listId);
+  const list = await assertListAccess(userId, listId);
 
   // Keo sap xep lai: dua cot nay toi vi tri input.position roi danh so lai het
   if (input.position !== undefined) {
@@ -94,7 +94,7 @@ export async function updateList(
 }
 
 export async function deleteList(userId: string, listId: string) {
-  await assertListOwner(userId, listId);
+  await assertListAccess(userId, listId);
   await prisma.list.update({
     where: { id: listId },
     data: { deletedAt: new Date() },
