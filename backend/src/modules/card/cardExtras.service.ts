@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity/activity.service';
+import { cardMemberIds, notify } from '../notification/notification.service';
 import { assertCardAccess } from './card.service';
 
 const USER_SELECT = {
@@ -44,6 +45,14 @@ export async function addCardMember(
     userId,
     type: 'member.add',
     data: { memberName: member.user.name },
+  });
+  await notify({
+    recipients: [targetUserId],
+    actorId: userId,
+    type: 'card.member.added',
+    boardId,
+    cardId,
+    data: { cardTitle: card.title },
   });
 
   return member;
@@ -178,6 +187,14 @@ export async function addComment(
     userId,
     type: 'comment.create',
     data: { text: text.trim().slice(0, 120) },
+  });
+  await notify({
+    recipients: await cardMemberIds(cardId),
+    actorId: userId,
+    type: 'card.comment',
+    boardId: card.list.boardId,
+    cardId,
+    data: { cardTitle: card.title, text: text.trim().slice(0, 120) },
   });
 
   return comment;

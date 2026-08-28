@@ -1,6 +1,10 @@
 import crypto from 'node:crypto';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
+import {
+  boardManagerIds,
+  notify,
+} from '../notification/notification.service';
 import { assertBoardManage } from './board.service';
 
 const MEMBER_USER_SELECT = {
@@ -99,6 +103,14 @@ export async function requestToJoin(userId: string, token: string) {
     update: { status: 'PENDING' },
   });
 
+  await notify({
+    recipients: await boardManagerIds(board.id),
+    actorId: userId,
+    type: 'board.join.request',
+    boardId: board.id,
+    data: { boardName: board.name },
+  });
+
   return { boardName: board.name };
 }
 
@@ -140,6 +152,18 @@ export async function approveJoinRequest(
     }),
   ]);
 
+  const board = await prisma.board.findUnique({
+    where: { id: boardId },
+    select: { name: true },
+  });
+  await notify({
+    recipients: [request.userId],
+    actorId,
+    type: 'board.join.approved',
+    boardId,
+    data: { boardName: board?.name ?? '' },
+  });
+
   return member;
 }
 
@@ -160,5 +184,17 @@ export async function rejectJoinRequest(
   await prisma.boardJoinRequest.update({
     where: { id: requestId },
     data: { status: 'REJECTED' },
+  });
+
+  const board = await prisma.board.findUnique({
+    where: { id: boardId },
+    select: { name: true },
+  });
+  await notify({
+    recipients: [request.userId],
+    actorId,
+    type: 'board.join.rejected',
+    boardId,
+    data: { boardName: board?.name ?? '' },
   });
 }

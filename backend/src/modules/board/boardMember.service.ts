@@ -1,5 +1,6 @@
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
+import { notify } from '../notification/notification.service';
 import { assertBoardAccess, assertBoardManage } from './board.service';
 import type {
   AddBoardMemberInput,
@@ -27,7 +28,7 @@ export async function addBoardMember(
   boardId: string,
   input: AddBoardMemberInput
 ) {
-  await assertBoardManage(actorId, boardId);
+  const board = await assertBoardManage(actorId, boardId);
 
   const targetUser = await prisma.user.findFirst({
     where: { email: input.email, deletedAt: null },
@@ -44,17 +45,26 @@ export async function addBoardMember(
     throw new AppError('Nguoi nay da la thanh vien cua bang', 409);
   }
 
-  // Neu truoc do da bi xoa -> khoi phuc lai
-  return existing
-    ? prisma.boardMember.update({
+  const member = existing
+    ? await prisma.boardMember.update({
         where: { id: existing.id },
         data: { deletedAt: null, role: input.role, joinedAt: new Date() },
         include: { user: { select: MEMBER_USER_SELECT } },
       })
-    : prisma.boardMember.create({
+    : await prisma.boardMember.create({
         data: { boardId, userId: targetUser.id, role: input.role },
         include: { user: { select: MEMBER_USER_SELECT } },
       });
+
+  await notify({
+    recipients: [targetUser.id],
+    actorId,
+    type: 'board.member.added',
+    boardId,
+    data: { boardName: board.name },
+  });
+
+  return member;
 }
 
 export async function changeMemberRole(
@@ -63,7 +73,7 @@ export async function changeMemberRole(
   targetUserId: string,
   input: ChangeMemberRoleInput
 ) {
-  await assertBoardManage(actorId, boardId);
+  const board = await assertBoardManage(actorId, boardId);
 
   const membership = await prisma.boardMember.findFirst({
     where: { boardId, userId: targetUserId, deletedAt: null },
@@ -75,11 +85,21 @@ export async function changeMemberRole(
     throw new AppError('Khong the doi vai tro cua chu bang', 400);
   }
 
-  return prisma.boardMember.update({
+  const updated = await prisma.boardMember.update({
     where: { id: membership.id },
     data: { role: input.role },
     include: { user: { select: MEMBER_USER_SELECT } },
   });
+
+  await notify({
+    recipients: [targetUserId],
+    actorId,
+    type: 'board.role.changed',
+    boardId,
+    data: { boardName: board.name, role: input.role },
+  });
+
+  return updated;
 }
 
 export async function removeBoardMember(
@@ -87,7 +107,7 @@ export async function removeBoardMember(
   boardId: string,
   targetUserId: string
 ) {
-  await assertBoardManage(actorId, boardId);
+  const board = await assertBoardManage(actorId, boardId);
 
   const membership = await prisma.boardMember.findFirst({
     where: { boardId, userId: targetUserId, deletedAt: null },
@@ -104,4 +124,15 @@ export async function removeBoardMember(
     where: { id: membership.id },
     data: { deletedAt: new Date() },
   });
+
+  // Chi bao khi bi nguoi khac xoa (khong bao khi tu roi bang)
+  if (targetUserId !== actorId) {
+    await notify({
+      recipients: [targetUserId],
+      actorId,
+      type: 'board.member.removed',
+      boardId,
+      data: { boardName: board.name },
+    });
+  }
 }

@@ -6,6 +6,7 @@ import { assetUrl } from '../lib/assets';
 import { initialsOf } from '../lib/avatar';
 import type { Board } from '../types/board';
 import CreateBoardDialog from './board/CreateBoardDialog';
+import NotificationBell from './NotificationBell';
 
 function Thumb({ board }: { board: Board }) {
   const style = board.backgroundImage
@@ -271,6 +272,7 @@ export default function Header() {
 
       <BoardSearch />
       <CreateBoardMenu />
+      <NotificationBell />
       <AccountMenu />
     </header>
   );

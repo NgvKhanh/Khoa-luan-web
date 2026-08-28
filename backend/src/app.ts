@@ -15,6 +15,7 @@ import {
 } from './modules/card/card.routes';
 import { boardListRoutes, listRoutes } from './modules/list/list.routes';
 import { boardLabelRoutes, labelRoutes } from './modules/label/label.routes';
+import notificationRoutes from './modules/notification/notification.routes';
 import unsplashRoutes from './modules/unsplash/unsplash.routes';
 import { AppError } from './utils/AppError';
 
@@ -64,6 +65,7 @@ export function createApp() {
   app.use('/api/checklist-items', checklistItemRoutes);
   app.use('/api/comments', commentRoutes);
   app.use('/api/labels', labelRoutes);
+  app.use('/api/notifications', notificationRoutes);
   app.use('/api/unsplash', unsplashRoutes);
 
   // Khong khop route nao -> tra ve 404 dang JSON

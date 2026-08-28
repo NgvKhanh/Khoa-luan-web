@@ -2,6 +2,7 @@ import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity/activity.service';
 import { assertBoardAccess } from '../board/board.service';
+import { cardMemberIds, notify } from '../notification/notification.service';
 import { assertListAccess } from '../list/list.service';
 import type {
   CreateCardInput,
@@ -110,6 +111,8 @@ export async function updateCard(
     },
   });
 
+  const recipients = () => cardMemberIds(cardId);
+
   if (input.title !== undefined && input.title !== card.title) {
     await logActivity({
       boardId,
@@ -117,6 +120,14 @@ export async function updateCard(
       userId,
       type: 'card.rename',
       data: { from: card.title, to: input.title },
+    });
+    await notify({
+      recipients: await recipients(),
+      actorId: userId,
+      type: 'card.renamed',
+      boardId,
+      cardId,
+      data: { cardTitle: input.title },
     });
   }
   if (input.isDone !== undefined && input.isDone !== card.isDone) {
@@ -126,6 +137,16 @@ export async function updateCard(
       userId,
       type: input.isDone ? 'card.done' : 'card.undone',
     });
+    if (input.isDone) {
+      await notify({
+        recipients: await recipients(),
+        actorId: userId,
+        type: 'card.marked.done',
+        boardId,
+        cardId,
+        data: { cardTitle: card.title },
+      });
+    }
   }
   if (input.dueDate !== undefined) {
     await logActivity({
@@ -135,16 +156,34 @@ export async function updateCard(
       type: input.dueDate ? 'card.due.set' : 'card.due.clear',
       data: input.dueDate ? { dueDate: input.dueDate } : {},
     });
+    if (input.dueDate) {
+      await notify({
+        recipients: await recipients(),
+        actorId: userId,
+        type: 'card.due.set',
+        boardId,
+        cardId,
+        data: { cardTitle: card.title, dueDate: input.dueDate },
+      });
+    }
   }
 
   return updated;
 }
 
 export async function deleteCard(userId: string, cardId: string) {
-  await assertCardAccess(userId, cardId);
+  const card = await assertCardAccess(userId, cardId);
+  const recipients = await cardMemberIds(cardId);
   await prisma.card.update({
     where: { id: cardId },
     data: { deletedAt: new Date() },
+  });
+  await notify({
+    recipients,
+    actorId: userId,
+    type: 'card.deleted',
+    boardId: card.list.boardId,
+    data: { cardTitle: card.title },
   });
 }
 
@@ -214,6 +253,14 @@ export async function moveCard(
       userId,
       type: 'card.move',
       data: { fromList: sourceListName, toList: targetList.name },
+    });
+    await notify({
+      recipients: await cardMemberIds(cardId),
+      actorId: userId,
+      type: 'card.moved',
+      boardId: targetList.boardId,
+      cardId,
+      data: { cardTitle: card.title, toList: targetList.name },
     });
   }
 

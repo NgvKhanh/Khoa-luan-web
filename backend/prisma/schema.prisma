@@ -34,14 +34,35 @@ model User {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  boards       Board[]
-  boardMembers BoardMember[]
-  joinRequests BoardJoinRequest[]
-  cardMembers  CardMember[]
-  comments     Comment[]
-  activities   Activity[]
+  boards             Board[]
+  boardMembers        BoardMember[]
+  joinRequests        BoardJoinRequest[]
+  cardMembers         CardMember[]
+  comments            Comment[]
+  activities          Activity[]
+  notifications       Notification[] @relation("NotifRecipient")
+  actedNotifications  Notification[] @relation("NotifActor")
 
   @@index([email])
+}
+
+// Thong bao gui rieng cho tung nguoi nhan (userId), co trang thai da doc.
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String // nguoi nhan
+  actorId   String // nguoi gay ra hanh dong
+  type      String
+  boardId   String?
+  cardId    String?
+  data      Json     @default("{}")
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user  User @relation("NotifRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor User @relation("NotifActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
 }
 
 // ===================== BANG (BOARD) =====================
