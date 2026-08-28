@@ -28,6 +28,15 @@ function tokenCookieOptions(): CookieOptions {
   };
 }
 
+// Khi xoa cookie khong duoc truyen maxAge (Express 5 canh bao deprecated)
+function clearTokenCookieOptions(): CookieOptions {
+  return {
+    httpOnly: true,
+    secure: env.isProduction,
+    sameSite: 'lax',
+  };
+}
+
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const { user, token } = await registerUser(req.body as RegisterInput);
 
@@ -62,7 +71,7 @@ export const googleAuth = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const logout = asyncHandler(async (_req: Request, res: Response) => {
-  res.clearCookie(TOKEN_COOKIE_NAME, tokenCookieOptions());
+  res.clearCookie(TOKEN_COOKIE_NAME, clearTokenCookieOptions());
   res.json({ success: true, message: 'Da dang xuat' });
 });
 
