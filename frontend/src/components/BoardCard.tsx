@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   clearBoardBackground,
   updateBoard,
@@ -68,8 +69,9 @@ export default function BoardCard({ board, onChanged, onRequestDelete }: Props) 
         menuOpen ? 'z-40' : ''
       }`}
     >
-      {/* Lop hinh anh - bo cat rieng de menu ben ngoai khong bi che */}
-      <div
+      {/* Lop hinh anh - bam vao de mo bang; bo cat rieng de menu ben ngoai khong bi che */}
+      <Link
+        to={`/boards/${board.id}`}
         title={board.name}
         style={bgStyle}
         className="absolute inset-0 overflow-hidden rounded-xl"
@@ -78,7 +80,7 @@ export default function BoardCard({ board, onChanged, onRequestDelete }: Props) 
         <p className="absolute inset-x-0 bottom-0 line-clamp-2 px-3 pb-2.5 text-sm font-semibold leading-snug text-white drop-shadow">
           {board.name}
         </p>
-      </div>
+      </Link>
 
       {/* Nut ... */}
       <button

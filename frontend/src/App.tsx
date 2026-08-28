@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import BoardViewLayout from './layouts/BoardViewLayout';
 import MainLayout from './layouts/MainLayout';
+import BoardPage from './pages/BoardPage';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -14,6 +16,10 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           <Route path="/" element={<HomePage />} />
+        </Route>
+
+        <Route element={<BoardViewLayout />}>
+          <Route path="/boards/:boardId" element={<BoardPage />} />
         </Route>
       </Route>
 
