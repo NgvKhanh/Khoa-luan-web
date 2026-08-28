@@ -40,7 +40,25 @@ model Board {
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
-  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  lists List[]
 
   @@index([ownerId])
+}
+
+// ===================== DANH SACH (LIST) =====================
+
+// Cot trong bang. "position" quyet dinh thu tu tu trai sang phai (so nho nam truoc).
+model List {
+  id        String    @id @default(cuid())
+  boardId   String
+  name      String
+  position  Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([boardId])
 }

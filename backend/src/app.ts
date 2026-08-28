@@ -5,6 +5,7 @@ import { env } from './config/env';
 import { UPLOAD_ROOT } from './config/upload';
 import authRoutes from './modules/auth/auth.routes';
 import boardRoutes from './modules/board/board.routes';
+import { boardListRoutes, listRoutes } from './modules/list/list.routes';
 import { AppError } from './utils/AppError';
 
 /**
@@ -42,7 +43,9 @@ export function createApp() {
   app.use('/uploads', express.static(UPLOAD_ROOT));
 
   app.use('/api/auth', authRoutes);
+  app.use('/api/boards/:boardId/lists', boardListRoutes);
   app.use('/api/boards', boardRoutes);
+  app.use('/api/lists', listRoutes);
 
   // Khong khop route nao -> tra ve 404 dang JSON
   app.use((req: Request, res: Response) => {

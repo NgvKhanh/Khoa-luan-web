@@ -6,8 +6,9 @@ import {
 import { AppError } from '../../utils/AppError';
 import type { CreateBoardInput, UpdateBoardInput } from './board.schema';
 
-// Lay 1 bang con hoat dong va kiem tra dung chu so huu
-async function getOwnBoardOrThrow(userId: string, boardId: string) {
+// Lay 1 bang con hoat dong va kiem tra dung chu so huu.
+// Export de module khac (vd list) tai su dung kiem tra quyen.
+export async function assertBoardOwner(userId: string, boardId: string) {
   const board = await prisma.board.findFirst({
     where: { id: boardId, deletedAt: null },
   });
@@ -42,7 +43,7 @@ export async function updateBoard(
   boardId: string,
   input: UpdateBoardInput
 ) {
-  const board = await getOwnBoardOrThrow(userId, boardId);
+  const board = await assertBoardOwner(userId, boardId);
 
   // Doi sang mau nen -> bo anh nen dang co (va xoa file cu tren dia)
   const switchingToColor =
@@ -69,7 +70,7 @@ export async function setBoardBackground(
   boardId: string,
   filename: string
 ) {
-  const board = await getOwnBoardOrThrow(userId, boardId);
+  const board = await assertBoardOwner(userId, boardId);
 
   const updated = await prisma.board.update({
     where: { id: boardId },
@@ -83,7 +84,7 @@ export async function setBoardBackground(
 }
 
 export async function clearBoardBackground(userId: string, boardId: string) {
-  const board = await getOwnBoardOrThrow(userId, boardId);
+  const board = await assertBoardOwner(userId, boardId);
 
   const updated = await prisma.board.update({
     where: { id: boardId },
@@ -96,7 +97,7 @@ export async function clearBoardBackground(userId: string, boardId: string) {
 }
 
 export async function deleteBoard(userId: string, boardId: string) {
-  const board = await getOwnBoardOrThrow(userId, boardId);
+  const board = await assertBoardOwner(userId, boardId);
   await prisma.board.update({
     where: { id: boardId },
     data: { deletedAt: new Date() },
