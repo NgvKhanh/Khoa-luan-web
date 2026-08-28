@@ -11,7 +11,7 @@ export async function createCard(listId: string, title: string): Promise<Card> {
 
 export async function updateCard(
   cardId: string,
-  input: { title?: string; description?: string | null }
+  input: { title?: string; description?: string | null; isDone?: boolean }
 ): Promise<Card> {
   const res = await api.patch<{ data: { card: Card } }>(
     `/cards/${cardId}`,

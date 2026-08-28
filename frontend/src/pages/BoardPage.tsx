@@ -34,7 +34,7 @@ import ListColumnOverlay from '../components/board/ListColumnOverlay';
 import ConfirmDialog from '../components/ConfirmDialog';
 import type { BoardOutletContext } from '../layouts/BoardViewLayout';
 import { updateBoard } from '../lib/api/board';
-import { createCard, deleteCard, moveCard } from '../lib/api/card';
+import { createCard, deleteCard, moveCard, updateCard } from '../lib/api/card';
 import {
   createList,
   deleteList,
@@ -172,6 +172,25 @@ export default function BoardPage() {
         l.id === listId ? { ...l, cards: [...l.cards, created] } : l
       )
     );
+  }
+
+  function patchCard(updated: Card) {
+    setLists((cur) =>
+      cur.map((l) => ({
+        ...l,
+        cards: l.cards.map((c) => (c.id === updated.id ? updated : c)),
+      }))
+    );
+  }
+
+  async function handleToggleCardDone(card: Card) {
+    patchCard({ ...card, isDone: !card.isDone });
+    try {
+      patchCard(await updateCard(card.id, { isDone: !card.isDone }));
+    } catch (err) {
+      patchCard(card); // hoan tac
+      setListsError(getErrorMessage(err, 'Không cập nhật được thẻ.'));
+    }
   }
 
   async function confirmDelete() {
@@ -362,7 +381,13 @@ export default function BoardPage() {
   return (
     <div className="flex h-full flex-col" style={canvasStyle}>
       {/* Thanh ten bang */}
-      <div className="flex shrink-0 items-center gap-3 bg-black/25 px-4 py-2 backdrop-blur-sm">
+      <div className="flex shrink-0 items-center gap-2 bg-gradient-to-b from-black/35 to-black/5 px-4 py-2 backdrop-blur-sm">
+        <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-white/20 text-white">
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor">
+            <rect x="3" y="4" width="8" height="16" rx="1" />
+            <rect x="13" y="4" width="8" height="10" rx="1" />
+          </svg>
+        </span>
         {editing ? (
           <form onSubmit={onNameSubmit}>
             <input
@@ -381,7 +406,7 @@ export default function BoardPage() {
               setDraft(board.name);
               setEditing(true);
             }}
-            className="rounded px-2 py-1 text-lg font-bold text-white hover:bg-white/20"
+            className="rounded px-2 py-1 text-lg font-bold text-white drop-shadow-sm hover:bg-white/20"
           >
             {board.name}
           </button>
@@ -430,6 +455,7 @@ export default function BoardPage() {
                     setDeleteTarget({ kind: 'list', list: l })
                   }
                   onAddCard={handleAddCard}
+                  onToggleCardDone={handleToggleCardDone}
                   onRequestDeleteCard={(c) =>
                     setDeleteTarget({ kind: 'card', card: c })
                   }

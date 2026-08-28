@@ -4,6 +4,7 @@ export interface Card {
   listId: string;
   title: string;
   description: string | null;
+  isDone: boolean;
   position: number;
   createdAt: string;
   updatedAt: string;

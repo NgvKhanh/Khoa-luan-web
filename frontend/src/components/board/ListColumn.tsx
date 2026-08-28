@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react';
 import {
   SortableContext,
   useSortable,
@@ -15,6 +15,7 @@ interface Props {
   onRename: (listId: string, name: string) => void;
   onRequestDeleteList: (list: BoardList) => void;
   onAddCard: (listId: string, title: string) => Promise<void>;
+  onToggleCardDone: (card: Card) => void;
   onRequestDeleteCard: (card: Card) => void;
 }
 
@@ -23,6 +24,7 @@ export default function ListColumn({
   onRename,
   onRequestDeleteList,
   onAddCard,
+  onToggleCardDone,
   onRequestDeleteCard,
 }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -30,6 +32,16 @@ export default function ListColumn({
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(list.name);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -65,18 +77,16 @@ export default function ListColumn({
       style={style}
       className={
         isDragging
-          ? 'flex max-h-full w-72 shrink-0 flex-col rounded-xl border-2 border-dashed border-white/60 bg-white/20 [&>*]:invisible'
-          : 'group flex max-h-full w-72 shrink-0 flex-col rounded-xl bg-[#f1f2f4] shadow-sm'
+          ? 'flex max-h-full w-[272px] shrink-0 flex-col rounded-xl border-2 border-dashed border-white/60 bg-white/20 [&>*]:invisible'
+          : 'flex max-h-full w-[272px] shrink-0 flex-col rounded-xl bg-[#f1f2f4]/95 shadow-sm backdrop-blur-sm'
       }
     >
-      {/* Header - cung la tay cam de keo cot.
-          Khong stopPropagation o nut ten/xoa: PointerSensor chi kich hoat keo khi
-          di chuyen > 5px, nen bam thuong (khong di chuyen) van vao onClick binh thuong. */}
+      {/* Header - cung la tay cam de keo cot */}
       <div
         {...attributes}
         {...listeners}
         style={{ touchAction: 'none' }}
-        className="flex cursor-grab items-start gap-1 p-2 active:cursor-grabbing"
+        className="relative flex cursor-grab items-center gap-1 px-2 py-1.5 active:cursor-grabbing"
       >
         {editing ? (
           <form onSubmit={onSubmit} className="flex-1">
@@ -87,7 +97,7 @@ export default function ListColumn({
               onBlur={saveName}
               onKeyDown={onKeyDown}
               onPointerDown={(e) => e.stopPropagation()}
-              className="w-full rounded border border-[#0c66e4] bg-white px-2 py-1 text-sm font-semibold text-slate-800 focus:outline-none"
+              className="w-full rounded border border-[#0c66e4] bg-white px-2 py-1 text-sm font-semibold text-[#172b4d] focus:outline-none"
             />
           </form>
         ) : (
@@ -97,26 +107,55 @@ export default function ListColumn({
               setDraft(list.name);
               setEditing(true);
             }}
-            className="flex-1 rounded px-2 py-1 text-left text-sm font-semibold text-slate-800 hover:bg-black/5"
+            className="flex-1 rounded px-2 py-1 text-left text-sm font-semibold text-[#172b4d] hover:bg-black/5"
           >
             {list.name}
           </button>
         )}
 
+        <span className="shrink-0 px-1 text-xs text-slate-500">
+          {list.cards.length}
+        </span>
+
         <button
           type="button"
-          onClick={() => onRequestDeleteList(list)}
-          aria-label="Xoá danh sách"
-          className="mt-0.5 shrink-0 rounded p-1 text-slate-500 opacity-0 hover:bg-black/10 hover:text-slate-700 group-hover:opacity-100"
+          onClick={() => setMenuOpen((v) => !v)}
+          aria-label="Hành động danh sách"
+          className="shrink-0 rounded p-1 text-slate-500 hover:bg-black/10 hover:text-slate-700"
         >
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M6 6l12 12M18 6L6 18" />
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+            <circle cx="5" cy="12" r="1.6" />
+            <circle cx="12" cy="12" r="1.6" />
+            <circle cx="19" cy="12" r="1.6" />
           </svg>
         </button>
+
+        {menuOpen && (
+          <>
+            <button
+              type="button"
+              aria-label="Đóng"
+              onClick={() => setMenuOpen(false)}
+              className="fixed inset-0 z-20 cursor-default"
+            />
+            <div className="absolute right-2 top-10 z-30 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onRequestDeleteList(list);
+                }}
+                className="w-full rounded px-2 py-1.5 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+              >
+                Xoá danh sách
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Vung the */}
-      <div className="flex min-h-[8px] flex-1 flex-col gap-2 overflow-y-auto px-2">
+      {/* Vung the - cao theo noi dung, cuon rieng khi nhieu */}
+      <div className="flex min-h-[4px] flex-col gap-2 overflow-y-auto px-2">
         <SortableContext
           items={list.cards.map((c) => c.id)}
           strategy={verticalListSortingStrategy}
@@ -125,6 +164,7 @@ export default function ListColumn({
             <CardItem
               key={card.id}
               card={card}
+              onToggleDone={onToggleCardDone}
               onRequestDelete={onRequestDeleteCard}
             />
           ))}
