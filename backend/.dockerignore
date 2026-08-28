@@ -1,0 +1,7 @@
+node_modules
+dist
+src/generated
+uploads
+npm-debug.log
+.git
+.env.example
