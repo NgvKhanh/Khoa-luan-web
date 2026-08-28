@@ -30,8 +30,13 @@ export const updateProjectMemberRoleSchema = z.object({
   role: z.enum(['MANAGER', 'MEMBER']),
 });
 
+export const starProjectSchema = z.object({
+  starred: z.boolean(),
+});
+
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
+export type StarProjectInput = z.infer<typeof starProjectSchema>;
 export type AddProjectMemberInput = z.infer<typeof addProjectMemberSchema>;
 export type UpdateProjectMemberRoleInput = z.infer<
   typeof updateProjectMemberRoleSchema

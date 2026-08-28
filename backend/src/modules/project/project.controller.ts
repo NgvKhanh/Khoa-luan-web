@@ -4,6 +4,7 @@ import { asyncHandler } from '../../utils/asyncHandler';
 import type {
   AddProjectMemberInput,
   CreateProjectInput,
+  StarProjectInput,
   UpdateProjectInput,
   UpdateProjectMemberRoleInput,
 } from './project.schema';
@@ -14,6 +15,7 @@ import {
   getProjectDetail,
   listMyProjects,
   removeProjectMember,
+  setProjectStar,
   updateProject,
   updateProjectMemberRole,
 } from './project.service';
@@ -69,6 +71,17 @@ export const deleteProjectHandler = asyncHandler(
   async (req: Request, res: Response) => {
     await deleteProject(requireUserId(req), req.params.projectId as string);
     res.json({ success: true, message: 'Da xoa du an' });
+  }
+);
+
+export const starProjectHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const result = await setProjectStar(
+      requireUserId(req),
+      req.params.projectId as string,
+      (req.body as StarProjectInput).starred
+    );
+    res.json({ success: true, message: 'Da cap nhat danh sao', data: result });
   }
 );
 

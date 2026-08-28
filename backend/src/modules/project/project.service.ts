@@ -106,7 +106,24 @@ export async function listMyProjects(userId: string) {
     ...m.project,
     memberCount: m.project._count.members,
     myRole: m.role,
+    isStarred: m.isStarred,
   }));
+}
+
+// Ghim / bo ghim (danh sao) 1 bang cho rieng nguoi dung hien tai
+export async function setProjectStar(
+  userId: string,
+  projectId: string,
+  starred: boolean
+) {
+  const membership = await assertProjectMember(projectId, userId);
+
+  await prisma.projectMember.update({
+    where: { id: membership.id },
+    data: { isStarred: starred },
+  });
+
+  return { projectId, isStarred: starred };
 }
 
 export async function getProjectDetail(userId: string, projectId: string) {

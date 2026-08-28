@@ -8,12 +8,14 @@ import {
   getProjectDetailHandler,
   listMyProjectsHandler,
   removeProjectMemberHandler,
+  starProjectHandler,
   updateProjectHandler,
   updateProjectMemberRoleHandler,
 } from './project.controller';
 import {
   addProjectMemberSchema,
   createProjectSchema,
+  starProjectSchema,
   updateProjectMemberRoleSchema,
   updateProjectSchema,
 } from './project.schema';
@@ -31,6 +33,11 @@ router.patch(
   updateProjectHandler
 );
 router.delete('/:projectId', deleteProjectHandler);
+router.patch(
+  '/:projectId/star',
+  validateBody(starProjectSchema),
+  starProjectHandler
+);
 
 router.post(
   '/:projectId/members',
