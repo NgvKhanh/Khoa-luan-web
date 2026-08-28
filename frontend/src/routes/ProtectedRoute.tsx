@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { BoardsProvider } from '../context/BoardsContext';
 
 /** Chi cho vao ben trong neu da dang nhap, con khong thi dua ve trang dang nhap. */
 export default function ProtectedRoute() {
@@ -17,5 +18,9 @@ export default function ProtectedRoute() {
     return <Navigate to="/login" replace />;
   }
 
-  return <Outlet />;
+  return (
+    <BoardsProvider>
+      <Outlet />
+    </BoardsProvider>
+  );
 }

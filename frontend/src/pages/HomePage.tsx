@@ -1,7 +1,8 @@
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, type FormEvent, type KeyboardEvent } from 'react';
 import BoardCard from '../components/BoardCard';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { createBoard, deleteBoard, fetchMyBoards } from '../lib/api/board';
+import { useBoards } from '../context/BoardsContext';
+import { createBoard, deleteBoard } from '../lib/api/board';
 import { BOARD_COLORS } from '../lib/boardColors';
 import { getErrorMessage } from '../lib/errorMessage';
 import type { Board } from '../types/board';
@@ -123,35 +124,21 @@ function CreateBoardTile({ onCreated }: CreateBoardTileProps) {
 }
 
 export default function HomePage() {
-  const [boards, setBoards] = useState<Board[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { boards, isLoading, error, upsertBoard, removeBoard } = useBoards();
 
   const [deleteTarget, setDeleteTarget] = useState<Board | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  useEffect(() => {
-    fetchMyBoards()
-      .then(setBoards)
-      .catch((err) =>
-        setError(getErrorMessage(err, 'Không tải được danh sách bảng.'))
-      )
-      .finally(() => setIsLoading(false));
-  }, []);
-
-  function replaceBoard(updated: Board) {
-    setBoards((list) => list.map((b) => (b.id === updated.id ? updated : b)));
-  }
+  const [actionError, setActionError] = useState<string | null>(null);
 
   async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
       await deleteBoard(deleteTarget.id);
-      setBoards((list) => list.filter((b) => b.id !== deleteTarget.id));
+      removeBoard(deleteTarget.id);
       setDeleteTarget(null);
     } catch (err) {
-      setError(getErrorMessage(err, 'Không xoá được bảng.'));
+      setActionError(getErrorMessage(err, 'Không xoá được bảng.'));
     } finally {
       setDeleting(false);
     }
@@ -163,7 +150,9 @@ export default function HomePage() {
         Các bảng của bạn
       </h1>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {(error || actionError) && (
+        <p className="text-sm text-red-600">{error ?? actionError}</p>
+      )}
 
       {isLoading ? (
         <p className="text-sm text-slate-500">Đang tải...</p>
@@ -173,14 +162,12 @@ export default function HomePage() {
             <BoardCard
               key={board.id}
               board={board}
-              onChanged={replaceBoard}
+              onChanged={upsertBoard}
               onRequestDelete={setDeleteTarget}
             />
           ))}
 
-          <CreateBoardTile
-            onCreated={(board) => setBoards((list) => [board, ...list])}
-          />
+          <CreateBoardTile onCreated={upsertBoard} />
         </div>
       )}
 

@@ -1,9 +1,7 @@
-import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
-import BoardSidebar from '../components/BoardSidebar';
 import Header from '../components/Header';
-import { fetchMyBoards } from '../lib/api/board';
-import { getErrorMessage } from '../lib/errorMessage';
+import Sidebar from '../components/Sidebar';
+import { useBoards } from '../context/BoardsContext';
 import type { Board } from '../types/board';
 
 export interface BoardOutletContext {
@@ -13,32 +11,22 @@ export interface BoardOutletContext {
   patchBoard: (board: Board) => void;
 }
 
-// Layout khi dang xem 1 bang: Header giu nguyen, sidebar doi thanh sidebar cua bang.
+// Layout khi dang xem 1 bang: Header + Sidebar giu nguyen, chi vung noi dung doi.
 export default function BoardViewLayout() {
-  const [boards, setBoards] = useState<Board[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { boards, isLoading, error, upsertBoard } = useBoards();
 
-  useEffect(() => {
-    fetchMyBoards()
-      .then(setBoards)
-      .catch((err) =>
-        setError(getErrorMessage(err, 'Không tải được danh sách bảng.'))
-      )
-      .finally(() => setIsLoading(false));
-  }, []);
-
-  function patchBoard(updated: Board) {
-    setBoards((list) => list.map((b) => (b.id === updated.id ? updated : b)));
-  }
-
-  const ctx: BoardOutletContext = { boards, isLoading, error, patchBoard };
+  const ctx: BoardOutletContext = {
+    boards,
+    isLoading,
+    error,
+    patchBoard: upsertBoard,
+  };
 
   return (
     <div className="flex h-screen flex-col">
       <Header />
       <div className="flex min-h-0 flex-1">
-        <BoardSidebar boards={boards} />
+        <Sidebar />
         <main className="min-w-0 flex-1 overflow-hidden">
           <Outlet context={ctx} />
         </main>
