@@ -3,8 +3,9 @@ import { AppError } from '../../utils/AppError';
 import { assertBoardOwner } from '../board/board.service';
 import type { CreateListInput, UpdateListInput } from './list.schema';
 
-// Lay 1 danh sach con hoat dong va kiem tra nguoi dung so huu bang chua no
-async function getOwnListOrThrow(userId: string, listId: string) {
+// Lay 1 danh sach con hoat dong va kiem tra nguoi dung so huu bang chua no.
+// Export de module card tai su dung.
+export async function assertListOwner(userId: string, listId: string) {
   const list = await prisma.list.findFirst({
     where: { id: listId, deletedAt: null },
   });
@@ -20,6 +21,12 @@ export async function listBoardLists(userId: string, boardId: string) {
   return prisma.list.findMany({
     where: { boardId, deletedAt: null },
     orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+    include: {
+      cards: {
+        where: { deletedAt: null },
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      },
+    },
   });
 }
 
@@ -30,7 +37,6 @@ export async function createList(
 ) {
   await assertBoardOwner(userId, boardId);
 
-  // Dat danh sach moi vao cuoi (position lon nhat hien co + 1)
   const last = await prisma.list.findFirst({
     where: { boardId, deletedAt: null },
     orderBy: { position: 'desc' },
@@ -48,7 +54,39 @@ export async function updateList(
   listId: string,
   input: UpdateListInput
 ) {
-  await getOwnListOrThrow(userId, listId);
+  const list = await assertListOwner(userId, listId);
+
+  // Keo sap xep lai: dua cot nay toi vi tri input.position roi danh so lai het
+  if (input.position !== undefined) {
+    const others = await prisma.list.findMany({
+      where: { boardId: list.boardId, deletedAt: null, id: { not: listId } },
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    });
+    const target = Math.min(Math.max(input.position, 0), others.length);
+    const orderedIds = [
+      ...others.slice(0, target).map((l) => l.id),
+      listId,
+      ...others.slice(target).map((l) => l.id),
+    ];
+
+    await prisma.$transaction(
+      orderedIds.map((id, index) =>
+        prisma.list.update({
+          where: { id },
+          data: {
+            position: index,
+            ...(id === listId && input.name !== undefined
+              ? { name: input.name }
+              : {}),
+          },
+        })
+      )
+    );
+
+    return prisma.list.findFirst({ where: { id: listId } });
+  }
+
   return prisma.list.update({
     where: { id: listId },
     data: { ...(input.name !== undefined ? { name: input.name } : {}) },
@@ -56,7 +94,7 @@ export async function updateList(
 }
 
 export async function deleteList(userId: string, listId: string) {
-  await getOwnListOrThrow(userId, listId);
+  await assertListOwner(userId, listId);
   await prisma.list.update({
     where: { id: listId },
     data: { deletedAt: new Date() },
