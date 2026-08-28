@@ -31,13 +31,14 @@ model User {
 
 // Bang lam viec kieu Trello. Buoc dau: thuoc thang ve nguoi tao (chua co nhom).
 model Board {
-  id        String    @id @default(cuid())
-  ownerId   String
-  name      String
-  color     String    @default("#0079BF") // Mau nen the bang
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  id              String    @id @default(cuid())
+  ownerId         String
+  name            String
+  color           String    @default("#0079BF") // Mau nen khi khong dat anh
+  backgroundImage String? // Duong dan anh nen (vd /uploads/boards/xxx.jpg); null = dung mau
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
 
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 

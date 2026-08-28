@@ -3,9 +3,11 @@ import { AppError } from '../../utils/AppError';
 import { asyncHandler } from '../../utils/asyncHandler';
 import type { CreateBoardInput, UpdateBoardInput } from './board.schema';
 import {
+  clearBoardBackground,
   createBoard,
   deleteBoard,
   listMyBoards,
+  setBoardBackground,
   updateBoard,
 } from './board.service';
 
@@ -43,6 +45,30 @@ export const updateBoardHandler = asyncHandler(
       req.body as UpdateBoardInput
     );
     res.json({ success: true, message: 'Da cap nhat bang', data: { board } });
+  }
+);
+
+export const uploadBoardBackgroundHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    if (!req.file) {
+      throw new AppError('Chua chon anh de tai len', 400);
+    }
+    const board = await setBoardBackground(
+      requireUserId(req),
+      req.params.boardId as string,
+      req.file.filename
+    );
+    res.json({ success: true, message: 'Da cap nhat anh nen', data: { board } });
+  }
+);
+
+export const deleteBoardBackgroundHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const board = await clearBoardBackground(
+      requireUserId(req),
+      req.params.boardId as string
+    );
+    res.json({ success: true, message: 'Da bo anh nen', data: { board } });
   }
 );
 

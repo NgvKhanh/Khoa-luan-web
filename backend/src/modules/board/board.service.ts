@@ -1,4 +1,8 @@
 import { prisma } from '../../config/prisma';
+import {
+  boardBackgroundPublicPath,
+  removeBoardBackgroundFile,
+} from '../../config/upload';
 import { AppError } from '../../utils/AppError';
 import type { CreateBoardInput, UpdateBoardInput } from './board.schema';
 
@@ -38,20 +42,64 @@ export async function updateBoard(
   boardId: string,
   input: UpdateBoardInput
 ) {
-  await getOwnBoardOrThrow(userId, boardId);
-  return prisma.board.update({
+  const board = await getOwnBoardOrThrow(userId, boardId);
+
+  // Doi sang mau nen -> bo anh nen dang co (va xoa file cu tren dia)
+  const switchingToColor =
+    input.color !== undefined && board.backgroundImage !== null;
+
+  const updated = await prisma.board.update({
     where: { id: boardId },
     data: {
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.color !== undefined ? { color: input.color } : {}),
+      ...(switchingToColor ? { backgroundImage: null } : {}),
     },
   });
+
+  if (switchingToColor) {
+    removeBoardBackgroundFile(board.backgroundImage);
+  }
+
+  return updated;
+}
+
+export async function setBoardBackground(
+  userId: string,
+  boardId: string,
+  filename: string
+) {
+  const board = await getOwnBoardOrThrow(userId, boardId);
+
+  const updated = await prisma.board.update({
+    where: { id: boardId },
+    data: { backgroundImage: boardBackgroundPublicPath(filename) },
+  });
+
+  // Xoa anh cu (neu truoc do da co) de khong ton dung luong
+  removeBoardBackgroundFile(board.backgroundImage);
+
+  return updated;
+}
+
+export async function clearBoardBackground(userId: string, boardId: string) {
+  const board = await getOwnBoardOrThrow(userId, boardId);
+
+  const updated = await prisma.board.update({
+    where: { id: boardId },
+    data: { backgroundImage: null },
+  });
+
+  removeBoardBackgroundFile(board.backgroundImage);
+
+  return updated;
 }
 
 export async function deleteBoard(userId: string, boardId: string) {
-  await getOwnBoardOrThrow(userId, boardId);
+  const board = await getOwnBoardOrThrow(userId, boardId);
   await prisma.board.update({
     where: { id: boardId },
     data: { deletedAt: new Date() },
   });
+  removeBoardBackgroundFile(board.backgroundImage);
 }

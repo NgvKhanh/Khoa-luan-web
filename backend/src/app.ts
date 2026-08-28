@@ -2,6 +2,7 @@ import cookieParser from 'cookie-parser';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { env } from './config/env';
+import { UPLOAD_ROOT } from './config/upload';
 import authRoutes from './modules/auth/auth.routes';
 import boardRoutes from './modules/board/board.routes';
 import { AppError } from './utils/AppError';
@@ -36,6 +37,9 @@ export function createApp() {
       timestamp: new Date().toISOString(),
     });
   });
+
+  // Phuc vu file tinh da tai len (anh nen bang...)
+  app.use('/uploads', express.static(UPLOAD_ROOT));
 
   app.use('/api/auth', authRoutes);
   app.use('/api/boards', boardRoutes);
