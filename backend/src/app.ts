@@ -8,6 +8,7 @@ import boardRoutes from './modules/board/board.routes';
 import { boardMemberRoutes } from './modules/board/boardMember.routes';
 import { cardRoutes, listCardRoutes } from './modules/card/card.routes';
 import { boardListRoutes, listRoutes } from './modules/list/list.routes';
+import unsplashRoutes from './modules/unsplash/unsplash.routes';
 import { AppError } from './utils/AppError';
 
 /**
@@ -51,6 +52,7 @@ export function createApp() {
   app.use('/api/lists/:listId/cards', listCardRoutes);
   app.use('/api/lists', listRoutes);
   app.use('/api/cards', cardRoutes);
+  app.use('/api/unsplash', unsplashRoutes);
 
   // Khong khop route nao -> tra ve 404 dang JSON
   app.use((req: Request, res: Response) => {

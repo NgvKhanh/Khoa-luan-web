@@ -66,6 +66,9 @@ export async function createBoard(userId: string, input: CreateBoardInput) {
       ownerId: userId,
       name: input.name,
       ...(input.color ? { color: input.color } : {}),
+      ...(input.backgroundImage
+        ? { backgroundImage: input.backgroundImage }
+        : {}),
       members: { create: { userId, role: 'OWNER' } },
     },
   });
@@ -78,21 +81,34 @@ export async function updateBoard(
 ) {
   const board = await assertBoardAccess(userId, boardId);
 
-  // Doi sang mau nen -> bo anh nen dang co (va xoa file cu tren dia)
-  const switchingToColor =
-    input.color !== undefined && board.backgroundImage !== null;
+  const data: {
+    name?: string;
+    color?: string;
+    backgroundImage?: string | null;
+  } = {};
+  if (input.name !== undefined) data.name = input.name;
+  if (input.color !== undefined) data.color = input.color;
 
-  const updated = await prisma.board.update({
-    where: { id: boardId },
-    data: {
-      ...(input.name !== undefined ? { name: input.name } : {}),
-      ...(input.color !== undefined ? { color: input.color } : {}),
-      ...(switchingToColor ? { backgroundImage: null } : {}),
-    },
-  });
+  // Anh nen theo thu tu uu tien:
+  //  - backgroundImage la chuoi  -> dat anh moi
+  //  - backgroundImage === null  -> bo anh nen
+  //  - chi doi mau               -> bo anh nen dang co (quay ve mau)
+  let oldFileToRemove: string | null = null;
+  if (typeof input.backgroundImage === 'string') {
+    data.backgroundImage = input.backgroundImage;
+    oldFileToRemove = board.backgroundImage;
+  } else if (input.backgroundImage === null) {
+    data.backgroundImage = null;
+    oldFileToRemove = board.backgroundImage;
+  } else if (input.color !== undefined && board.backgroundImage !== null) {
+    data.backgroundImage = null;
+    oldFileToRemove = board.backgroundImage;
+  }
 
-  if (switchingToColor) {
-    removeBoardBackgroundFile(board.backgroundImage);
+  const updated = await prisma.board.update({ where: { id: boardId }, data });
+
+  if (oldFileToRemove) {
+    removeBoardBackgroundFile(oldFileToRemove);
   }
 
   return updated;

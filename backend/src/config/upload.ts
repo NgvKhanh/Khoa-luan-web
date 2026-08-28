@@ -71,6 +71,9 @@ export function boardBackgroundPublicPath(filename: string): string {
 // Xoa file anh nen cu tren dia (bo qua neu khong con)
 export function removeBoardBackgroundFile(publicPath: string | null): void {
   if (!publicPath) return;
+  // Chi xoa file do minh luu (duong dan /uploads/boards/...). Anh ngoai
+  // (vd link Unsplash) khong co file tren dia nen bo qua.
+  if (!publicPath.startsWith('/uploads/boards/')) return;
   const filename = path.basename(publicPath);
   const fullPath = path.join(BOARD_BG_DIR, filename);
   fs.promises.unlink(fullPath).catch(() => {

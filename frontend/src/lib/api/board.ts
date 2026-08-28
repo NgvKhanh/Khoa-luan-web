@@ -9,6 +9,7 @@ export async function fetchMyBoards(): Promise<Board[]> {
 export async function createBoard(input: {
   name: string;
   color?: string;
+  backgroundImage?: string;
 }): Promise<Board> {
   const res = await api.post<{ data: { board: Board } }>('/boards', input);
   return res.data.data.board;
@@ -16,7 +17,7 @@ export async function createBoard(input: {
 
 export async function updateBoard(
   boardId: string,
-  input: { name?: string; color?: string }
+  input: { name?: string; color?: string; backgroundImage?: string | null }
 ): Promise<Board> {
   const res = await api.patch<{ data: { board: Board } }>(
     `/boards/${boardId}`,

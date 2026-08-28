@@ -67,4 +67,10 @@ export const env = {
   jwtSecret: getString('JWT_SECRET'),
   /** Thoi gian song cua JWT, vi du "7d", "1h" */
   jwtExpiresIn: getString('JWT_EXPIRES_IN', '7d'),
+  /**
+   * Access Key cua Unsplash (https://unsplash.com/oauth/applications).
+   * Dung cho thu vien anh nen bang. Khong bat buoc: neu de trong thi
+   * API /api/unsplash tra ve 503 va frontend chi hien mau/gradient.
+   */
+  unsplashAccessKey: getString('UNSPLASH_ACCESS_KEY', ''),
 };

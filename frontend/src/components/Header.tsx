@@ -1,19 +1,11 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-} from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
-import { createBoard } from '../lib/api/board';
 import { assetUrl } from '../lib/assets';
 import { initialsOf } from '../lib/avatar';
-import { BOARD_COLORS } from '../lib/boardColors';
-import { getErrorMessage } from '../lib/errorMessage';
 import type { Board } from '../types/board';
+import CreateBoardDialog from './board/CreateBoardDialog';
 
 function Thumb({ board }: { board: Board }) {
   const style = board.backgroundImage
@@ -168,10 +160,6 @@ function CreateBoardMenu() {
   const navigate = useNavigate();
   const { upsertBoard } = useBoards();
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [color, setColor] = useState(BOARD_COLORS[0]!);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -181,24 +169,6 @@ function CreateBoardMenu() {
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, []);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const board = await createBoard({ name: name.trim(), color });
-      upsertBoard(board);
-      setOpen(false);
-      setName('');
-      navigate(`/boards/${board.id}`);
-    } catch (err) {
-      setError(getErrorMessage(err, 'Không tạo được bảng.'));
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <div ref={ref} className="relative shrink-0">
@@ -211,50 +181,15 @@ function CreateBoardMenu() {
       </button>
 
       {open && (
-        <form
-          onSubmit={submit}
-          className="absolute right-0 top-10 z-40 w-72 rounded-xl border border-slate-200 bg-white p-3 text-slate-800 shadow-2xl"
-        >
-          <p className="mb-2 text-sm font-semibold">Bảng mới</p>
-          <div
-            className="mb-2 flex h-12 items-end rounded-lg p-2"
-            style={{ backgroundColor: color }}
-          >
-            <span className="rounded bg-black/25 px-1.5 py-0.5 text-xs font-semibold text-white">
-              {name.trim() || 'Bảng mới'}
-            </span>
-          </div>
-          <input
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
-            placeholder="Nhập tên bảng..."
-            className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-sm focus:border-[#0c66e4] focus:outline-none"
-          />
-          <div className="mt-2 grid grid-cols-8 gap-1.5">
-            {BOARD_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setColor(c)}
-                aria-label={`Màu ${c}`}
-                className={`h-6 rounded ${
-                  color === c ? 'ring-2 ring-slate-800 ring-offset-1' : ''
-                }`}
-                style={{ backgroundColor: c }}
-              />
-            ))}
-          </div>
-          {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
-          <button
-            type="submit"
-            disabled={busy || !name.trim()}
-            className="mt-3 w-full rounded-lg bg-[#0c66e4] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0a5cd4] disabled:opacity-50"
-          >
-            {busy ? 'Đang tạo...' : 'Tạo bảng'}
-          </button>
-        </form>
+        <CreateBoardDialog
+          className="absolute right-0 top-10 z-40"
+          onClose={() => setOpen(false)}
+          onCreated={(board) => {
+            upsertBoard(board);
+            setOpen(false);
+            navigate(`/boards/${board.id}`);
+          }}
+        />
       )}
     </div>
   );

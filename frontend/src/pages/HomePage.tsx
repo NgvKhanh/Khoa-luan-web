@@ -1,125 +1,46 @@
-import { useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import BoardCard from '../components/BoardCard';
+import CreateBoardDialog from '../components/board/CreateBoardDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useBoards } from '../context/BoardsContext';
-import { createBoard, deleteBoard } from '../lib/api/board';
-import { BOARD_COLORS } from '../lib/boardColors';
+import { deleteBoard } from '../lib/api/board';
 import { getErrorMessage } from '../lib/errorMessage';
 import type { Board } from '../types/board';
 
-interface CreateBoardTileProps {
-  onCreated: (board: Board) => void;
-}
+function CreateBoardTile({ onCreated }: { onCreated: (board: Board) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
-function CreateBoardTile({ onCreated }: CreateBoardTileProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [color, setColor] = useState(BOARD_COLORS[0]!);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  function close() {
-    setIsOpen(false);
-    setName('');
-    setColor(BOARD_COLORS[0]!);
-    setError(null);
-  }
-
-  async function submit() {
-    if (!name.trim()) return;
-    setIsSubmitting(true);
-    setError(null);
-    try {
-      onCreated(await createBoard({ name: name.trim(), color }));
-      close();
-    } catch (err) {
-      setError(getErrorMessage(err, 'Không tạo được bảng.'));
-      setIsSubmitting(false);
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
-  }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, []);
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    submit();
-  }
-
-  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Escape') close();
-  }
-
-  if (!isOpen) {
-    return (
+  return (
+    <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
-        className="flex h-28 flex-col items-center justify-center gap-1 rounded-xl bg-slate-200/70 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200"
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded-xl bg-slate-200/70 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200"
       >
         <span className="text-xl leading-none">+</span>
         Tạo bảng mới
       </button>
-    );
-  }
 
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="col-span-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
-    >
-      {/* Xem truoc */}
-      <div
-        className="mb-2 flex h-16 items-end rounded-lg p-2"
-        style={{ backgroundColor: color }}
-      >
-        <span className="rounded bg-black/25 px-1.5 py-0.5 text-xs font-semibold text-white">
-          {name.trim() || 'Bảng mới'}
-        </span>
-      </div>
-
-      <input
-        autoFocus
-        type="text"
-        value={name}
-        disabled={isSubmitting}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Nhập tên bảng..."
-        className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-sm focus:border-[#0c66e4] focus:outline-none focus:ring-1 focus:ring-[#0c66e4]"
-      />
-
-      <div className="mt-2 grid grid-cols-8 gap-1.5">
-        {BOARD_COLORS.map((c) => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => setColor(c)}
-            aria-label={`Màu ${c}`}
-            className={`h-7 rounded-md ${
-              color === c ? 'ring-2 ring-slate-800 ring-offset-1' : ''
-            }`}
-            style={{ backgroundColor: c }}
-          />
-        ))}
-      </div>
-
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
-
-      <div className="mt-3 flex gap-2 text-sm">
-        <button
-          type="submit"
-          disabled={isSubmitting || !name.trim()}
-          className="rounded-lg bg-[#0c66e4] px-3 py-1.5 font-medium text-white hover:bg-[#0a5cd4] disabled:opacity-50"
-        >
-          {isSubmitting ? 'Đang tạo...' : 'Tạo bảng'}
-        </button>
-        <button
-          type="button"
-          onClick={close}
-          className="rounded-lg px-2 py-1.5 text-slate-500 hover:bg-slate-100"
-        >
-          Huỷ
-        </button>
-      </div>
-    </form>
+      {open && (
+        <CreateBoardDialog
+          className="absolute left-0 top-[calc(100%+6px)] z-40"
+          onClose={() => setOpen(false)}
+          onCreated={(board) => {
+            onCreated(board);
+            setOpen(false);
+          }}
+        />
+      )}
+    </div>
   );
 }
 
