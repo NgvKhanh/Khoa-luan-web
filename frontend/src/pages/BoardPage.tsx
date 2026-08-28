@@ -28,12 +28,19 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import AddListForm from '../components/board/AddListForm';
+import BoardMembers from '../components/board/BoardMembers';
 import CardItem from '../components/board/CardItem';
 import ListColumn from '../components/board/ListColumn';
 import ListColumnOverlay from '../components/board/ListColumnOverlay';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { useAuth } from '../context/AuthContext';
 import type { BoardOutletContext } from '../layouts/BoardViewLayout';
-import { updateBoard } from '../lib/api/board';
+import {
+  addBoardMember,
+  fetchBoardMembers,
+  removeBoardMember,
+  updateBoard,
+} from '../lib/api/board';
 import { createCard, deleteCard, moveCard, updateCard } from '../lib/api/card';
 import {
   createList,
@@ -44,6 +51,7 @@ import {
 } from '../lib/api/list';
 import { assetUrl } from '../lib/assets';
 import { getErrorMessage } from '../lib/errorMessage';
+import type { BoardMember } from '../types/board';
 import type { Card } from '../types/card';
 import type { BoardList } from '../types/list';
 
@@ -81,13 +89,17 @@ type DeleteTarget =
 
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
+  const { user } = useAuth();
   const { boards, isLoading, error, patchBoard } =
     useOutletContext<BoardOutletContext>();
   const board = boards.find((b) => b.id === boardId);
+  const isOwner = Boolean(board && user && board.ownerId === user.id);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const [members, setMembers] = useState<BoardMember[]>([]);
 
   const [lists, setLists] = useState<BoardList[]>([]);
   const [listsLoading, setListsLoading] = useState(true);
@@ -106,6 +118,34 @@ export default function BoardPage() {
 
   function reloadLists() {
     if (boardId) fetchBoardLists(boardId).then(setLists).catch(() => {});
+  }
+
+  useEffect(() => {
+    if (!boardId) return;
+    setMembers([]);
+    fetchBoardMembers(boardId)
+      .then(setMembers)
+      .catch(() => {});
+  }, [boardId]);
+
+  async function handleAddMember(email: string) {
+    if (!boardId) return;
+    const created = await addBoardMember(boardId, email);
+    setMembers((cur) =>
+      cur.some((m) => m.userId === created.userId) ? cur : [...cur, created]
+    );
+  }
+
+  async function handleRemoveMember(userId: string) {
+    if (!boardId) return;
+    const prev = members;
+    setMembers((cur) => cur.filter((m) => m.userId !== userId));
+    try {
+      await removeBoardMember(boardId, userId);
+    } catch (err) {
+      setMembers(prev);
+      setListsError(getErrorMessage(err, 'Không xoá được thành viên.'));
+    }
   }
 
   useEffect(() => {
@@ -411,6 +451,16 @@ export default function BoardPage() {
             {board.name}
           </button>
         )}
+
+        <div className="ml-auto">
+          <BoardMembers
+            members={members}
+            currentUserId={user?.id}
+            isOwner={isOwner}
+            onAdd={handleAddMember}
+            onRemove={handleRemoveMember}
+          />
+        </div>
       </div>
 
       {(saveError || listsError) && (
