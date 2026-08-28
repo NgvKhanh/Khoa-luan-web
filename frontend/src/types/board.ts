@@ -3,6 +3,7 @@ export interface Board {
   ownerId: string;
   name: string;
   color: string;
+  backgroundImage: string | null;
   createdAt: string;
   updatedAt: string;
 }
