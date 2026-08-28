@@ -1,0 +1,35 @@
+import { api } from '../axios';
+import type { BoardList } from '../../types/list';
+
+export async function fetchBoardLists(boardId: string): Promise<BoardList[]> {
+  const res = await api.get<{ data: { lists: BoardList[] } }>(
+    `/boards/${boardId}/lists`
+  );
+  return res.data.data.lists;
+}
+
+export async function createList(
+  boardId: string,
+  name: string
+): Promise<BoardList> {
+  const res = await api.post<{ data: { list: BoardList } }>(
+    `/boards/${boardId}/lists`,
+    { name }
+  );
+  return res.data.data.list;
+}
+
+export async function updateList(
+  listId: string,
+  input: { name?: string }
+): Promise<BoardList> {
+  const res = await api.patch<{ data: { list: BoardList } }>(
+    `/lists/${listId}`,
+    input
+  );
+  return res.data.data.list;
+}
+
+export async function deleteList(listId: string): Promise<void> {
+  await api.delete(`/lists/${listId}`);
+}
