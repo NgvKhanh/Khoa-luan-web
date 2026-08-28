@@ -19,6 +19,7 @@ export const updateCardSchema = z
     description: z
       .union([z.string().trim().max(5000, 'Mo ta qua dai'), z.null()])
       .optional(),
+    isDone: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Khong co du lieu nao de cap nhat',

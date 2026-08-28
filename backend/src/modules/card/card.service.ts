@@ -52,6 +52,7 @@ export async function updateCard(
       ...(input.description !== undefined
         ? { description: input.description }
         : {}),
+      ...(input.isDone !== undefined ? { isDone: input.isDone } : {}),
     },
   });
 }
