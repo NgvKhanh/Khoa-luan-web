@@ -9,11 +9,24 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
 import { createBoard } from '../lib/api/board';
+import { assetUrl } from '../lib/assets';
 import { initialsOf } from '../lib/avatar';
 import { BOARD_COLORS } from '../lib/boardColors';
 import { getErrorMessage } from '../lib/errorMessage';
+import type { Board } from '../types/board';
 
-// ------- Tim kiem bang -------
+function Thumb({ board }: { board: Board }) {
+  const style = board.backgroundImage
+    ? {
+        backgroundImage: `url(${assetUrl(board.backgroundImage)})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }
+    : { backgroundColor: board.color };
+  return <span className="h-8 w-11 shrink-0 rounded" style={style} />;
+}
+
+// ------- Tim kiem bang (dropdown kieu Trello) -------
 function BoardSearch() {
   const { boards } = useBoards();
   const navigate = useNavigate();
@@ -21,11 +34,12 @@ function BoardSearch() {
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
 
-  const matches = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return [];
-    return boards.filter((b) => b.name.toLowerCase().includes(term)).slice(0, 8);
-  }, [q, boards]);
+  const term = q.trim().toLowerCase();
+  const allMatches = useMemo(
+    () => (term ? boards.filter((b) => b.name.toLowerCase().includes(term)) : []),
+    [term, boards]
+  );
+  const matches = allMatches.slice(0, 5);
 
   useEffect(() => {
     function onDown(e: MouseEvent) {
@@ -40,6 +54,11 @@ function BoardSearch() {
   function go(id: string) {
     navigate(`/boards/${id}`);
     setQ('');
+    setOpen(false);
+  }
+
+  function seeAll() {
+    navigate('/');
     setOpen(false);
   }
 
@@ -58,7 +77,7 @@ function BoardSearch() {
       <input
         type="text"
         value={q}
-        placeholder="Tìm bảng..."
+        placeholder="Tìm kiếm"
         onChange={(e) => {
           setQ(e.target.value);
           setOpen(true);
@@ -71,26 +90,73 @@ function BoardSearch() {
         className="h-8 w-full rounded border border-slate-300 bg-white pl-8 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#0c66e4] focus:outline-none focus:ring-1 focus:ring-[#0c66e4]"
       />
 
-      {open && q.trim() && (
-        <div className="absolute left-0 right-0 top-10 z-40 rounded-lg border border-slate-200 bg-white p-1 text-slate-800 shadow-xl">
-          {matches.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-slate-400">Không tìm thấy bảng nào.</p>
-          ) : (
-            matches.map((b) => (
-              <button
-                key={b.id}
-                type="button"
-                onClick={() => go(b.id)}
-                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100"
-              >
-                <span
-                  className="h-4 w-5 shrink-0 rounded-[3px]"
-                  style={{ backgroundColor: b.color }}
-                />
-                <span className="truncate">{b.name}</span>
-              </button>
-            ))
-          )}
+      {open && term && (
+        <div className="absolute left-0 right-0 top-10 z-40 overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-2xl">
+          {/* Tab */}
+          <div className="border-b border-slate-200 px-3">
+            <span className="inline-block border-b-2 border-[#0c66e4] py-2 text-sm font-medium text-[#0c66e4]">
+              Bảng
+            </span>
+          </div>
+
+          <div className="py-2">
+            <p className="px-3 pb-1 text-xs font-semibold tracking-wide text-slate-500">
+              BẢNG
+            </p>
+
+            {matches.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-slate-400">
+                Không tìm thấy bảng nào khớp "{q.trim()}".
+              </p>
+            ) : (
+              <>
+                {matches.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => go(b.id)}
+                    className="flex w-full items-center gap-3 px-3 py-1.5 text-left hover:bg-slate-100"
+                  >
+                    <Thumb board={b} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm text-[#172b4d]">
+                        {b.name}
+                      </span>
+                      <span className="block truncate text-xs text-slate-500">
+                        Không gian làm việc
+                      </span>
+                    </span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={seeAll}
+                  className="px-3 py-2 text-sm font-medium text-[#0c66e4] hover:underline"
+                >
+                  Xem tất cả các kết quả
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Dong duoi cung: mo bang dau tien */}
+          <button
+            type="button"
+            disabled={!matches[0]}
+            onClick={() => matches[0] && go(matches[0].id)}
+            className="flex w-full items-center gap-2 border-t border-slate-200 px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+            <span className="flex-1 truncate">
+              {matches[0] ? `Mở "${matches[0].name}"` : 'Tìm kiếm'}
+            </span>
+            <kbd className="rounded border border-slate-300 bg-slate-50 px-1.5 text-xs text-slate-500">
+              ⏎
+            </kbd>
+          </button>
         </div>
       )}
     </div>
