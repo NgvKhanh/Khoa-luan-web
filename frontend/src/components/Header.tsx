@@ -2,11 +2,11 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { initialsOf } from '../lib/avatar';
 
+// Chi dung cho man hinh nho (khi sidebar bi an). Man hinh lon dung Sidebar.
 const navLinks = [
-  { to: '/', label: 'Trang chủ', end: true },
-  { to: '/my-tasks', label: 'Công việc của tôi', end: false },
+  { to: '/', label: 'Bảng', end: true },
+  { to: '/my-tasks', label: 'Việc của tôi', end: false },
   { to: '/teams', label: 'Nhóm', end: false },
-  { to: '/projects', label: 'Dự án', end: false },
 ];
 
 export default function Header() {
@@ -36,7 +36,7 @@ export default function Header() {
         TaskFlow
       </Link>
 
-      <nav className="board-scroll flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+      <nav className="board-scroll flex min-w-0 flex-1 items-center gap-1 overflow-x-auto lg:hidden">
         {navLinks.map((link) => (
           <NavLink
             key={link.to}
@@ -52,6 +52,9 @@ export default function Header() {
           </NavLink>
         ))}
       </nav>
+
+      {/* Giu khoang cach khi da an nav tren man hinh lon */}
+      <div className="hidden flex-1 lg:block" />
 
       <div className="flex shrink-0 items-center gap-2">
         <span

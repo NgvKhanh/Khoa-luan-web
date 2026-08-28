@@ -49,6 +49,14 @@ export async function deleteProject(projectId: string): Promise<void> {
   await api.delete(`/projects/${projectId}`);
 }
 
+// Ghim / bo ghim (danh sao) 1 bang cho rieng nguoi dung hien tai
+export async function setProjectStar(
+  projectId: string,
+  starred: boolean
+): Promise<void> {
+  await api.patch(`/projects/${projectId}/star`, { starred });
+}
+
 export async function addProjectMember(
   projectId: string,
   email: string

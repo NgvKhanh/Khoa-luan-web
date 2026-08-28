@@ -14,6 +14,7 @@ export interface Project {
 export interface ProjectListItem extends Project {
   memberCount: number;
   myRole: ProjectRole;
+  isStarred: boolean;
   team: { id: string; name: string };
 }
 

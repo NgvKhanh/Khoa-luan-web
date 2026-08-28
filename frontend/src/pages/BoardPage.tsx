@@ -24,6 +24,7 @@ import AddListForm from '../components/board/AddListForm';
 import CardModal from '../components/board/CardModal';
 import { colorForId } from '../lib/avatar';
 import { getErrorMessage } from '../lib/errorMessage';
+import { recordRecentBoard } from '../lib/recentBoards';
 import {
   createList as apiCreateList,
   deleteList as apiDeleteList,
@@ -71,6 +72,7 @@ export default function BoardPage() {
       ]);
       setProject(projectData);
       setLists(listData);
+      recordRecentBoard(projectData.id, projectData.name);
     } catch (err) {
       setError(getErrorMessage(err, 'Không tải được bảng.'));
     } finally {
