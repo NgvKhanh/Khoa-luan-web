@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import {
   createInviteLink,
   disableInviteLink,
@@ -286,13 +287,14 @@ export default function BoardMembers({
         Chia sẻ
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setOpen(false);
-          }}
-        >
+      {open &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 grid place-items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setOpen(false);
+            }}
+          >
           <div className="w-[560px] max-w-full rounded-xl bg-white p-5 text-slate-800 shadow-2xl">
             <div className="mb-4 flex items-center">
               <h2 className="flex-1 text-lg font-semibold">Chia sẻ bảng</h2>
@@ -512,8 +514,9 @@ export default function BoardMembers({
                     ))}
             </ul>
           </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
