@@ -1,5 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { createPortal } from 'react-dom';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import {
   createInviteLink,
   disableInviteLink,
@@ -159,6 +164,7 @@ export default function BoardMembers({
   const [copied, setCopied] = useState(false);
 
   const [requests, setRequests] = useState<JoinRequest[]>([]);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const canManage = useMemo(() => {
     if (isOwner) return true;
@@ -183,8 +189,17 @@ export default function BoardMembers({
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
     };
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onDown);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onDown);
+    };
   }, [open]);
 
   const shown = members.slice(0, 5);
@@ -261,7 +276,7 @@ export default function BoardMembers({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div ref={rootRef} className="relative flex items-center gap-2">
       <div className="flex -space-x-2">
         {shown.map((m) => (
           <span key={m.id} className="ring-2 ring-white/70 rounded-full">
@@ -287,17 +302,10 @@ export default function BoardMembers({
         Chia sẻ
       </button>
 
-      {open &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-50 grid place-items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16"
-            onMouseDown={(e) => {
-              if (e.target === e.currentTarget) setOpen(false);
-            }}
-          >
-          <div className="w-[560px] max-w-full rounded-xl bg-white p-5 text-slate-800 shadow-2xl">
+      {open && (
+        <div className="absolute right-0 top-11 z-50 max-h-[80vh] w-[420px] max-w-[92vw] overflow-y-auto rounded-xl bg-white p-4 text-slate-800 shadow-2xl">
             <div className="mb-4 flex items-center">
-              <h2 className="flex-1 text-lg font-semibold">Chia sẻ bảng</h2>
+              <h2 className="flex-1 text-base font-semibold">Chia sẻ bảng</h2>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -513,10 +521,8 @@ export default function BoardMembers({
                       </li>
                     ))}
             </ul>
-          </div>
-          </div>,
-          document.body,
-        )}
+        </div>
+      )}
     </div>
   );
 }
