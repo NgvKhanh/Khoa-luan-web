@@ -599,6 +599,7 @@ export default function BoardPage() {
           <div className="relative">
             <button
               type="button"
+              data-bg-trigger
               onClick={() => setBgMenuOpen((v) => !v)}
               className="flex items-center gap-1.5 rounded bg-white/25 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-white/40"
             >
@@ -610,20 +611,11 @@ export default function BoardPage() {
               Hình nền
             </button>
             {bgMenuOpen && (
-              <>
-                <button
-                  type="button"
-                  aria-label="Đóng"
-                  onClick={() => setBgMenuOpen(false)}
-                  className="fixed inset-0 z-30 cursor-default"
-                />
-                <BoardBackgroundMenu
-                  className="absolute right-0 top-11 z-40"
-                  board={board}
-                  onChanged={patchBoard}
-                  onClose={() => setBgMenuOpen(false)}
-                />
-              </>
+              <BoardBackgroundMenu
+                board={board}
+                onChanged={patchBoard}
+                onClose={() => setBgMenuOpen(false)}
+              />
             )}
           </div>
 

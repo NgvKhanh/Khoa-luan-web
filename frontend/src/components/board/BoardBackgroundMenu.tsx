@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   clearBoardBackground,
   updateBoard,
@@ -13,7 +14,6 @@ interface Props {
   board: Board;
   onChanged: (board: Board) => void;
   onClose: () => void;
-  className?: string;
 }
 
 // Menu "Thay doi hinh nen" cho 1 bang dang mo: chon mau hoac anh Unsplash.
@@ -21,10 +21,32 @@ export default function BoardBackgroundMenu({
   board,
   onChanged,
   onClose,
-  className = '',
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (
+        ref.current &&
+        !ref.current.contains(t) &&
+        !t.closest('[data-bg-trigger]')
+      ) {
+        onClose();
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
   const {
     photos,
     loading,
@@ -51,9 +73,10 @@ export default function BoardBackgroundMenu({
     }
   }
 
-  return (
+  return createPortal(
     <div
-      className={`w-72 rounded-xl border border-slate-200 bg-white p-3 text-slate-800 shadow-2xl ${className}`}
+      ref={ref}
+      className="fixed right-3 top-14 z-50 max-h-[80vh] w-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 text-slate-800 shadow-2xl"
     >
       <div className="mb-2 flex items-center">
         <p className="flex-1 text-center text-sm font-semibold">
@@ -184,6 +207,7 @@ export default function BoardBackgroundMenu({
           Bỏ hình nền (quay về màu)
         </button>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
