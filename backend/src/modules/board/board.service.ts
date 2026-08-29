@@ -41,6 +41,40 @@ export async function assertBoardAccess(userId: string, boardId: string) {
   return board;
 }
 
+// Kiem tra QUYEN XEM: chu bang / thanh vien -> xem + sua; bang PUBLIC -> ai cung xem (chi doc).
+// Tra ve { board, canEdit }.
+export async function assertBoardView(userId: string, boardId: string) {
+  const board = await prisma.board.findFirst({
+    where: { id: boardId, deletedAt: null },
+  });
+  if (!board) {
+    throw new AppError('Khong tim thay bang', 404);
+  }
+  if (board.ownerId === userId) {
+    return { board, canEdit: true };
+  }
+  const membership = await prisma.boardMember.findFirst({
+    where: { boardId, userId, deletedAt: null },
+  });
+  if (membership) {
+    return { board, canEdit: true };
+  }
+  if (board.visibility === 'PUBLIC') {
+    return { board, canEdit: false };
+  }
+  throw new AppError('Ban khong co quyen truy cap bang nay', 403);
+}
+
+// Lay chi tiet 1 bang (dung khi mo bang qua link, nguoi xem co the chua la thanh vien).
+export async function getBoard(userId: string, boardId: string) {
+  const { board, canEdit } = await assertBoardView(userId, boardId);
+  return {
+    ...board,
+    isOwner: board.ownerId === userId,
+    canEdit,
+  };
+}
+
 // Kiem tra nguoi dung CO QUYEN QUAN LY thanh vien: chu bang HOAC Quan tri vien (ADMIN).
 // Dung cho: moi/xoa thanh vien, doi vai tro, link moi, duyet yeu cau tham gia.
 export async function assertBoardManage(userId: string, boardId: string) {
@@ -124,6 +158,7 @@ export async function updateBoard(
     name?: string;
     color?: string;
     backgroundImage?: string | null;
+    visibility?: 'PRIVATE' | 'WORKSPACE' | 'PUBLIC';
   } = {};
   if (input.name !== undefined) data.name = input.name;
   if (input.color !== undefined) data.color = input.color;
@@ -143,6 +178,8 @@ export async function updateBoard(
     data.backgroundImage = null;
     oldFileToRemove = board.backgroundImage;
   }
+
+  if (input.visibility !== undefined) data.visibility = input.visibility;
 
   const updated = await prisma.board.update({ where: { id: boardId }, data });
 

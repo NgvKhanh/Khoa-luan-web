@@ -3,6 +3,7 @@ import type {
   Board,
   BoardMember,
   BoardRole,
+  BoardVisibility,
   InviteLink,
   InvitePreview,
   JoinRequest,
@@ -11,6 +12,12 @@ import type {
 export async function fetchMyBoards(): Promise<Board[]> {
   const res = await api.get<{ data: { boards: Board[] } }>('/boards');
   return res.data.data.boards;
+}
+
+// Lay 1 bang theo id (dung khi mo bang cong khai chua phai thanh vien)
+export async function fetchBoard(boardId: string): Promise<Board> {
+  const res = await api.get<{ data: { board: Board } }>(`/boards/${boardId}`);
+  return res.data.data.board;
 }
 
 export async function createBoard(input: {
@@ -24,7 +31,12 @@ export async function createBoard(input: {
 
 export async function updateBoard(
   boardId: string,
-  input: { name?: string; color?: string; backgroundImage?: string | null }
+  input: {
+    name?: string;
+    color?: string;
+    backgroundImage?: string | null;
+    visibility?: BoardVisibility;
+  }
 ): Promise<Board> {
   const res = await api.patch<{ data: { board: Board } }>(
     `/boards/${boardId}`,

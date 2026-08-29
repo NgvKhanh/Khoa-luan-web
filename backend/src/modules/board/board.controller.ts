@@ -6,6 +6,7 @@ import {
   clearBoardBackground,
   createBoard,
   deleteBoard,
+  getBoard,
   listMyBoards,
   setBoardBackground,
   setBoardStar,
@@ -23,6 +24,16 @@ export const listMyBoardsHandler = asyncHandler(
   async (req: Request, res: Response) => {
     const boards = await listMyBoards(requireUserId(req));
     res.json({ success: true, data: { boards } });
+  }
+);
+
+export const getBoardHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const board = await getBoard(
+      requireUserId(req),
+      req.params.boardId as string
+    );
+    res.json({ success: true, data: { board } });
   }
 );
 

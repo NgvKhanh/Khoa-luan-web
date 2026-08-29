@@ -1,6 +1,6 @@
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
-import { assertBoardAccess } from '../board/board.service';
+import { assertBoardAccess, assertBoardView } from '../board/board.service';
 import type {
   CreateListInput,
   MoveAllCardsInput,
@@ -22,7 +22,7 @@ export async function assertListAccess(userId: string, listId: string) {
 }
 
 export async function listBoardLists(userId: string, boardId: string) {
-  await assertBoardAccess(userId, boardId);
+  await assertBoardView(userId, boardId);
   return prisma.list.findMany({
     where: { boardId, deletedAt: null },
     orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],

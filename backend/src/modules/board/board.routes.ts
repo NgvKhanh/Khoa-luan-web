@@ -6,6 +6,7 @@ import {
   createBoardHandler,
   deleteBoardBackgroundHandler,
   deleteBoardHandler,
+  getBoardHandler,
   listMyBoardsHandler,
   setBoardStarHandler,
   updateBoardHandler,
@@ -33,6 +34,7 @@ router.post('/join/:token', requestToJoinHandler);
 
 router.get('/', listMyBoardsHandler);
 router.post('/', validateBody(createBoardSchema), createBoardHandler);
+router.get('/:boardId', getBoardHandler);
 router.patch('/:boardId', validateBody(updateBoardSchema), updateBoardHandler);
 router.put('/:boardId/star', setBoardStarHandler);
 router.delete('/:boardId', deleteBoardHandler);

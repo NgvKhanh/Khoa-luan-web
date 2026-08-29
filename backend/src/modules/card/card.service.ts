@@ -1,7 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity/activity.service';
-import { assertBoardAccess } from '../board/board.service';
+import { assertBoardAccess, assertBoardView } from '../board/board.service';
 import { cardMemberIds, notify } from '../notification/notification.service';
 import { assertListAccess } from '../list/list.service';
 import type {
@@ -31,7 +31,13 @@ export async function assertCardAccess(userId: string, cardId: string) {
 }
 
 export async function getCardDetail(userId: string, cardId: string) {
-  await assertCardAccess(userId, cardId);
+  const found = await prisma.card.findFirst({
+    where: { id: cardId, deletedAt: null },
+    include: { list: { select: { boardId: true } } },
+  });
+  if (!found) throw new AppError('Khong tim thay the', 404);
+  await assertBoardView(userId, found.list.boardId);
+
   const card = await prisma.card.findFirst({
     where: { id: cardId, deletedAt: null },
     include: {

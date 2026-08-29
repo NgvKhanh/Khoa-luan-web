@@ -8,6 +8,7 @@ interface Props {
   onRequestDelete?: (card: Card) => void;
   onOpen?: (cardId: string) => void;
   overlay?: boolean;
+  readOnly?: boolean;
 }
 
 function DoneCircle({ done }: { done: boolean }) {
@@ -31,12 +32,13 @@ export default function CardItem({
   onRequestDelete,
   onOpen,
   overlay,
+  readOnly = false,
 }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({
       id: card.id,
       data: { type: 'card', listId: card.listId },
-      disabled: overlay,
+      disabled: overlay || readOnly,
     });
 
   const style = {

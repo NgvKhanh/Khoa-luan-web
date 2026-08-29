@@ -24,6 +24,12 @@ enum JoinRequestStatus {
   REJECTED
 }
 
+enum BoardVisibility {
+  PRIVATE // Chi thanh vien
+  WORKSPACE // Chi thanh vien (app chua co workspace nen giong PRIVATE)
+  PUBLIC // Ai dang nhap co link deu xem duoc (chi doc)
+}
+
 model User {
   id           String    @id @default(cuid())
   email        String    @unique
@@ -75,6 +81,7 @@ model Board {
   color           String    @default("#0079BF") // Mau nen khi khong dat anh
   backgroundImage String? // Duong dan anh nen (vd /uploads/boards/xxx.jpg); null = dung mau
   inviteToken     String?   @unique // Token cho link moi; null = link dang tat
+  visibility      BoardVisibility @default(PRIVATE)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?

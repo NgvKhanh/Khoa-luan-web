@@ -1,6 +1,6 @@
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
-import { assertBoardAccess } from '../board/board.service';
+import { assertBoardAccess, assertBoardView } from '../board/board.service';
 import { assertCardAccess } from '../card/card.service';
 
 // 6 mau nhan mac dinh tao san khi bang chua co nhan nao
@@ -14,15 +14,15 @@ const DEFAULT_LABEL_COLORS = [
 ];
 
 export async function listBoardLabels(userId: string, boardId: string) {
-  await assertBoardAccess(userId, boardId);
+  const { canEdit } = await assertBoardView(userId, boardId);
 
   let labels = await prisma.label.findMany({
     where: { boardId },
     orderBy: { createdAt: 'asc' },
   });
 
-  // Lan dau: tao san bo mau co ban
-  if (labels.length === 0) {
+  // Lan dau: tao san bo mau co ban (chi khi nguoi xem co quyen sua)
+  if (labels.length === 0 && canEdit) {
     await prisma.label.createMany({
       data: DEFAULT_LABEL_COLORS.map((color) => ({ boardId, color })),
     });

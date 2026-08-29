@@ -1,15 +1,20 @@
+export type BoardVisibility = 'PRIVATE' | 'WORKSPACE' | 'PUBLIC';
+
 export interface Board {
   id: string;
   ownerId: string;
   name: string;
   color: string;
   backgroundImage: string | null;
+  visibility: BoardVisibility;
   createdAt: string;
   updatedAt: string;
   // Chi co trong danh sach bang (GET /api/boards)
   memberCount?: number;
   isOwner?: boolean;
   isStarred?: boolean;
+  // Chi co khi GET /api/boards/:id (nguoi xem co the chua la thanh vien)
+  canEdit?: boolean;
 }
 
 export type BoardRole = 'OWNER' | 'ADMIN' | 'MEMBER';

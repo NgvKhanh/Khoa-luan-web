@@ -43,6 +43,7 @@ import type { BoardOutletContext } from '../layouts/BoardViewLayout';
 import {
   addBoardMember,
   changeMemberRole,
+  fetchBoard,
   fetchBoardMembers,
   removeBoardMember,
   updateBoard,
@@ -69,7 +70,8 @@ import {
   isFilterActive,
   type BoardFilter,
 } from '../lib/boardFilter';
-import type { BoardMember } from '../types/board';
+import type { Board, BoardMember, BoardVisibility } from '../types/board';
+import BoardVisibilityMenu from '../components/board/BoardVisibilityMenu';
 import type { Card } from '../types/card';
 import type { BoardList } from '../types/list';
 
@@ -112,7 +114,33 @@ export default function BoardPage() {
   const { boards, isLoading, error, patchBoard } =
     useOutletContext<BoardOutletContext>();
   const { toggleStar } = useBoards();
-  const board = boards.find((b) => b.id === boardId);
+  const memberBoard = boards.find((b) => b.id === boardId);
+
+  // Bang cong khai ma minh chua phai thanh vien -> tai truc tiep theo id
+  const [fetchedBoard, setFetchedBoard] = useState<Board | null>(null);
+  const [fetchBoardError, setFetchBoardError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!boardId || memberBoard || isLoading) return;
+    let alive = true;
+    setFetchedBoard(null);
+    setFetchBoardError(null);
+    fetchBoard(boardId)
+      .then((b) => alive && setFetchedBoard(b))
+      .catch(
+        (err) =>
+          alive &&
+          setFetchBoardError(
+            getErrorMessage(err, 'Bạn không có quyền xem bảng này.')
+          )
+      );
+    return () => {
+      alive = false;
+    };
+  }, [boardId, memberBoard, isLoading]);
+
+  const board = memberBoard ?? fetchedBoard ?? undefined;
+  const canEdit = Boolean(memberBoard) || fetchedBoard?.canEdit === true;
+  const readOnly = board != null && !canEdit;
   const isOwner = Boolean(board && user && board.ownerId === user.id);
 
   const [editing, setEditing] = useState(false);
@@ -120,6 +148,9 @@ export default function BoardPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const [members, setMembers] = useState<BoardMember[]>([]);
+  const canManageBoard =
+    isOwner ||
+    members.find((m) => m.userId === user?.id)?.role === 'ADMIN';
 
   const [lists, setLists] = useState<BoardList[]>([]);
   const [listsLoading, setListsLoading] = useState(true);
@@ -128,6 +159,7 @@ export default function BoardPage() {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [deleting, setDeleting] = useState(false);
   const [bgMenuOpen, setBgMenuOpen] = useState(false);
+  const [visMenuOpen, setVisMenuOpen] = useState(false);
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [filter, setFilter] = useState<BoardFilter>(EMPTY_FILTER);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -179,6 +211,17 @@ export default function BoardPage() {
     } catch (err) {
       setMembers(prev);
       setListsError(getErrorMessage(err, 'Không đổi được vai trò.'));
+    }
+  }
+
+  async function handleSetVisibility(v: BoardVisibility) {
+    if (!board) return;
+    try {
+      const updated = await updateBoard(board.id, { visibility: v });
+      patchBoard(updated);
+      if (fetchedBoard) setFetchedBoard({ ...fetchedBoard, visibility: v });
+    } catch (err) {
+      setListsError(getErrorMessage(err, 'Không đổi được khả năng hiển thị.'));
     }
   }
 
@@ -513,7 +556,12 @@ export default function BoardPage() {
   if (!board) {
     return (
       <div className="p-6">
-        <p className="text-sm text-slate-600">Không tìm thấy bảng này.</p>
+        <p className="text-sm text-slate-600">
+          {fetchBoardError ??
+            (memberBoard === undefined && !fetchedBoard
+              ? 'Đang mở bảng...'
+              : 'Không tìm thấy bảng này.')}
+        </p>
         <Link
           to="/"
           className="mt-2 inline-block text-sm font-medium text-[#0c66e4] hover:underline"
@@ -542,7 +590,7 @@ export default function BoardPage() {
             <rect x="13" y="4" width="8" height="10" rx="1" />
           </svg>
         </span>
-        {editing ? (
+        {editing && !readOnly ? (
           <form onSubmit={onNameSubmit}>
             <input
               autoFocus
@@ -556,23 +604,70 @@ export default function BoardPage() {
         ) : (
           <button
             type="button"
+            disabled={readOnly}
             onClick={() => {
               setDraft(board.name);
               setEditing(true);
             }}
-            className="rounded px-2 py-1 text-lg font-bold text-white drop-shadow-sm hover:bg-white/20"
+            className="rounded px-2 py-1 text-lg font-bold text-white drop-shadow-sm enabled:hover:bg-white/20"
           >
             {board.name}
           </button>
         )}
 
-        <StarButton
-          starred={Boolean(board.isStarred)}
-          onToggle={() => toggleStar(board.id)}
-          className={`rounded p-1 ${
-            board.isStarred ? '' : 'text-white hover:bg-white/20'
-          }`}
-        />
+        {!readOnly && (
+          <StarButton
+            starred={Boolean(board.isStarred)}
+            onToggle={() => toggleStar(board.id)}
+            className={`rounded p-1 ${
+              board.isStarred ? '' : 'text-white hover:bg-white/20'
+            }`}
+          />
+        )}
+
+        {canManageBoard && (
+          <div className="relative">
+            <button
+              type="button"
+              data-visibility-trigger
+              onClick={() => setVisMenuOpen((v) => !v)}
+              title="Khả năng hiển thị"
+              className="flex items-center gap-1 rounded bg-white/25 px-2 py-1 text-xs font-medium text-white hover:bg-white/40"
+            >
+              {board.visibility === 'PUBLIC' ? (
+                <>
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18" />
+                  </svg>
+                  Công khai
+                </>
+              ) : board.visibility === 'WORKSPACE' ? (
+                <>
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 8a3 3 0 100-6 3 3 0 000 6zM3 20a6 6 0 0112 0M17 8a3 3 0 100-6M15 20a6 6 0 019-5" />
+                  </svg>
+                  Không gian làm việc
+                </>
+              ) : (
+                <>
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="4" y="11" width="16" height="10" rx="2" />
+                    <path d="M8 11V7a4 4 0 018 0v4" />
+                  </svg>
+                  Riêng tư
+                </>
+              )}
+            </button>
+            {visMenuOpen && (
+              <BoardVisibilityMenu
+                value={board.visibility}
+                onChange={handleSetVisibility}
+                onClose={() => setVisMenuOpen(false)}
+              />
+            )}
+          </div>
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           <div className="relative">
@@ -607,47 +702,61 @@ export default function BoardPage() {
             )}
           </div>
 
-          <div className="relative">
-            <button
-              type="button"
-              data-bg-trigger
-              onClick={() => setBgMenuOpen((v) => !v)}
-              className="flex items-center gap-1.5 rounded bg-white/25 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-white/40"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="4" width="18" height="16" rx="2" />
-                <circle cx="9" cy="10" r="2" />
-                <path d="M21 16l-5-5-4 4-2-2-4 4" />
-              </svg>
-              Hình nền
-            </button>
-            {bgMenuOpen && (
-              <BoardBackgroundMenu
-                board={board}
-                onChanged={patchBoard}
-                onClose={() => setBgMenuOpen(false)}
-              />
-            )}
-          </div>
+          {!readOnly && (
+            <div className="relative">
+              <button
+                type="button"
+                data-bg-trigger
+                onClick={() => setBgMenuOpen((v) => !v)}
+                className="flex items-center gap-1.5 rounded bg-white/25 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-white/40"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="4" width="18" height="16" rx="2" />
+                  <circle cx="9" cy="10" r="2" />
+                  <path d="M21 16l-5-5-4 4-2-2-4 4" />
+                </svg>
+                Hình nền
+              </button>
+              {bgMenuOpen && (
+                <BoardBackgroundMenu
+                  board={board}
+                  onChanged={patchBoard}
+                  onClose={() => setBgMenuOpen(false)}
+                />
+              )}
+            </div>
+          )}
 
-          <BoardMembers
-            boardId={board.id}
-            members={members}
-            currentUserId={user?.id}
-            isOwner={isOwner}
-            onAdd={handleAddMember}
-            onChangeRole={handleChangeMemberRole}
-            onRemove={handleRemoveMember}
-            onApproved={(member) =>
-              setMembers((cur) =>
-                cur.some((m) => m.userId === member.userId)
-                  ? cur.map((m) => (m.userId === member.userId ? member : m))
-                  : [...cur, member]
-              )
-            }
-          />
+          {!readOnly && (
+            <BoardMembers
+              boardId={board.id}
+              members={members}
+              currentUserId={user?.id}
+              isOwner={isOwner}
+              onAdd={handleAddMember}
+              onChangeRole={handleChangeMemberRole}
+              onRemove={handleRemoveMember}
+              onApproved={(member) =>
+                setMembers((cur) =>
+                  cur.some((m) => m.userId === member.userId)
+                    ? cur.map((m) => (m.userId === member.userId ? member : m))
+                    : [...cur, member]
+                )
+              }
+            />
+          )}
         </div>
       </div>
+
+      {readOnly && (
+        <div className="mx-3 mt-2 flex w-fit items-center gap-2 rounded bg-white/90 px-3 py-1 text-sm text-slate-700 shadow-sm">
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="4" y="11" width="16" height="10" rx="2" />
+            <path d="M8 11V7a4 4 0 018 0v4" />
+          </svg>
+          Bảng công khai — bạn đang xem ở chế độ chỉ đọc
+        </div>
+      )}
 
       {(saveError || listsError) && (
         <p className="mx-4 mt-2 w-fit rounded bg-red-600/90 px-3 py-1 text-sm text-white">
@@ -703,6 +812,7 @@ export default function BoardPage() {
                   key={list.id}
                   list={list}
                   allLists={lists}
+                  readOnly={readOnly}
                   onRename={handleRenameList}
                   onRequestDeleteList={(l) =>
                     setDeleteTarget({ kind: 'list', list: l })
@@ -724,7 +834,7 @@ export default function BoardPage() {
               ))}
             </SortableContext>
 
-            <AddListForm onAdd={handleAddList} />
+            {!readOnly && <AddListForm onAdd={handleAddList} />}
           </div>
 
           <DragOverlay dropAnimation={dropAnimation}>
@@ -776,6 +886,7 @@ export default function BoardPage() {
           lists={lists.map((l) => ({ id: l.id, name: l.name }))}
           boardMembers={members}
           currentUserId={user?.id}
+          readOnly={readOnly}
           onClose={() => setOpenCardId(null)}
           onChanged={reloadLists}
         />

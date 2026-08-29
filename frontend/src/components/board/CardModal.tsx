@@ -28,6 +28,7 @@ interface Props {
   lists: { id: string; name: string }[];
   boardMembers: BoardMember[];
   currentUserId?: string;
+  readOnly?: boolean;
   onClose: () => void;
   onChanged: () => void;
 }
@@ -103,6 +104,7 @@ export default function CardModal({
   lists,
   boardMembers,
   currentUserId,
+  readOnly = false,
   onClose,
   onChanged,
 }: Props) {
@@ -156,6 +158,7 @@ export default function CardModal({
   }, [onClose]);
 
   async function run(fn: () => Promise<unknown>) {
+    if (readOnly) return;
     setError(null);
     try {
       await fn();
@@ -206,12 +209,14 @@ export default function CardModal({
               <div className="relative">
                 <button
                   type="button"
+                  disabled={readOnly}
                   onClick={() => setPanel(panel === 'list' ? null : 'list')}
-                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-700 hover:bg-slate-50"
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-700 enabled:hover:bg-slate-50"
                 >
-                  {card.list.name} ▾
+                  {card.list.name}
+                  {!readOnly && ' ▾'}
                 </button>
-                {panel === 'list' && (
+                {panel === 'list' && !readOnly && (
                   <div className="absolute left-0 top-9 z-10 w-48 rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
                     {lists.map((l) => (
                       <button
@@ -233,19 +238,21 @@ export default function CardModal({
                 )}
               </div>
               <div className="relative ml-auto">
-                <button
-                  type="button"
-                  onClick={() => setPanel(panel === 'menu' ? null : 'menu')}
-                  aria-label="Hành động"
-                  className="rounded p-1.5 text-slate-500 hover:bg-slate-200"
-                >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
-                    <circle cx="5" cy="12" r="1.8" />
-                    <circle cx="12" cy="12" r="1.8" />
-                    <circle cx="19" cy="12" r="1.8" />
-                  </svg>
-                </button>
-                {panel === 'menu' && (
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setPanel(panel === 'menu' ? null : 'menu')}
+                    aria-label="Hành động"
+                    className="rounded p-1.5 text-slate-500 hover:bg-slate-200"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+                      <circle cx="5" cy="12" r="1.8" />
+                      <circle cx="12" cy="12" r="1.8" />
+                      <circle cx="19" cy="12" r="1.8" />
+                    </svg>
+                  </button>
+                )}
+                {panel === 'menu' && !readOnly && (
                   <div className="absolute right-0 top-9 z-10 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
                     <button
                       type="button"
@@ -282,6 +289,7 @@ export default function CardModal({
                 <div className="mb-3 flex items-start gap-2">
                   <button
                     type="button"
+                    disabled={readOnly}
                     onClick={() => void run(() => updateCard(card.id, { isDone: !card.isDone }))}
                     aria-label="Đánh dấu hoàn thành"
                     className="mt-1"
@@ -296,7 +304,7 @@ export default function CardModal({
                       <span className="block h-5 w-5 rounded-full border-2 border-slate-400" />
                     )}
                   </button>
-                  {editingTitle ? (
+                  {editingTitle && !readOnly ? (
                     <textarea
                       autoFocus
                       value={titleDraft}
@@ -318,8 +326,10 @@ export default function CardModal({
                     />
                   ) : (
                     <h2
-                      onClick={() => setEditingTitle(true)}
-                      className={`cursor-pointer text-lg font-semibold ${
+                      onClick={() => !readOnly && setEditingTitle(true)}
+                      className={`text-lg font-semibold ${
+                        readOnly ? '' : 'cursor-pointer'
+                      } ${
                         card.isDone ? 'text-slate-400 line-through' : 'text-slate-900'
                       }`}
                     >
@@ -369,7 +379,11 @@ export default function CardModal({
                 )}
 
                 {/* Hang nut hanh dong */}
-                <div className="relative mb-4 flex flex-wrap gap-2 pl-7">
+                <div
+                  className={`relative mb-4 flex flex-wrap gap-2 pl-7 ${
+                    readOnly ? 'hidden' : ''
+                  }`}
+                >
                   {(['labels', 'due', 'members'] as const).map((p) => (
                     <button
                       key={p}
@@ -499,7 +513,11 @@ export default function CardModal({
                 {/* Mo ta */}
                 <div className="mb-5 pl-7">
                   <p className="mb-1 text-sm font-semibold text-slate-700">Mô tả</p>
-                  {editingDesc ? (
+                  {readOnly ? (
+                    <p className="whitespace-pre-wrap rounded-lg bg-white p-2 text-sm text-slate-600 ring-1 ring-slate-200">
+                      {card.description || 'Không có mô tả.'}
+                    </p>
+                  ) : editingDesc ? (
                     <div>
                       <textarea
                         autoFocus
@@ -553,13 +571,15 @@ export default function CardModal({
                       <div key={cl.id}>
                         <div className="mb-1 flex items-center gap-2">
                           <p className="flex-1 text-sm font-semibold text-slate-700">{cl.title}</p>
-                          <button
-                            type="button"
-                            onClick={() => void run(() => deleteChecklist(cl.id))}
-                            className="rounded px-1.5 py-0.5 text-xs text-slate-500 hover:bg-slate-200"
-                          >
-                            Xoá
-                          </button>
+                          {!readOnly && (
+                            <button
+                              type="button"
+                              onClick={() => void run(() => deleteChecklist(cl.id))}
+                              className="rounded px-1.5 py-0.5 text-xs text-slate-500 hover:bg-slate-200"
+                            >
+                              Xoá
+                            </button>
+                          )}
                         </div>
                         <div className="mb-2 flex items-center gap-2">
                           <span className="text-xs text-slate-500">{pct}%</span>
@@ -573,6 +593,7 @@ export default function CardModal({
                               <input
                                 type="checkbox"
                                 checked={it.isDone}
+                                disabled={readOnly}
                                 onChange={() =>
                                   void run(() =>
                                     updateChecklistItem(it.id, { isDone: !it.isDone })
@@ -587,19 +608,23 @@ export default function CardModal({
                               >
                                 {it.content}
                               </span>
-                              <button
-                                type="button"
-                                onClick={() => void run(() => deleteChecklistItem(it.id))}
-                                className="rounded p-0.5 text-slate-400 opacity-0 hover:bg-slate-200 group-hover:opacity-100"
-                              >
-                                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M6 6l12 12M18 6L6 18" />
-                                </svg>
-                              </button>
+                              {!readOnly && (
+                                <button
+                                  type="button"
+                                  onClick={() => void run(() => deleteChecklistItem(it.id))}
+                                  className="rounded p-0.5 text-slate-400 opacity-0 hover:bg-slate-200 group-hover:opacity-100"
+                                >
+                                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M6 6l12 12M18 6L6 18" />
+                                  </svg>
+                                </button>
+                              )}
                             </div>
                           ))}
                         </div>
-                        <AddItemInput onAdd={(c) => run(() => addChecklistItem(cl.id, c))} />
+                        {!readOnly && (
+                          <AddItemInput onAdd={(c) => run(() => addChecklistItem(cl.id, c))} />
+                        )}
                       </div>
                     );
                   })}
@@ -615,31 +640,33 @@ export default function CardModal({
                   Nhận xét và hoạt động
                 </p>
 
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const t = comment.trim();
-                    if (!t) return;
-                    setComment('');
-                    void run(() => addComment(card.id, t));
-                  }}
-                  className="mb-3 flex gap-2"
-                >
-                  <input
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    placeholder="Viết bình luận..."
-                    className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0c66e4] focus:outline-none"
-                  />
-                  {comment.trim() && (
-                    <button
-                      type="submit"
-                      className="shrink-0 rounded-lg bg-[#0c66e4] px-3 text-sm font-medium text-white hover:bg-[#0a5cd4]"
-                    >
-                      Gửi
-                    </button>
-                  )}
-                </form>
+                {!readOnly && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const t = comment.trim();
+                      if (!t) return;
+                      setComment('');
+                      void run(() => addComment(card.id, t));
+                    }}
+                    className="mb-3 flex gap-2"
+                  >
+                    <input
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder="Viết bình luận..."
+                      className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0c66e4] focus:outline-none"
+                    />
+                    {comment.trim() && (
+                      <button
+                        type="submit"
+                        className="shrink-0 rounded-lg bg-[#0c66e4] px-3 text-sm font-medium text-white hover:bg-[#0a5cd4]"
+                      >
+                        Gửi
+                      </button>
+                    )}
+                  </form>
+                )}
 
                 {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
 
@@ -656,7 +683,7 @@ export default function CardModal({
                           <p className="mt-0.5 rounded-lg bg-white p-2 text-sm text-slate-700 ring-1 ring-slate-200">
                             {it.c.text}
                           </p>
-                          {it.c.user.id === currentUserId && (
+                          {!readOnly && it.c.user.id === currentUserId && (
                             <button
                               type="button"
                               onClick={() => void run(() => deleteComment(it.c.id))}

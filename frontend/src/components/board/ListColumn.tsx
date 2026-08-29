@@ -14,6 +14,7 @@ import CardItem from './CardItem';
 interface Props {
   list: BoardList;
   allLists: BoardList[];
+  readOnly?: boolean;
   onRename: (listId: string, name: string) => void;
   onRequestDeleteList: (list: BoardList) => void;
   onAddCard: (listId: string, title: string) => Promise<void>;
@@ -42,6 +43,7 @@ const SUB_ITEM =
 export default function ListColumn({
   list,
   allLists,
+  readOnly = false,
   onRename,
   onRequestDeleteList,
   onAddCard,
@@ -55,7 +57,11 @@ export default function ListColumn({
   onRequestDeleteAllCards,
 }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: `list-${list.id}`, data: { type: 'list' } });
+    useSortable({
+      id: `list-${list.id}`,
+      data: { type: 'list' },
+      disabled: readOnly,
+    });
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(list.name);
@@ -122,12 +128,14 @@ export default function ListColumn({
     >
       {/* Header - cung la tay cam de keo cot */}
       <div
-        {...attributes}
-        {...listeners}
+        {...(readOnly ? {} : attributes)}
+        {...(readOnly ? {} : listeners)}
         style={{ touchAction: 'none' }}
-        className="relative flex cursor-grab items-center gap-1 px-2 py-1.5 active:cursor-grabbing"
+        className={`relative flex items-center gap-1 px-2 py-1.5 ${
+          readOnly ? '' : 'cursor-grab active:cursor-grabbing'
+        }`}
       >
-        {editing ? (
+        {editing && !readOnly ? (
           <form onSubmit={onSubmit} className="flex-1">
             <input
               autoFocus
@@ -142,11 +150,12 @@ export default function ListColumn({
         ) : (
           <button
             type="button"
+            disabled={readOnly}
             onClick={() => {
               setDraft(list.name);
               setEditing(true);
             }}
-            className="flex-1 rounded px-2 py-1 text-left text-sm font-semibold text-[#172b4d] hover:bg-black/5"
+            className="flex-1 rounded px-2 py-1 text-left text-sm font-semibold text-[#172b4d] enabled:hover:bg-black/5"
           >
             {list.name}
           </button>
@@ -156,23 +165,25 @@ export default function ListColumn({
           {list.cards.length}
         </span>
 
-        <button
-          type="button"
-          onClick={() => {
-            setMenuOpen((v) => !v);
-            setSubmenu(null);
-          }}
-          aria-label="Hành động danh sách"
-          className="shrink-0 rounded p-1 text-slate-500 hover:bg-black/10 hover:text-slate-700"
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
-            <circle cx="5" cy="12" r="1.6" />
-            <circle cx="12" cy="12" r="1.6" />
-            <circle cx="19" cy="12" r="1.6" />
-          </svg>
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen((v) => !v);
+              setSubmenu(null);
+            }}
+            aria-label="Hành động danh sách"
+            className="shrink-0 rounded p-1 text-slate-500 hover:bg-black/10 hover:text-slate-700"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+              <circle cx="5" cy="12" r="1.6" />
+              <circle cx="12" cy="12" r="1.6" />
+              <circle cx="19" cy="12" r="1.6" />
+            </svg>
+          </button>
+        )}
 
-        {menuOpen && (
+        {menuOpen && !readOnly && (
           <>
             <button
               type="button"
@@ -358,21 +369,24 @@ export default function ListColumn({
             <CardItem
               key={card.id}
               card={card}
-              onToggleDone={onToggleCardDone}
-              onRequestDelete={onRequestDeleteCard}
+              readOnly={readOnly}
+              onToggleDone={readOnly ? undefined : onToggleCardDone}
+              onRequestDelete={readOnly ? undefined : onRequestDeleteCard}
               onOpen={onOpenCard}
             />
           ))}
         </SortableContext>
       </div>
 
-      <div className="p-2">
-        <AddCardForm
-          open={addCardOpen}
-          onOpenChange={setAddCardOpen}
-          onAdd={(title) => onAddCard(list.id, title)}
-        />
-      </div>
+      {!readOnly && (
+        <div className="p-2">
+          <AddCardForm
+            open={addCardOpen}
+            onOpenChange={setAddCardOpen}
+            onAdd={(title) => onAddCard(list.id, title)}
+          />
+        </div>
+      )}
     </div>
   );
 }

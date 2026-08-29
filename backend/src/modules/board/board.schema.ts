@@ -32,6 +32,7 @@ export const updateBoardSchema = z
     color: hexColor.optional(),
     // string -> doi sang anh nen moi; null -> bo anh nen, quay ve mau
     backgroundImage: imageUrl.nullable().optional(),
+    visibility: z.enum(['PRIVATE', 'WORKSPACE', 'PUBLIC']).optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Khong co du lieu nao de cap nhat',

@@ -1,7 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
 import { notify } from '../notification/notification.service';
-import { assertBoardAccess, assertBoardManage } from './board.service';
+import { assertBoardManage, assertBoardView } from './board.service';
 import type {
   AddBoardMemberInput,
   ChangeMemberRoleInput,
@@ -15,7 +15,7 @@ const MEMBER_USER_SELECT = {
 } as const;
 
 export async function listBoardMembers(userId: string, boardId: string) {
-  await assertBoardAccess(userId, boardId);
+  await assertBoardView(userId, boardId);
   return prisma.boardMember.findMany({
     where: { boardId, deletedAt: null },
     orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
