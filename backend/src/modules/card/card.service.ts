@@ -47,7 +47,12 @@ export async function getCardDetail(userId: string, cardId: string) {
       checklists: {
         orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
         include: {
-          items: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
+          items: {
+            orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+            include: {
+              assignee: { select: { id: true, name: true, avatarUrl: true } },
+            },
+          },
         },
       },
       comments: {

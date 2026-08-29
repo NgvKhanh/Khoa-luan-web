@@ -45,6 +45,7 @@ model User {
   joinRequests        BoardJoinRequest[]
   cardMembers         CardMember[]
   comments            Comment[]
+  checklistItems      ChecklistItem[]
   activities          Activity[]
   notifications       Notification[] @relation("NotifRecipient")
   actedNotifications  Notification[] @relation("NotifActor")
@@ -228,16 +229,20 @@ model Checklist {
 }
 
 model ChecklistItem {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   checklistId String
   content     String
-  isDone      Boolean  @default(false)
-  position    Int      @default(0)
-  createdAt   DateTime @default(now())
+  isDone      Boolean   @default(false)
+  position    Int       @default(0)
+  assigneeId  String? // Nguoi duoc chi dinh (la thanh vien bang)
+  dueDate     DateTime? // Ngay het han cua muc
+  createdAt   DateTime  @default(now())
 
   checklist Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  assignee  User?     @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
 
   @@index([checklistId])
+  @@index([assigneeId])
 }
 
 model Comment {

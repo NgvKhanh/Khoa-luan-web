@@ -119,6 +119,11 @@ export default function CardModal({
   const [editingDesc, setEditingDesc] = useState(false);
   const [comment, setComment] = useState('');
   const [panel, setPanel] = useState<'labels' | 'due' | 'members' | 'list' | 'menu' | null>(null);
+  const [itemPanel, setItemPanel] = useState<{
+    id: string;
+    kind: 'assign' | 'due';
+  } | null>(null);
+  const itemDueRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
     const d = await fetchCardDetail(cardId);
@@ -589,7 +594,7 @@ export default function CardModal({
                         </div>
                         <div className="flex flex-col gap-1">
                           {cl.items.map((it) => (
-                            <div key={it.id} className="group flex items-center gap-2">
+                            <div key={it.id} className="group relative flex items-center gap-2">
                               <input
                                 type="checkbox"
                                 checked={it.isDone}
@@ -599,25 +604,172 @@ export default function CardModal({
                                     updateChecklistItem(it.id, { isDone: !it.isDone })
                                   )
                                 }
-                                className="h-4 w-4"
+                                className="h-4 w-4 shrink-0"
                               />
                               <span
-                                className={`flex-1 text-sm ${
+                                className={`min-w-0 flex-1 text-sm ${
                                   it.isDone ? 'text-slate-400 line-through' : 'text-slate-700'
                                 }`}
                               >
                                 {it.content}
                               </span>
-                              {!readOnly && (
-                                <button
-                                  type="button"
-                                  onClick={() => void run(() => deleteChecklistItem(it.id))}
-                                  className="rounded p-0.5 text-slate-400 opacity-0 hover:bg-slate-200 group-hover:opacity-100"
+
+                              {it.assignee && (
+                                <span
+                                  title={it.assignee.name}
+                                  className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#7f5ad5] text-[9px] font-semibold text-white"
                                 >
-                                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M6 6l12 12M18 6L6 18" />
+                                  {initialsOf(it.assignee.name)}
+                                </span>
+                              )}
+                              {it.dueDate && (
+                                <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-slate-100 px-1 text-[11px] text-slate-600">
+                                  <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <circle cx="12" cy="12" r="9" />
+                                    <path d="M12 7v5l3 2" />
                                   </svg>
-                                </button>
+                                  {new Date(it.dueDate).toLocaleDateString('vi-VN', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                  })}
+                                </span>
+                              )}
+
+                              {!readOnly && (
+                                <div className="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100">
+                                  <button
+                                    type="button"
+                                    title="Chỉ định"
+                                    onClick={() =>
+                                      setItemPanel(
+                                        itemPanel?.id === it.id &&
+                                          itemPanel.kind === 'assign'
+                                          ? null
+                                          : { id: it.id, kind: 'assign' }
+                                      )
+                                    }
+                                    className="rounded p-0.5 text-slate-400 hover:bg-slate-200"
+                                  >
+                                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <circle cx="9" cy="8" r="3.5" />
+                                      <path d="M3.5 20a5.5 5.5 0 0111 0M17 8h5M19.5 5.5v5" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Ngày hết hạn"
+                                    onClick={() =>
+                                      setItemPanel(
+                                        itemPanel?.id === it.id &&
+                                          itemPanel.kind === 'due'
+                                          ? null
+                                          : { id: it.id, kind: 'due' }
+                                      )
+                                    }
+                                    className="rounded p-0.5 text-slate-400 hover:bg-slate-200"
+                                  >
+                                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <circle cx="12" cy="12" r="9" />
+                                      <path d="M12 7v5l3 2" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Xoá"
+                                    onClick={() => void run(() => deleteChecklistItem(it.id))}
+                                    className="rounded p-0.5 text-slate-400 hover:bg-slate-200"
+                                  >
+                                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <path d="M6 6l12 12M18 6L6 18" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              )}
+
+                              {itemPanel?.id === it.id && itemPanel.kind === 'assign' && (
+                                <div className="absolute right-0 top-6 z-20 w-48 rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
+                                  <p className="px-2 py-1 text-[11px] font-semibold text-slate-500">
+                                    Chỉ định
+                                  </p>
+                                  {boardMembers.map((m) => (
+                                    <button
+                                      key={m.userId}
+                                      type="button"
+                                      onClick={() => {
+                                        setItemPanel(null);
+                                        void run(() =>
+                                          updateChecklistItem(it.id, {
+                                            assigneeId:
+                                              it.assigneeId === m.userId
+                                                ? null
+                                                : m.userId,
+                                          })
+                                        );
+                                      }}
+                                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100"
+                                    >
+                                      <span className="grid h-5 w-5 place-items-center rounded-full bg-[#7f5ad5] text-[9px] font-semibold text-white">
+                                        {initialsOf(m.user.name)}
+                                      </span>
+                                      <span className="flex-1 truncate">{m.user.name}</span>
+                                      {it.assigneeId === m.userId && (
+                                        <svg viewBox="0 0 24 24" className="h-4 w-4 text-[#0c66e4]" fill="none" stroke="currentColor" strokeWidth="2">
+                                          <path d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              {itemPanel?.id === it.id && itemPanel.kind === 'due' && (
+                                <div className="absolute right-0 top-6 z-20 w-56 rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
+                                  <p className="mb-1 text-[11px] font-semibold text-slate-500">
+                                    Ngày hết hạn
+                                  </p>
+                                  <input
+                                    ref={itemDueRef}
+                                    type="datetime-local"
+                                    defaultValue={
+                                      it.dueDate
+                                        ? new Date(it.dueDate).toISOString().slice(0, 16)
+                                        : ''
+                                    }
+                                    className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                                  />
+                                  <div className="mt-2 flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const v = itemDueRef.current?.value;
+                                        setItemPanel(null);
+                                        void run(() =>
+                                          updateChecklistItem(it.id, {
+                                            dueDate: v
+                                              ? new Date(v).toISOString()
+                                              : null,
+                                          })
+                                        );
+                                      }}
+                                      className="flex-1 rounded bg-[#0c66e4] py-1 text-sm font-medium text-white hover:bg-[#0a5cd4]"
+                                    >
+                                      Lưu
+                                    </button>
+                                    {it.dueDate && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setItemPanel(null);
+                                          void run(() =>
+                                            updateChecklistItem(it.id, { dueDate: null })
+                                          );
+                                        }}
+                                        className="rounded px-2 py-1 text-sm text-slate-600 hover:bg-slate-100"
+                                      >
+                                        Bỏ
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
                               )}
                             </div>
                           ))}

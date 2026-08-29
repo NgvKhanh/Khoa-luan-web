@@ -36,6 +36,9 @@ export interface ChecklistItem {
   content: string;
   isDone: boolean;
   position: number;
+  assigneeId?: string | null;
+  assignee?: { id: string; name: string; avatarUrl: string | null } | null;
+  dueDate?: string | null;
 }
 
 export interface Checklist {

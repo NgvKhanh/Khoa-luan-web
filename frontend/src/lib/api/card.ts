@@ -94,7 +94,12 @@ export async function addChecklistItem(
 }
 export async function updateChecklistItem(
   itemId: string,
-  input: { content?: string; isDone?: boolean }
+  input: {
+    content?: string;
+    isDone?: boolean;
+    assigneeId?: string | null;
+    dueDate?: string | null;
+  }
 ): Promise<ChecklistItem> {
   const res = await api.patch<{ data: { item: ChecklistItem } }>(
     `/checklist-items/${itemId}`,

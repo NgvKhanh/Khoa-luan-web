@@ -76,8 +76,8 @@ async function checklistCard(userId: string, checklistId: string) {
     where: { id: checklistId },
   });
   if (!checklist) throw new AppError('Khong tim thay checklist', 404);
-  await assertCardAccess(userId, checklist.cardId);
-  return checklist;
+  const card = await assertCardAccess(userId, checklist.cardId);
+  return { checklist, boardId: card.list.boardId };
 }
 
 export async function addChecklist(
@@ -142,16 +142,38 @@ export async function addChecklistItem(
 async function itemChecklist(userId: string, itemId: string) {
   const item = await prisma.checklistItem.findUnique({ where: { id: itemId } });
   if (!item) throw new AppError('Khong tim thay muc', 404);
-  await checklistCard(userId, item.checklistId);
-  return item;
+  const { boardId } = await checklistCard(userId, item.checklistId);
+  return { item, boardId };
+}
+
+async function assertBoardMemberUser(boardId: string, targetUserId: string) {
+  const board = await prisma.board.findUnique({ where: { id: boardId } });
+  const ok =
+    board?.ownerId === targetUserId ||
+    (await prisma.boardMember.findFirst({
+      where: { boardId, userId: targetUserId, deletedAt: null },
+    })) !== null;
+  if (!ok) {
+    throw new AppError('Chi chi dinh duoc thanh vien cua bang', 400);
+  }
 }
 
 export async function updateChecklistItem(
   userId: string,
   itemId: string,
-  input: { content?: string; isDone?: boolean }
+  input: {
+    content?: string;
+    isDone?: boolean;
+    assigneeId?: string | null;
+    dueDate?: string | null;
+  }
 ) {
-  await itemChecklist(userId, itemId);
+  const { boardId } = await itemChecklist(userId, itemId);
+
+  if (typeof input.assigneeId === 'string') {
+    await assertBoardMemberUser(boardId, input.assigneeId);
+  }
+
   return prisma.checklistItem.update({
     where: { id: itemId },
     data: {
@@ -159,6 +181,15 @@ export async function updateChecklistItem(
         ? { content: input.content.trim() }
         : {}),
       ...(input.isDone !== undefined ? { isDone: input.isDone } : {}),
+      ...(input.assigneeId !== undefined
+        ? { assigneeId: input.assigneeId }
+        : {}),
+      ...(input.dueDate !== undefined
+        ? { dueDate: input.dueDate ? new Date(input.dueDate) : null }
+        : {}),
+    },
+    include: {
+      assignee: { select: { id: true, name: true, avatarUrl: true } },
     },
   });
 }
