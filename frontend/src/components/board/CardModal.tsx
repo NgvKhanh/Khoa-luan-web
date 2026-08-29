@@ -123,6 +123,7 @@ export default function CardModal({
   >(null);
   const [clTitle, setClTitle] = useState('Việc cần làm');
   const [clCopyFrom, setClCopyFrom] = useState('');
+  const [showDetails, setShowDetails] = useState(false);
   const [itemPanel, setItemPanel] = useState<{
     id: string;
     kind: 'assign' | 'due';
@@ -188,12 +189,15 @@ export default function CardModal({
       | { kind: 'activity'; at: string; a: CardActivity }
     )[] = [
       ...card.comments.map((c) => ({ kind: 'comment' as const, at: c.createdAt, c })),
-      ...card.activities
-        .filter((a) => a.type !== 'comment.create')
-        .map((a) => ({ kind: 'activity' as const, at: a.createdAt, a })),
+      // "Hien chi tiet" moi hien cac dong nhat ky hoat dong
+      ...(showDetails
+        ? card.activities
+            .filter((a) => a.type !== 'comment.create')
+            .map((a) => ({ kind: 'activity' as const, at: a.createdAt, a }))
+        : []),
     ];
     return items.sort((x, y) => new Date(y.at).getTime() - new Date(x.at).getTime());
-  }, [card]);
+  }, [card, showDetails]);
 
   const cardLabelIds = new Set(card?.labels.map((l) => l.labelId));
   const cardMemberIds = new Set(card?.members.map((m) => m.userId));
@@ -850,12 +854,21 @@ export default function CardModal({
 
               {/* ===== Cot phai: nhan xet + hoat dong ===== */}
               <div className="w-full shrink-0 md:w-72">
-                <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700">
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-                  </svg>
-                  Nhận xét và hoạt động
-                </p>
+                <div className="mb-2 flex items-center gap-2">
+                  <p className="flex flex-1 items-center gap-1.5 text-sm font-semibold text-slate-700">
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                    </svg>
+                    Nhận xét và hoạt động
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowDetails((v) => !v)}
+                    className="shrink-0 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                  >
+                    {showDetails ? 'Ẩn chi tiết' : 'Hiện chi tiết'}
+                  </button>
+                </div>
 
                 {!readOnly && (
                   <form
