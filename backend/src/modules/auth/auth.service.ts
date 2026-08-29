@@ -3,6 +3,7 @@ import { AppError } from '../../utils/AppError';
 import { signToken } from '../../utils/jwt';
 import { comparePassword, hashPassword } from '../../utils/password';
 import type {
+  ChangePasswordInput,
   LoginInput,
   RegisterInput,
   UpdateProfileInput,
@@ -105,4 +106,26 @@ export async function updateUserProfile(
   });
 
   return user;
+}
+
+export async function changeUserPassword(
+  userId: string,
+  input: ChangePasswordInput
+) {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, deletedAt: null },
+  });
+  if (!user) {
+    throw new AppError('Khong tim thay nguoi dung', 404);
+  }
+
+  const ok = await comparePassword(input.currentPassword, user.passwordHash);
+  if (!ok) {
+    throw new AppError('Mat khau hien tai khong dung', 400);
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: await hashPassword(input.newPassword) },
+  });
 }

@@ -2,9 +2,12 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import BoardViewLayout from './layouts/BoardViewLayout';
 import MainLayout from './layouts/MainLayout';
 import BoardPage from './pages/BoardPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import HomePage from './pages/HomePage';
 import JoinBoardPage from './pages/JoinBoardPage';
 import LoginPage from './pages/LoginPage';
+import MyActivityPage from './pages/MyActivityPage';
+import ProfilePage from './pages/ProfilePage';
 import RegisterPage from './pages/RegisterPage';
 import ProtectedRoute from './routes/ProtectedRoute';
 
@@ -17,6 +20,9 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/settings/profile" element={<ProfilePage />} />
+          <Route path="/settings/password" element={<ChangePasswordPage />} />
+          <Route path="/activity" element={<MyActivityPage />} />
         </Route>
 
         <Route path="/join/:token" element={<JoinBoardPage />} />

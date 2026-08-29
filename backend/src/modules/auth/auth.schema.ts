@@ -30,6 +30,15 @@ export const updateProfileSchema = z.object({
     .optional(),
 });
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Vui long nhap mat khau hien tai'),
+  newPassword: z
+    .string()
+    .min(6, 'Mat khau moi phai co it nhat 6 ky tu')
+    .max(72, 'Mat khau qua dai'),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

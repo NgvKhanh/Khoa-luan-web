@@ -48,3 +48,15 @@ export async function listCardActivity(cardId: string) {
     include: { user: { select: ACTIVITY_USER_SELECT } },
   });
 }
+
+// Nhat ky thao tac cua chinh nguoi dung tren moi bang
+export async function listMyActivity(userId: string) {
+  return prisma.activity.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    take: 60,
+    include: {
+      board: { select: { id: true, name: true } },
+    },
+  });
+}

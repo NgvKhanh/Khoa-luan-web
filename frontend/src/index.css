@@ -1,12 +1,24 @@
 @import "tailwindcss";
 
+/* Bat dark mode theo class .dark tren <html> (thay vi chi prefers-color-scheme) */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --nav-bg: #1558bc;
   --app-bg: #f1f2f4;
 }
 
+.dark {
+  --nav-bg: #0b1220;
+  --app-bg: #0f172a;
+}
+
 body {
   background-color: var(--app-bg);
+}
+
+.dark body {
+  color: #e2e8f0;
 }
 
 /* Thanh cuon ngang cua board cho giong Trello (nen mo, thumb sang) */

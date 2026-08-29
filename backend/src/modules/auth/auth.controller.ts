@@ -4,12 +4,14 @@ import { TOKEN_COOKIE_NAME } from '../../middleware/auth.middleware';
 import { AppError } from '../../utils/AppError';
 import { asyncHandler } from '../../utils/asyncHandler';
 import {
+  changeUserPassword,
   getUserProfile,
   loginUser,
   registerUser,
   updateUserProfile,
 } from './auth.service';
 import type {
+  ChangePasswordInput,
   LoginInput,
   RegisterInput,
   UpdateProfileInput,
@@ -87,3 +89,13 @@ export const updateMe = asyncHandler(async (req: Request, res: Response) => {
     data: { user },
   });
 });
+
+export const changePassword = asyncHandler(
+  async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new AppError('Ban chua dang nhap', 401);
+    }
+    await changeUserPassword(req.user.id, req.body as ChangePasswordInput);
+    res.json({ success: true, message: 'Da doi mat khau' });
+  }
+);

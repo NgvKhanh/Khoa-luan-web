@@ -24,7 +24,7 @@ function CreateBoardTile({ onCreated }: { onCreated: (board: Board) => void }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded-xl bg-slate-200/70 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200"
+        className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded-xl bg-slate-200/70 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-300 dark:hover:bg-slate-700"
       >
         <span className="text-xl leading-none">+</span>
         Tạo bảng mới

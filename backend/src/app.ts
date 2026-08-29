@@ -3,6 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { env } from './config/env';
 import { UPLOAD_ROOT } from './config/upload';
+import activityRoutes from './modules/activity/activity.routes';
 import authRoutes from './modules/auth/auth.routes';
 import boardRoutes from './modules/board/board.routes';
 import { boardMemberRoutes } from './modules/board/boardMember.routes';
@@ -54,6 +55,7 @@ export function createApp() {
   app.use('/uploads', express.static(UPLOAD_ROOT));
 
   app.use('/api/auth', authRoutes);
+  app.use('/api/activities', activityRoutes);
   app.use('/api/boards/:boardId/lists', boardListRoutes);
   app.use('/api/boards/:boardId/members', boardMemberRoutes);
   app.use('/api/boards/:boardId/labels', boardLabelRoutes);

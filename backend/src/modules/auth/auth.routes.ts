@@ -1,8 +1,20 @@
 import { Router } from 'express';
 import { requireAuth } from '../../middleware/auth.middleware';
 import { validateBody } from '../../middleware/validate.middleware';
-import { getMe, login, logout, register, updateMe } from './auth.controller';
-import { loginSchema, registerSchema, updateProfileSchema } from './auth.schema';
+import {
+  changePassword,
+  getMe,
+  login,
+  logout,
+  register,
+  updateMe,
+} from './auth.controller';
+import {
+  changePasswordSchema,
+  loginSchema,
+  registerSchema,
+  updateProfileSchema,
+} from './auth.schema';
 
 const router = Router();
 
@@ -11,5 +23,11 @@ router.post('/login', validateBody(loginSchema), login);
 router.post('/logout', logout);
 router.get('/me', requireAuth, getMe);
 router.patch('/me', requireAuth, validateBody(updateProfileSchema), updateMe);
+router.patch(
+  '/password',
+  requireAuth,
+  validateBody(changePasswordSchema),
+  changePassword
+);
 
 export default router;

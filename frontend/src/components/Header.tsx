@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
+import { useTheme } from '../context/ThemeContext';
 import { assetUrl } from '../lib/assets';
 import { initialsOf } from '../lib/avatar';
 import type { Board } from '../types/board';
@@ -197,15 +198,22 @@ function CreateBoardMenu() {
 }
 
 // ------- Menu tai khoan -------
+const THEME_LABEL = { light: 'Sáng', dark: 'Tối', system: 'Hệ thống' } as const;
+
 function AccountMenu() {
   const { user, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setThemeOpen(false);
+      }
     }
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
@@ -216,33 +224,113 @@ function AccountMenu() {
     navigate('/login', { replace: true });
   }
 
+  function go(path: string) {
+    setOpen(false);
+    navigate(path);
+  }
+
+  const item =
+    'w-full rounded-lg px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700';
+
   return (
     <div ref={ref} className="relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         title={user?.name}
-        className="grid h-8 w-8 place-items-center rounded-full bg-[#7f5ad5] text-xs font-semibold text-white hover:opacity-90"
+        className="grid h-8 w-8 overflow-hidden rounded-full bg-[#7f5ad5] text-xs font-semibold text-white hover:opacity-90"
       >
-        {user ? initialsOf(user.name) : '?'}
+        {user?.avatarUrl ? (
+          <img
+            src={assetUrl(user.avatarUrl)}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="grid h-full w-full place-items-center">
+            {user ? initialsOf(user.name) : '?'}
+          </span>
+        )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 z-40 w-60 rounded-xl border border-slate-200 bg-white p-2 text-slate-800 shadow-2xl">
+        <div className="absolute right-0 top-10 z-40 w-64 rounded-xl border border-slate-200 bg-white p-2 text-slate-800 shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+          <p className="px-2 pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            Tài khoản
+          </p>
           <div className="flex items-center gap-2 px-2 py-2">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#7f5ad5] text-sm font-semibold text-white">
-              {user ? initialsOf(user.name) : '?'}
+            <span className="grid h-9 w-9 shrink-0 overflow-hidden place-items-center rounded-full bg-[#7f5ad5] text-sm font-semibold text-white">
+              {user?.avatarUrl ? (
+                <img
+                  src={assetUrl(user.avatarUrl)}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              ) : user ? (
+                initialsOf(user.name)
+              ) : (
+                '?'
+              )}
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{user?.name}</p>
-              <p className="truncate text-xs text-slate-500">{user?.email}</p>
+              <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                {user?.email}
+              </p>
             </div>
           </div>
-          <div className="my-1 border-t border-slate-200" />
+
+          <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
+
+          <button type="button" className={item} onClick={() => go('/settings/profile')}>
+            Hồ sơ
+          </button>
+          <button type="button" className={item} onClick={() => go('/settings/password')}>
+            Đổi mật khẩu
+          </button>
+          <button type="button" className={item} onClick={() => go('/activity')}>
+            Hoạt động của tôi
+          </button>
+
+          {/* Chu de */}
+          <button
+            type="button"
+            className={item + ' flex items-center justify-between'}
+            onClick={() => setThemeOpen((v) => !v)}
+          >
+            <span>Chủ đề</span>
+            <span className="text-xs text-slate-400">
+              {THEME_LABEL[theme]}{' '}
+              <svg viewBox="0 0 24 24" className="inline h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </span>
+          </button>
+          {themeOpen && (
+            <div className="mb-1 ml-2 border-l border-slate-200 pl-1.5 dark:border-slate-700">
+              {(['light', 'dark', 'system'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTheme(t)}
+                  className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  {THEME_LABEL[t]}
+                  {theme === t && (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 text-[#0c66e4]" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full rounded-lg px-2 py-1.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
+            className={item + ' font-medium'}
           >
             Đăng xuất
           </button>
@@ -254,7 +342,7 @@ function AccountMenu() {
 
 export default function Header() {
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 sm:gap-3">
+    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 sm:gap-3 dark:border-slate-700 dark:bg-slate-800">
       <Link
         to="/"
         className="flex shrink-0 items-center gap-1.5 rounded px-1.5 py-1 hover:bg-slate-100"

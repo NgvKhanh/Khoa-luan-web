@@ -25,6 +25,8 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  // Cap nhat thong tin nguoi dung trong bo nho (sau khi sua ho so)
+  updateUser: (patch: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -77,8 +79,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const updateUser = useCallback((patch: Partial<User>) => {
+    setUser((cur) => (cur ? { ...cur, ...patch } : cur));
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, login, register, logout, updateUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

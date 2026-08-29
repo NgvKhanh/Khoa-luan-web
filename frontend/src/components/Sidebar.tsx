@@ -2,8 +2,10 @@ import { NavLink } from 'react-router-dom';
 import { useBoards } from '../context/BoardsContext';
 import { assetUrl } from '../lib/assets';
 
-const ACTIVE = 'flex items-center gap-3 rounded px-3 py-2 text-sm bg-[#e9f2ff] font-semibold text-[#0c66e4]';
-const INACTIVE = 'flex items-center gap-3 rounded px-3 py-2 text-sm text-slate-700 hover:bg-slate-100';
+const ACTIVE =
+  'flex items-center gap-3 rounded px-3 py-2 text-sm bg-[#e9f2ff] font-semibold text-[#0c66e4] dark:bg-[#0c66e4]/20';
+const INACTIVE =
+  'flex items-center gap-3 rounded px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700';
 
 function BoardIcon() {
   return (
@@ -36,7 +38,7 @@ export default function Sidebar() {
   const starred = boards.filter((b) => b.isStarred);
 
   return (
-    <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white p-2 md:block">
+    <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white p-2 md:block dark:border-slate-700 dark:bg-slate-800">
       <nav className="flex flex-col gap-0.5">
         <NavLink to="/" end className={({ isActive }) => (isActive ? ACTIVE : INACTIVE)}>
           <span className="text-slate-500">
@@ -60,7 +62,7 @@ export default function Sidebar() {
         </button>
       </nav>
 
-      <div className="my-2 border-t border-slate-200" />
+      <div className="my-2 border-t border-slate-200 dark:border-slate-700" />
 
       {starred.length > 0 && (
         <div className="mb-2">
@@ -83,7 +85,7 @@ export default function Sidebar() {
                 key={b.id}
                 to={`/boards/${b.id}`}
                 className={({ isActive }) =>
-                  `flex items-center gap-2 rounded px-3 py-2 text-sm ${
+                  `flex items-center gap-2 rounded px-3 py-2 text-sm dark:text-slate-200 ${
                     isActive
                       ? 'bg-[#e9f2ff] font-semibold text-[#0c66e4]'
                       : 'text-slate-700 hover:bg-slate-100'
@@ -104,7 +106,7 @@ export default function Sidebar() {
 
       <button
         type="button"
-        className="flex w-full items-center gap-3 rounded px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+        className="flex w-full items-center gap-3 rounded px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
       >
         <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-gradient-to-br from-[#8bbdd9] to-[#0c66e4] text-xs font-bold text-white">
           K

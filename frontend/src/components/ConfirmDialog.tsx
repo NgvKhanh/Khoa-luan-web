@@ -48,7 +48,7 @@ export default function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl"
+        className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl dark:bg-slate-800 dark:text-slate-100"
       >
         <h2 className="text-base font-semibold text-slate-900">{title}</h2>
         {message && <p className="mt-1.5 text-sm text-slate-500">{message}</p>}
