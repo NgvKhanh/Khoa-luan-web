@@ -29,6 +29,7 @@ import {
 } from '@dnd-kit/sortable';
 import AddListForm from '../components/board/AddListForm';
 import BoardBackgroundMenu from '../components/board/BoardBackgroundMenu';
+import BoardFilterPanel from '../components/board/BoardFilterPanel';
 import BoardMembers from '../components/board/BoardMembers';
 import CardModal from '../components/board/CardModal';
 import CardItem from '../components/board/CardItem';
@@ -59,6 +60,13 @@ import {
 } from '../lib/api/list';
 import { assetUrl } from '../lib/assets';
 import { getErrorMessage } from '../lib/errorMessage';
+import {
+  EMPTY_FILTER,
+  cardMatchesFilter,
+  filterActiveCount,
+  isFilterActive,
+  type BoardFilter,
+} from '../lib/boardFilter';
 import type { BoardMember } from '../types/board';
 import type { Card } from '../types/card';
 import type { BoardList } from '../types/list';
@@ -118,6 +126,8 @@ export default function BoardPage() {
   const [deleting, setDeleting] = useState(false);
   const [bgMenuOpen, setBgMenuOpen] = useState(false);
   const [openCardId, setOpenCardId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<BoardFilter>(EMPTY_FILTER);
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [activeList, setActiveList] = useState<BoardList | null>(null);
@@ -195,6 +205,21 @@ export default function BoardPage() {
   }, [boardId]);
 
   const listDndIds = useMemo(() => lists.map((l) => `list-${l.id}`), [lists]);
+
+  // Ap dung bo loc -> danh sach the hien thi (khong dong toi state that)
+  const filterOn = isFilterActive(filter);
+  const displayLists = useMemo(
+    () =>
+      filterOn
+        ? lists.map((l) => ({
+            ...l,
+            cards: l.cards.filter((c) =>
+              cardMatchesFilter(c, filter, user?.id)
+            ),
+          }))
+        : lists,
+    [filterOn, lists, filter, user?.id]
+  );
 
   function findListIdByCard(cardId: string): string | undefined {
     return lists.find((l) => l.cards.some((c) => c.id === cardId))?.id;
@@ -542,6 +567,46 @@ export default function BoardPage() {
           <div className="relative">
             <button
               type="button"
+              onClick={() => setFilterOpen((v) => !v)}
+              className={`flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium ${
+                filterOn
+                  ? 'bg-white text-[#0c66e4]'
+                  : 'bg-white/25 text-white hover:bg-white/40'
+              }`}
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 5h18M6 12h12M10 19h4" />
+              </svg>
+              Lọc
+              {filterOn && (
+                <span className="grid h-4 min-w-[16px] place-items-center rounded-full bg-[#0c66e4] px-1 text-[10px] font-bold text-white">
+                  {filterActiveCount(filter)}
+                </span>
+              )}
+            </button>
+            {filterOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Đóng"
+                  onClick={() => setFilterOpen(false)}
+                  className="fixed inset-0 z-30 cursor-default"
+                />
+                <BoardFilterPanel
+                  className="absolute right-0 top-11 z-40"
+                  boardId={board.id}
+                  filter={filter}
+                  onChange={setFilter}
+                  boardMembers={members}
+                  onClose={() => setFilterOpen(false)}
+                />
+              </>
+            )}
+          </div>
+
+          <div className="relative">
+            <button
+              type="button"
               onClick={() => setBgMenuOpen((v) => !v)}
               className="flex items-center gap-1.5 rounded bg-white/25 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-white/40"
             >
@@ -595,6 +660,22 @@ export default function BoardPage() {
         </p>
       )}
 
+      {filterOn && (
+        <div className="mx-3 mt-2 flex w-fit items-center gap-2 rounded bg-white/90 px-3 py-1 text-sm text-slate-700 shadow-sm">
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M3 5h18M6 12h12M10 19h4" />
+          </svg>
+          Đang lọc thẻ
+          <button
+            type="button"
+            onClick={() => setFilter(EMPTY_FILTER)}
+            className="rounded bg-slate-200 px-2 py-0.5 text-xs font-medium hover:bg-slate-300"
+          >
+            Xoá bộ lọc
+          </button>
+        </div>
+      )}
+
       {/* Hang cac danh sach */}
       {listsLoading ? (
         <p className="m-4 w-fit rounded bg-white/80 px-3 py-2 text-sm text-slate-600">
@@ -622,7 +703,7 @@ export default function BoardPage() {
               items={listDndIds}
               strategy={horizontalListSortingStrategy}
             >
-              {lists.map((list) => (
+              {displayLists.map((list) => (
                 <ListColumn
                   key={list.id}
                   list={list}
