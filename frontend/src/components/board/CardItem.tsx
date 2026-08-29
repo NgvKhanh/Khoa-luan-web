@@ -14,15 +14,20 @@ interface Props {
 function DoneCircle({ done }: { done: boolean }) {
   if (done) {
     return (
-      <span className="grid h-4 w-4 place-items-center rounded-full bg-emerald-600 text-white">
-        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="3">
+      <span className="grid h-[18px] w-[18px] place-items-center rounded-full bg-emerald-600 text-white">
+        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="3.5">
           <path d="M5 13l4 4L19 7" />
         </svg>
       </span>
     );
   }
+  // Chua xong: vong tron xam ro rang, chuyen xanh + hien dau tich khi tro chuot vao
   return (
-    <span className="h-4 w-4 rounded-full border-2 border-slate-300 transition-colors group-hover/card:border-slate-400" />
+    <span className="grid h-[18px] w-[18px] place-items-center rounded-full border-2 border-slate-400 text-transparent transition-colors group-hover/circle:border-emerald-600 group-hover/circle:text-emerald-600">
+      <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="3.5">
+        <path d="M5 13l4 4L19 7" />
+      </svg>
+    </span>
   );
 }
 
@@ -66,7 +71,8 @@ export default function CardItem({
           onToggleDone?.(card);
         }}
         aria-label={card.isDone ? 'Bỏ đánh dấu hoàn thành' : 'Đánh dấu hoàn thành'}
-        className="mt-0.5 shrink-0"
+        title={card.isDone ? 'Bỏ đánh dấu hoàn thành' : 'Đánh dấu hoàn thành'}
+        className="group/circle mt-0.5 shrink-0"
       >
         <DoneCircle done={card.isDone} />
       </button>
