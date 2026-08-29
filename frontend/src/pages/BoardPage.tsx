@@ -567,6 +567,7 @@ export default function BoardPage() {
           <div className="relative">
             <button
               type="button"
+              data-filter-trigger
               onClick={() => setFilterOpen((v) => !v)}
               className={`flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium ${
                 filterOn
@@ -585,22 +586,13 @@ export default function BoardPage() {
               )}
             </button>
             {filterOpen && (
-              <>
-                <button
-                  type="button"
-                  aria-label="Đóng"
-                  onClick={() => setFilterOpen(false)}
-                  className="fixed inset-0 z-30 cursor-default"
-                />
-                <BoardFilterPanel
-                  className="absolute right-0 top-11 z-40"
-                  boardId={board.id}
-                  filter={filter}
-                  onChange={setFilter}
-                  boardMembers={members}
-                  onClose={() => setFilterOpen(false)}
-                />
-              </>
+              <BoardFilterPanel
+                boardId={board.id}
+                filter={filter}
+                onChange={setFilter}
+                boardMembers={members}
+                onClose={() => setFilterOpen(false)}
+              />
             )}
           </div>
 

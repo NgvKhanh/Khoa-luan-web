@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { fetchBoardLabels } from '../../lib/api/card';
 import { initialsOf } from '../../lib/avatar';
 import {
@@ -15,7 +16,6 @@ interface Props {
   onChange: (next: BoardFilter) => void;
   boardMembers: BoardMember[];
   onClose: () => void;
-  className?: string;
 }
 
 function toggle<T>(arr: T[], v: T): T[] {
@@ -69,18 +69,41 @@ export default function BoardFilterPanel({
   onChange,
   boardMembers,
   onClose,
-  className = '',
 }: Props) {
   const [labels, setLabels] = useState<Label[]>([]);
+  const ref = useRef<HTMLDivElement>(null);
   const set = (patch: Partial<BoardFilter>) => onChange({ ...filter, ...patch });
 
   useEffect(() => {
     fetchBoardLabels(boardId).then(setLabels).catch(() => {});
   }, [boardId]);
 
-  return (
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (
+        ref.current &&
+        !ref.current.contains(t) &&
+        !t.closest('[data-filter-trigger]')
+      ) {
+        onClose();
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
+
+  return createPortal(
     <div
-      className={`w-72 rounded-xl border border-slate-200 bg-white p-2 text-slate-800 shadow-2xl ${className}`}
+      ref={ref}
+      className="fixed right-3 top-14 z-50 w-72 rounded-xl border border-slate-200 bg-white p-2 text-slate-800 shadow-2xl"
     >
       <div className="flex items-center px-1.5 pb-1">
         <p className="flex-1 text-center text-sm font-semibold">Lọc</p>
@@ -98,15 +121,17 @@ export default function BoardFilterPanel({
 
       <div className="max-h-[70vh] overflow-y-auto">
         <SectionTitle>Từ khoá</SectionTitle>
-        <input
-          value={filter.keyword}
-          onChange={(e) => set({ keyword: e.target.value })}
-          placeholder="Nhập từ khoá..."
-          className="mx-1.5 w-[calc(100%-12px)] rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
-        />
-        <p className="px-1.5 pt-1 text-[11px] text-slate-400">
-          Tìm trong tên và mô tả thẻ.
-        </p>
+        <div className="px-1.5">
+          <input
+            value={filter.keyword}
+            onChange={(e) => set({ keyword: e.target.value })}
+            placeholder="Nhập từ khoá..."
+            className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+          />
+          <p className="pt-1 text-[11px] text-slate-400">
+            Tìm trong tên và mô tả thẻ.
+          </p>
+        </div>
 
         <SectionTitle>Thành viên</SectionTitle>
         <Check
@@ -211,6 +236,7 @@ export default function BoardFilterPanel({
           Xoá bộ lọc
         </button>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
