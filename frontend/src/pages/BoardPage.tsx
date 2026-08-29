@@ -37,6 +37,8 @@ import ListColumn from '../components/board/ListColumn';
 import ListColumnOverlay from '../components/board/ListColumnOverlay';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useAuth } from '../context/AuthContext';
+import { useBoards } from '../context/BoardsContext';
+import StarButton from '../components/StarButton';
 import type { BoardOutletContext } from '../layouts/BoardViewLayout';
 import {
   addBoardMember,
@@ -109,6 +111,7 @@ export default function BoardPage() {
   const { user } = useAuth();
   const { boards, isLoading, error, patchBoard } =
     useOutletContext<BoardOutletContext>();
+  const { toggleStar } = useBoards();
   const board = boards.find((b) => b.id === boardId);
   const isOwner = Boolean(board && user && board.ownerId === user.id);
 
@@ -562,6 +565,14 @@ export default function BoardPage() {
             {board.name}
           </button>
         )}
+
+        <StarButton
+          starred={Boolean(board.isStarred)}
+          onToggle={() => toggleStar(board.id)}
+          className={`rounded p-1 ${
+            board.isStarred ? '' : 'text-white hover:bg-white/20'
+          }`}
+        />
 
         <div className="ml-auto flex items-center gap-2">
           <div className="relative">

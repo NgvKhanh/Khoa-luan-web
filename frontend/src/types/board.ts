@@ -9,6 +9,7 @@ export interface Board {
   // Chi co trong danh sach bang (GET /api/boards)
   memberCount?: number;
   isOwner?: boolean;
+  isStarred?: boolean;
 }
 
 export type BoardRole = 'OWNER' | 'ADMIN' | 'MEMBER';

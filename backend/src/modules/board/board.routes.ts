@@ -7,6 +7,7 @@ import {
   deleteBoardBackgroundHandler,
   deleteBoardHandler,
   listMyBoardsHandler,
+  setBoardStarHandler,
   updateBoardHandler,
   uploadBoardBackgroundHandler,
 } from './board.controller';
@@ -33,6 +34,7 @@ router.post('/join/:token', requestToJoinHandler);
 router.get('/', listMyBoardsHandler);
 router.post('/', validateBody(createBoardSchema), createBoardHandler);
 router.patch('/:boardId', validateBody(updateBoardSchema), updateBoardHandler);
+router.put('/:boardId/star', setBoardStarHandler);
 router.delete('/:boardId', deleteBoardHandler);
 
 // Anh nen

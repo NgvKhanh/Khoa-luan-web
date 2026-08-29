@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { fetchMyBoards } from '../lib/api/board';
+import { fetchMyBoards, setBoardStar } from '../lib/api/board';
 import { getErrorMessage } from '../lib/errorMessage';
 import type { Board } from '../types/board';
 
@@ -18,6 +18,8 @@ interface BoardsContextValue {
   // Them moi hoac cap nhat 1 bang trong danh sach (dung sau khi tao/sua)
   upsertBoard: (board: Board) => void;
   removeBoard: (boardId: string) => void;
+  // Danh dau / bo sao (cap nhat ngay, tu goi API)
+  toggleStar: (boardId: string) => void;
 }
 
 const BoardsContext = createContext<BoardsContextValue | undefined>(undefined);
@@ -58,9 +60,36 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
     setBoards((cur) => cur.filter((b) => b.id !== boardId));
   }, []);
 
+  const toggleStar = useCallback((boardId: string) => {
+    let next = false;
+    setBoards((cur) =>
+      cur.map((b) => {
+        if (b.id !== boardId) return b;
+        next = !b.isStarred;
+        return { ...b, isStarred: next };
+      })
+    );
+    setBoardStar(boardId, next).catch(() => {
+      // hoan tac neu that bai
+      setBoards((cur) =>
+        cur.map((b) =>
+          b.id === boardId ? { ...b, isStarred: !next } : b
+        )
+      );
+    });
+  }, []);
+
   return (
     <BoardsContext.Provider
-      value={{ boards, isLoading, error, reload, upsertBoard, removeBoard }}
+      value={{
+        boards,
+        isLoading,
+        error,
+        reload,
+        upsertBoard,
+        removeBoard,
+        toggleStar,
+      }}
     >
       {children}
     </BoardsContext.Provider>

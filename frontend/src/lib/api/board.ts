@@ -37,6 +37,14 @@ export async function deleteBoard(boardId: string): Promise<void> {
   await api.delete(`/boards/${boardId}`);
 }
 
+// Danh dau / bo danh dau sao bang
+export async function setBoardStar(
+  boardId: string,
+  starred: boolean
+): Promise<void> {
+  await api.put(`/boards/${boardId}/star`, { starred });
+}
+
 // Tai anh nen len (field "image", dang multipart/form-data)
 export async function uploadBoardBackground(
   boardId: string,

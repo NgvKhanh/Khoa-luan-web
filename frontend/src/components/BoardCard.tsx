@@ -9,14 +9,21 @@ import { assetUrl } from '../lib/assets';
 import { BOARD_COLORS } from '../lib/boardColors';
 import { getErrorMessage } from '../lib/errorMessage';
 import type { Board } from '../types/board';
+import StarButton from './StarButton';
 
 interface Props {
   board: Board;
   onChanged: (board: Board) => void;
   onRequestDelete: (board: Board) => void;
+  onToggleStar: (boardId: string) => void;
 }
 
-export default function BoardCard({ board, onChanged, onRequestDelete }: Props) {
+export default function BoardCard({
+  board,
+  onChanged,
+  onRequestDelete,
+  onToggleStar,
+}: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +88,19 @@ export default function BoardCard({ board, onChanged, onRequestDelete }: Props) 
           {board.name}
         </p>
       </Link>
+
+      {/* Nut sao */}
+      <div
+        className={`absolute left-1.5 top-1.5 z-10 grid h-7 w-7 place-items-center rounded-lg bg-black/30 backdrop-blur-sm transition-opacity ${
+          board.isStarred ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        }`}
+      >
+        <StarButton
+          starred={Boolean(board.isStarred)}
+          onToggle={() => onToggleStar(board.id)}
+          className={board.isStarred ? '' : 'text-white'}
+        />
+      </div>
 
       {/* Nut ... */}
       <button

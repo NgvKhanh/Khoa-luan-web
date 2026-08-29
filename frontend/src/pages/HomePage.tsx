@@ -45,7 +45,10 @@ function CreateBoardTile({ onCreated }: { onCreated: (board: Board) => void }) {
 }
 
 export default function HomePage() {
-  const { boards, isLoading, error, upsertBoard, removeBoard } = useBoards();
+  const { boards, isLoading, error, upsertBoard, removeBoard, toggleStar } =
+    useBoards();
+
+  const starred = boards.filter((b) => b.isStarred);
 
   const [deleteTarget, setDeleteTarget] = useState<Board | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -66,11 +69,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Các bảng của bạn
-      </h1>
-
+    <div className="flex flex-col gap-6">
       {(error || actionError) && (
         <p className="text-sm text-red-600">{error ?? actionError}</p>
       )}
@@ -78,18 +77,48 @@ export default function HomePage() {
       {isLoading ? (
         <p className="text-sm text-slate-500">Đang tải...</p>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {boards.map((board) => (
-            <BoardCard
-              key={board.id}
-              board={board}
-              onChanged={upsertBoard}
-              onRequestDelete={setDeleteTarget}
-            />
-          ))}
+        <>
+          {starred.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <h1 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                <svg viewBox="0 0 24 24" className="h-4 w-4 text-amber-400" fill="currentColor">
+                  <path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.8 6.1 20.5l1.2-6.5L2.5 9.4l6.6-.9z" />
+                </svg>
+                Được đánh dấu sao
+              </h1>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {starred.map((board) => (
+                  <BoardCard
+                    key={board.id}
+                    board={board}
+                    onChanged={upsertBoard}
+                    onRequestDelete={setDeleteTarget}
+                    onToggleStar={toggleStar}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
-          <CreateBoardTile onCreated={upsertBoard} />
-        </div>
+          <div className="flex flex-col gap-3">
+            <h1 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Các bảng của bạn
+            </h1>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {boards.map((board) => (
+                <BoardCard
+                  key={board.id}
+                  board={board}
+                  onChanged={upsertBoard}
+                  onRequestDelete={setDeleteTarget}
+                  onToggleStar={toggleStar}
+                />
+              ))}
+
+              <CreateBoardTile onCreated={upsertBoard} />
+            </div>
+          </div>
+        </>
       )}
 
       <ConfirmDialog

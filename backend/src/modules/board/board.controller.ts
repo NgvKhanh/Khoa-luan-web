@@ -8,6 +8,7 @@ import {
   deleteBoard,
   listMyBoards,
   setBoardBackground,
+  setBoardStar,
   updateBoard,
 } from './board.service';
 
@@ -76,5 +77,17 @@ export const deleteBoardHandler = asyncHandler(
   async (req: Request, res: Response) => {
     await deleteBoard(requireUserId(req), req.params.boardId as string);
     res.json({ success: true, message: 'Da xoa bang' });
+  }
+);
+
+export const setBoardStarHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const starred = Boolean((req.body as { starred?: unknown }).starred);
+    await setBoardStar(
+      requireUserId(req),
+      req.params.boardId as string,
+      starred
+    );
+    res.json({ success: true, data: { starred } });
   }
 );

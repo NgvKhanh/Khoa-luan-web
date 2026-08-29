@@ -71,14 +71,32 @@ export async function listMyBoards(userId: string) {
     orderBy: { createdAt: 'desc' },
     include: {
       _count: { select: { members: { where: { deletedAt: null } } } },
+      members: {
+        where: { userId, deletedAt: null },
+        select: { starred: true },
+      },
     },
   });
 
-  return boards.map(({ _count, ...board }) => ({
+  return boards.map(({ _count, members, ...board }) => ({
     ...board,
     memberCount: _count.members,
     isOwner: board.ownerId === userId,
+    isStarred: members[0]?.starred ?? false,
   }));
+}
+
+// Danh dau / bo danh dau sao bang cho nguoi dung hien tai
+export async function setBoardStar(
+  userId: string,
+  boardId: string,
+  starred: boolean
+) {
+  await assertBoardAccess(userId, boardId);
+  await prisma.boardMember.updateMany({
+    where: { boardId, userId, deletedAt: null },
+    data: { starred },
+  });
 }
 
 export async function createBoard(userId: string, input: CreateBoardInput) {

@@ -1,4 +1,6 @@
 import { NavLink } from 'react-router-dom';
+import { useBoards } from '../context/BoardsContext';
+import { assetUrl } from '../lib/assets';
 
 const ACTIVE = 'flex items-center gap-3 rounded px-3 py-2 text-sm bg-[#e9f2ff] font-semibold text-[#0c66e4]';
 const INACTIVE = 'flex items-center gap-3 rounded px-3 py-2 text-sm text-slate-700 hover:bg-slate-100';
@@ -30,6 +32,9 @@ function ActivityIcon() {
 }
 
 export default function Sidebar() {
+  const { boards } = useBoards();
+  const starred = boards.filter((b) => b.isStarred);
+
   return (
     <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white p-2 md:block">
       <nav className="flex flex-col gap-0.5">
@@ -56,6 +61,42 @@ export default function Sidebar() {
       </nav>
 
       <div className="my-2 border-t border-slate-200" />
+
+      {starred.length > 0 && (
+        <div className="mb-2">
+          <p className="flex items-center gap-1 px-3 pb-1 text-xs font-semibold text-slate-500">
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-amber-400" fill="currentColor">
+              <path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.8 6.1 20.5l1.2-6.5L2.5 9.4l6.6-.9z" />
+            </svg>
+            Yêu thích
+          </p>
+          {starred.map((b) => {
+            const style = b.backgroundImage
+              ? {
+                  backgroundImage: `url(${assetUrl(b.backgroundImage)})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }
+              : { backgroundColor: b.color };
+            return (
+              <NavLink
+                key={b.id}
+                to={`/boards/${b.id}`}
+                className={({ isActive }) =>
+                  `flex items-center gap-2 rounded px-3 py-2 text-sm ${
+                    isActive
+                      ? 'bg-[#e9f2ff] font-semibold text-[#0c66e4]'
+                      : 'text-slate-700 hover:bg-slate-100'
+                  }`
+                }
+              >
+                <span className="h-4 w-5 shrink-0 rounded-[3px]" style={style} />
+                <span className="truncate">{b.name}</span>
+              </NavLink>
+            );
+          })}
+        </div>
+      )}
 
       <p className="px-3 pb-1 pt-1 text-xs font-semibold text-slate-500">
         Các Không gian làm việc
