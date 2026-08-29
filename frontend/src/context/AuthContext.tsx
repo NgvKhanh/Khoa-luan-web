@@ -7,12 +7,11 @@ import {
   type ReactNode,
 } from 'react';
 import { api } from '../lib/axios';
-import { clearToken, getToken, setToken } from '../lib/token';
 import type { User } from '../types/auth';
 
 interface AuthResponse {
   success: boolean;
-  data: { user: User; token: string };
+  data: { user: User };
 }
 
 interface MeResponse {
@@ -35,17 +34,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Cookie httpOnly duoc gui tu dong; chi can hoi /auth/me xem con phien khong
     async function loadCurrentUser() {
-      if (!getToken()) {
-        setIsLoading(false);
-        return;
-      }
-
       try {
         const res = await api.get<MeResponse>('/auth/me');
         setUser(res.data.data.user);
       } catch {
-        clearToken();
         setUser(null);
       } finally {
         setIsLoading(false);
@@ -60,7 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
     });
-    setToken(res.data.data.token);
     setUser(res.data.data.user);
   }, []);
 
@@ -71,7 +64,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password,
       });
-      setToken(res.data.data.token);
       setUser(res.data.data.user);
     },
     []
@@ -81,7 +73,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await api.post('/auth/logout');
     } finally {
-      clearToken();
       setUser(null);
     }
   }, []);
