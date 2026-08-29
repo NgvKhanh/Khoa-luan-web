@@ -83,7 +83,8 @@ async function checklistCard(userId: string, checklistId: string) {
 export async function addChecklist(
   userId: string,
   cardId: string,
-  title: string
+  title: string,
+  copyFromChecklistId?: string
 ) {
   await assertCardAccess(userId, cardId);
   const last = await prisma.checklist.findFirst({
@@ -91,13 +92,32 @@ export async function addChecklist(
     orderBy: { position: 'desc' },
     select: { position: true },
   });
+
+  // Cac muc sao chep tu 1 checklist khac cua cung the (chi noi dung, bo tick)
+  let copyItems: { content: string; position: number }[] = [];
+  if (copyFromChecklistId) {
+    const src = await prisma.checklist.findFirst({
+      where: { id: copyFromChecklistId, cardId },
+      include: {
+        items: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
+      },
+    });
+    if (src) {
+      copyItems = src.items.map((it, i) => ({
+        content: it.content,
+        position: i,
+      }));
+    }
+  }
+
   return prisma.checklist.create({
     data: {
       cardId,
       title: title.trim() || 'Việc cần làm',
       position: last ? last.position + 1 : 0,
+      ...(copyItems.length > 0 ? { items: { create: copyItems } } : {}),
     },
-    include: { items: true },
+    include: { items: { orderBy: [{ position: 'asc' }] } },
   });
 }
 

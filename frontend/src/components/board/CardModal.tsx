@@ -118,7 +118,11 @@ export default function CardModal({
   const [descDraft, setDescDraft] = useState('');
   const [editingDesc, setEditingDesc] = useState(false);
   const [comment, setComment] = useState('');
-  const [panel, setPanel] = useState<'labels' | 'due' | 'members' | 'list' | 'menu' | null>(null);
+  const [panel, setPanel] = useState<
+    'labels' | 'due' | 'members' | 'list' | 'menu' | 'checklist' | null
+  >(null);
+  const [clTitle, setClTitle] = useState('Việc cần làm');
+  const [clCopyFrom, setClCopyFrom] = useState('');
   const [itemPanel, setItemPanel] = useState<{
     id: string;
     kind: 'assign' | 'due';
@@ -401,11 +405,72 @@ export default function CardModal({
                   ))}
                   <button
                     type="button"
-                    onClick={() => void run(() => addChecklist(card.id, 'Việc cần làm'))}
+                    onClick={() => {
+                      if (panel === 'checklist') {
+                        setPanel(null);
+                      } else {
+                        setClTitle('Việc cần làm');
+                        setClCopyFrom('');
+                        setPanel('checklist');
+                      }
+                    }}
                     className="rounded bg-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-300"
                   >
                     Việc cần làm
                   </button>
+
+                  {panel === 'checklist' && (
+                    <div className="absolute left-7 top-10 z-10 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+                      <p className="mb-2 text-center text-sm font-semibold">
+                        Thêm danh sách công việc
+                      </p>
+                      <label className="mb-1 block text-xs font-semibold text-slate-500">
+                        Tiêu đề
+                      </label>
+                      <input
+                        autoFocus
+                        value={clTitle}
+                        onChange={(e) => setClTitle(e.target.value)}
+                        onFocus={(e) => e.target.select()}
+                        className="mb-3 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+                      />
+                      {card.checklists.length > 0 && (
+                        <>
+                          <label className="mb-1 block text-xs font-semibold text-slate-500">
+                            Sao chép mục từ …
+                          </label>
+                          <select
+                            value={clCopyFrom}
+                            onChange={(e) => setClCopyFrom(e.target.value)}
+                            className="mb-3 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+                          >
+                            <option value="">(không có)</option>
+                            {card.checklists.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.title}
+                              </option>
+                            ))}
+                          </select>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPanel(null);
+                          void run(() =>
+                            addChecklist(
+                              card.id,
+                              clTitle,
+                              clCopyFrom || undefined
+                            )
+                          );
+                        }}
+                        className="w-full rounded-lg bg-[#0c66e4] py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4]"
+                      >
+                        Thêm
+                      </button>
+                    </div>
+                  )}
 
                   {panel === 'labels' && (
                     <div className="absolute left-7 top-10 z-10 w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-xl">

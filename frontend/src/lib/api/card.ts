@@ -71,11 +71,12 @@ export async function detachCardLabel(cardId: string, labelId: string) {
 // ----- Checklist -----
 export async function addChecklist(
   cardId: string,
-  title: string
+  title: string,
+  copyFromChecklistId?: string
 ): Promise<Checklist> {
   const res = await api.post<{ data: { checklist: Checklist } }>(
     `/cards/${cardId}/checklists`,
-    { title }
+    { title, copyFromChecklistId }
   );
   return res.data.data.checklist;
 }

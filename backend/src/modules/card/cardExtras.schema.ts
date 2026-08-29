@@ -8,6 +8,8 @@ export const addCardMemberSchema = z.object({
 
 export const addChecklistSchema = z.object({
   title: z.string().trim().max(200).optional(),
+  // Sao chep cac muc tu 1 checklist khac cua cung the
+  copyFromChecklistId: z.string().min(1).optional(),
 });
 
 export const updateChecklistSchema = z.object({

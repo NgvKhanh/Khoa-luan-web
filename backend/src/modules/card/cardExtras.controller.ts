@@ -58,10 +58,15 @@ export const removeCardMemberHandler = asyncHandler(
 // ----- Checklist -----
 export const addChecklistHandler = asyncHandler(
   async (req: Request, res: Response) => {
+    const body = req.body as {
+      title?: string;
+      copyFromChecklistId?: string;
+    };
     const checklist = await addChecklist(
       uid(req),
       req.params.cardId as string,
-      (req.body as { title?: string }).title ?? ''
+      body.title ?? '',
+      body.copyFromChecklistId
     );
     res.status(201).json({ success: true, data: { checklist } });
   }
