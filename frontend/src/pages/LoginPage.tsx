@@ -38,7 +38,7 @@ export default function LoginPage() {
       footer={
         <>
           Chưa có tài khoản?{' '}
-          <Link to="/register" className="font-medium text-[#1558bc] hover:underline">
+          <Link to="/register" className="font-semibold text-white hover:underline">
             Đăng ký
           </Link>
         </>

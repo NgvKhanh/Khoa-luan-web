@@ -7,7 +7,9 @@ export const authFieldClass =
 
 function Logo({ className = '' }: { className?: string }) {
   return (
-    <span className={`flex items-center gap-2 font-bold tracking-tight ${className}`}>
+    <span
+      className={`flex items-center gap-2 font-bold tracking-tight ${className}`}
+    >
       <span className="grid h-7 w-7 place-items-center rounded-lg bg-white text-[#1558bc]">
         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
           <rect x="3" y="3" width="7" height="18" rx="1" />
@@ -27,63 +29,39 @@ interface Props {
   footer: ReactNode;
 }
 
-// Khung 2 cot cho trang Dang nhap / Dang ky: ben trai gioi thieu, ben phai la form.
+// Trang Dang nhap / Dang ky: 1 the trang can chinh giua man hinh, nen xanh thuong hieu.
 export default function AuthShell({ title, subtitle, children, footer }: Props) {
   return (
-    <div className="min-h-screen w-full lg:grid lg:grid-cols-[1.05fr_1fr]">
-      {/* Cot gioi thieu - chi hien tu man hinh lon */}
+    <div
+      className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10"
+      style={{ background: 'linear-gradient(135deg, #1558bc 0%, #0b3f8f 70%)' }}
+    >
+      {/* Doi sang trang tri mo o goc */}
       <div
-        className="relative hidden overflow-hidden p-12 text-white lg:flex lg:flex-col lg:justify-between"
-        style={{
-          background: 'linear-gradient(135deg, #1558bc 0%, #0b3f8f 70%)',
-        }}
-      >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white/10 blur-3xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-32 -left-16 h-80 w-80 rounded-full bg-white/10 blur-3xl"
-        />
+        aria-hidden
+        className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-white/10 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -bottom-40 -left-24 h-[28rem] w-[28rem] rounded-full bg-white/10 blur-3xl"
+      />
 
-        <Link to="/" className="relative">
-          <Logo className="text-lg" />
+      <div className="relative w-full max-w-sm">
+        <Link to="/" className="mb-6 flex justify-center text-white">
+          <Logo className="text-xl" />
         </Link>
 
-        <div className="relative max-w-md">
-          <h2 className="text-3xl font-bold leading-snug">
-            Chào mừng đến với TaskFlow.
-          </h2>
-          <p className="mt-4 text-sm text-white/80">
-            Đăng nhập để tiếp tục.
-          </p>
+        <div className="rounded-2xl bg-white p-6 shadow-2xl sm:p-8">
+          <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
+          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+
+          <div className="mt-6">{children}</div>
         </div>
 
-        <p className="relative text-xs text-white/60">
+        <p className="mt-5 text-center text-sm text-white/80">{footer}</p>
+        <p className="mt-8 text-center text-xs text-white/50">
           © 2026 TaskFlow — Đồ án tốt nghiệp
         </p>
-      </div>
-
-      {/* Cot form */}
-      <div className="flex min-h-screen items-center justify-center bg-[var(--app-bg)] px-4 py-10 sm:px-8">
-        <div className="w-full max-w-sm">
-          <Link
-            to="/"
-            className="mb-6 flex justify-center text-[#1558bc] lg:hidden"
-          >
-            <Logo className="text-lg" />
-          </Link>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-            <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
-            <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-
-            <div className="mt-6">{children}</div>
-          </div>
-
-          <p className="mt-5 text-center text-sm text-slate-500">{footer}</p>
-        </div>
       </div>
     </div>
   );
