@@ -5,6 +5,7 @@ import {
   useState,
   type FormEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
 import {
   createInviteLink,
   disableInviteLink,
@@ -165,6 +166,7 @@ export default function BoardMembers({
 
   const [requests, setRequests] = useState<JoinRequest[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const canManage = useMemo(() => {
     if (isOwner) return true;
@@ -190,9 +192,10 @@ export default function BoardMembers({
       if (e.key === 'Escape') setOpen(false);
     };
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const t = e.target as Node;
+      const inRoot = rootRef.current?.contains(t);
+      const inPanel = panelRef.current?.contains(t);
+      if (!inRoot && !inPanel) setOpen(false);
     };
     document.addEventListener('keydown', onKey);
     document.addEventListener('mousedown', onDown);
@@ -302,8 +305,12 @@ export default function BoardMembers({
         Chia sẻ
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-11 z-50 max-h-[80vh] w-[420px] max-w-[92vw] overflow-y-auto rounded-xl bg-white p-4 text-slate-800 shadow-2xl">
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            className="fixed right-3 top-14 z-50 max-h-[80vh] w-[420px] max-w-[92vw] overflow-y-auto rounded-xl bg-white p-4 text-slate-800 shadow-2xl"
+          >
             <div className="mb-4 flex items-center">
               <h2 className="flex-1 text-base font-semibold">Chia sẻ bảng</h2>
               <button
@@ -521,8 +528,9 @@ export default function BoardMembers({
                       </li>
                     ))}
             </ul>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
