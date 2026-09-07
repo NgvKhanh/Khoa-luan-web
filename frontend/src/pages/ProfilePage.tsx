@@ -2,9 +2,8 @@ import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { updateProfile, uploadAvatar } from '../lib/api/auth';
-import { assetUrl } from '../lib/assets';
-import { initialsOf } from '../lib/avatar';
 import { getErrorMessage } from '../lib/errorMessage';
+import Avatar from '../components/Avatar';
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuth();
@@ -70,20 +69,12 @@ export default function ProfilePage() {
         className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800"
       >
         <div className="mb-5 flex items-center gap-4">
-          {preview ? (
-            <img
-              src={assetUrl(preview)}
-              alt=""
-              className="h-16 w-16 rounded-full object-cover"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = 'none';
-              }}
-            />
-          ) : (
-            <span className="grid h-16 w-16 place-items-center rounded-full bg-[#7f5ad5] text-lg font-semibold text-white">
-              {user ? initialsOf(user.name) : '?'}
-            </span>
-          )}
+          <Avatar
+            id={user?.id ?? 'me'}
+            name={user?.name ?? '?'}
+            avatarUrl={preview || null}
+            className="h-16 w-16 text-lg"
+          />
           <div className="min-w-0">
             <p className="mb-1 truncate text-sm text-slate-500 dark:text-slate-400">
               {user?.email}
