@@ -204,6 +204,18 @@ export default function CardModal({
   const startRef = useRef<HTMLInputElement>(null);
   const dueRef = useRef<HTMLInputElement>(null);
 
+  // Goi y "@nhac ten" khi dang go @... o cuoi o binh luan
+  const mentionQuery = useMemo(() => {
+    const m = /@([^@\s]*)$/.exec(comment);
+    return m ? m[1]!.toLowerCase() : null;
+  }, [comment]);
+  const mentionMatches = useMemo(() => {
+    if (mentionQuery === null) return [];
+    return boardMembers
+      .filter((m) => m.user.name.toLowerCase().includes(mentionQuery))
+      .slice(0, 6);
+  }, [mentionQuery, boardMembers]);
+
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 py-10"
@@ -914,12 +926,12 @@ export default function CardModal({
                       setComment('');
                       void run(() => addComment(card.id, t));
                     }}
-                    className="mb-3 flex gap-2"
+                    className="relative mb-3 flex gap-2"
                   >
                     <input
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
-                      placeholder="Viết bình luận..."
+                      placeholder="Viết bình luận... (gõ @ để nhắc tên)"
                       className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0c66e4] focus:outline-none"
                     />
                     {comment.trim() && (
@@ -929,6 +941,30 @@ export default function CardModal({
                       >
                         Gửi
                       </button>
+                    )}
+                    {mentionQuery !== null && mentionMatches.length > 0 && (
+                      <div className="absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-xl">
+                        {mentionMatches.map((m) => (
+                          <button
+                            key={m.userId}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() =>
+                              setComment((c) =>
+                                c.replace(/@[^@\s]*$/, `@${m.user.name} `)
+                              )
+                            }
+                            className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-slate-100"
+                          >
+                            <Avatar
+                              id={m.userId}
+                              name={m.user.name}
+                              className="h-6 w-6 text-[10px]"
+                            />
+                            <span className="flex-1 truncate">{m.user.name}</span>
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </form>
                 )}

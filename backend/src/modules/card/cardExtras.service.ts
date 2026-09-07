@@ -221,14 +221,46 @@ export async function deleteChecklistItem(userId: string, itemId: string) {
 
 // ---------- Binh luan ----------
 
+// Tim cac thanh vien bang duoc nhac ten (@Ten) trong noi dung binh luan.
+async function mentionedUserIds(
+  boardId: string,
+  text: string
+): Promise<string[]> {
+  if (!text.includes('@')) return [];
+  const board = await prisma.board.findUnique({
+    where: { id: boardId },
+    select: {
+      owner: { select: { id: true, name: true } },
+      members: {
+        where: { deletedAt: null },
+        select: { user: { select: { id: true, name: true } } },
+      },
+    },
+  });
+  if (!board) return [];
+  const people = [
+    board.owner,
+    ...board.members.map((m) => m.user),
+  ];
+  const haystack = text.toLowerCase();
+  const ids = new Set<string>();
+  for (const p of people) {
+    if (p.name && haystack.includes(`@${p.name.toLowerCase()}`)) {
+      ids.add(p.id);
+    }
+  }
+  return [...ids];
+}
+
 export async function addComment(
   userId: string,
   cardId: string,
   text: string
 ) {
   const card = await assertCardAccess(userId, cardId);
+  const trimmed = text.trim();
   const comment = await prisma.comment.create({
-    data: { cardId, userId, text: text.trim() },
+    data: { cardId, userId, text: trimmed },
     include: { user: { select: USER_SELECT } },
   });
 
@@ -237,15 +269,28 @@ export async function addComment(
     cardId,
     userId,
     type: 'comment.create',
-    data: { text: text.trim().slice(0, 120) },
+    data: { text: trimmed.slice(0, 120) },
   });
+
+  const mentioned = await mentionedUserIds(card.list.boardId, trimmed);
+  const commenters = await cardMemberIds(cardId);
+  // Nguoi duoc nhac ten -> thong bao rieng "card.mentioned"
   await notify({
-    recipients: await cardMemberIds(cardId),
+    recipients: mentioned,
+    actorId: userId,
+    type: 'card.mentioned',
+    boardId: card.list.boardId,
+    cardId,
+    data: { cardTitle: card.title, text: trimmed.slice(0, 120) },
+  });
+  // Thanh vien the (khong tinh nguoi da duoc nhac) -> thong bao "card.comment"
+  await notify({
+    recipients: commenters.filter((id) => !mentioned.includes(id)),
     actorId: userId,
     type: 'card.comment',
     boardId: card.list.boardId,
     cardId,
-    data: { cardTitle: card.title, text: text.trim().slice(0, 120) },
+    data: { cardTitle: card.title, text: trimmed.slice(0, 120) },
   });
 
   return comment;

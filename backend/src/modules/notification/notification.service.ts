@@ -9,6 +9,7 @@ export type NotificationType =
   | 'board.join.rejected'
   | 'card.member.added'
   | 'card.comment'
+  | 'card.mentioned'
   | 'card.moved'
   | 'card.renamed'
   | 'card.due.set'
