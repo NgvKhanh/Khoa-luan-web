@@ -1,25 +1,10 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import Logo from '../Logo';
 
 // Class dung chung cho o nhap trong cac trang xac thuc (dong bo focus mau xanh app)
 export const authFieldClass =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition-colors focus:border-[#1558bc] focus:outline-none focus:ring-2 focus:ring-[#1558bc]/20';
-
-function Logo({ className = '' }: { className?: string }) {
-  return (
-    <span
-      className={`flex items-center gap-2 font-bold tracking-tight ${className}`}
-    >
-      <span className="grid h-7 w-7 place-items-center rounded-lg bg-white text-[#1558bc]">
-        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
-          <rect x="3" y="3" width="7" height="18" rx="1" />
-          <rect x="14" y="3" width="7" height="11" rx="1" />
-        </svg>
-      </span>
-      TaskFlow
-    </span>
-  );
-}
 
 interface Props {
   title: string;
@@ -48,7 +33,11 @@ export default function AuthShell({ title, subtitle, children, footer }: Props) 
 
       <div className="relative w-full max-w-sm">
         <Link to="/" className="mb-6 flex justify-center text-white">
-          <Logo className="text-xl" />
+          <Logo
+            variant="white"
+            markClassName="h-8 w-8"
+            textClassName="text-xl font-bold tracking-tight"
+          />
         </Link>
 
         <div className="rounded-2xl bg-white p-6 shadow-2xl sm:p-8">

@@ -7,6 +7,7 @@ import { assetUrl } from '../lib/assets';
 import type { Board } from '../types/board';
 import Avatar from './Avatar';
 import CreateBoardDialog from './board/CreateBoardDialog';
+import Logo from './Logo';
 import NotificationBell from './NotificationBell';
 
 function Thumb({ board }: { board: Board }) {
@@ -381,16 +382,10 @@ export default function Header() {
         to="/"
         className="flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 transition hover:bg-slate-100 dark:hover:bg-slate-800"
       >
-        <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-[#0c66e4] to-[#0a4db3] shadow-sm">
-          <span className="flex items-end gap-[2px]">
-            <span className="h-3.5 w-[3px] rounded-[1px] bg-white" />
-            <span className="h-2 w-[3px] rounded-[1px] bg-white/90" />
-            <span className="h-2.5 w-[3px] rounded-[1px] bg-white/80" />
-          </span>
-        </span>
-        <span className="hidden text-lg font-extrabold tracking-tight text-slate-800 sm:block dark:text-white">
-          TaskFlow
-        </span>
+        <Logo
+          markClassName="h-7 w-7"
+          textClassName="hidden text-lg font-extrabold tracking-tight text-slate-800 sm:block dark:text-white"
+        />
       </Link>
 
       <BoardSearch />
