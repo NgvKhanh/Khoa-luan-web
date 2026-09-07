@@ -74,3 +74,11 @@ export async function resendVerification(): Promise<{ previewUrl?: string }> {
   );
   return res.data.data ?? {};
 }
+
+// Dang nhap bang Google: gui ID token (credential) tu Google Identity Services.
+export async function googleLogin(credential: string): Promise<User> {
+  const res = await api.post<{ data: { user: User } }>('/auth/google', {
+    credential,
+  });
+  return res.data.data.user;
+}

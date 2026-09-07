@@ -7,6 +7,7 @@ import {
   changeUserPassword,
   getUserProfile,
   loginUser,
+  loginWithGoogle,
   registerUser,
   requestPasswordReset,
   resendVerification as resendVerificationService,
@@ -18,6 +19,7 @@ import {
 import type {
   ChangePasswordInput,
   ForgotPasswordInput,
+  GoogleLoginInput,
   LoginInput,
   RegisterInput,
   ResetPasswordInput,
@@ -63,6 +65,17 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   res.json({
     success: true,
     message: 'Dang nhap thanh cong',
+    data: { user, token },
+  });
+});
+
+export const googleLogin = asyncHandler(async (req: Request, res: Response) => {
+  const { user, token } = await loginWithGoogle(req.body as GoogleLoginInput);
+
+  res.cookie(TOKEN_COOKIE_NAME, token, tokenCookieOptions());
+  res.json({
+    success: true,
+    message: 'Dang nhap Google thanh cong',
     data: { user, token },
   });
 });

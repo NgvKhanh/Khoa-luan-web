@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { googleLogin as googleLoginApi } from '../lib/api/auth';
 import { api } from '../lib/axios';
 import { connectSocket, disconnectSocket } from '../lib/socket';
 import type { User } from '../types/auth';
@@ -24,6 +25,7 @@ interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   // Cap nhat thong tin nguoi dung trong bo nho (sau khi sua ho so)
@@ -66,6 +68,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.data.data.user);
   }, []);
 
+  const loginWithGoogle = useCallback(async (credential: string) => {
+    const user = await googleLoginApi(credential);
+    setUser(user);
+  }, []);
+
   const register = useCallback(
     async (name: string, email: string, password: string) => {
       const res = await api.post<AuthResponse>('/auth/register', {
@@ -92,7 +99,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, login, register, logout, updateUser }}
+      value={{
+        user,
+        isLoading,
+        login,
+        loginWithGoogle,
+        register,
+        logout,
+        updateUser,
+      }}
     >
       {children}
     </AuthContext.Provider>

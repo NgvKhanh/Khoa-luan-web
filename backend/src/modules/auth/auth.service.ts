@@ -1,3 +1,4 @@
+import { OAuth2Client } from 'google-auth-library';
 import { env } from '../../config/env';
 import { sendMail } from '../../config/mailer';
 import { prisma } from '../../config/prisma';
@@ -10,6 +11,7 @@ import { resetPasswordEmail, verifyEmailEmail } from './emailTemplates';
 import type {
   ChangePasswordInput,
   ForgotPasswordInput,
+  GoogleLoginInput,
   LoginInput,
   RegisterInput,
   ResetPasswordInput,
@@ -126,6 +128,91 @@ export async function loginUser(input: LoginInput) {
     },
     token,
   };
+}
+
+let googleClient: OAuth2Client | null = null;
+function getGoogleClient(): OAuth2Client {
+  if (!googleClient) {
+    googleClient = new OAuth2Client(env.googleClientId);
+  }
+  return googleClient;
+}
+
+/**
+ * Dang nhap / dang ky bang Google.
+ * Frontend gui "credential" = ID token lay tu Google Identity Services.
+ * - Xac thuc chu ky + audience bang google-auth-library.
+ * - Tim user theo googleId -> theo email (lien ket) -> tao moi.
+ * - Email tu Google luon coi la da xac minh.
+ */
+export async function loginWithGoogle(input: GoogleLoginInput) {
+  if (!env.googleClientId) {
+    throw new AppError('Dang nhap bang Google chua duoc cau hinh', 503);
+  }
+
+  let payload;
+  try {
+    const ticket = await getGoogleClient().verifyIdToken({
+      idToken: input.credential,
+      audience: env.googleClientId,
+    });
+    payload = ticket.getPayload();
+  } catch {
+    throw new AppError('Xac thuc Google that bai', 401);
+  }
+
+  if (!payload?.sub || !payload.email || payload.email_verified === false) {
+    throw new AppError('Tai khoan Google khong hop le', 401);
+  }
+
+  const googleId = payload.sub;
+  const email = payload.email.toLowerCase();
+  const name = payload.name?.trim() || email.split('@')[0];
+  const picture = payload.picture ?? null;
+
+  // 1) Da tung dang nhap Google
+  let user = await prisma.user.findFirst({
+    where: { googleId, deletedAt: null },
+    select: PUBLIC_USER_SELECT,
+  });
+
+  // 2) Chua co googleId nhung email da dang ky -> lien ket
+  if (!user) {
+    const byEmail = await prisma.user.findFirst({
+      where: { email, deletedAt: null },
+      select: { id: true, avatarUrl: true, emailVerifiedAt: true },
+    });
+
+    if (byEmail) {
+      user = await prisma.user.update({
+        where: { id: byEmail.id },
+        data: {
+          googleId,
+          emailVerifiedAt: byEmail.emailVerifiedAt ?? new Date(),
+          avatarUrl: byEmail.avatarUrl ?? picture,
+        },
+        select: PUBLIC_USER_SELECT,
+      });
+    }
+  }
+
+  // 3) Nguoi dung moi hoan toan
+  if (!user) {
+    user = await prisma.user.create({
+      data: {
+        email,
+        name,
+        googleId,
+        avatarUrl: picture,
+        emailVerifiedAt: new Date(),
+        // passwordHash de trong -> tai khoan chi dang nhap Google
+      },
+      select: PUBLIC_USER_SELECT,
+    });
+  }
+
+  const token = signToken({ userId: user.id });
+  return { user, token };
 }
 
 export async function getUserProfile(userId: string) {

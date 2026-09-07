@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthShell, { authFieldClass } from '../components/auth/AuthShell';
+import GoogleAuthButton from '../components/auth/GoogleAuthButton';
 import PasswordField from '../components/auth/PasswordField';
 import { useAuth } from '../context/AuthContext';
 import { getErrorMessage } from '../lib/errorMessage';
@@ -97,6 +98,8 @@ export default function RegisterPage() {
           {isSubmitting ? 'Đang tạo tài khoản...' : 'Đăng ký'}
         </button>
       </form>
+
+      <GoogleAuthButton />
     </AuthShell>
   );
 }

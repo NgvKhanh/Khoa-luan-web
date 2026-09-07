@@ -54,6 +54,10 @@ export const verifyEmailSchema = z.object({
   token: z.string().trim().min(10, 'Lien ket khong hop le'),
 });
 
+export const googleLoginSchema = z.object({
+  credential: z.string().trim().min(20, 'Thieu Google credential'),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
@@ -61,3 +65,4 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+export type GoogleLoginInput = z.infer<typeof googleLoginSchema>;

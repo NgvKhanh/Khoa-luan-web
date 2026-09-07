@@ -86,4 +86,9 @@ export const env = {
   },
   /** URL frontend, dung de tao link trong noi dung email. */
   frontendUrl: getString('FRONTEND_URL', 'http://localhost:5173'),
+  /**
+   * OAuth Client ID cua Google cho "Dang nhap bang Google".
+   * Lay tu Google Cloud Console. De trong -> endpoint /auth/google tra ve 503.
+   */
+  googleClientId: getString('GOOGLE_CLIENT_ID', ''),
 };

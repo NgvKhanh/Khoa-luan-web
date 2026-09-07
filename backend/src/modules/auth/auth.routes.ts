@@ -7,6 +7,7 @@ import {
   changePassword,
   forgotPassword,
   getMe,
+  googleLogin,
   login,
   logout,
   register,
@@ -19,6 +20,7 @@ import {
 import {
   changePasswordSchema,
   forgotPasswordSchema,
+  googleLoginSchema,
   loginSchema,
   registerSchema,
   resetPasswordSchema,
@@ -30,6 +32,7 @@ const router = Router();
 
 router.post('/register', validateBody(registerSchema), register);
 router.post('/login', validateBody(loginSchema), login);
+router.post('/google', authLimiter, validateBody(googleLoginSchema), googleLogin);
 router.post('/logout', logout);
 router.post(
   '/forgot-password',
