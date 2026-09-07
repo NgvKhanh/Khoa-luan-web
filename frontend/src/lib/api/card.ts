@@ -246,3 +246,29 @@ export async function fetchBoardLabels(boardId: string): Promise<Label[]> {
   );
   return res.data.data.labels;
 }
+
+export async function createBoardLabel(
+  boardId: string,
+  input: { name?: string; color: string }
+): Promise<Label> {
+  const res = await api.post<{ data: { label: Label } }>(
+    `/boards/${boardId}/labels`,
+    input
+  );
+  return res.data.data.label;
+}
+
+export async function updateLabel(
+  labelId: string,
+  input: { name?: string; color?: string }
+): Promise<Label> {
+  const res = await api.patch<{ data: { label: Label } }>(
+    `/labels/${labelId}`,
+    input
+  );
+  return res.data.data.label;
+}
+
+export async function deleteLabel(labelId: string): Promise<void> {
+  await api.delete(`/labels/${labelId}`);
+}

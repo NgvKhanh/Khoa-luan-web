@@ -41,6 +41,7 @@ import {
 import { activityPhrase } from '../../lib/activityText';
 import { assetUrl } from '../../lib/assets';
 import Avatar from '../Avatar';
+import LabelPanel from './LabelPanel';
 import { getErrorMessage } from '../../lib/errorMessage';
 import { MiniMarkdown } from '../../lib/miniMarkdown';
 import type { BoardMember } from '../../types/board';
@@ -142,6 +143,13 @@ export default function CardModal({
     setDescDraft(d.description ?? '');
     return d;
   }, [cardId]);
+
+  const reloadLabels = useCallback(() => {
+    if (!card) return;
+    fetchBoardLabels(card.list.boardId).then(setLabels).catch(() => {});
+    void reload();
+    onChanged();
+  }, [card, reload, onChanged]);
 
   useEffect(() => {
     let alive = true;
@@ -693,35 +701,19 @@ export default function CardModal({
                   )}
 
                   {panel === 'labels' && (
-                    <div className="absolute left-7 top-10 z-10 w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
-                      <p className="mb-1 text-xs font-semibold text-slate-500">Nhãn</p>
-                      <div className="flex flex-col gap-1">
-                        {labels.map((l) => (
-                          <button
-                            key={l.id}
-                            type="button"
-                            onClick={() =>
-                              void run(() =>
-                                cardLabelIds.has(l.id)
-                                  ? detachCardLabel(card.id, l.id)
-                                  : attachCardLabel(card.id, l.id)
-                              )
-                            }
-                            className="flex items-center gap-2 rounded px-1 py-1 hover:bg-slate-100"
-                          >
-                            <span
-                              className="h-7 flex-1 rounded"
-                              style={{ backgroundColor: l.color }}
-                            />
-                            {cardLabelIds.has(l.id) && (
-                              <svg viewBox="0 0 24 24" className="h-4 w-4 text-slate-600" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    <LabelPanel
+                      boardId={card.list.boardId}
+                      labels={labels}
+                      cardLabelIds={cardLabelIds}
+                      onToggle={(labelId, attached) =>
+                        void run(() =>
+                          attached
+                            ? detachCardLabel(card.id, labelId)
+                            : attachCardLabel(card.id, labelId)
+                        )
+                      }
+                      onLabelsChanged={reloadLabels}
+                    />
                   )}
 
                   {panel === 'due' && (
