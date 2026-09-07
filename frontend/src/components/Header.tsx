@@ -288,6 +288,9 @@ function AccountMenu() {
           <button type="button" className={item} onClick={() => go('/my-cards')}>
             Thẻ của tôi
           </button>
+          <button type="button" className={item} onClick={() => go('/calendar')}>
+            Lịch
+          </button>
           <button type="button" className={item} onClick={() => go('/settings/password')}>
             Đổi mật khẩu
           </button>

@@ -12,6 +12,7 @@ import {
   copyCard,
   createCard,
   deleteCard,
+  listCalendarCards,
   listMyCards,
   moveCard,
   purgeCard,
@@ -42,6 +43,28 @@ export const createCardHandler = asyncHandler(
 export const listMyCardsHandler = asyncHandler(
   async (req: Request, res: Response) => {
     const cards = await listMyCards(requireUserId(req));
+    res.json({ success: true, data: { cards } });
+  }
+);
+
+export const listCalendarHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { from, to } = req.query as { from?: string; to?: string };
+    const fromDate = from ? new Date(from) : null;
+    const toDate = to ? new Date(to) : null;
+    if (
+      !fromDate ||
+      !toDate ||
+      Number.isNaN(fromDate.getTime()) ||
+      Number.isNaN(toDate.getTime())
+    ) {
+      throw new AppError('Thieu hoac sai tham so from/to', 400);
+    }
+    const cards = await listCalendarCards(
+      requireUserId(req),
+      fromDate,
+      toDate
+    );
     res.json({ success: true, data: { cards } });
   }
 );

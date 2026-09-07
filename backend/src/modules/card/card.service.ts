@@ -147,6 +147,45 @@ export async function listMyCards(userId: string) {
   });
 }
 
+// Cac the co ngay het han trong khoang [from, to], tren cac bang minh la thanh vien
+export async function listCalendarCards(
+  userId: string,
+  from: Date,
+  to: Date
+) {
+  return prisma.card.findMany({
+    where: {
+      deletedAt: null,
+      archivedAt: null,
+      dueDate: { gte: from, lte: to },
+      list: {
+        deletedAt: null,
+        archivedAt: null,
+        board: {
+          deletedAt: null,
+          members: { some: { userId, deletedAt: null } },
+        },
+      },
+    },
+    orderBy: { dueDate: 'asc' },
+    select: {
+      id: true,
+      title: true,
+      isDone: true,
+      startDate: true,
+      dueDate: true,
+      list: {
+        select: {
+          id: true,
+          name: true,
+          boardId: true,
+          board: { select: { id: true, name: true, color: true } },
+        },
+      },
+    },
+  });
+}
+
 export async function getCardDetail(userId: string, cardId: string) {
   const found = await prisma.card.findFirst({
     where: { id: cardId, deletedAt: null, archivedAt: null },

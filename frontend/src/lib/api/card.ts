@@ -44,6 +44,31 @@ export async function fetchMyCards(): Promise<MyCard[]> {
   return res.data.data.cards;
 }
 
+export interface CalendarCard {
+  id: string;
+  title: string;
+  isDone: boolean;
+  startDate: string | null;
+  dueDate: string;
+  list: {
+    id: string;
+    name: string;
+    boardId: string;
+    board: { id: string; name: string; color: string };
+  };
+}
+
+// Cac the co ngay het han trong khoang [from, to]
+export async function fetchCalendarCards(
+  fromISO: string,
+  toISO: string
+): Promise<CalendarCard[]> {
+  const res = await api.get<{ data: { cards: CalendarCard[] } }>(
+    `/cards/calendar?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`
+  );
+  return res.data.data.cards;
+}
+
 export async function updateCard(
   cardId: string,
   input: {

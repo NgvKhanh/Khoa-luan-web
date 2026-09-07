@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import BoardViewLayout from './layouts/BoardViewLayout';
 import MainLayout from './layouts/MainLayout';
 import BoardPage from './pages/BoardPage';
+import CalendarPage from './pages/CalendarPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import HomePage from './pages/HomePage';
 import JoinBoardPage from './pages/JoinBoardPage';
@@ -22,6 +23,7 @@ function App() {
         <Route element={<MainLayout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/my-cards" element={<MyCardsPage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/settings/profile" element={<ProfilePage />} />
           <Route path="/settings/password" element={<ChangePasswordPage />} />
           <Route path="/activity" element={<MyActivityPage />} />

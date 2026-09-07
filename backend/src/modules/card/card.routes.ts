@@ -7,6 +7,7 @@ import {
   copyCardHandler,
   createCardHandler,
   deleteCardHandler,
+  listCalendarHandler,
   listMyCardsHandler,
   moveCardHandler,
   purgeCardHandler,
@@ -59,6 +60,7 @@ export const cardRoutes = Router();
 cardRoutes.use(requireAuth);
 
 cardRoutes.get('/mine', listMyCardsHandler);
+cardRoutes.get('/calendar', listCalendarHandler);
 cardRoutes.get('/:cardId', getCardDetailHandler);
 cardRoutes.patch('/:cardId', validateBody(updateCardSchema), updateCardHandler);
 cardRoutes.patch('/:cardId/move', validateBody(moveCardSchema), moveCardHandler);
