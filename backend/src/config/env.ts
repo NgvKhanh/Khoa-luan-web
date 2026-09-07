@@ -73,4 +73,17 @@ export const env = {
    * API /api/unsplash tra ve 503 va frontend chi hien mau/gradient.
    */
   unsplashAccessKey: getString('UNSPLASH_ACCESS_KEY', ''),
+  /**
+   * Cau hinh gui email (quen mat khau, xac minh email).
+   * Neu SMTP_HOST de trong -> backend tu dung Ethereal (mail ao, co link xem truoc).
+   */
+  mail: {
+    host: getString('SMTP_HOST', ''),
+    port: getPort('SMTP_PORT', 587),
+    user: getString('SMTP_USER', ''),
+    pass: getString('SMTP_PASS', ''),
+    from: getString('MAIL_FROM', 'TaskFlow <no-reply@taskflow.local>'),
+  },
+  /** URL frontend, dung de tao link trong noi dung email. */
+  frontendUrl: getString('FRONTEND_URL', 'http://localhost:5173'),
 };
