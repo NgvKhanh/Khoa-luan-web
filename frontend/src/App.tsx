@@ -7,6 +7,7 @@ import HomePage from './pages/HomePage';
 import JoinBoardPage from './pages/JoinBoardPage';
 import LoginPage from './pages/LoginPage';
 import MyActivityPage from './pages/MyActivityPage';
+import MyCardsPage from './pages/MyCardsPage';
 import ProfilePage from './pages/ProfilePage';
 import RegisterPage from './pages/RegisterPage';
 import ProtectedRoute from './routes/ProtectedRoute';
@@ -20,6 +21,7 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/my-cards" element={<MyCardsPage />} />
           <Route path="/settings/profile" element={<ProfilePage />} />
           <Route path="/settings/password" element={<ChangePasswordPage />} />
           <Route path="/activity" element={<MyActivityPage />} />

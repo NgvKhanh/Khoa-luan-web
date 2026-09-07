@@ -285,6 +285,9 @@ function AccountMenu() {
           <button type="button" className={item} onClick={() => go('/settings/profile')}>
             Hồ sơ
           </button>
+          <button type="button" className={item} onClick={() => go('/my-cards')}>
+            Thẻ của tôi
+          </button>
           <button type="button" className={item} onClick={() => go('/settings/password')}>
             Đổi mật khẩu
           </button>

@@ -22,6 +22,28 @@ export async function fetchCardDetail(cardId: string): Promise<CardDetail> {
   return res.data.data.card;
 }
 
+export interface MyCard {
+  id: string;
+  title: string;
+  isDone: boolean;
+  startDate: string | null;
+  dueDate: string | null;
+  coverColor: string | null;
+  list: {
+    id: string;
+    name: string;
+    boardId: string;
+    board: { id: string; name: string };
+  };
+  labels: { labelId: string; label: Label }[];
+}
+
+// Tat ca cac the minh duoc gan, tren moi bang
+export async function fetchMyCards(): Promise<MyCard[]> {
+  const res = await api.get<{ data: { cards: MyCard[] } }>('/cards/mine');
+  return res.data.data.cards;
+}
+
 export async function updateCard(
   cardId: string,
   input: {

@@ -30,6 +30,40 @@ export async function assertCardAccess(userId: string, cardId: string) {
   return card;
 }
 
+// Tat ca cac the ma nguoi dung duoc gan lam thanh vien, tren moi bang
+export async function listMyCards(userId: string) {
+  return prisma.card.findMany({
+    where: {
+      deletedAt: null,
+      archivedAt: null,
+      members: { some: { userId } },
+      list: {
+        deletedAt: null,
+        archivedAt: null,
+        board: { deletedAt: null },
+      },
+    },
+    orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+    select: {
+      id: true,
+      title: true,
+      isDone: true,
+      startDate: true,
+      dueDate: true,
+      coverColor: true,
+      list: {
+        select: {
+          id: true,
+          name: true,
+          boardId: true,
+          board: { select: { id: true, name: true } },
+        },
+      },
+      labels: { include: { label: true } },
+    },
+  });
+}
+
 export async function getCardDetail(userId: string, cardId: string) {
   const found = await prisma.card.findFirst({
     where: { id: cardId, deletedAt: null, archivedAt: null },

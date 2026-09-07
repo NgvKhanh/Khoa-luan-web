@@ -10,6 +10,7 @@ import {
   archiveCard,
   createCard,
   deleteCard,
+  listMyCards,
   moveCard,
   purgeCard,
   restoreCard,
@@ -33,6 +34,13 @@ export const createCardHandler = asyncHandler(
     res
       .status(201)
       .json({ success: true, message: 'Da them the', data: { card } });
+  }
+);
+
+export const listMyCardsHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const cards = await listMyCards(requireUserId(req));
+    res.json({ success: true, data: { cards } });
   }
 );
 

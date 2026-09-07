@@ -6,6 +6,7 @@ import {
   archiveCardHandler,
   createCardHandler,
   deleteCardHandler,
+  listMyCardsHandler,
   moveCardHandler,
   purgeCardHandler,
   restoreCardHandler,
@@ -48,6 +49,7 @@ listCardRoutes.post('/', validateBody(createCardSchema), createCardHandler);
 export const cardRoutes = Router();
 cardRoutes.use(requireAuth);
 
+cardRoutes.get('/mine', listMyCardsHandler);
 cardRoutes.get('/:cardId', getCardDetailHandler);
 cardRoutes.patch('/:cardId', validateBody(updateCardSchema), updateCardHandler);
 cardRoutes.patch('/:cardId/move', validateBody(moveCardSchema), moveCardHandler);
