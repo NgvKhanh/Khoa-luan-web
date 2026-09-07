@@ -14,51 +14,15 @@ import {
   approveJoinRequest,
   rejectJoinRequest,
 } from '../../lib/api/board';
-import { initialsOf } from '../../lib/avatar';
 import { getErrorMessage } from '../../lib/errorMessage';
 import type { BoardMember, JoinRequest } from '../../types/board';
-
-const AVATAR_COLORS = [
-  '#0079BF',
-  '#D29034',
-  '#519839',
-  '#B04632',
-  '#89609E',
-  '#CD5A91',
-  '#00AECC',
-  '#4BBF6B',
-];
-function avatarColor(id: string): string {
-  let h = 0;
-  for (let i = 0; i < id.length; i += 1)
-    h = (h * 31 + id.charCodeAt(i)) % AVATAR_COLORS.length;
-  return AVATAR_COLORS[Math.abs(h)]!;
-}
+import Avatar from '../Avatar';
 
 type AssignableRole = 'ADMIN' | 'MEMBER';
 
 function roleLabel(role: BoardMember['role']): string {
   if (role === 'OWNER' || role === 'ADMIN') return 'Quản trị viên';
   return 'Thành viên';
-}
-
-function Avatar({
-  userId,
-  name,
-  className = 'h-7 w-7',
-}: {
-  userId: string;
-  name: string;
-  className?: string;
-}) {
-  return (
-    <span
-      className={`grid shrink-0 place-items-center rounded-full text-xs font-semibold text-white ${className}`}
-      style={{ backgroundColor: avatarColor(userId) }}
-    >
-      {initialsOf(name)}
-    </span>
-  );
 }
 
 // Dropdown vai tro cho 1 dong thanh vien (chi khi co quyen quan ly)
@@ -283,7 +247,12 @@ export default function BoardMembers({
       <div className="flex -space-x-2">
         {shown.map((m) => (
           <span key={m.id} className="ring-2 ring-white/70 rounded-full">
-            <Avatar userId={m.userId} name={m.user.name} />
+            <Avatar
+              id={m.userId}
+              name={m.user.name}
+              avatarUrl={m.user.avatarUrl}
+              className="h-7 w-7 text-xs"
+            />
           </span>
         ))}
         {extra > 0 && (
@@ -452,7 +421,12 @@ export default function BoardMembers({
                         key={m.id}
                         className="flex items-center gap-3 rounded-lg px-1 py-1.5"
                       >
-                        <Avatar userId={m.userId} name={m.user.name} className="h-9 w-9" />
+                        <Avatar
+                          id={m.userId}
+                          name={m.user.name}
+                          avatarUrl={m.user.avatarUrl}
+                          className="h-9 w-9 text-xs"
+                        />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium">
                             {m.user.name}
@@ -502,7 +476,12 @@ export default function BoardMembers({
                         key={r.id}
                         className="flex items-center gap-3 rounded-lg px-1 py-1.5"
                       >
-                        <Avatar userId={r.userId} name={r.user.name} className="h-9 w-9" />
+                        <Avatar
+                          id={r.userId}
+                          name={r.user.name}
+                          avatarUrl={r.user.avatarUrl}
+                          className="h-9 w-9 text-xs"
+                        />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium">
                             {r.user.name}

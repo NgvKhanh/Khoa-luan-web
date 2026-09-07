@@ -40,7 +40,7 @@ import {
 } from '../../lib/api/card';
 import { activityPhrase } from '../../lib/activityText';
 import { assetUrl } from '../../lib/assets';
-import { initialsOf } from '../../lib/avatar';
+import Avatar from '../Avatar';
 import { getErrorMessage } from '../../lib/errorMessage';
 import { MiniMarkdown } from '../../lib/miniMarkdown';
 import type { BoardMember } from '../../types/board';
@@ -54,35 +54,6 @@ interface Props {
   readOnly?: boolean;
   onClose: () => void;
   onChanged: () => void;
-}
-
-const AVATAR_COLORS = [
-  '#0079BF',
-  '#D29034',
-  '#519839',
-  '#B04632',
-  '#89609E',
-  '#CD5A91',
-  '#00AECC',
-  '#4BBF6B',
-];
-function avatarColor(id: string): string {
-  let h = 0;
-  for (let i = 0; i < id.length; i += 1)
-    h = (h * 31 + id.charCodeAt(i)) % AVATAR_COLORS.length;
-  return AVATAR_COLORS[Math.abs(h)]!;
-}
-
-function Avatar({ id, name, className = 'h-7 w-7 text-xs' }: { id: string; name: string; className?: string }) {
-  return (
-    <span
-      className={`grid shrink-0 place-items-center rounded-full font-semibold text-white ${className}`}
-      style={{ backgroundColor: avatarColor(id) }}
-      title={name}
-    >
-      {initialsOf(name)}
-    </span>
-  );
 }
 
 function fmt(iso: string): string {
@@ -540,7 +511,12 @@ export default function CardModal({
                         <p className="mb-1 text-xs font-semibold text-slate-500">Thành viên</p>
                         <div className="flex -space-x-1">
                           {card.members.map((m) => (
-                            <Avatar key={m.userId} id={m.userId} name={m.user.name} />
+                            <Avatar
+                              key={m.userId}
+                              id={m.userId}
+                              name={m.user.name}
+                              avatarUrl={m.user.avatarUrl}
+                            />
                           ))}
                         </div>
                       </div>
@@ -832,7 +808,11 @@ export default function CardModal({
                             }
                             className="flex items-center gap-2 rounded px-1 py-1 text-left hover:bg-slate-100"
                           >
-                            <Avatar id={m.userId} name={m.user.name} />
+                            <Avatar
+                              id={m.userId}
+                              name={m.user.name}
+                              avatarUrl={m.user.avatarUrl}
+                            />
                             <span className="flex-1 truncate text-sm">{m.user.name}</span>
                             {cardMemberIds.has(m.userId) && (
                               <svg viewBox="0 0 24 24" className="h-4 w-4 text-slate-600" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1079,12 +1059,12 @@ export default function CardModal({
                               </span>
 
                               {it.assignee && (
-                                <span
-                                  title={it.assignee.name}
-                                  className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#7f5ad5] text-[9px] font-semibold text-white"
-                                >
-                                  {initialsOf(it.assignee.name)}
-                                </span>
+                                <Avatar
+                                  id={it.assignee.id}
+                                  name={it.assignee.name}
+                                  avatarUrl={it.assignee.avatarUrl}
+                                  className="h-5 w-5 text-[9px]"
+                                />
                               )}
                               {it.dueDate && (
                                 <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-slate-100 px-1 text-[11px] text-slate-600">
@@ -1185,9 +1165,12 @@ export default function CardModal({
                                       }}
                                       className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100"
                                     >
-                                      <span className="grid h-5 w-5 place-items-center rounded-full bg-[#7f5ad5] text-[9px] font-semibold text-white">
-                                        {initialsOf(m.user.name)}
-                                      </span>
+                                      <Avatar
+                                        id={m.userId}
+                                        name={m.user.name}
+                                        avatarUrl={m.user.avatarUrl}
+                                        className="h-5 w-5 text-[9px]"
+                                      />
                                       <span className="flex-1 truncate">{m.user.name}</span>
                                       {it.assigneeId === m.userId && (
                                         <svg viewBox="0 0 24 24" className="h-4 w-4 text-[#0c66e4]" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1322,6 +1305,7 @@ export default function CardModal({
                             <Avatar
                               id={m.userId}
                               name={m.user.name}
+                              avatarUrl={m.user.avatarUrl}
                               className="h-6 w-6 text-[10px]"
                             />
                             <span className="flex-1 truncate">{m.user.name}</span>
@@ -1338,7 +1322,11 @@ export default function CardModal({
                   {feed.map((it) =>
                     it.kind === 'comment' ? (
                       <li key={`c-${it.c.id}`} className="flex gap-2">
-                        <Avatar id={it.c.user.id} name={it.c.user.name} />
+                        <Avatar
+                          id={it.c.user.id}
+                          name={it.c.user.name}
+                          avatarUrl={it.c.user.avatarUrl}
+                        />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs">
                             <span className="font-semibold text-slate-700">{it.c.user.name}</span>{' '}
@@ -1360,7 +1348,12 @@ export default function CardModal({
                       </li>
                     ) : (
                       <li key={`a-${it.a.id}`} className="flex gap-2">
-                        <Avatar id={it.a.user.id} name={it.a.user.name} className="h-6 w-6 text-[10px]" />
+                        <Avatar
+                          id={it.a.user.id}
+                          name={it.a.user.name}
+                          avatarUrl={it.a.user.avatarUrl}
+                          className="h-6 w-6 text-[10px]"
+                        />
                         <p className="text-xs text-slate-500">
                           <span className="font-semibold text-slate-700">{it.a.user.name}</span>{' '}
                           {activityText(it.a)}

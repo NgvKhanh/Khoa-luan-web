@@ -2,6 +2,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { assetUrl } from '../../lib/assets';
 import type { Card } from '../../types/card';
+import Avatar from '../Avatar';
 
 // Dai mau / anh o dinh the (giong Trello)
 function CardCover({ card }: { card: Card }) {
@@ -170,14 +171,13 @@ export default function CardItem({
             {(card.members?.length ?? 0) > 0 && (
               <span className="ml-auto flex -space-x-1">
                 {card.members!.slice(0, 3).map((m) => (
-                  <span
+                  <Avatar
                     key={m.userId}
-                    title={m.user.name}
-                    className="grid h-5 w-5 place-items-center rounded-full text-[9px] font-semibold text-white ring-1 ring-white"
-                    style={{ backgroundColor: '#7f5ad5' }}
-                  >
-                    {m.user.name.charAt(0).toUpperCase()}
-                  </span>
+                    id={m.userId}
+                    name={m.user.name}
+                    avatarUrl={m.user.avatarUrl}
+                    className="h-5 w-5 text-[9px] ring-1 ring-white"
+                  />
                 ))}
               </span>
             )}
