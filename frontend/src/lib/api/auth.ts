@@ -58,3 +58,19 @@ export async function resetPassword(
 ): Promise<void> {
   await api.post('/auth/reset-password', { token, newPassword });
 }
+
+// Xac minh email bang token trong link. Tra ve user da cap nhat.
+export async function verifyEmail(token: string): Promise<User> {
+  const res = await api.post<{ data: { user: User } }>('/auth/verify-email', {
+    token,
+  });
+  return res.data.data.user;
+}
+
+// Gui lai email xac minh (can dang nhap).
+export async function resendVerification(): Promise<{ previewUrl?: string }> {
+  const res = await api.post<{ data?: { previewUrl?: string } }>(
+    '/auth/resend-verification'
+  );
+  return res.data.data ?? {};
+}

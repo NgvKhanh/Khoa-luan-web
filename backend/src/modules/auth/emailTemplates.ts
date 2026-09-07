@@ -53,6 +53,26 @@ export function resetPasswordEmail(input: {
   };
 }
 
+export function verifyEmailEmail(input: {
+  name: string;
+  url: string;
+  expiresInHours: number;
+}): { subject: string; html: string } {
+  const { name, url, expiresInHours } = input;
+  return {
+    subject: 'Xac minh email TaskFlow',
+    html: layout(`
+      <p>Chao ${escapeHtml(name)},</p>
+      <p>Cam on ban da dang ky TaskFlow. Bam nut duoi day de xac minh dia chi email:</p>
+      <p style="margin:20px 0">${button(url, 'Xac minh email')}</p>
+      <p style="color:#64748b">Lien ket co hieu luc trong ${expiresInHours} gio.
+         Neu ban khong tao tai khoan nay, hay bo qua email.</p>
+      <p style="color:#94a3b8;font-size:12px;word-break:break-all">
+         Neu nut khong hoat dong, sao chep dia chi sau vao trinh duyet:<br>${url}</p>
+    `),
+  };
+}
+
 /** Chan cac ky tu HTML nguy hiem trong du lieu do nguoi dung nhap (ten). */
 function escapeHtml(s: string): string {
   return s

@@ -9,9 +9,11 @@ import {
   loginUser,
   registerUser,
   requestPasswordReset,
+  resendVerification as resendVerificationService,
   resetPassword as resetPasswordService,
   setUserAvatar,
   updateUserProfile,
+  verifyEmail as verifyEmailService,
 } from './auth.service';
 import type {
   ChangePasswordInput,
@@ -20,6 +22,7 @@ import type {
   RegisterInput,
   ResetPasswordInput,
   UpdateProfileInput,
+  VerifyEmailInput,
 } from './auth.schema';
 
 const TOKEN_COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 ngay
@@ -142,6 +145,29 @@ export const resetPassword = asyncHandler(
     res.json({
       success: true,
       message: 'Da dat lai mat khau. Ban co the dang nhap bang mat khau moi.',
+    });
+  }
+);
+
+export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
+  const user = await verifyEmailService(req.body as VerifyEmailInput);
+  res.json({
+    success: true,
+    message: 'Da xac minh email.',
+    data: { user },
+  });
+});
+
+export const resendVerification = asyncHandler(
+  async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new AppError('Ban chua dang nhap', 401);
+    }
+    const { previewUrl } = await resendVerificationService(req.user.id);
+    res.json({
+      success: true,
+      message: 'Da gui lai email xac minh. Vui long kiem tra hop thu.',
+      data: previewUrl ? { previewUrl } : undefined,
     });
   }
 );

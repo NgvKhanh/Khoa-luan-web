@@ -10,9 +10,11 @@ import {
   login,
   logout,
   register,
+  resendVerification,
   resetPassword,
   updateMe,
   uploadMyAvatar,
+  verifyEmail,
 } from './auth.controller';
 import {
   changePasswordSchema,
@@ -21,6 +23,7 @@ import {
   registerSchema,
   resetPasswordSchema,
   updateProfileSchema,
+  verifyEmailSchema,
 } from './auth.schema';
 
 const router = Router();
@@ -40,6 +43,8 @@ router.post(
   validateBody(resetPasswordSchema),
   resetPassword
 );
+router.post('/verify-email', validateBody(verifyEmailSchema), verifyEmail);
+router.post('/resend-verification', requireAuth, authLimiter, resendVerification);
 router.get('/me', requireAuth, getMe);
 router.patch('/me', requireAuth, validateBody(updateProfileSchema), updateMe);
 router.post('/me/avatar', requireAuth, uploadAvatar, uploadMyAvatar);

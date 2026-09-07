@@ -50,9 +50,14 @@ export const resetPasswordSchema = z.object({
     .max(72, 'Mat khau qua dai'),
 });
 
+export const verifyEmailSchema = z.object({
+  token: z.string().trim().min(10, 'Lien ket khong hop le'),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;

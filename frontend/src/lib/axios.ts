@@ -20,6 +20,7 @@ const PUBLIC_PATHS = [
   '/register',
   '/forgot-password',
   '/reset-password',
+  '/verify-email',
 ];
 
 // Neu server tra ve 401 (het han / khong hop le), dua ve trang dang nhap

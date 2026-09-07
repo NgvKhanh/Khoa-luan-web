@@ -6,7 +6,7 @@ import { AppError } from '../../utils/AppError';
 import { signToken } from '../../utils/jwt';
 import { comparePassword, hashPassword } from '../../utils/password';
 import { consumeAuthToken, createAuthToken } from './authToken.service';
-import { resetPasswordEmail } from './emailTemplates';
+import { resetPasswordEmail, verifyEmailEmail } from './emailTemplates';
 import type {
   ChangePasswordInput,
   ForgotPasswordInput,
@@ -14,17 +14,50 @@ import type {
   RegisterInput,
   ResetPasswordInput,
   UpdateProfileInput,
+  VerifyEmailInput,
 } from './auth.schema';
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 gio
+const EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 gio
 
 const PUBLIC_USER_SELECT = {
   id: true,
   email: true,
   name: true,
   avatarUrl: true,
+  emailVerifiedAt: true,
   createdAt: true,
 } as const;
+
+/**
+ * Tao token EMAIL_VERIFY va gui mail xac minh cho user.
+ * Loi gui mail duoc nuot (chi log) de khong lam hong luong dang ky.
+ * Tra ve previewUrl (link mail Ethereal) khi chay dev.
+ */
+async function sendVerificationEmail(user: {
+  id: string;
+  name: string;
+  email: string;
+}): Promise<{ previewUrl: string | null }> {
+  try {
+    const rawToken = await createAuthToken(
+      user.id,
+      'EMAIL_VERIFY',
+      EMAIL_VERIFY_TTL_MS
+    );
+    const url = `${env.frontendUrl}/verify-email?token=${rawToken}`;
+    const { subject, html } = verifyEmailEmail({
+      name: user.name,
+      url,
+      expiresInHours: EMAIL_VERIFY_TTL_MS / 3600000,
+    });
+    const { previewUrl } = await sendMail({ to: user.email, subject, html });
+    return { previewUrl: env.isProduction ? null : previewUrl };
+  } catch (err) {
+    console.error('[auth] Gui mail xac minh that bai:', err);
+    return { previewUrl: null };
+  }
+}
 
 export async function registerUser(input: RegisterInput) {
   const existing = await prisma.user.findFirst({
@@ -46,6 +79,9 @@ export async function registerUser(input: RegisterInput) {
     },
     select: PUBLIC_USER_SELECT,
   });
+
+  // Gui mail xac minh (khong chan neu that bai)
+  await sendVerificationEmail(user);
 
   const token = signToken({ userId: user.id });
 
@@ -85,6 +121,7 @@ export async function loginUser(input: LoginInput) {
       email: user.email,
       name: user.name,
       avatarUrl: user.avatarUrl,
+      emailVerifiedAt: user.emailVerifiedAt,
       createdAt: user.createdAt,
     },
     token,
@@ -226,4 +263,47 @@ export async function resetPassword(input: ResetPasswordInput): Promise<void> {
       emailVerifiedAt: new Date(),
     },
   });
+}
+
+/**
+ * Xac minh email bang token trong link. Tra ve thong tin user da cap nhat.
+ * Neu email da xac minh tu truoc thi giu nguyen moc thoi gian cu.
+ */
+export async function verifyEmail(input: VerifyEmailInput) {
+  const userId = await consumeAuthToken(input.token, 'EMAIL_VERIFY');
+
+  const current = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { emailVerifiedAt: true },
+  });
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { emailVerifiedAt: current?.emailVerifiedAt ?? new Date() },
+    select: PUBLIC_USER_SELECT,
+  });
+
+  return user;
+}
+
+/**
+ * Gui lai email xac minh cho nguoi dung dang dang nhap.
+ * Da xac minh roi -> bao loi 400.
+ */
+export async function resendVerification(
+  userId: string
+): Promise<{ previewUrl: string | null }> {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, deletedAt: null },
+    select: { id: true, name: true, email: true, emailVerifiedAt: true },
+  });
+
+  if (!user) {
+    throw new AppError('Khong tim thay nguoi dung', 404);
+  }
+  if (user.emailVerifiedAt) {
+    throw new AppError('Email cua ban da duoc xac minh', 400);
+  }
+
+  return sendVerificationEmail(user);
 }
