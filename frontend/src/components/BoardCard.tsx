@@ -15,6 +15,7 @@ interface Props {
   board: Board;
   onChanged: (board: Board) => void;
   onRequestDelete: (board: Board) => void;
+  onRequestPermanentDelete?: (board: Board) => void;
   onToggleStar: (boardId: string) => void;
 }
 
@@ -22,6 +23,7 @@ export default function BoardCard({
   board,
   onChanged,
   onRequestDelete,
+  onRequestPermanentDelete,
   onToggleStar,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -190,6 +192,18 @@ export default function BoardCard({
             >
               Lưu trữ bảng
             </button>
+            {board.isOwner && onRequestPermanentDelete && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onRequestPermanentDelete(board);
+                }}
+                className="w-full rounded-md py-1.5 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+              >
+                Xoá bảng vĩnh viễn
+              </button>
+            )}
           </div>
         </>
       )}

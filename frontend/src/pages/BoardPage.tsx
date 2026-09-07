@@ -970,6 +970,11 @@ export default function BoardPage() {
                     removeBoard(board.id);
                     navigate('/', { replace: true });
                   }}
+                  onDeleted={() => {
+                    setBoardMenuOpen(false);
+                    removeBoard(board.id);
+                    navigate('/', { replace: true });
+                  }}
                 />
               )}
             </div>

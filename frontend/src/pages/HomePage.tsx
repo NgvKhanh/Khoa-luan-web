@@ -5,6 +5,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import { useBoards } from '../context/BoardsContext';
 import {
   archiveBoard,
+  deleteBoard,
   fetchArchivedBoards,
   purgeBoard,
   restoreBoard,
@@ -58,6 +59,7 @@ export default function HomePage() {
   const starred = boards.filter((b) => b.isStarred);
 
   const [deleteTarget, setDeleteTarget] = useState<Board | null>(null);
+  const [permTarget, setPermTarget] = useState<Board | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -100,6 +102,20 @@ export default function HomePage() {
     }
   }
 
+  async function confirmPermDelete() {
+    if (!permTarget) return;
+    setDeleting(true);
+    try {
+      await deleteBoard(permTarget.id);
+      removeBoard(permTarget.id);
+      setPermTarget(null);
+    } catch (err) {
+      setActionError(getErrorMessage(err, 'Không xoá được bảng.'));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   async function confirmPurge() {
     if (!purgeTarget) return;
     setDeleting(true);
@@ -139,6 +155,7 @@ export default function HomePage() {
                     board={board}
                     onChanged={upsertBoard}
                     onRequestDelete={setDeleteTarget}
+                    onRequestPermanentDelete={setPermTarget}
                     onToggleStar={toggleStar}
                   />
                 ))}
@@ -157,6 +174,7 @@ export default function HomePage() {
                   board={board}
                   onChanged={upsertBoard}
                   onRequestDelete={setDeleteTarget}
+                  onRequestPermanentDelete={setPermTarget}
                   onToggleStar={toggleStar}
                 />
               ))}
@@ -237,6 +255,21 @@ export default function HomePage() {
         busy={deleting}
         onConfirm={confirmDelete}
         onCancel={() => !deleting && setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={permTarget !== null}
+        title="Xoá bảng vĩnh viễn?"
+        message={
+          permTarget
+            ? `Bảng "${permTarget.name}" cùng toàn bộ danh sách và thẻ sẽ bị xoá và không thể khôi phục. Nếu chỉ muốn cất đi, hãy chọn "Lưu trữ bảng".`
+            : undefined
+        }
+        confirmLabel="Xoá vĩnh viễn"
+        danger
+        busy={deleting}
+        onConfirm={confirmPermDelete}
+        onCancel={() => !deleting && setPermTarget(null)}
       />
 
       <ConfirmDialog

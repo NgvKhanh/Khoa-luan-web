@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { archiveBoard, exportBoard } from '../../lib/api/board';
+import { archiveBoard, deleteBoard, exportBoard } from '../../lib/api/board';
 import { getErrorMessage } from '../../lib/errorMessage';
 
 interface Props {
@@ -9,6 +9,7 @@ interface Props {
   isOwner: boolean;
   onClose: () => void;
   onArchived: () => void;
+  onDeleted: () => void;
 }
 
 function slugify(s: string): string {
@@ -29,10 +30,12 @@ export default function BoardActionsMenu({
   isOwner,
   onClose,
   onArchived,
+  onDeleted,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const [busy, setBusy] = useState<'export' | 'archive' | null>(null);
+  const [busy, setBusy] = useState<'export' | 'archive' | 'delete' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -94,6 +97,53 @@ export default function BoardActionsMenu({
     }
   }
 
+  async function doDelete() {
+    setBusy('delete');
+    setError(null);
+    try {
+      await deleteBoard(boardId);
+      onDeleted();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Không xoá được bảng.'));
+      setBusy(null);
+    }
+  }
+
+  if (confirmDelete) {
+    return createPortal(
+      <div
+        ref={ref}
+        className="fixed right-3 top-14 z-50 w-64 rounded-xl border border-slate-200 bg-white p-3 text-slate-800 shadow-2xl"
+      >
+        <p className="text-sm font-semibold text-red-600">Xoá bảng này?</p>
+        <p className="mt-1 text-xs text-slate-500">
+          Bảng "{boardName}" cùng toàn bộ danh sách và thẻ sẽ bị xoá vĩnh viễn,
+          không thể khôi phục. Nếu chỉ muốn cất đi, hãy chọn "Lưu trữ bảng".
+        </p>
+        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={doDelete}
+            className="flex-1 rounded-lg bg-red-600 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {busy === 'delete' ? 'Đang xoá...' : 'Xoá vĩnh viễn'}
+          </button>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => setConfirmDelete(false)}
+            className="rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+          >
+            Huỷ
+          </button>
+        </div>
+      </div>,
+      document.body
+    );
+  }
+
   return createPortal(
     <div
       ref={ref}
@@ -129,6 +179,26 @@ export default function BoardActionsMenu({
           </svg>
           {busy === 'archive' ? 'Đang lưu trữ...' : 'Lưu trữ bảng'}
         </button>
+      )}
+
+      {isOwner && (
+        <>
+          <div className="my-1 border-t border-slate-200" />
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => {
+              setError(null);
+              setConfirmDelete(true);
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+            Xoá bảng
+          </button>
+        </>
       )}
     </div>,
     document.body
