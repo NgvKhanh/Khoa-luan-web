@@ -6,6 +6,7 @@ import {
   archiveBoard,
   clearBoardBackground,
   createBoard,
+  createBoardFromTemplate,
   deleteBoard,
   exportBoard,
   getBoard,
@@ -18,6 +19,7 @@ import {
   setBoardStar,
   updateBoard,
 } from './board.service';
+import { BOARD_TEMPLATES } from './boardTemplates';
 
 function requireUserId(req: Request): string {
   if (!req.user) {
@@ -88,6 +90,26 @@ export const purgeBoardHandler = asyncHandler(
   async (req: Request, res: Response) => {
     await purgeBoard(requireUserId(req), req.params.boardId as string);
     res.json({ success: true, message: 'Da xoa han bang' });
+  }
+);
+
+export const listTemplatesHandler = asyncHandler(
+  async (_req: Request, res: Response) => {
+    res.json({ success: true, data: { templates: BOARD_TEMPLATES } });
+  }
+);
+
+export const createFromTemplateHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const body = req.body as { templateId: string; name?: string };
+    const board = await createBoardFromTemplate(
+      requireUserId(req),
+      body.templateId,
+      body.name
+    );
+    res
+      .status(201)
+      .json({ success: true, message: 'Da tao bang tu mau', data: { board } });
   }
 );
 

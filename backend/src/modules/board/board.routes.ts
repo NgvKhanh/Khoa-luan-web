@@ -5,6 +5,7 @@ import { validateBody } from '../../middleware/validate.middleware';
 import {
   archiveBoardHandler,
   createBoardHandler,
+  createFromTemplateHandler,
   deleteBoardBackgroundHandler,
   deleteBoardHandler,
   exportBoardHandler,
@@ -12,13 +13,18 @@ import {
   listArchivedBoardsHandler,
   listBoardArchiveHandler,
   listMyBoardsHandler,
+  listTemplatesHandler,
   purgeBoardHandler,
   restoreBoardHandler,
   setBoardStarHandler,
   updateBoardHandler,
   uploadBoardBackgroundHandler,
 } from './board.controller';
-import { createBoardSchema, updateBoardSchema } from './board.schema';
+import {
+  createBoardSchema,
+  fromTemplateSchema,
+  updateBoardSchema,
+} from './board.schema';
 import {
   approveJoinRequestHandler,
   createInviteLinkHandler,
@@ -40,7 +46,13 @@ router.post('/join/:token', requestToJoinHandler);
 
 router.get('/', listMyBoardsHandler);
 router.get('/archived', listArchivedBoardsHandler);
+router.get('/templates', listTemplatesHandler);
 router.post('/', validateBody(createBoardSchema), createBoardHandler);
+router.post(
+  '/from-template',
+  validateBody(fromTemplateSchema),
+  createFromTemplateHandler
+);
 router.get('/:boardId', getBoardHandler);
 router.get('/:boardId/archive', listBoardArchiveHandler);
 router.get('/:boardId/export', exportBoardHandler);

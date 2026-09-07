@@ -47,12 +47,15 @@ export default function Sidebar() {
           Bảng
         </NavLink>
 
-        <button type="button" className={INACTIVE}>
+        <NavLink
+          to="/templates"
+          className={({ isActive }) => (isActive ? ACTIVE : INACTIVE)}
+        >
           <span className="text-slate-500">
             <TemplateIcon />
           </span>
           Mẫu
-        </button>
+        </NavLink>
 
         <button type="button" className={INACTIVE}>
           <span className="text-slate-500">

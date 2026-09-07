@@ -122,6 +122,31 @@ export async function exportBoard(boardId: string): Promise<unknown> {
   return res.data.data;
 }
 
+// ----- Mau bang -----
+export interface BoardTemplate {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  lists: { name: string; cards: string[] }[];
+}
+export async function fetchTemplates(): Promise<BoardTemplate[]> {
+  const res = await api.get<{ data: { templates: BoardTemplate[] } }>(
+    '/boards/templates'
+  );
+  return res.data.data.templates;
+}
+export async function createBoardFromTemplate(
+  templateId: string,
+  name?: string
+): Promise<Board> {
+  const res = await api.post<{ data: { board: Board } }>('/boards/from-template', {
+    templateId,
+    ...(name ? { name } : {}),
+  });
+  return res.data.data.board;
+}
+
 // Danh dau / bo danh dau sao bang
 export async function setBoardStar(
   boardId: string,

@@ -38,5 +38,10 @@ export const updateBoardSchema = z
     message: 'Khong co du lieu nao de cap nhat',
   });
 
+export const fromTemplateSchema = z.object({
+  templateId: z.string().trim().min(1, 'Thieu ma mau'),
+  name: z.string().trim().min(1).max(100).optional(),
+});
+
 export type CreateBoardInput = z.infer<typeof createBoardSchema>;
 export type UpdateBoardInput = z.infer<typeof updateBoardSchema>;

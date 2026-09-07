@@ -6,6 +6,7 @@ import {
 import { emitToBoard, emitToUser } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import type { CreateBoardInput, UpdateBoardInput } from './board.schema';
+import { getTemplate } from './boardTemplates';
 
 // Kiem tra nguoi dung la CHU bang. Dung cho: xoa bang, quan ly thanh vien.
 export async function assertBoardOwner(userId: string, boardId: string) {
@@ -132,6 +133,35 @@ export async function setBoardStar(
   await prisma.boardMember.updateMany({
     where: { boardId, userId, deletedAt: null },
     data: { starred },
+  });
+}
+
+// Tao 1 bang tu mau co san (kem toan bo list + the mau)
+export async function createBoardFromTemplate(
+  userId: string,
+  templateId: string,
+  name?: string
+) {
+  const tpl = getTemplate(templateId);
+  if (!tpl) {
+    throw new AppError('Không tìm thấy mẫu này', 404);
+  }
+  return prisma.board.create({
+    data: {
+      ownerId: userId,
+      name: name?.trim() || tpl.name,
+      color: tpl.color,
+      members: { create: { userId, role: 'OWNER' } },
+      lists: {
+        create: tpl.lists.map((l, li) => ({
+          name: l.name,
+          position: li,
+          cards: {
+            create: l.cards.map((title, ci) => ({ title, position: ci })),
+          },
+        })),
+      },
+    },
   });
 }
 

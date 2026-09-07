@@ -10,6 +10,7 @@ import LoginPage from './pages/LoginPage';
 import MyActivityPage from './pages/MyActivityPage';
 import MyCardsPage from './pages/MyCardsPage';
 import ProfilePage from './pages/ProfilePage';
+import TemplatesPage from './pages/TemplatesPage';
 import RegisterPage from './pages/RegisterPage';
 import ProtectedRoute from './routes/ProtectedRoute';
 
@@ -22,6 +23,7 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/my-cards" element={<MyCardsPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/settings/profile" element={<ProfilePage />} />
