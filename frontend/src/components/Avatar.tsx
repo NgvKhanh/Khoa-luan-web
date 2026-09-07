@@ -20,17 +20,18 @@ function colorOf(id: string): string {
   return AVATAR_COLORS[Math.abs(h)]!;
 }
 
-// So lan thu tai lai anh khi loi (loi tam thoi: server vua restart, mang chap chon...)
-const MAX_RETRY = 3;
-const RETRY_DELAY = [800, 2000, 4000];
+// Nho cac URL da tai thanh cong -> instance khac cua cung anh hien ngay, khong nhap nhay
+const KNOWN_GOOD = new Set<string>();
+// Backoff khi loi: 1s, 3s, 8s, roi 20s mai mai (chi thu khi tab dang mo)
+const BACKOFF = [1000, 3000, 8000, 20000];
 
 /**
  * O avatar tron dung chung.
- * - Luon hien chu cai dau ten lam nen.
- * - Neu co avatarUrl: tai anh ngam ben tren, chi hien khi tai xong.
- *   -> anh loi / cham -> nguoi dung chi thay chu cai, KHONG bao gio thay
- *      bieu tuong "anh vo" cua trinh duyet.
- * - Anh loi thi thu lai vai lan (backoff); quay lai tab -> thu lai 1 lan.
+ * - Luon ve chu cai dau ten lam nen.
+ * - Neu co avatarUrl: <img> tai ngam ben tren, chi hien khi tai xong (fade).
+ *   Anh loi/cham -> nguoi dung chi thay chu cai, KHONG bao gio thay bieu tuong
+ *   "anh vo" cua trinh duyet.
+ * - Loi -> thu lai mai (backoff toi da 20s), tu phuc hoi khi server tro lai.
  */
 export default function Avatar({
   id,
@@ -43,40 +44,36 @@ export default function Avatar({
   avatarUrl?: string | null;
   className?: string;
 }) {
-  const [attempt, setAttempt] = useState(0); // -1 = da bo cuoc
-  const [loaded, setLoaded] = useState(false);
+  const base = avatarUrl ? assetUrl(avatarUrl) : '';
+  const [nonce, setNonce] = useState(0);
+  const [loaded, setLoaded] = useState(() => KNOWN_GOOD.has(base));
+  const failsRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Doi anh -> reset
   useEffect(() => {
-    setAttempt(0);
-    setLoaded(false);
+    failsRef.current = 0;
+    setNonce(0);
+    setLoaded(KNOWN_GOOD.has(base));
     return () => clearTimeout(timerRef.current);
-  }, [avatarUrl]);
+  }, [base]);
 
-  // Da bo cuoc: khi quay lai tab thi thu lai 1 lan
+  // Quay lai tab -> thu lai ngay (thay vi cho het backoff)
   useEffect(() => {
-    if (attempt !== -1) return;
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') {
-        setLoaded(false);
-        setAttempt(0);
-      }
+    if (!base || loaded) return;
+    const onBack = () => {
+      failsRef.current = 0;
+      setNonce((n) => n + 1);
     };
-    window.addEventListener('focus', onVisible);
-    document.addEventListener('visibilitychange', onVisible);
+    document.addEventListener('visibilitychange', onBack);
+    window.addEventListener('focus', onBack);
     return () => {
-      window.removeEventListener('focus', onVisible);
-      document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener('visibilitychange', onBack);
+      window.removeEventListener('focus', onBack);
     };
-  }, [attempt]);
+  }, [base, loaded]);
 
-  const showImg = Boolean(avatarUrl) && attempt !== -1;
-  let src = '';
-  if (showImg) {
-    const base = assetUrl(avatarUrl as string);
-    src = attempt > 0 ? `${base}${base.includes('?') ? '&' : '?'}r=${attempt}` : base;
-  }
+  const src = base ? (nonce > 0 ? `${base}${base.includes('?') ? '&' : '?'}v=${nonce}` : base) : '';
 
   return (
     <span
@@ -85,23 +82,21 @@ export default function Avatar({
       title={name}
     >
       <span className={loaded ? 'invisible' : ''}>{initialsOf(name)}</span>
-      {showImg && (
+      {base && (
         <img
           key={src}
           src={src}
           alt=""
           decoding="async"
-          onLoad={() => setLoaded(true)}
+          onLoad={() => {
+            KNOWN_GOOD.add(base);
+            setLoaded(true);
+          }}
           onError={() => {
             clearTimeout(timerRef.current);
-            if (attempt < MAX_RETRY) {
-              timerRef.current = setTimeout(
-                () => setAttempt((a) => a + 1),
-                RETRY_DELAY[attempt] ?? 4000
-              );
-            } else {
-              setAttempt(-1);
-            }
+            const i = Math.min(failsRef.current, BACKOFF.length - 1);
+            failsRef.current += 1;
+            timerRef.current = setTimeout(() => setNonce((n) => n + 1), BACKOFF[i]);
           }}
           className={`absolute inset-0 h-full w-full object-cover transition-opacity ${
             loaded ? 'opacity-100' : 'opacity-0'
