@@ -158,9 +158,11 @@ model Card {
   listId      String
   title       String
   description String?
-  isDone      Boolean   @default(false) // Danh dau the da hoan thanh
-  startDate   DateTime? // Ngay bat dau (null = khong dat)
-  dueDate     DateTime? // Ngay het han (null = khong dat)
+  isDone        Boolean   @default(false) // Danh dau the da hoan thanh
+  startDate     DateTime? // Ngay bat dau (null = khong dat)
+  dueDate       DateTime? // Ngay het han (null = khong dat)
+  coverColor    String? // Mau anh bia (hex) - null = khong co
+  coverImageUrl String? // Anh bia (duong dan/URL) - uu tien hon coverColor
   position    Int       @default(0)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

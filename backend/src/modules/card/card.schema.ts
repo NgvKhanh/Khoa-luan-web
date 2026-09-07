@@ -23,6 +23,13 @@ export const updateCardSchema = z
     // ISO date string, hoac null de bo ngay bat dau / het han
     startDate: z.union([z.string().datetime(), z.null()]).optional(),
     dueDate: z.union([z.string().datetime(), z.null()]).optional(),
+    // Anh bia: mau hex hoac null; duong dan anh hoac null
+    coverColor: z
+      .union([z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Mau khong hop le'), z.null()])
+      .optional(),
+    coverImageUrl: z
+      .union([z.string().trim().max(500), z.null()])
+      .optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Khong co du lieu nao de cap nhat',

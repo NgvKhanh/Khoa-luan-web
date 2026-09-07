@@ -18,6 +18,7 @@ import {
   updateCard,
   updateChecklistItem,
 } from '../../lib/api/card';
+import { assetUrl } from '../../lib/assets';
 import { initialsOf } from '../../lib/avatar';
 import { getErrorMessage } from '../../lib/errorMessage';
 import type { BoardMember } from '../../types/board';
@@ -73,6 +74,19 @@ function fmt(iso: string): string {
   });
 }
 
+const COVER_COLORS = [
+  '#4bce97',
+  '#f5cd47',
+  '#fea362',
+  '#f87168',
+  '#9f8fef',
+  '#579dff',
+  '#6cc3e0',
+  '#94c748',
+  '#e774bb',
+  '#8590a2',
+];
+
 function activityText(a: CardActivity): string {
   const d = a.data as Record<string, string>;
   switch (a.type) {
@@ -119,7 +133,14 @@ export default function CardModal({
   const [editingDesc, setEditingDesc] = useState(false);
   const [comment, setComment] = useState('');
   const [panel, setPanel] = useState<
-    'labels' | 'due' | 'members' | 'list' | 'menu' | 'checklist' | null
+    | 'labels'
+    | 'due'
+    | 'members'
+    | 'list'
+    | 'menu'
+    | 'checklist'
+    | 'cover'
+    | null
   >(null);
   const [clTitle, setClTitle] = useState('Việc cần làm');
   const [clCopyFrom, setClCopyFrom] = useState('');
@@ -230,6 +251,18 @@ export default function CardModal({
           </p>
         ) : (
           <>
+            {/* Anh bia */}
+            {(card.coverImageUrl || card.coverColor) && (
+              <div
+                className="h-24 rounded-t-xl bg-cover bg-center"
+                style={
+                  card.coverImageUrl
+                    ? { backgroundImage: `url(${assetUrl(card.coverImageUrl)})` }
+                    : { backgroundColor: card.coverColor as string }
+                }
+              />
+            )}
+
             {/* Header */}
             <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
               <div className="relative">
@@ -447,6 +480,61 @@ export default function CardModal({
                   >
                     Việc cần làm
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setPanel(panel === 'cover' ? null : 'cover')}
+                    className="rounded bg-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-300"
+                  >
+                    Ảnh bìa
+                  </button>
+
+                  {panel === 'cover' && (
+                    <div className="absolute left-7 top-10 z-10 w-64 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+                      <p className="mb-2 text-xs font-semibold text-slate-500">Ảnh bìa</p>
+                      <div className="grid grid-cols-5 gap-2">
+                        {COVER_COLORS.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => {
+                              setPanel(null);
+                              void run(() =>
+                                updateCard(card.id, {
+                                  coverColor: c,
+                                  coverImageUrl: null,
+                                })
+                              );
+                            }}
+                            className="grid h-8 place-items-center rounded"
+                            style={{ backgroundColor: c }}
+                          >
+                            {card.coverColor === c && !card.coverImageUrl && (
+                              <svg viewBox="0 0 24 24" className="h-4 w-4 text-white" fill="none" stroke="currentColor" strokeWidth="3">
+                                <path d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                      {(card.coverColor || card.coverImageUrl) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPanel(null);
+                            void run(() =>
+                              updateCard(card.id, {
+                                coverColor: null,
+                                coverImageUrl: null,
+                              })
+                            );
+                          }}
+                          className="mt-3 w-full rounded bg-slate-100 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-200"
+                        >
+                          Bỏ ảnh bìa
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   {panel === 'checklist' && (
                     <div className="absolute left-7 top-10 z-10 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">

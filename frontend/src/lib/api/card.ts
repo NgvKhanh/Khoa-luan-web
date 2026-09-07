@@ -29,6 +29,8 @@ export async function updateCard(
     isDone?: boolean;
     startDate?: string | null;
     dueDate?: string | null;
+    coverColor?: string | null;
+    coverImageUrl?: string | null;
   }
 ): Promise<Card> {
   const res = await api.patch<{ data: { card: Card } }>(

@@ -122,6 +122,12 @@ export async function updateCard(
       ...(input.dueDate !== undefined
         ? { dueDate: input.dueDate ? new Date(input.dueDate) : null }
         : {}),
+      ...(input.coverColor !== undefined
+        ? { coverColor: input.coverColor }
+        : {}),
+      ...(input.coverImageUrl !== undefined
+        ? { coverImageUrl: input.coverImageUrl || null }
+        : {}),
     },
   });
 

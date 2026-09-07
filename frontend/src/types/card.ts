@@ -7,6 +7,8 @@ export interface Card {
   isDone: boolean;
   startDate?: string | null;
   dueDate?: string | null;
+  coverColor?: string | null;
+  coverImageUrl?: string | null;
   position: number;
   createdAt: string;
   updatedAt: string;
@@ -74,6 +76,8 @@ export interface CardDetail {
   isDone: boolean;
   startDate: string | null;
   dueDate: string | null;
+  coverColor: string | null;
+  coverImageUrl: string | null;
   createdAt: string;
   list: { id: string; name: string; boardId: string };
   members: { userId: string; user: CardUserBrief }[];

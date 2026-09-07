@@ -1,6 +1,25 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { assetUrl } from '../../lib/assets';
 import type { Card } from '../../types/card';
+
+// Dai mau / anh o dinh the (giong Trello)
+function CardCover({ card }: { card: Card }) {
+  if (card.coverImageUrl) {
+    return (
+      <div
+        className="h-24 w-full bg-cover bg-center"
+        style={{ backgroundImage: `url(${assetUrl(card.coverImageUrl)})` }}
+      />
+    );
+  }
+  if (card.coverColor) {
+    return (
+      <div className="h-8 w-full" style={{ backgroundColor: card.coverColor }} />
+    );
+  }
+  return null;
+}
 
 interface Props {
   card: Card;
@@ -158,10 +177,13 @@ export default function CardItem({
     </>
   );
 
+  const hasCover = Boolean(card.coverImageUrl || card.coverColor);
+
   if (overlay) {
     return (
-      <div className="flex rotate-3 scale-[1.03] cursor-grabbing gap-2 rounded-lg bg-white px-3 py-2 text-sm shadow-2xl ring-1 ring-black/5">
-        {body}
+      <div className="overflow-hidden rotate-3 scale-[1.03] cursor-grabbing rounded-lg bg-white text-sm shadow-2xl ring-1 ring-black/5">
+        <CardCover card={card} />
+        <div className="flex gap-2 px-3 py-2">{body}</div>
       </div>
     );
   }
@@ -175,11 +197,12 @@ export default function CardItem({
       onClick={() => onOpen?.(card.id)}
       className={
         isDragging
-          ? 'rounded-lg border-2 border-dashed border-slate-300 bg-slate-200/60 px-3 py-2 text-sm [&_*]:invisible'
-          : 'group/card relative flex cursor-pointer gap-2 rounded-lg bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-black/[0.04] transition-shadow hover:shadow-md'
+          ? 'rounded-lg border-2 border-dashed border-slate-300 bg-slate-200/60 text-sm [&_*]:invisible'
+          : 'group/card relative cursor-pointer overflow-hidden rounded-lg bg-white text-sm shadow-sm ring-1 ring-black/[0.04] transition-shadow hover:shadow-md'
       }
     >
-      {body}
+      {!isDragging && hasCover && <CardCover card={card} />}
+      <div className="flex gap-2 px-3 py-2">{body}</div>
 
       {onRequestDelete && (
         <button
