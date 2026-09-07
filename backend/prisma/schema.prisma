@@ -30,15 +30,22 @@ enum BoardVisibility {
   PUBLIC // Ai dang nhap co link deu xem duoc (chi doc)
 }
 
+enum AuthTokenType {
+  EMAIL_VERIFY // Xac minh dia chi email
+  PASSWORD_RESET // Dat lai mat khau khi quen
+}
+
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String
-  name         String
-  avatarUrl    String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String? // Null neu tai khoan chi dang nhap bang Google
+  name            String
+  avatarUrl       String?
+  emailVerifiedAt DateTime? // Thoi diem xac minh email; null = chua xac minh
+  googleId        String?   @unique // ID Google, co khi lien ket dang nhap Google
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
 
   boards             Board[]
   boardMembers        BoardMember[]
@@ -48,10 +55,26 @@ model User {
   checklistItems      ChecklistItem[]
   activities          Activity[]
   attachments         Attachment[]
+  authTokens          AuthToken[]
   notifications       Notification[] @relation("NotifRecipient")
   actedNotifications  Notification[] @relation("NotifActor")
 
   @@index([email])
+}
+
+// Token 1 lan dung: xac minh email hoac dat lai mat khau.
+// Chi luu HASH cua token (giong cach luu mat khau); token tho gui qua email.
+model AuthToken {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      AuthTokenType
+  tokenHash String        @unique
+  expiresAt DateTime
+  usedAt    DateTime? // Da dung roi thi khong dung lai duoc
+  createdAt DateTime      @default(now())
+
+  @@index([userId, type])
 }
 
 // Thong bao gui rieng cho tung nguoi nhan (userId), co trang thai da doc.

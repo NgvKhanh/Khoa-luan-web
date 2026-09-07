@@ -53,6 +53,13 @@ export async function loginUser(input: LoginInput) {
     throw new AppError('Email hoac mat khau khong dung', 401);
   }
 
+  if (!user.passwordHash) {
+    throw new AppError(
+      'Tai khoan nay dang nhap bang Google. Hay dung nut "Dang nhap voi Google".',
+      400
+    );
+  }
+
   const isPasswordValid = await comparePassword(
     input.password,
     user.passwordHash
@@ -135,6 +142,13 @@ export async function changeUserPassword(
   });
   if (!user) {
     throw new AppError('Khong tim thay nguoi dung', 404);
+  }
+
+  if (!user.passwordHash) {
+    throw new AppError(
+      'Tai khoan Google chua co mat khau. Hay dung chuc nang "Quen mat khau" de dat mat khau moi.',
+      400
+    );
   }
 
   const ok = await comparePassword(input.currentPassword, user.passwordHash);
