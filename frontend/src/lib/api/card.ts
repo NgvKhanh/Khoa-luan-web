@@ -27,6 +27,7 @@ export async function updateCard(
     title?: string;
     description?: string | null;
     isDone?: boolean;
+    startDate?: string | null;
     dueDate?: string | null;
   }
 ): Promise<Card> {

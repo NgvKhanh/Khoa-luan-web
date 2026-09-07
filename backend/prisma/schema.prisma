@@ -159,6 +159,7 @@ model Card {
   title       String
   description String?
   isDone      Boolean   @default(false) // Danh dau the da hoan thanh
+  startDate   DateTime? // Ngay bat dau (null = khong dat)
   dueDate     DateTime? // Ngay het han (null = khong dat)
   position    Int       @default(0)
   createdAt   DateTime  @default(now())

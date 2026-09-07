@@ -5,6 +5,7 @@ export interface Card {
   title: string;
   description: string | null;
   isDone: boolean;
+  startDate?: string | null;
   dueDate?: string | null;
   position: number;
   createdAt: string;
@@ -71,6 +72,7 @@ export interface CardDetail {
   title: string;
   description: string | null;
   isDone: boolean;
+  startDate: string | null;
   dueDate: string | null;
   createdAt: string;
   list: { id: string; name: string; boardId: string };

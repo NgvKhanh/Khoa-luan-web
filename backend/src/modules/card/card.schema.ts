@@ -20,7 +20,8 @@ export const updateCardSchema = z
       .union([z.string().trim().max(5000, 'Mo ta qua dai'), z.null()])
       .optional(),
     isDone: z.boolean().optional(),
-    // ISO date string, hoac null de bo ngay het han
+    // ISO date string, hoac null de bo ngay bat dau / het han
+    startDate: z.union([z.string().datetime(), z.null()]).optional(),
     dueDate: z.union([z.string().datetime(), z.null()]).optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {

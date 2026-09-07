@@ -116,6 +116,9 @@ export async function updateCard(
         ? { description: input.description }
         : {}),
       ...(input.isDone !== undefined ? { isDone: input.isDone } : {}),
+      ...(input.startDate !== undefined
+        ? { startDate: input.startDate ? new Date(input.startDate) : null }
+        : {}),
       ...(input.dueDate !== undefined
         ? { dueDate: input.dueDate ? new Date(input.dueDate) : null }
         : {}),

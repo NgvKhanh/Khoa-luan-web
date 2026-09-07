@@ -201,6 +201,7 @@ export default function CardModal({
 
   const cardLabelIds = new Set(card?.labels.map((l) => l.labelId));
   const cardMemberIds = new Set(card?.members.map((m) => m.userId));
+  const startRef = useRef<HTMLInputElement>(null);
   const dueRef = useRef<HTMLInputElement>(null);
 
   return createPortal(
@@ -352,7 +353,10 @@ export default function CardModal({
                 </div>
 
                 {/* Huy hieu: nhan / ngay / thanh vien */}
-                {(card.labels.length > 0 || card.dueDate || card.members.length > 0) && (
+                {(card.labels.length > 0 ||
+                  card.startDate ||
+                  card.dueDate ||
+                  card.members.length > 0) && (
                   <div className="mb-4 flex flex-wrap gap-4 pl-7">
                     {card.labels.length > 0 && (
                       <div>
@@ -370,11 +374,20 @@ export default function CardModal({
                         </div>
                       </div>
                     )}
-                    {card.dueDate && (
+                    {(card.startDate || card.dueDate) && (
                       <div>
-                        <p className="mb-1 text-xs font-semibold text-slate-500">Ngày hết hạn</p>
+                        <p className="mb-1 text-xs font-semibold text-slate-500">
+                          {card.startDate && card.dueDate
+                            ? 'Ngày bắt đầu → hết hạn'
+                            : card.startDate
+                              ? 'Ngày bắt đầu'
+                              : 'Ngày hết hạn'}
+                        </p>
                         <span className="inline-flex items-center gap-1.5 rounded bg-white px-2 py-1 text-xs text-slate-700 ring-1 ring-slate-200">
-                          {fmt(card.dueDate)}
+                          {[card.startDate, card.dueDate]
+                            .filter(Boolean)
+                            .map((d) => fmt(d as string))
+                            .join('  →  ')}
                         </span>
                       </div>
                     )}
@@ -509,8 +522,23 @@ export default function CardModal({
                   )}
 
                   {panel === 'due' && (
-                    <div className="absolute left-7 top-10 z-10 w-64 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
-                      <p className="mb-2 text-xs font-semibold text-slate-500">Ngày hết hạn</p>
+                    <div className="absolute left-7 top-10 z-10 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+                      <label className="mb-1 block text-xs font-semibold text-slate-500">
+                        Ngày bắt đầu
+                      </label>
+                      <input
+                        ref={startRef}
+                        type="datetime-local"
+                        defaultValue={
+                          card.startDate
+                            ? new Date(card.startDate).toISOString().slice(0, 16)
+                            : ''
+                        }
+                        className="mb-3 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                      />
+                      <label className="mb-1 block text-xs font-semibold text-slate-500">
+                        Ngày hết hạn
+                      </label>
                       <input
                         ref={dueRef}
                         type="datetime-local"
@@ -521,14 +549,16 @@ export default function CardModal({
                         }
                         className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
                       />
-                      <div className="mt-2 flex gap-2">
+                      <div className="mt-3 flex gap-2">
                         <button
                           type="button"
                           onClick={() => {
+                            const s = startRef.current?.value;
                             const v = dueRef.current?.value;
                             setPanel(null);
                             void run(() =>
                               updateCard(card.id, {
+                                startDate: s ? new Date(s).toISOString() : null,
                                 dueDate: v ? new Date(v).toISOString() : null,
                               })
                             );
@@ -537,12 +567,17 @@ export default function CardModal({
                         >
                           Lưu
                         </button>
-                        {card.dueDate && (
+                        {(card.startDate || card.dueDate) && (
                           <button
                             type="button"
                             onClick={() => {
                               setPanel(null);
-                              void run(() => updateCard(card.id, { dueDate: null }));
+                              void run(() =>
+                                updateCard(card.id, {
+                                  startDate: null,
+                                  dueDate: null,
+                                })
+                              );
                             }}
                             className="rounded px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
                           >
