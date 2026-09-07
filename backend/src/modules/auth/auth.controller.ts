@@ -8,13 +8,17 @@ import {
   getUserProfile,
   loginUser,
   registerUser,
+  requestPasswordReset,
+  resetPassword as resetPasswordService,
   setUserAvatar,
   updateUserProfile,
 } from './auth.service';
 import type {
   ChangePasswordInput,
+  ForgotPasswordInput,
   LoginInput,
   RegisterInput,
+  ResetPasswordInput,
   UpdateProfileInput,
 } from './auth.schema';
 
@@ -115,5 +119,29 @@ export const changePassword = asyncHandler(
     }
     await changeUserPassword(req.user.id, req.body as ChangePasswordInput);
     res.json({ success: true, message: 'Da doi mat khau' });
+  }
+);
+
+export const forgotPassword = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { previewUrl } = await requestPasswordReset(
+      req.body as ForgotPasswordInput
+    );
+    res.json({
+      success: true,
+      message:
+        'Neu email da dang ky, chung toi da gui huong dan dat lai mat khau. Vui long kiem tra hop thu.',
+      data: previewUrl ? { previewUrl } : undefined,
+    });
+  }
+);
+
+export const resetPassword = asyncHandler(
+  async (req: Request, res: Response) => {
+    await resetPasswordService(req.body as ResetPasswordInput);
+    res.json({
+      success: true,
+      message: 'Da dat lai mat khau. Ban co the dang nhap bang mat khau moi.',
+    });
   }
 );

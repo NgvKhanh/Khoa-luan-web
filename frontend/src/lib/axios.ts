@@ -14,13 +14,21 @@ export const api = axios.create({
   withCredentials: true,
 });
 
+// Cac trang cong khai (chua dang nhap van xem duoc) - khong da ve /login khi 401
+const PUBLIC_PATHS = [
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+];
+
 // Neu server tra ve 401 (het han / khong hop le), dua ve trang dang nhap
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       const path = window.location.pathname;
-      if (path !== '/login' && path !== '/register') {
+      if (!PUBLIC_PATHS.includes(path)) {
         window.location.assign('/login');
       }
     }

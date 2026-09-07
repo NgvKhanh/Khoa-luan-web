@@ -66,12 +66,22 @@ export default function LoginPage() {
           />
         </div>
 
-        <PasswordField
-          label="Mật khẩu"
-          value={password}
-          onChange={setPassword}
-          autoComplete="current-password"
-        />
+        <div>
+          <PasswordField
+            label="Mật khẩu"
+            value={password}
+            onChange={setPassword}
+            autoComplete="current-password"
+          />
+          <div className="mt-1.5 text-right">
+            <Link
+              to="/forgot-password"
+              className="text-sm font-medium text-[#1558bc] hover:underline"
+            >
+              Quên mật khẩu?
+            </Link>
+          </div>
+        </div>
 
         <button
           type="submit"

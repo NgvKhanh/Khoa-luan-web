@@ -4,10 +4,12 @@ import MainLayout from './layouts/MainLayout';
 import BoardPage from './pages/BoardPage';
 import CalendarPage from './pages/CalendarPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import HomeDashboard from './pages/HomeDashboard';
 import HomePage from './pages/HomePage';
 import JoinBoardPage from './pages/JoinBoardPage';
 import LoginPage from './pages/LoginPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import MyActivityPage from './pages/MyActivityPage';
 import MyCardsPage from './pages/MyCardsPage';
 import ProfilePage from './pages/ProfilePage';
@@ -20,6 +22,8 @@ function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>

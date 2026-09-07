@@ -1,14 +1,22 @@
+import { env } from '../../config/env';
+import { sendMail } from '../../config/mailer';
 import { prisma } from '../../config/prisma';
 import { avatarPublicPath, removeAvatarFile } from '../../config/upload';
 import { AppError } from '../../utils/AppError';
 import { signToken } from '../../utils/jwt';
 import { comparePassword, hashPassword } from '../../utils/password';
+import { consumeAuthToken, createAuthToken } from './authToken.service';
+import { resetPasswordEmail } from './emailTemplates';
 import type {
   ChangePasswordInput,
+  ForgotPasswordInput,
   LoginInput,
   RegisterInput,
+  ResetPasswordInput,
   UpdateProfileInput,
 } from './auth.schema';
+
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 gio
 
 const PUBLIC_USER_SELECT = {
   id: true,
@@ -159,5 +167,63 @@ export async function changeUserPassword(
   await prisma.user.update({
     where: { id: userId },
     data: { passwordHash: await hashPassword(input.newPassword) },
+  });
+}
+
+/**
+ * Quen mat khau: neu email ton tai (va la tai khoan co mat khau) thi gui mail
+ * chua link dat lai. Ham nay KHONG bao gio bao "email khong ton tai" -> tranh
+ * lo danh sach email da dang ky. Controller luon tra ve cung mot thong bao.
+ *
+ * Tra ve previewUrl (link xem mail Ethereal) khi chay dev, de tien kiem thu.
+ */
+export async function requestPasswordReset(
+  input: ForgotPasswordInput
+): Promise<{ previewUrl: string | null }> {
+  const user = await prisma.user.findFirst({
+    where: { email: input.email, deletedAt: null },
+    select: { id: true, name: true, email: true, passwordHash: true },
+  });
+
+  // Khong co user, hoac tai khoan chi dang nhap Google -> im lang bo qua
+  if (!user) {
+    return { previewUrl: null };
+  }
+
+  const rawToken = await createAuthToken(
+    user.id,
+    'PASSWORD_RESET',
+    PASSWORD_RESET_TTL_MS
+  );
+  const url = `${env.frontendUrl}/reset-password?token=${rawToken}`;
+
+  try {
+    const { subject, html } = resetPasswordEmail({
+      name: user.name,
+      url,
+      expiresInMinutes: PASSWORD_RESET_TTL_MS / 60000,
+    });
+    const { previewUrl } = await sendMail({ to: user.email, subject, html });
+    return { previewUrl: env.isProduction ? null : previewUrl };
+  } catch (err) {
+    console.error('[auth] Gui mail dat lai mat khau that bai:', err);
+    return { previewUrl: null };
+  }
+}
+
+/**
+ * Dat lai mat khau bang token trong link email.
+ * Token hop le -> doi mat khau, danh dau token da dung, coi email da xac minh.
+ */
+export async function resetPassword(input: ResetPasswordInput): Promise<void> {
+  const userId = await consumeAuthToken(input.token, 'PASSWORD_RESET');
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      passwordHash: await hashPassword(input.newPassword),
+      // Dat lai mat khau qua email cung chung minh so huu email
+      emailVerifiedAt: new Date(),
+    },
   });
 }

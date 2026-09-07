@@ -38,3 +38,23 @@ export async function fetchMyActivity(): Promise<MyActivity[]> {
   );
   return res.data.data.activities;
 }
+
+// Quen mat khau: gui email chua link dat lai.
+// previewUrl chi co khi backend chay dev + dung Ethereal (mail ao).
+export async function forgotPassword(
+  email: string
+): Promise<{ previewUrl?: string }> {
+  const res = await api.post<{ data?: { previewUrl?: string } }>(
+    '/auth/forgot-password',
+    { email }
+  );
+  return res.data.data ?? {};
+}
+
+// Dat lai mat khau bang token trong link email.
+export async function resetPassword(
+  token: string,
+  newPassword: string
+): Promise<void> {
+  await api.post('/auth/reset-password', { token, newPassword });
+}
