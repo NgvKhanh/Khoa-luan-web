@@ -38,6 +38,7 @@ import CardModal from '../components/board/CardModal';
 import CardItem from '../components/board/CardItem';
 import ListColumn from '../components/board/ListColumn';
 import ListColumnOverlay from '../components/board/ListColumnOverlay';
+import ShortcutsHelp from '../components/board/ShortcutsHelp';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
@@ -169,6 +170,7 @@ export default function BoardPage() {
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [filter, setFilter] = useState<BoardFilter>(EMPTY_FILTER);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [activeList, setActiveList] = useState<BoardList | null>(null);
@@ -316,6 +318,62 @@ export default function BoardPage() {
       socket.off('connect', onConnect);
     };
   }, [boardId, navigate, patchBoard]);
+
+  // ---------- Phím tắt ----------
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      const typing =
+        el &&
+        (el.tagName === 'INPUT' ||
+          el.tagName === 'TEXTAREA' ||
+          el.tagName === 'SELECT' ||
+          el.isContentEditable);
+      if (typing) return;
+
+      // '?' luôn dùng được (kể cả khi mở thẻ)
+      if (e.key === '?') {
+        e.preventDefault();
+        setShortcutsOpen((v) => !v);
+        return;
+      }
+      // Đang mở modal thẻ hoặc bảng phím tắt -> bỏ qua các phím còn lại
+      if (openCardId || shortcutsOpen) return;
+
+      switch (e.key.toLowerCase()) {
+        case 'n': {
+          e.preventDefault();
+          const btn = document.querySelector<HTMLButtonElement>('[data-add-card]');
+          btn?.scrollIntoView({ block: 'nearest', inline: 'center' });
+          btn?.click();
+          break;
+        }
+        case 'f':
+          e.preventDefault();
+          setFilterOpen((v) => !v);
+          break;
+        case 'b':
+          e.preventDefault();
+          if (!readOnly) setBgMenuOpen((v) => !v);
+          break;
+        case 'x':
+          e.preventDefault();
+          setFilter(EMPTY_FILTER);
+          break;
+        case 'q':
+          e.preventDefault();
+          setFilter((f) => ({
+            ...EMPTY_FILTER,
+            ...f,
+            assignedToMe: !f.assignedToMe,
+          }));
+          break;
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [openCardId, shortcutsOpen, readOnly]);
 
   const listDndIds = useMemo(() => lists.map((l) => `list-${l.id}`), [lists]);
 
@@ -1015,6 +1073,10 @@ export default function BoardPage() {
           onClose={() => setOpenCardId(null)}
           onChanged={reloadLists}
         />
+      )}
+
+      {shortcutsOpen && (
+        <ShortcutsHelp onClose={() => setShortcutsOpen(false)} />
       )}
     </div>
   );

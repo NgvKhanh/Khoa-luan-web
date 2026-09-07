@@ -56,6 +56,7 @@ export default function AddCardForm({ onAdd, open, onOpenChange }: Props) {
     return (
       <button
         type="button"
+        data-add-card
         onClick={() => setIsOpen(true)}
         className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-sm text-slate-500 hover:bg-black/5"
       >
