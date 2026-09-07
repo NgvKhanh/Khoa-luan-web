@@ -4,6 +4,7 @@ import MainLayout from './layouts/MainLayout';
 import BoardPage from './pages/BoardPage';
 import CalendarPage from './pages/CalendarPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
+import HomeDashboard from './pages/HomeDashboard';
 import HomePage from './pages/HomePage';
 import JoinBoardPage from './pages/JoinBoardPage';
 import LoginPage from './pages/LoginPage';
@@ -23,6 +24,7 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/home" element={<HomeDashboard />} />
           <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/my-cards" element={<MyCardsPage />} />
           <Route path="/calendar" element={<CalendarPage />} />

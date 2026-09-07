@@ -3,7 +3,11 @@ import { requireAuth } from '../../middleware/auth.middleware';
 import { AppError } from '../../utils/AppError';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { assertBoardView } from '../board/board.service';
-import { listBoardActivity, listMyActivity } from './activity.service';
+import {
+  listBoardActivity,
+  listHomeActivity,
+  listMyActivity,
+} from './activity.service';
 
 const router = Router();
 router.use(requireAuth);
@@ -14,6 +18,16 @@ router.get(
   asyncHandler(async (req, res) => {
     if (!req.user) throw new AppError('Ban chua dang nhap', 401);
     const activities = await listMyActivity(req.user.id);
+    res.json({ success: true, data: { activities } });
+  })
+);
+
+// GET /api/activities/home -> nhat ky gop tren moi bang cua toi
+router.get(
+  '/home',
+  asyncHandler(async (req, res) => {
+    if (!req.user) throw new AppError('Ban chua dang nhap', 401);
+    const activities = await listHomeActivity(req.user.id);
     res.json({ success: true, data: { activities } });
   })
 );

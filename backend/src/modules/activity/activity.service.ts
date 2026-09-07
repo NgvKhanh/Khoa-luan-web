@@ -68,6 +68,27 @@ export async function listBoardActivity(boardId: string) {
   });
 }
 
+// Nhat ky hoat dong tren TAT CA cac bang user tham gia (ke ca nguoi khac lam)
+export async function listHomeActivity(userId: string) {
+  const memberships = await prisma.boardMember.findMany({
+    where: { userId, deletedAt: null, board: { deletedAt: null, archivedAt: null } },
+    select: { boardId: true },
+  });
+  const boardIds = memberships.map((m) => m.boardId);
+  if (boardIds.length === 0) return [];
+
+  return prisma.activity.findMany({
+    where: { boardId: { in: boardIds } },
+    orderBy: { createdAt: 'desc' },
+    take: 30,
+    include: {
+      user: { select: ACTIVITY_USER_SELECT },
+      board: { select: { id: true, name: true } },
+      card: { select: { id: true, title: true } },
+    },
+  });
+}
+
 // Nhat ky thao tac cua chinh nguoi dung tren moi bang
 export async function listMyActivity(userId: string) {
   return prisma.activity.findMany({

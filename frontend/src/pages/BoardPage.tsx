@@ -68,6 +68,7 @@ import {
 } from '../lib/api/list';
 import { assetUrl } from '../lib/assets';
 import { socket } from '../lib/socket';
+import { pushRecentBoard } from '../lib/recentBoards';
 import { getErrorMessage } from '../lib/errorMessage';
 import {
   EMPTY_FILTER,
@@ -146,6 +147,11 @@ export default function BoardPage() {
 
   const board = memberBoard ?? fetchedBoard ?? undefined;
   const canEdit = Boolean(memberBoard) || fetchedBoard?.canEdit === true;
+
+  // Ghi nho bang vua mo cho muc "Truy cap nhanh" o Trang chu
+  useEffect(() => {
+    if (board?.id) pushRecentBoard(board.id);
+  }, [board?.id]);
   const readOnly = board != null && !canEdit;
   const isOwner = Boolean(board && user && board.ownerId === user.id);
 

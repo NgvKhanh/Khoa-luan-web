@@ -62,6 +62,18 @@ export async function fetchBoardActivity(
   return res.data.data.activities;
 }
 
+export interface HomeActivity extends BoardActivity {
+  board: { id: string; name: string } | null;
+}
+
+// Nhat ky gop tren moi bang cua toi (ke ca nguoi khac lam)
+export async function fetchHomeActivity(): Promise<HomeActivity[]> {
+  const res = await api.get<{ data: { activities: HomeActivity[] } }>(
+    '/activities/home'
+  );
+  return res.data.data.activities;
+}
+
 export async function createBoard(input: {
   name: string;
   color?: string;

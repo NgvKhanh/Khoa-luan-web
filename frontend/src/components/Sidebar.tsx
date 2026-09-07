@@ -57,12 +57,15 @@ export default function Sidebar() {
           Mẫu
         </NavLink>
 
-        <button type="button" className={INACTIVE}>
+        <NavLink
+          to="/home"
+          className={({ isActive }) => (isActive ? ACTIVE : INACTIVE)}
+        >
           <span className="text-slate-500">
             <ActivityIcon />
           </span>
           Trang chủ
-        </button>
+        </NavLink>
       </nav>
 
       <div className="my-2 border-t border-slate-200 dark:border-slate-700" />
