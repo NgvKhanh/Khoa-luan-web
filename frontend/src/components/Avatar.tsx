@@ -22,13 +22,15 @@ function colorOf(id: string): string {
 
 // So lan thu tai lai anh khi loi (loi tam thoi: server vua restart, mang chap chon...)
 const MAX_RETRY = 3;
-const RETRY_DELAY = [500, 1500, 3000];
+const RETRY_DELAY = [800, 2000, 4000];
 
 /**
- * O avatar tron dung chung: hien anh dai dien neu co (avatarUrl),
- * nguoc lai hien chu cai dau ten tren nen mau theo id.
- * Anh loi -> thu tai lai vai lan (backoff) roi moi tam roi ve chu cai;
- * quay lai tab -> thu lai 1 lan nua (phong khi server phuc hoi sau).
+ * O avatar tron dung chung.
+ * - Luon hien chu cai dau ten lam nen.
+ * - Neu co avatarUrl: tai anh ngam ben tren, chi hien khi tai xong.
+ *   -> anh loi / cham -> nguoi dung chi thay chu cai, KHONG bao gio thay
+ *      bieu tuong "anh vo" cua trinh duyet.
+ * - Anh loi thi thu lai vai lan (backoff); quay lai tab -> thu lai 1 lan.
  */
 export default function Avatar({
   id,
@@ -41,21 +43,25 @@ export default function Avatar({
   avatarUrl?: string | null;
   className?: string;
 }) {
-  // attempt: 0 = lan dau; >0 = da thu lai n lan; -1 = da bo cuoc -> hien chu cai
-  const [attempt, setAttempt] = useState(0);
+  const [attempt, setAttempt] = useState(0); // -1 = da bo cuoc
+  const [loaded, setLoaded] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Doi anh -> reset ve thu lai tu dau
+  // Doi anh -> reset
   useEffect(() => {
     setAttempt(0);
+    setLoaded(false);
     return () => clearTimeout(timerRef.current);
   }, [avatarUrl]);
 
-  // Da bo cuoc: khi nguoi dung quay lai tab thi thu lai 1 lan
+  // Da bo cuoc: khi quay lai tab thi thu lai 1 lan
   useEffect(() => {
     if (attempt !== -1) return;
     const onVisible = () => {
-      if (document.visibilityState === 'visible') setAttempt(0);
+      if (document.visibilityState === 'visible') {
+        setLoaded(false);
+        setAttempt(0);
+      }
     };
     window.addEventListener('focus', onVisible);
     document.addEventListener('visibilitychange', onVisible);
@@ -65,40 +71,43 @@ export default function Avatar({
     };
   }, [attempt]);
 
-  if (avatarUrl && attempt !== -1) {
-    // Them tham so ?r= khi thu lai de bo qua cache anh loi
-    const base = assetUrl(avatarUrl);
-    const src = attempt > 0 ? `${base}${base.includes('?') ? '&' : '?'}r=${attempt}` : base;
-    return (
-      <img
-        key={src}
-        src={src}
-        alt={name}
-        title={name}
-        decoding="async"
-        onError={() => {
-          clearTimeout(timerRef.current);
-          if (attempt < MAX_RETRY) {
-            timerRef.current = setTimeout(
-              () => setAttempt((a) => a + 1),
-              RETRY_DELAY[attempt] ?? 3000
-            );
-          } else {
-            setAttempt(-1);
-          }
-        }}
-        className={`shrink-0 rounded-full bg-slate-200 object-cover ${className}`}
-      />
-    );
+  const showImg = Boolean(avatarUrl) && attempt !== -1;
+  let src = '';
+  if (showImg) {
+    const base = assetUrl(avatarUrl as string);
+    src = attempt > 0 ? `${base}${base.includes('?') ? '&' : '?'}r=${attempt}` : base;
   }
 
   return (
     <span
-      className={`grid shrink-0 place-items-center rounded-full font-semibold text-white ${className}`}
+      className={`relative grid shrink-0 place-items-center overflow-hidden rounded-full font-semibold text-white ${className}`}
       style={{ backgroundColor: colorOf(id) }}
       title={name}
     >
-      {initialsOf(name)}
+      <span className={loaded ? 'invisible' : ''}>{initialsOf(name)}</span>
+      {showImg && (
+        <img
+          key={src}
+          src={src}
+          alt=""
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+          onError={() => {
+            clearTimeout(timerRef.current);
+            if (attempt < MAX_RETRY) {
+              timerRef.current = setTimeout(
+                () => setAttempt((a) => a + 1),
+                RETRY_DELAY[attempt] ?? 4000
+              );
+            } else {
+              setAttempt(-1);
+            }
+          }}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity ${
+            loaded ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+      )}
     </span>
   );
 }

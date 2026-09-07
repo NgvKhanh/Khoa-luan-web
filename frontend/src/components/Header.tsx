@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
 import { useTheme } from '../context/ThemeContext';
 import { assetUrl } from '../lib/assets';
-import { initialsOf } from '../lib/avatar';
 import type { Board } from '../types/board';
+import Avatar from './Avatar';
 import CreateBoardDialog from './board/CreateBoardDialog';
 import NotificationBell from './NotificationBell';
 
@@ -238,19 +238,14 @@ function AccountMenu() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         title={user?.name}
-        className="grid h-8 w-8 overflow-hidden rounded-full bg-[#7f5ad5] text-xs font-semibold text-white hover:opacity-90"
+        className="shrink-0 rounded-full hover:opacity-90"
       >
-        {user?.avatarUrl ? (
-          <img
-            src={assetUrl(user.avatarUrl)}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <span className="grid h-full w-full place-items-center">
-            {user ? initialsOf(user.name) : '?'}
-          </span>
-        )}
+        <Avatar
+          id={user?.id ?? 'me'}
+          name={user?.name ?? '?'}
+          avatarUrl={user?.avatarUrl}
+          className="h-8 w-8 text-xs"
+        />
       </button>
 
       {open && (
@@ -259,19 +254,12 @@ function AccountMenu() {
             Tài khoản
           </p>
           <div className="flex items-center gap-2 px-2 py-2">
-            <span className="grid h-9 w-9 shrink-0 overflow-hidden place-items-center rounded-full bg-[#7f5ad5] text-sm font-semibold text-white">
-              {user?.avatarUrl ? (
-                <img
-                  src={assetUrl(user.avatarUrl)}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
-              ) : user ? (
-                initialsOf(user.name)
-              ) : (
-                '?'
-              )}
-            </span>
+            <Avatar
+              id={user?.id ?? 'me'}
+              name={user?.name ?? '?'}
+              avatarUrl={user?.avatarUrl}
+              className="h-9 w-9 text-sm"
+            />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{user?.name}</p>
               <p className="truncate text-xs text-slate-500 dark:text-slate-400">
