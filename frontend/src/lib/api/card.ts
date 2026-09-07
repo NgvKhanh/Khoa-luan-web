@@ -1,6 +1,7 @@
 import { api } from '../axios';
 import type {
   Card,
+  CardAttachment,
   CardComment,
   CardDetail,
   Checklist,
@@ -113,6 +114,23 @@ export async function updateChecklistItem(
 }
 export async function deleteChecklistItem(itemId: string) {
   await api.delete(`/checklist-items/${itemId}`);
+}
+
+// ----- Tep dinh kem -----
+export async function addAttachment(
+  cardId: string,
+  file: File
+): Promise<CardAttachment> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await api.post<{ data: { attachment: CardAttachment } }>(
+    `/cards/${cardId}/attachments`,
+    form
+  );
+  return res.data.data.attachment;
+}
+export async function deleteAttachment(attachmentId: string): Promise<void> {
+  await api.delete(`/attachments/${attachmentId}`);
 }
 
 // ----- Binh luan -----

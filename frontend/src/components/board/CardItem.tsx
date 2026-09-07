@@ -73,11 +73,13 @@ export default function CardItem({
   const checklistItems = card.checklists?.flatMap((c) => c.items) ?? [];
   const clDone = checklistItems.filter((i) => i.isDone).length;
   const commentCount = card.comments?.length ?? 0;
+  const attachmentCount = card.attachments?.length ?? 0;
   const hasBadges =
     (card.labels?.length ?? 0) > 0 ||
     !!card.dueDate ||
     checklistItems.length > 0 ||
     commentCount > 0 ||
+    attachmentCount > 0 ||
     (card.members?.length ?? 0) > 0;
 
   const body = (
@@ -155,6 +157,14 @@ export default function CardItem({
                   <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
                 </svg>
                 {commentCount}
+              </span>
+            )}
+            {attachmentCount > 0 && (
+              <span className="inline-flex items-center gap-0.5">
+                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12.5l-8.5 8.5a5 5 0 01-7-7l9-9a3.5 3.5 0 015 5l-9 9a2 2 0 01-3-3l8-8" />
+                </svg>
+                {attachmentCount}
               </span>
             )}
             {(card.members?.length ?? 0) > 0 && (

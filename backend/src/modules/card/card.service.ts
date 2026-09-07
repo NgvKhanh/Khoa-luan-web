@@ -60,6 +60,12 @@ export async function getCardDetail(userId: string, cardId: string) {
         orderBy: { createdAt: 'desc' },
         include: { user: { select: CARD_USER_SELECT } },
       },
+      attachments: {
+        orderBy: { createdAt: 'desc' },
+        include: {
+          uploader: { select: { id: true, name: true, avatarUrl: true } },
+        },
+      },
       activities: {
         orderBy: { createdAt: 'desc' },
         take: 50,

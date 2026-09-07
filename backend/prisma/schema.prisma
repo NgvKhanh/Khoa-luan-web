@@ -47,6 +47,7 @@ model User {
   comments            Comment[]
   checklistItems      ChecklistItem[]
   activities          Activity[]
+  attachments         Attachment[]
   notifications       Notification[] @relation("NotifRecipient")
   actedNotifications  Notification[] @relation("NotifActor")
 
@@ -168,14 +169,32 @@ model Card {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  list       List        @relation(fields: [listId], references: [id], onDelete: Cascade)
-  members    CardMember[]
-  labels     CardLabel[]
-  checklists Checklist[]
-  comments   Comment[]
-  activities Activity[]
+  list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
+  members     CardMember[]
+  labels      CardLabel[]
+  checklists  Checklist[]
+  comments    Comment[]
+  activities  Activity[]
+  attachments Attachment[]
 
   @@index([listId])
+}
+
+// Tep dinh kem cua 1 the (anh, PDF, tai lieu...)
+model Attachment {
+  id         String   @id @default(cuid())
+  cardId     String
+  uploaderId String
+  name       String // ten hien thi (ten goc cua tep)
+  url        String // duong dan cong khai vd /uploads/cards/xxx.png
+  mime       String
+  size       Int
+  createdAt  DateTime @default(now())
+
+  card     Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  uploader User @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([cardId])
 }
 
 // ===================== THANH VIEN THE / NHAN / CHECKLIST / BINH LUAN / HOAT DONG =====================

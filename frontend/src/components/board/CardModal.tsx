@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  addAttachment,
   addChecklist,
   addChecklistItem,
   addComment,
   addCardMember,
   attachCardLabel,
+  deleteAttachment,
   deleteCard,
   deleteChecklist,
   deleteChecklistItem,
@@ -87,11 +89,19 @@ const COVER_COLORS = [
   '#8590a2',
 ];
 
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function activityText(a: CardActivity): string {
   const d = a.data as Record<string, string>;
   switch (a.type) {
     case 'card.create':
       return `đã thêm thẻ này vào danh sách ${d.listName ?? ''}`;
+    case 'attachment.add':
+      return `đã đính kèm tệp "${d.name ?? ''}"`;
     case 'card.move':
       return `đã chuyển thẻ từ ${d.fromList} sang ${d.toList}`;
     case 'card.rename':
@@ -224,6 +234,8 @@ export default function CardModal({
   const cardMemberIds = new Set(card?.members.map((m) => m.userId));
   const startRef = useRef<HTMLInputElement>(null);
   const dueRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
   // Goi y "@nhac ten" khi dang go @... o cuoi o binh luan
   const mentionQuery = useMemo(() => {
@@ -487,6 +499,34 @@ export default function CardModal({
                   >
                     Ảnh bìa
                   </button>
+                  <button
+                    type="button"
+                    disabled={uploading}
+                    onClick={() => fileRef.current?.click()}
+                    className="rounded bg-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-300 disabled:opacity-60"
+                  >
+                    {uploading ? 'Đang tải lên...' : 'Đính kèm'}
+                  </button>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    hidden
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = '';
+                      if (!f) return;
+                      setUploading(true);
+                      try {
+                        await addAttachment(card.id, f);
+                        await reload();
+                        onChanged();
+                      } catch (err) {
+                        setError(getErrorMessage(err, 'Tải tệp lên thất bại.'));
+                      } finally {
+                        setUploading(false);
+                      }
+                    }}
+                  />
 
                   {panel === 'cover' && (
                     <div className="absolute left-7 top-10 z-10 w-64 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
@@ -770,6 +810,90 @@ export default function CardModal({
                     </button>
                   )}
                 </div>
+
+                {/* Tep dinh kem */}
+                {card.attachments.length > 0 && (
+                  <div className="mb-5 pl-7">
+                    <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 12.5l-8.5 8.5a5 5 0 01-7-7l9-9a3.5 3.5 0 015 5l-9 9a2 2 0 01-3-3l8-8" />
+                      </svg>
+                      Tệp đính kèm
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {card.attachments.map((att) => {
+                        const isImg = att.mime.startsWith('image/');
+                        return (
+                          <div
+                            key={att.id}
+                            className="flex items-center gap-3 rounded-lg bg-white p-2 ring-1 ring-slate-200"
+                          >
+                            <a
+                              href={assetUrl(att.url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded bg-slate-100"
+                            >
+                              {isImg ? (
+                                <img
+                                  src={assetUrl(att.url)}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <span className="text-[10px] font-bold uppercase text-slate-500">
+                                  {att.name.split('.').pop()?.slice(0, 4) || 'TỆP'}
+                                </span>
+                              )}
+                            </a>
+                            <div className="min-w-0 flex-1">
+                              <a
+                                href={assetUrl(att.url)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block truncate text-sm font-medium text-slate-700 hover:underline"
+                              >
+                                {att.name}
+                              </a>
+                              <p className="text-xs text-slate-400">
+                                {formatBytes(att.size)} · {fmt(att.createdAt)}
+                              </p>
+                              {!readOnly && (
+                                <div className="mt-0.5 flex gap-3 text-xs">
+                                  {isImg && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void run(() =>
+                                          updateCard(card.id, {
+                                            coverImageUrl: att.url,
+                                            coverColor: null,
+                                          })
+                                        )
+                                      }
+                                      className="text-slate-500 hover:underline"
+                                    >
+                                      Làm ảnh bìa
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void run(() => deleteAttachment(att.id))
+                                    }
+                                    className="text-slate-500 hover:underline"
+                                  >
+                                    Xoá
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Checklist */}
                 <div className="flex flex-col gap-4 pl-7">

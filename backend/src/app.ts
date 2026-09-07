@@ -8,6 +8,7 @@ import authRoutes from './modules/auth/auth.routes';
 import boardRoutes from './modules/board/board.routes';
 import { boardMemberRoutes } from './modules/board/boardMember.routes';
 import {
+  attachmentRoutes,
   cardRoutes,
   checklistItemRoutes,
   checklistRoutes,
@@ -65,6 +66,7 @@ export function createApp() {
   app.use('/api/cards', cardRoutes);
   app.use('/api/checklists', checklistRoutes);
   app.use('/api/checklist-items', checklistItemRoutes);
+  app.use('/api/attachments', attachmentRoutes);
   app.use('/api/comments', commentRoutes);
   app.use('/api/labels', labelRoutes);
   app.use('/api/notifications', notificationRoutes);

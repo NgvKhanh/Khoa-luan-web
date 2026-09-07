@@ -8,8 +8,10 @@ import { AppError } from '../utils/AppError';
 // Thu muc luu file tai len (nam ngoai src, khong commit len git)
 export const UPLOAD_ROOT = path.join(process.cwd(), 'uploads');
 const BOARD_BG_DIR = path.join(UPLOAD_ROOT, 'boards');
+const CARD_ATTACH_DIR = path.join(UPLOAD_ROOT, 'cards');
 
 fs.mkdirSync(BOARD_BG_DIR, { recursive: true });
+fs.mkdirSync(CARD_ATTACH_DIR, { recursive: true });
 
 // Chi cho phep vai dinh dang anh; suy ra duoi file tu mime de khong tin ten goc
 const MIME_TO_EXT: Record<string, string> = {
@@ -66,6 +68,79 @@ export function uploadBoardBackground(
 // Duong dan cong khai (luu vao DB) tu ten file
 export function boardBackgroundPublicPath(filename: string): string {
   return `/uploads/boards/${filename}`;
+}
+
+// ===================== TEP DINH KEM CUA THE =====================
+
+const ATTACH_MAX_BYTES = 10 * 1024 * 1024; // 10MB
+const ATTACH_ALLOWED_EXT = new Set([
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+  '.gif',
+  '.pdf',
+  '.txt',
+  '.csv',
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.ppt',
+  '.pptx',
+  '.zip',
+]);
+
+const cardAttachmentUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, CARD_ATTACH_DIR),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(
+        null,
+        `${crypto.randomUUID()}${ATTACH_ALLOWED_EXT.has(ext) ? ext : ''}`
+      );
+    },
+  }),
+  limits: { fileSize: ATTACH_MAX_BYTES },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ATTACH_ALLOWED_EXT.has(ext)) {
+      cb(null, true);
+    } else {
+      cb(new AppError('Định dạng tệp không được hỗ trợ', 400));
+    }
+  },
+});
+
+export function uploadCardAttachment(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  cardAttachmentUpload.single('file')(req, res, (err: unknown) => {
+    if (!err) {
+      next();
+      return;
+    }
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      next(new AppError('Tệp quá lớn (tối đa 10MB)', 400));
+      return;
+    }
+    next(err instanceof AppError ? err : new AppError('Tải tệp lên thất bại', 400));
+  });
+}
+
+export function cardAttachmentPublicPath(filename: string): string {
+  return `/uploads/cards/${filename}`;
+}
+
+export function removeCardAttachmentFile(publicPath: string | null): void {
+  if (!publicPath || !publicPath.startsWith('/uploads/cards/')) return;
+  const fullPath = path.join(CARD_ATTACH_DIR, path.basename(publicPath));
+  fs.promises.unlink(fullPath).catch(() => {
+    // File co the da bi xoa -> bo qua
+  });
 }
 
 // Xoa file anh nen cu tren dia (bo qua neu khong con)

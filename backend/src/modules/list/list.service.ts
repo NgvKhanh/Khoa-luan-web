@@ -41,6 +41,7 @@ export async function listBoardLists(userId: string, boardId: string) {
           },
           checklists: { select: { items: { select: { isDone: true } } } },
           comments: { where: { deletedAt: null }, select: { id: true } },
+          attachments: { select: { id: true } },
         },
       },
     },

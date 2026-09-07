@@ -7,10 +7,12 @@ import {
 } from '../label/label.service';
 import { getCardDetail } from './card.service';
 import {
+  addAttachment,
   addCardMember,
   addChecklist,
   addChecklistItem,
   addComment,
+  deleteAttachment,
   deleteChecklist,
   deleteChecklistItem,
   deleteComment,
@@ -146,6 +148,26 @@ export const deleteCommentHandler = asyncHandler(
   async (req: Request, res: Response) => {
     await deleteComment(uid(req), req.params.commentId as string);
     res.json({ success: true, message: 'Da xoa binh luan' });
+  }
+);
+
+// ----- Tep dinh kem -----
+export const addAttachmentHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    if (!req.file) throw new AppError('Chua chon tep', 400);
+    const attachment = await addAttachment(
+      uid(req),
+      req.params.cardId as string,
+      req.file
+    );
+    res.status(201).json({ success: true, data: { attachment } });
+  }
+);
+
+export const deleteAttachmentHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await deleteAttachment(uid(req), req.params.attachmentId as string);
+    res.json({ success: true, message: 'Da xoa tep dinh kem' });
   }
 );
 

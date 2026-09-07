@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { uploadCardAttachment } from '../../config/upload';
 import { requireAuth } from '../../middleware/auth.middleware';
 import { validateBody } from '../../middleware/validate.middleware';
 import {
@@ -9,11 +10,13 @@ import {
 } from './card.controller';
 import { createCardSchema, moveCardSchema, updateCardSchema } from './card.schema';
 import {
+  addAttachmentHandler,
   addCardMemberHandler,
   addChecklistHandler,
   addChecklistItemHandler,
   addCommentHandler,
   attachLabelHandler,
+  deleteAttachmentHandler,
   deleteChecklistHandler,
   deleteChecklistItemHandler,
   deleteCommentHandler,
@@ -73,6 +76,13 @@ cardRoutes.post(
   addCommentHandler
 );
 
+// Tep dinh kem (multipart, field "file")
+cardRoutes.post(
+  '/:cardId/attachments',
+  uploadCardAttachment,
+  addAttachmentHandler
+);
+
 // Gan vao /api/checklists
 export const checklistRoutes = Router();
 checklistRoutes.use(requireAuth);
@@ -97,6 +107,11 @@ checklistItemRoutes.patch(
   updateChecklistItemHandler
 );
 checklistItemRoutes.delete('/:itemId', deleteChecklistItemHandler);
+
+// Gan vao /api/attachments
+export const attachmentRoutes = Router();
+attachmentRoutes.use(requireAuth);
+attachmentRoutes.delete('/:attachmentId', deleteAttachmentHandler);
 
 // Gan vao /api/comments
 export const commentRoutes = Router();

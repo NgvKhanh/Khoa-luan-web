@@ -11,7 +11,8 @@ type ActivityType =
   | 'comment.create'
   | 'member.add'
   | 'member.remove'
-  | 'checklist.add';
+  | 'checklist.add'
+  | 'attachment.add';
 
 interface LogInput {
   boardId: string;

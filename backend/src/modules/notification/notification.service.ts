@@ -10,6 +10,7 @@ export type NotificationType =
   | 'card.member.added'
   | 'card.comment'
   | 'card.mentioned'
+  | 'card.attachment.added'
   | 'card.moved'
   | 'card.renamed'
   | 'card.due.set'

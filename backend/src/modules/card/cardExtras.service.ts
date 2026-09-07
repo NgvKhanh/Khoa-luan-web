@@ -1,4 +1,8 @@
 import { prisma } from '../../config/prisma';
+import {
+  cardAttachmentPublicPath,
+  removeCardAttachmentFile,
+} from '../../config/upload';
 import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity/activity.service';
 import { cardMemberIds, notify } from '../notification/notification.service';
@@ -326,5 +330,67 @@ export async function deleteComment(userId: string, commentId: string) {
   await prisma.comment.update({
     where: { id: commentId },
     data: { deletedAt: new Date() },
+  });
+}
+
+// ---------- Tep dinh kem ----------
+
+export async function addAttachment(
+  userId: string,
+  cardId: string,
+  file: Express.Multer.File
+) {
+  const card = await assertCardAccess(userId, cardId);
+  // multer giai ma ten goc theo latin1 -> chuyen ve utf8 cho dung tieng Viet
+  const name = Buffer.from(file.originalname, 'latin1')
+    .toString('utf8')
+    .slice(0, 200);
+
+  const attachment = await prisma.attachment.create({
+    data: {
+      cardId,
+      uploaderId: userId,
+      name,
+      url: cardAttachmentPublicPath(file.filename),
+      mime: file.mimetype,
+      size: file.size,
+    },
+    include: {
+      uploader: { select: { id: true, name: true, avatarUrl: true } },
+    },
+  });
+
+  await logActivity({
+    boardId: card.list.boardId,
+    cardId,
+    userId,
+    type: 'attachment.add',
+    data: { name },
+  });
+  await notify({
+    recipients: await cardMemberIds(cardId),
+    actorId: userId,
+    type: 'card.attachment.added',
+    boardId: card.list.boardId,
+    cardId,
+    data: { cardTitle: card.title, name },
+  });
+
+  return attachment;
+}
+
+export async function deleteAttachment(userId: string, attachmentId: string) {
+  const att = await prisma.attachment.findUnique({
+    where: { id: attachmentId },
+  });
+  if (!att) throw new AppError('Khong tim thay tep dinh kem', 404);
+  await assertCardAccess(userId, att.cardId);
+
+  await prisma.attachment.delete({ where: { id: attachmentId } });
+  removeCardAttachmentFile(att.url);
+  // Neu tep nay dang lam anh bia -> bo anh bia
+  await prisma.card.updateMany({
+    where: { id: att.cardId, coverImageUrl: att.url },
+    data: { coverImageUrl: null },
   });
 }

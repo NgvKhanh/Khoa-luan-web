@@ -17,6 +17,17 @@ export interface Card {
   members?: { userId: string; user: CardUserBrief }[];
   checklists?: { id: string; items: { id: string; isDone: boolean }[] }[];
   comments?: { id: string }[];
+  attachments?: { id: string }[];
+}
+
+export interface CardAttachment {
+  id: string;
+  name: string;
+  url: string;
+  mime: string;
+  size: number;
+  createdAt: string;
+  uploader: { id: string; name: string; avatarUrl: string | null };
 }
 
 interface CardUserBrief {
@@ -84,5 +95,6 @@ export interface CardDetail {
   labels: { labelId: string; label: Label }[];
   checklists: Checklist[];
   comments: CardComment[];
+  attachments: CardAttachment[];
   activities: CardActivity[];
 }
