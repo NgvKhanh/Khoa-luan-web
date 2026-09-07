@@ -2,12 +2,14 @@ import type { Request, Response } from 'express';
 import { AppError } from '../../utils/AppError';
 import { asyncHandler } from '../../utils/asyncHandler';
 import type {
+  CopyCardInput,
   CreateCardInput,
   MoveCardInput,
   UpdateCardInput,
 } from './card.schema';
 import {
   archiveCard,
+  copyCard,
   createCard,
   deleteCard,
   listMyCards,
@@ -52,6 +54,19 @@ export const updateCardHandler = asyncHandler(
       req.body as UpdateCardInput
     );
     res.json({ success: true, message: 'Da cap nhat the', data: { card } });
+  }
+);
+
+export const copyCardHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const card = await copyCard(
+      requireUserId(req),
+      req.params.cardId as string,
+      req.body as CopyCardInput
+    );
+    res
+      .status(201)
+      .json({ success: true, message: 'Da sao chep the', data: { card } });
   }
 );
 

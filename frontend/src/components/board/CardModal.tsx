@@ -8,6 +8,7 @@ import {
   addCardMember,
   archiveCard,
   attachCardLabel,
+  copyCard,
   deleteAttachment,
   deleteChecklist,
   deleteChecklistItem,
@@ -23,6 +24,7 @@ import {
 import { assetUrl } from '../../lib/assets';
 import { initialsOf } from '../../lib/avatar';
 import { getErrorMessage } from '../../lib/errorMessage';
+import { MiniMarkdown } from '../../lib/miniMarkdown';
 import type { BoardMember } from '../../types/board';
 import type { CardActivity, CardComment, CardDetail, Label } from '../../types/card';
 
@@ -150,10 +152,13 @@ export default function CardModal({
     | 'menu'
     | 'checklist'
     | 'cover'
+    | 'copy'
     | null
   >(null);
   const [clTitle, setClTitle] = useState('Việc cần làm');
   const [clCopyFrom, setClCopyFrom] = useState('');
+  const [copyTitle, setCopyTitle] = useState('');
+  const [copyListId, setCopyListId] = useState('');
   const [showDetails, setShowDetails] = useState(false);
   const [itemPanel, setItemPanel] = useState<{
     id: string;
@@ -328,6 +333,17 @@ export default function CardModal({
                     <button
                       type="button"
                       onClick={() => {
+                        setCopyTitle(`${card.title} (bản sao)`);
+                        setCopyListId(card.listId);
+                        setPanel('copy');
+                      }}
+                      className="block w-full rounded px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100"
+                    >
+                      Sao chép thẻ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
                         setPanel(null);
                         void run(async () => {
                           await archiveCard(card.id);
@@ -337,6 +353,50 @@ export default function CardModal({
                       className="block w-full rounded px-2 py-1.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
                     >
                       Lưu trữ
+                    </button>
+                  </div>
+                )}
+                {panel === 'copy' && !readOnly && (
+                  <div className="absolute right-0 top-9 z-10 w-64 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+                    <p className="mb-2 text-sm font-semibold">Sao chép thẻ</p>
+                    <label className="mb-1 block text-xs font-semibold text-slate-500">
+                      Tiêu đề
+                    </label>
+                    <textarea
+                      autoFocus
+                      rows={2}
+                      value={copyTitle}
+                      onChange={(e) => setCopyTitle(e.target.value)}
+                      className="mb-2 w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+                    />
+                    <label className="mb-1 block text-xs font-semibold text-slate-500">
+                      Danh sách
+                    </label>
+                    <select
+                      value={copyListId}
+                      onChange={(e) => setCopyListId(e.target.value)}
+                      className="mb-3 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+                    >
+                      {lists.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPanel(null);
+                        void run(() =>
+                          copyCard(card.id, {
+                            title: copyTitle.trim() || undefined,
+                            listId: copyListId || undefined,
+                          })
+                        );
+                      }}
+                      className="w-full rounded-lg bg-[#0c66e4] py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4]"
+                    >
+                      Tạo thẻ
                     </button>
                   </div>
                 )}
@@ -761,18 +821,28 @@ export default function CardModal({
 
                 {/* Mo ta */}
                 <div className="mb-5 pl-7">
-                  <p className="mb-1 text-sm font-semibold text-slate-700">Mô tả</p>
+                  <p className="mb-1 text-sm font-semibold text-slate-700">
+                    Mô tả{' '}
+                    <span className="font-normal text-xs text-slate-400">
+                      (hỗ trợ Markdown)
+                    </span>
+                  </p>
                   {readOnly ? (
-                    <p className="whitespace-pre-wrap rounded-lg bg-white p-2 text-sm text-slate-600 ring-1 ring-slate-200">
-                      {card.description || 'Không có mô tả.'}
-                    </p>
+                    <div className="rounded-lg bg-white p-2 ring-1 ring-slate-200">
+                      {card.description ? (
+                        <MiniMarkdown text={card.description} />
+                      ) : (
+                        <p className="text-sm text-slate-400">Không có mô tả.</p>
+                      )}
+                    </div>
                   ) : editingDesc ? (
                     <div>
                       <textarea
                         autoFocus
-                        rows={4}
+                        rows={5}
                         value={descDraft}
                         onChange={(e) => setDescDraft(e.target.value)}
+                        placeholder="**đậm**, *nghiêng*, - danh sách, [chữ](liên kết)..."
                         className="w-full rounded-lg border border-slate-300 p-2 text-sm focus:border-[#0c66e4] focus:outline-none"
                       />
                       <div className="mt-2 flex gap-2">
@@ -800,13 +870,25 @@ export default function CardModal({
                         </button>
                       </div>
                     </div>
+                  ) : card.description ? (
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setEditingDesc(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setEditingDesc(true);
+                      }}
+                      className="cursor-pointer rounded-lg bg-white p-2 ring-1 ring-slate-200 hover:bg-slate-50"
+                    >
+                      <MiniMarkdown text={card.description} />
+                    </div>
                   ) : (
                     <button
                       type="button"
                       onClick={() => setEditingDesc(true)}
                       className="block w-full rounded-lg bg-white p-2 text-left text-sm text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
                     >
-                      {card.description || 'Thêm mô tả chi tiết hơn...'}
+                      Thêm mô tả chi tiết hơn...
                     </button>
                   )}
                 </div>

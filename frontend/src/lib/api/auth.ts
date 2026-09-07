@@ -24,6 +24,14 @@ export async function changePassword(input: {
   await api.patch('/auth/password', input);
 }
 
+// Tai anh dai dien len (field "image", multipart/form-data)
+export async function uploadAvatar(file: File): Promise<User> {
+  const form = new FormData();
+  form.append('image', file);
+  const res = await api.post<{ data: { user: User } }>('/auth/me/avatar', form);
+  return res.data.data.user;
+}
+
 export async function fetchMyActivity(): Promise<MyActivity[]> {
   const res = await api.get<{ data: { activities: MyActivity[] } }>(
     '/activities/me'

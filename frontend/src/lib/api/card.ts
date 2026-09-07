@@ -67,6 +67,17 @@ export async function deleteCard(cardId: string): Promise<void> {
   await api.delete(`/cards/${cardId}`);
 }
 
+export async function copyCard(
+  cardId: string,
+  input: { title?: string; listId?: string }
+): Promise<Card> {
+  const res = await api.post<{ data: { card: Card } }>(
+    `/cards/${cardId}/copy`,
+    input
+  );
+  return res.data.data.card;
+}
+
 // Luu tru / khoi phuc / xoa han the
 export async function archiveCard(cardId: string): Promise<void> {
   await api.post(`/cards/${cardId}/archive`);

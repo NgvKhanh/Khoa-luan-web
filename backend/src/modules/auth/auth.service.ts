@@ -1,4 +1,5 @@
 import { prisma } from '../../config/prisma';
+import { avatarPublicPath, removeAvatarFile } from '../../config/upload';
 import { AppError } from '../../utils/AppError';
 import { signToken } from '../../utils/jwt';
 import { comparePassword, hashPassword } from '../../utils/password';
@@ -105,6 +106,23 @@ export async function updateUserProfile(
     select: PUBLIC_USER_SELECT,
   });
 
+  return user;
+}
+
+// Tai anh dai dien len: luu file, cap nhat avatarUrl, xoa anh cu (neu la file upload)
+export async function setUserAvatar(userId: string, filename: string) {
+  const current = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { avatarUrl: true },
+  });
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { avatarUrl: avatarPublicPath(filename) },
+    select: PUBLIC_USER_SELECT,
+  });
+
+  removeAvatarFile(current?.avatarUrl ?? null);
   return user;
 }
 

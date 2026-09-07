@@ -9,9 +9,11 @@ import { AppError } from '../utils/AppError';
 export const UPLOAD_ROOT = path.join(process.cwd(), 'uploads');
 const BOARD_BG_DIR = path.join(UPLOAD_ROOT, 'boards');
 const CARD_ATTACH_DIR = path.join(UPLOAD_ROOT, 'cards');
+const AVATAR_DIR = path.join(UPLOAD_ROOT, 'avatars');
 
 fs.mkdirSync(BOARD_BG_DIR, { recursive: true });
 fs.mkdirSync(CARD_ATTACH_DIR, { recursive: true });
+fs.mkdirSync(AVATAR_DIR, { recursive: true });
 
 // Chi cho phep vai dinh dang anh; suy ra duoi file tu mime de khong tin ten goc
 const MIME_TO_EXT: Record<string, string> = {
@@ -68,6 +70,53 @@ export function uploadBoardBackground(
 // Duong dan cong khai (luu vao DB) tu ten file
 export function boardBackgroundPublicPath(filename: string): string {
   return `/uploads/boards/${filename}`;
+}
+
+// ===================== ANH DAI DIEN =====================
+
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 2MB
+
+const avatarUploadMw = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, AVATAR_DIR),
+    filename: (_req, file, cb) => {
+      const ext = MIME_TO_EXT[file.mimetype] ?? '';
+      cb(null, `${crypto.randomUUID()}${ext}`);
+    },
+  }),
+  limits: { fileSize: AVATAR_MAX_BYTES },
+  fileFilter: (_req, file, cb) => {
+    if (MIME_TO_EXT[file.mimetype]) {
+      cb(null, true);
+    } else {
+      cb(new AppError('Chỉ chấp nhận ảnh JPG, PNG, WEBP hoặc GIF', 400));
+    }
+  },
+});
+
+export function uploadAvatar(req: Request, res: Response, next: NextFunction) {
+  avatarUploadMw.single('image')(req, res, (err: unknown) => {
+    if (!err) {
+      next();
+      return;
+    }
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      next(new AppError('Ảnh quá lớn (tối đa 2MB)', 400));
+      return;
+    }
+    next(err instanceof AppError ? err : new AppError('Tải ảnh lên thất bại', 400));
+  });
+}
+
+export function avatarPublicPath(filename: string): string {
+  return `/uploads/avatars/${filename}`;
+}
+
+export function removeAvatarFile(publicPath: string | null): void {
+  if (!publicPath || !publicPath.startsWith('/uploads/avatars/')) return;
+  fs.promises
+    .unlink(path.join(AVATAR_DIR, path.basename(publicPath)))
+    .catch(() => {});
 }
 
 // ===================== TEP DINH KEM CUA THE =====================

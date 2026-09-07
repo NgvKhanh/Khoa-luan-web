@@ -4,6 +4,7 @@ import { requireAuth } from '../../middleware/auth.middleware';
 import { validateBody } from '../../middleware/validate.middleware';
 import {
   archiveCardHandler,
+  copyCardHandler,
   createCardHandler,
   deleteCardHandler,
   listMyCardsHandler,
@@ -12,7 +13,12 @@ import {
   restoreCardHandler,
   updateCardHandler,
 } from './card.controller';
-import { createCardSchema, moveCardSchema, updateCardSchema } from './card.schema';
+import {
+  copyCardSchema,
+  createCardSchema,
+  moveCardSchema,
+  updateCardSchema,
+} from './card.schema';
 import {
   addAttachmentHandler,
   addCardMemberHandler,
@@ -53,6 +59,7 @@ cardRoutes.get('/mine', listMyCardsHandler);
 cardRoutes.get('/:cardId', getCardDetailHandler);
 cardRoutes.patch('/:cardId', validateBody(updateCardSchema), updateCardHandler);
 cardRoutes.patch('/:cardId/move', validateBody(moveCardSchema), moveCardHandler);
+cardRoutes.post('/:cardId/copy', validateBody(copyCardSchema), copyCardHandler);
 cardRoutes.post('/:cardId/archive', archiveCardHandler);
 cardRoutes.post('/:cardId/restore', restoreCardHandler);
 cardRoutes.delete('/:cardId/purge', purgeCardHandler);

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { uploadAvatar } from '../../config/upload';
 import { requireAuth } from '../../middleware/auth.middleware';
 import { validateBody } from '../../middleware/validate.middleware';
 import {
@@ -8,6 +9,7 @@ import {
   logout,
   register,
   updateMe,
+  uploadMyAvatar,
 } from './auth.controller';
 import {
   changePasswordSchema,
@@ -23,6 +25,7 @@ router.post('/login', validateBody(loginSchema), login);
 router.post('/logout', logout);
 router.get('/me', requireAuth, getMe);
 router.patch('/me', requireAuth, validateBody(updateProfileSchema), updateMe);
+router.post('/me/avatar', requireAuth, uploadAvatar, uploadMyAvatar);
 router.patch(
   '/password',
   requireAuth,

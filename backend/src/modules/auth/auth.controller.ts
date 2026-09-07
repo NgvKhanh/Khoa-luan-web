@@ -8,6 +8,7 @@ import {
   getUserProfile,
   loginUser,
   registerUser,
+  setUserAvatar,
   updateUserProfile,
 } from './auth.service';
 import type {
@@ -89,6 +90,23 @@ export const updateMe = asyncHandler(async (req: Request, res: Response) => {
     data: { user },
   });
 });
+
+export const uploadMyAvatar = asyncHandler(
+  async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new AppError('Ban chua dang nhap', 401);
+    }
+    if (!req.file) {
+      throw new AppError('Chua chon anh de tai len', 400);
+    }
+    const user = await setUserAvatar(req.user.id, req.file.filename);
+    res.json({
+      success: true,
+      message: 'Da cap nhat anh dai dien',
+      data: { user },
+    });
+  }
+);
 
 export const changePassword = asyncHandler(
   async (req: Request, res: Response) => {

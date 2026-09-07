@@ -17,6 +17,89 @@ const CARD_USER_SELECT = {
   avatarUrl: true,
 } as const;
 
+// Sao chep 1 the (kem nhan, thanh vien, checklist + muc) sang cung/khac danh sach cung bang
+export async function copyCard(
+  userId: string,
+  cardId: string,
+  input: { title?: string; listId?: string }
+) {
+  const src = await assertCardAccess(userId, cardId);
+  const boardId = src.list.boardId;
+  const targetListId = input.listId ?? src.listId;
+
+  if (targetListId !== src.listId) {
+    const tl = await prisma.list.findFirst({
+      where: { id: targetListId, deletedAt: null, archivedAt: null },
+    });
+    if (!tl || tl.boardId !== boardId) {
+      throw new AppError('Danh sach dich khong hop le', 400);
+    }
+  }
+
+  const full = await prisma.card.findUnique({
+    where: { id: cardId },
+    include: {
+      labels: true,
+      members: true,
+      checklists: { include: { items: true } },
+    },
+  });
+
+  const last = await prisma.card.findFirst({
+    where: { listId: targetListId, deletedAt: null, archivedAt: null },
+    orderBy: { position: 'desc' },
+    select: { position: true },
+  });
+
+  const created = await prisma.card.create({
+    data: {
+      listId: targetListId,
+      title: (input.title?.trim() || `${src.title} (bản sao)`).slice(0, 500),
+      description: src.description,
+      startDate: src.startDate,
+      dueDate: src.dueDate,
+      coverColor: src.coverColor,
+      coverImageUrl: src.coverImageUrl,
+      position: last ? last.position + 1 : 0,
+      ...(full && full.labels.length > 0
+        ? { labels: { create: full.labels.map((l) => ({ labelId: l.labelId })) } }
+        : {}),
+      ...(full && full.members.length > 0
+        ? { members: { create: full.members.map((m) => ({ userId: m.userId })) } }
+        : {}),
+      ...(full && full.checklists.length > 0
+        ? {
+            checklists: {
+              create: full.checklists.map((cl) => ({
+                title: cl.title,
+                position: cl.position,
+                items: {
+                  create: cl.items.map((it) => ({
+                    content: it.content,
+                    isDone: it.isDone,
+                    position: it.position,
+                    assigneeId: it.assigneeId,
+                    dueDate: it.dueDate,
+                  })),
+                },
+              })),
+            },
+          }
+        : {}),
+    },
+  });
+
+  await logActivity({
+    boardId,
+    cardId: created.id,
+    userId,
+    type: 'card.create',
+    data: { listName: src.list.name },
+  });
+
+  return created;
+}
+
 // Lay 1 the con hoat dong + kiem tra quyen. Tra ve card kem boardId (de ghi log).
 export async function assertCardAccess(userId: string, cardId: string) {
   const card = await prisma.card.findFirst({

@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { updateProfile } from '../lib/api/auth';
+import { updateProfile, uploadAvatar } from '../lib/api/auth';
 import { assetUrl } from '../lib/assets';
 import { initialsOf } from '../lib/avatar';
 import { getErrorMessage } from '../lib/errorMessage';
@@ -15,6 +15,27 @@ export default function ProfilePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function onPickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    setUploading(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const updated = await uploadAvatar(f);
+      updateUser(updated);
+      setAvatarUrl(updated.avatarUrl ?? '');
+      setSaved(true);
+    } catch (err) {
+      setError(getErrorMessage(err, 'Không tải được ảnh đại diện.'));
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -63,8 +84,25 @@ export default function ProfilePage() {
               {user ? initialsOf(user.name) : '?'}
             </span>
           )}
-          <div className="text-sm text-slate-500 dark:text-slate-400">
-            {user?.email}
+          <div className="min-w-0">
+            <p className="mb-1 truncate text-sm text-slate-500 dark:text-slate-400">
+              {user?.email}
+            </p>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              {uploading ? 'Đang tải lên...' : 'Tải ảnh lên'}
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={onPickAvatar}
+            />
           </div>
         </div>
 
@@ -87,7 +125,8 @@ export default function ProfilePage() {
           className="mb-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
         />
         <p className="mb-4 text-xs text-slate-400">
-          Dán liên kết ảnh. Để trống để dùng chữ cái đầu tên.
+          Dán liên kết ảnh, hoặc dùng nút "Tải ảnh lên" ở trên. Để trống để dùng
+          chữ cái đầu tên.
         </p>
 
         {error && <p className="mb-3 text-sm text-red-600">{error}</p>}

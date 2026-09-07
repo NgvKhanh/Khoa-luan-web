@@ -35,6 +35,12 @@ export const updateCardSchema = z
     message: 'Khong co du lieu nao de cap nhat',
   });
 
+// Sao chep the
+export const copyCardSchema = z.object({
+  title: z.string().trim().min(1).max(500).optional(),
+  listId: z.string().min(1).optional(),
+});
+
 // Keo tha the: chuyen the sang danh sach listId, chen vao vi tri position
 export const moveCardSchema = z.object({
   listId: z.string().min(1, 'Thieu danh sach dich'),
@@ -46,4 +52,5 @@ export const moveCardSchema = z.object({
 
 export type CreateCardInput = z.infer<typeof createCardSchema>;
 export type UpdateCardInput = z.infer<typeof updateCardSchema>;
+export type CopyCardInput = z.infer<typeof copyCardSchema>;
 export type MoveCardInput = z.infer<typeof moveCardSchema>;
