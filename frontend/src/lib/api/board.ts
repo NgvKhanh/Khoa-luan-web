@@ -91,6 +91,37 @@ export async function deleteBoard(boardId: string): Promise<void> {
   await api.delete(`/boards/${boardId}`);
 }
 
+// ----- Luu tru / khoi phuc / xoa han ca bang -----
+export interface ArchivedBoard {
+  id: string;
+  name: string;
+  color: string;
+  backgroundImage: string | null;
+  isOwner: boolean;
+  archivedAt: string;
+}
+export async function fetchArchivedBoards(): Promise<ArchivedBoard[]> {
+  const res = await api.get<{ data: { boards: ArchivedBoard[] } }>(
+    '/boards/archived'
+  );
+  return res.data.data.boards;
+}
+export async function archiveBoard(boardId: string): Promise<void> {
+  await api.post(`/boards/${boardId}/archive-board`);
+}
+export async function restoreBoard(boardId: string): Promise<void> {
+  await api.post(`/boards/${boardId}/restore`);
+}
+export async function purgeBoard(boardId: string): Promise<void> {
+  await api.delete(`/boards/${boardId}/purge`);
+}
+
+// Xuat bang ra JSON (tra ve doi tuong long nhau)
+export async function exportBoard(boardId: string): Promise<unknown> {
+  const res = await api.get<{ data: unknown }>(`/boards/${boardId}/export`);
+  return res.data.data;
+}
+
 // Danh dau / bo danh dau sao bang
 export async function setBoardStar(
   boardId: string,

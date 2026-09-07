@@ -84,6 +84,7 @@ model Board {
   backgroundImage String? // Duong dan anh nen (vd /uploads/boards/xxx.jpg); null = dung mau
   inviteToken     String?   @unique // Token cho link moi; null = link dang tat
   visibility      BoardVisibility @default(PRIVATE)
+  archivedAt      DateTime? // Luu tru ca bang (co the khoi phuc); khac deletedAt (xoa han)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?

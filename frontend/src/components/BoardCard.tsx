@@ -186,9 +186,9 @@ export default function BoardCard({
                 setMenuOpen(false);
                 onRequestDelete(board);
               }}
-              className="w-full rounded-md py-1.5 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+              className="w-full rounded-md py-1.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
             >
-              Xoá bảng
+              Lưu trữ bảng
             </button>
           </div>
         </>

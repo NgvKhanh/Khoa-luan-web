@@ -29,6 +29,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import AddListForm from '../components/board/AddListForm';
+import BoardActionsMenu from '../components/board/BoardActionsMenu';
 import BoardActivityMenu from '../components/board/BoardActivityMenu';
 import BoardArchiveMenu from '../components/board/BoardArchiveMenu';
 import BoardBackgroundMenu from '../components/board/BoardBackgroundMenu';
@@ -118,7 +119,7 @@ export default function BoardPage() {
   const { user } = useAuth();
   const { boards, isLoading, error, patchBoard } =
     useOutletContext<BoardOutletContext>();
-  const { toggleStar } = useBoards();
+  const { toggleStar, removeBoard } = useBoards();
   const memberBoard = boards.find((b) => b.id === boardId);
 
   // Bang cong khai ma minh chua phai thanh vien -> tai truc tiep theo id
@@ -171,6 +172,7 @@ export default function BoardPage() {
   const [filter, setFilter] = useState<BoardFilter>(EMPTY_FILTER);
   const [filterOpen, setFilterOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [boardMenuOpen, setBoardMenuOpen] = useState(false);
 
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [activeList, setActiveList] = useState<BoardList | null>(null);
@@ -934,6 +936,37 @@ export default function BoardPage() {
                 )
               }
             />
+          )}
+
+          {!readOnly && (
+            <div className="relative">
+              <button
+                type="button"
+                data-board-menu-trigger
+                onClick={() => setBoardMenuOpen((v) => !v)}
+                title="Thao tác với bảng"
+                className="rounded bg-white/25 p-1.5 text-white hover:bg-white/40"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+                  <circle cx="5" cy="12" r="1.8" />
+                  <circle cx="12" cy="12" r="1.8" />
+                  <circle cx="19" cy="12" r="1.8" />
+                </svg>
+              </button>
+              {boardMenuOpen && (
+                <BoardActionsMenu
+                  boardId={board.id}
+                  boardName={board.name}
+                  isOwner={isOwner}
+                  onClose={() => setBoardMenuOpen(false)}
+                  onArchived={() => {
+                    setBoardMenuOpen(false);
+                    removeBoard(board.id);
+                    navigate('/', { replace: true });
+                  }}
+                />
+              )}
+            </div>
           )}
         </div>
       </div>

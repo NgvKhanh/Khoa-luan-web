@@ -3,14 +3,14 @@ import {
   boardBackgroundPublicPath,
   removeBoardBackgroundFile,
 } from '../../config/upload';
-import { emitToBoard } from '../../realtime/socket';
+import { emitToBoard, emitToUser } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import type { CreateBoardInput, UpdateBoardInput } from './board.schema';
 
 // Kiem tra nguoi dung la CHU bang. Dung cho: xoa bang, quan ly thanh vien.
 export async function assertBoardOwner(userId: string, boardId: string) {
   const board = await prisma.board.findFirst({
-    where: { id: boardId, deletedAt: null },
+    where: { id: boardId, deletedAt: null, archivedAt: null },
   });
   if (!board) {
     throw new AppError('Khong tim thay bang', 404);
@@ -25,7 +25,7 @@ export async function assertBoardOwner(userId: string, boardId: string) {
 // Dung cho: xem/sua bang, danh sach, the. Export de module list/card dung chung.
 export async function assertBoardAccess(userId: string, boardId: string) {
   const board = await prisma.board.findFirst({
-    where: { id: boardId, deletedAt: null },
+    where: { id: boardId, deletedAt: null, archivedAt: null },
   });
   if (!board) {
     throw new AppError('Khong tim thay bang', 404);
@@ -46,7 +46,7 @@ export async function assertBoardAccess(userId: string, boardId: string) {
 // Tra ve { board, canEdit }.
 export async function assertBoardView(userId: string, boardId: string) {
   const board = await prisma.board.findFirst({
-    where: { id: boardId, deletedAt: null },
+    where: { id: boardId, deletedAt: null, archivedAt: null },
   });
   if (!board) {
     throw new AppError('Khong tim thay bang', 404);
@@ -80,7 +80,7 @@ export async function getBoard(userId: string, boardId: string) {
 // Dung cho: moi/xoa thanh vien, doi vai tro, link moi, duyet yeu cau tham gia.
 export async function assertBoardManage(userId: string, boardId: string) {
   const board = await prisma.board.findFirst({
-    where: { id: boardId, deletedAt: null },
+    where: { id: boardId, deletedAt: null, archivedAt: null },
   });
   if (!board) {
     throw new AppError('Khong tim thay bang', 404);
@@ -101,6 +101,7 @@ export async function listMyBoards(userId: string) {
   const boards = await prisma.board.findMany({
     where: {
       deletedAt: null,
+      archivedAt: null,
       members: { some: { userId, deletedAt: null } },
     },
     orderBy: { createdAt: 'desc' },
@@ -264,6 +265,50 @@ export async function listBoardArchive(userId: string, boardId: string) {
   };
 }
 
+// Xuat toan bo noi dung bang thanh 1 doi tuong JSON long nhau
+export async function exportBoard(userId: string, boardId: string) {
+  await assertBoardView(userId, boardId);
+
+  const USER = { id: true, name: true, email: true } as const;
+  const board = await prisma.board.findUnique({
+    where: { id: boardId },
+    include: {
+      labels: { orderBy: { createdAt: 'asc' } },
+      members: {
+        where: { deletedAt: null },
+        include: { user: { select: USER } },
+      },
+      lists: {
+        where: { deletedAt: null, archivedAt: null },
+        orderBy: { position: 'asc' },
+        include: {
+          cards: {
+            where: { deletedAt: null, archivedAt: null },
+            orderBy: { position: 'asc' },
+            include: {
+              labels: { include: { label: true } },
+              members: { include: { user: { select: USER } } },
+              checklists: {
+                orderBy: { position: 'asc' },
+                include: { items: { orderBy: { position: 'asc' } } },
+              },
+              comments: {
+                where: { deletedAt: null },
+                orderBy: { createdAt: 'asc' },
+                include: { user: { select: USER } },
+              },
+              attachments: { orderBy: { createdAt: 'asc' } },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!board) throw new AppError('Khong tim thay bang', 404);
+
+  return { exportedAt: new Date().toISOString(), version: 1, board };
+}
+
 export async function deleteBoard(userId: string, boardId: string) {
   const board = await assertBoardOwner(userId, boardId);
   await prisma.board.update({
@@ -271,4 +316,77 @@ export async function deleteBoard(userId: string, boardId: string) {
     data: { deletedAt: new Date() },
   });
   removeBoardBackgroundFile(board.backgroundImage);
+}
+
+// ---- Luu tru / khoi phuc / xoa han CA BANG (chi chu bang) ----
+
+// Lay bang bat ke da luu tru + kiem tra la chu bang
+async function assertArchivedBoardOwner(userId: string, boardId: string) {
+  const board = await prisma.board.findFirst({
+    where: { id: boardId, deletedAt: null },
+  });
+  if (!board) throw new AppError('Khong tim thay bang', 404);
+  if (board.ownerId !== userId) {
+    throw new AppError('Chi chu bang moi thuc hien duoc thao tac nay', 403);
+  }
+  return board;
+}
+
+async function boardMemberIds(boardId: string): Promise<string[]> {
+  const rows = await prisma.boardMember.findMany({
+    where: { boardId, deletedAt: null },
+    select: { userId: true },
+  });
+  return rows.map((r) => r.userId);
+}
+
+export async function archiveBoard(userId: string, boardId: string) {
+  await assertBoardOwner(userId, boardId);
+  const memberIds = await boardMemberIds(boardId);
+  await prisma.board.update({
+    where: { id: boardId },
+    data: { archivedAt: new Date() },
+  });
+  // Ai dang mo bang nay -> day ve trang chu
+  for (const id of memberIds) {
+    emitToUser(id, 'board:removed', { boardId });
+  }
+}
+
+export async function restoreBoard(userId: string, boardId: string) {
+  await assertArchivedBoardOwner(userId, boardId);
+  await prisma.board.update({
+    where: { id: boardId },
+    data: { archivedAt: null },
+  });
+}
+
+export async function purgeBoard(userId: string, boardId: string) {
+  const board = await assertArchivedBoardOwner(userId, boardId);
+  await prisma.board.update({
+    where: { id: boardId },
+    data: { deletedAt: new Date() },
+  });
+  removeBoardBackgroundFile(board.backgroundImage);
+}
+
+// Danh sach cac bang da luu tru cua nguoi dung
+export async function listArchivedBoards(userId: string) {
+  const boards = await prisma.board.findMany({
+    where: {
+      deletedAt: null,
+      archivedAt: { not: null },
+      members: { some: { userId, deletedAt: null } },
+    },
+    orderBy: { archivedAt: 'desc' },
+    select: {
+      id: true,
+      name: true,
+      color: true,
+      backgroundImage: true,
+      ownerId: true,
+      archivedAt: true,
+    },
+  });
+  return boards.map((b) => ({ ...b, isOwner: b.ownerId === userId }));
 }

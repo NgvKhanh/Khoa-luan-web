@@ -3,12 +3,17 @@ import { uploadBoardBackground } from '../../config/upload';
 import { requireAuth } from '../../middleware/auth.middleware';
 import { validateBody } from '../../middleware/validate.middleware';
 import {
+  archiveBoardHandler,
   createBoardHandler,
   deleteBoardBackgroundHandler,
   deleteBoardHandler,
+  exportBoardHandler,
   getBoardHandler,
+  listArchivedBoardsHandler,
   listBoardArchiveHandler,
   listMyBoardsHandler,
+  purgeBoardHandler,
+  restoreBoardHandler,
   setBoardStarHandler,
   updateBoardHandler,
   uploadBoardBackgroundHandler,
@@ -34,11 +39,16 @@ router.get('/join/:token', previewInviteHandler);
 router.post('/join/:token', requestToJoinHandler);
 
 router.get('/', listMyBoardsHandler);
+router.get('/archived', listArchivedBoardsHandler);
 router.post('/', validateBody(createBoardSchema), createBoardHandler);
 router.get('/:boardId', getBoardHandler);
 router.get('/:boardId/archive', listBoardArchiveHandler);
+router.get('/:boardId/export', exportBoardHandler);
 router.patch('/:boardId', validateBody(updateBoardSchema), updateBoardHandler);
 router.put('/:boardId/star', setBoardStarHandler);
+router.post('/:boardId/archive-board', archiveBoardHandler);
+router.post('/:boardId/restore', restoreBoardHandler);
+router.delete('/:boardId/purge', purgeBoardHandler);
 router.delete('/:boardId', deleteBoardHandler);
 
 // Anh nen

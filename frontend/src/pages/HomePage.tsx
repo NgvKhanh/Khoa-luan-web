@@ -1,9 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import BoardCard from '../components/BoardCard';
 import CreateBoardDialog from '../components/board/CreateBoardDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useBoards } from '../context/BoardsContext';
-import { deleteBoard } from '../lib/api/board';
+import {
+  archiveBoard,
+  fetchArchivedBoards,
+  purgeBoard,
+  restoreBoard,
+  type ArchivedBoard,
+} from '../lib/api/board';
+import { assetUrl } from '../lib/assets';
 import { getErrorMessage } from '../lib/errorMessage';
 import type { Board } from '../types/board';
 
@@ -45,7 +52,7 @@ function CreateBoardTile({ onCreated }: { onCreated: (board: Board) => void }) {
 }
 
 export default function HomePage() {
-  const { boards, isLoading, error, upsertBoard, removeBoard, toggleStar } =
+  const { boards, isLoading, error, reload, upsertBoard, removeBoard, toggleStar } =
     useBoards();
 
   const starred = boards.filter((b) => b.isStarred);
@@ -54,13 +61,52 @@ export default function HomePage() {
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const [archived, setArchived] = useState<ArchivedBoard[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
+  const [purgeTarget, setPurgeTarget] = useState<ArchivedBoard | null>(null);
+
+  const loadArchived = useCallback(() => {
+    fetchArchivedBoards()
+      .then(setArchived)
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    loadArchived();
+  }, [loadArchived]);
+
   async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await deleteBoard(deleteTarget.id);
+      await archiveBoard(deleteTarget.id);
       removeBoard(deleteTarget.id);
       setDeleteTarget(null);
+      loadArchived();
+    } catch (err) {
+      setActionError(getErrorMessage(err, 'Không lưu trữ được bảng.'));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function handleRestore(b: ArchivedBoard) {
+    setActionError(null);
+    try {
+      await restoreBoard(b.id);
+      setArchived((cur) => cur.filter((x) => x.id !== b.id));
+      await reload();
+    } catch (err) {
+      setActionError(getErrorMessage(err, 'Không khôi phục được bảng.'));
+    }
+  }
+
+  async function confirmPurge() {
+    if (!purgeTarget) return;
+    setDeleting(true);
+    try {
+      await purgeBoard(purgeTarget.id);
+      setArchived((cur) => cur.filter((x) => x.id !== purgeTarget.id));
+      setPurgeTarget(null);
     } catch (err) {
       setActionError(getErrorMessage(err, 'Không xoá được bảng.'));
     } finally {
@@ -118,22 +164,94 @@ export default function HomePage() {
               <CreateBoardTile onCreated={upsertBoard} />
             </div>
           </div>
+
+          {archived.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => setShowArchived((v) => !v)}
+                className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-700"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="4" width="18" height="4" rx="1" />
+                  <path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8M10 12h4" />
+                </svg>
+                Bảng đã lưu trữ ({archived.length})
+                <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 transition-transform ${showArchived ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </button>
+
+              {showArchived && (
+                <ul className="flex flex-col gap-2">
+                  {archived.map((b) => (
+                    <li
+                      key={b.id}
+                      className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-800"
+                    >
+                      <span
+                        className="h-8 w-12 shrink-0 rounded bg-cover bg-center"
+                        style={
+                          b.backgroundImage
+                            ? { backgroundImage: `url(${assetUrl(b.backgroundImage)})` }
+                            : { backgroundColor: b.color }
+                        }
+                      />
+                      <span className="flex-1 truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                        {b.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleRestore(b)}
+                        className="rounded bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200"
+                      >
+                        Khôi phục
+                      </button>
+                      {b.isOwner && (
+                        <button
+                          type="button"
+                          onClick={() => setPurgeTarget(b)}
+                          className="rounded px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                        >
+                          Xoá vĩnh viễn
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </>
       )}
 
       <ConfirmDialog
         open={deleteTarget !== null}
-        title="Xoá bảng?"
+        title="Lưu trữ bảng?"
         message={
           deleteTarget
-            ? `Bảng "${deleteTarget.name}" sẽ bị xoá. Bạn có thể tạo lại sau.`
+            ? `Bảng "${deleteTarget.name}" sẽ được chuyển vào mục "Bảng đã lưu trữ". Bạn có thể khôi phục lại sau.`
             : undefined
         }
-        confirmLabel="Xoá bảng"
-        danger
+        confirmLabel="Lưu trữ"
         busy={deleting}
         onConfirm={confirmDelete}
         onCancel={() => !deleting && setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={purgeTarget !== null}
+        title="Xoá vĩnh viễn bảng?"
+        message={
+          purgeTarget
+            ? `Bảng "${purgeTarget.name}" và toàn bộ danh sách, thẻ bên trong sẽ bị xoá và không thể khôi phục.`
+            : undefined
+        }
+        confirmLabel="Xoá vĩnh viễn"
+        danger
+        busy={deleting}
+        onConfirm={confirmPurge}
+        onCancel={() => !deleting && setPurgeTarget(null)}
       />
     </div>
   );

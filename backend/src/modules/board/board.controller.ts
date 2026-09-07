@@ -3,12 +3,17 @@ import { AppError } from '../../utils/AppError';
 import { asyncHandler } from '../../utils/asyncHandler';
 import type { CreateBoardInput, UpdateBoardInput } from './board.schema';
 import {
+  archiveBoard,
   clearBoardBackground,
   createBoard,
   deleteBoard,
+  exportBoard,
   getBoard,
+  listArchivedBoards,
   listBoardArchive,
   listMyBoards,
+  purgeBoard,
+  restoreBoard,
   setBoardBackground,
   setBoardStar,
   updateBoard,
@@ -45,6 +50,44 @@ export const listBoardArchiveHandler = asyncHandler(
       req.params.boardId as string
     );
     res.json({ success: true, data: archive });
+  }
+);
+
+export const exportBoardHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const data = await exportBoard(
+      requireUserId(req),
+      req.params.boardId as string
+    );
+    res.json({ success: true, data });
+  }
+);
+
+export const listArchivedBoardsHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const boards = await listArchivedBoards(requireUserId(req));
+    res.json({ success: true, data: { boards } });
+  }
+);
+
+export const archiveBoardHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await archiveBoard(requireUserId(req), req.params.boardId as string);
+    res.json({ success: true, message: 'Da luu tru bang' });
+  }
+);
+
+export const restoreBoardHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await restoreBoard(requireUserId(req), req.params.boardId as string);
+    res.json({ success: true, message: 'Da khoi phuc bang' });
+  }
+);
+
+export const purgeBoardHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await purgeBoard(requireUserId(req), req.params.boardId as string);
+    res.json({ success: true, message: 'Da xoa han bang' });
   }
 );
 
