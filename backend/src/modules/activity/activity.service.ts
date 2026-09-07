@@ -8,6 +8,8 @@ type ActivityType =
   | 'card.undone'
   | 'card.due.set'
   | 'card.due.clear'
+  | 'card.archive'
+  | 'card.restore'
   | 'comment.create'
   | 'member.add'
   | 'member.remove'

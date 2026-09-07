@@ -221,6 +221,45 @@ export async function clearBoardBackground(userId: string, boardId: string) {
   return updated;
 }
 
+// Danh sach cac muc da luu tru cua 1 bang (the + danh sach)
+export async function listBoardArchive(userId: string, boardId: string) {
+  await assertBoardAccess(userId, boardId);
+
+  const cards = await prisma.card.findMany({
+    where: {
+      deletedAt: null,
+      archivedAt: { not: null },
+      list: { boardId },
+    },
+    orderBy: { archivedAt: 'desc' },
+    select: {
+      id: true,
+      title: true,
+      archivedAt: true,
+      list: { select: { id: true, name: true } },
+    },
+  });
+
+  const lists = await prisma.list.findMany({
+    where: { boardId, deletedAt: null, archivedAt: { not: null } },
+    orderBy: { archivedAt: 'desc' },
+    select: {
+      id: true,
+      name: true,
+      archivedAt: true,
+      _count: { select: { cards: { where: { deletedAt: null } } } },
+    },
+  });
+
+  return {
+    cards,
+    lists: lists.map(({ _count, ...l }) => ({
+      ...l,
+      cardCount: _count.cards,
+    })),
+  };
+}
+
 export async function deleteBoard(userId: string, boardId: string) {
   const board = await assertBoardOwner(userId, boardId);
   await prisma.board.update({

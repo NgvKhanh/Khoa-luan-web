@@ -137,13 +137,14 @@ model BoardMember {
 
 // Cot trong bang. "position" quyet dinh thu tu tu trai sang phai (so nho nam truoc).
 model List {
-  id        String    @id @default(cuid())
-  boardId   String
-  name      String
-  position  Int       @default(0)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  id         String    @id @default(cuid())
+  boardId    String
+  name       String
+  position   Int       @default(0)
+  archivedAt DateTime? // Luu tru (co the khoi phuc); khac voi deletedAt (xoa han)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
 
   board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
   cards Card[]
@@ -164,6 +165,7 @@ model Card {
   dueDate       DateTime? // Ngay het han (null = khong dat)
   coverColor    String? // Mau anh bia (hex) - null = khong co
   coverImageUrl String? // Anh bia (duong dan/URL) - uu tien hon coverColor
+  archivedAt    DateTime? // Luu tru (co the khoi phuc); khac voi deletedAt (xoa han)
   position    Int       @default(0)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

@@ -6,9 +6,9 @@ import {
   addChecklistItem,
   addComment,
   addCardMember,
+  archiveCard,
   attachCardLabel,
   deleteAttachment,
-  deleteCard,
   deleteChecklist,
   deleteChecklistItem,
   deleteComment,
@@ -330,13 +330,13 @@ export default function CardModal({
                       onClick={() => {
                         setPanel(null);
                         void run(async () => {
-                          await deleteCard(card.id);
+                          await archiveCard(card.id);
                           onClose();
                         });
                       }}
-                      className="block w-full rounded px-2 py-1.5 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+                      className="block w-full rounded px-2 py-1.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
                     >
-                      Xoá thẻ
+                      Lưu trữ
                     </button>
                   </div>
                 )}

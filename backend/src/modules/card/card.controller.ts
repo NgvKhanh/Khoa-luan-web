@@ -6,7 +6,15 @@ import type {
   MoveCardInput,
   UpdateCardInput,
 } from './card.schema';
-import { createCard, deleteCard, moveCard, updateCard } from './card.service';
+import {
+  archiveCard,
+  createCard,
+  deleteCard,
+  moveCard,
+  purgeCard,
+  restoreCard,
+  updateCard,
+} from './card.service';
 
 function requireUserId(req: Request): string {
   if (!req.user) {
@@ -54,5 +62,26 @@ export const deleteCardHandler = asyncHandler(
   async (req: Request, res: Response) => {
     await deleteCard(requireUserId(req), req.params.cardId as string);
     res.json({ success: true, message: 'Da xoa the' });
+  }
+);
+
+export const archiveCardHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await archiveCard(requireUserId(req), req.params.cardId as string);
+    res.json({ success: true, message: 'Da luu tru the' });
+  }
+);
+
+export const restoreCardHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await restoreCard(requireUserId(req), req.params.cardId as string);
+    res.json({ success: true, message: 'Da khoi phuc the' });
+  }
+);
+
+export const purgeCardHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await purgeCard(requireUserId(req), req.params.cardId as string);
+    res.json({ success: true, message: 'Da xoa han the' });
   }
 );

@@ -42,6 +42,17 @@ export async function deleteList(listId: string): Promise<void> {
   await api.delete(`/lists/${listId}`);
 }
 
+// Luu tru / khoi phuc / xoa han danh sach
+export async function archiveList(listId: string): Promise<void> {
+  await api.post(`/lists/${listId}/archive`);
+}
+export async function restoreList(listId: string): Promise<void> {
+  await api.post(`/lists/${listId}/restore`);
+}
+export async function purgeList(listId: string): Promise<void> {
+  await api.delete(`/lists/${listId}/purge`);
+}
+
 // Sao chep danh sach (kem toan bo the), chen ngay sau danh sach goc
 export async function copyList(listId: string): Promise<BoardList> {
   const res = await api.post<{ data: { list: BoardList } }>(

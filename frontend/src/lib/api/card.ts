@@ -45,6 +45,17 @@ export async function deleteCard(cardId: string): Promise<void> {
   await api.delete(`/cards/${cardId}`);
 }
 
+// Luu tru / khoi phuc / xoa han the
+export async function archiveCard(cardId: string): Promise<void> {
+  await api.post(`/cards/${cardId}/archive`);
+}
+export async function restoreCard(cardId: string): Promise<void> {
+  await api.post(`/cards/${cardId}/restore`);
+}
+export async function purgeCard(cardId: string): Promise<void> {
+  await api.delete(`/cards/${cardId}/purge`);
+}
+
 export async function moveCard(
   cardId: string,
   input: { listId: string; position: number }

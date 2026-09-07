@@ -8,12 +8,15 @@ import type {
   UpdateListInput,
 } from './list.schema';
 import {
+  archiveList,
   copyList,
   createList,
   deleteAllCards,
   deleteList,
   listBoardLists,
   moveAllCards,
+  purgeList,
+  restoreList,
   sortListCards,
   updateList,
 } from './list.service';
@@ -63,6 +66,27 @@ export const deleteListHandler = asyncHandler(
   async (req: Request, res: Response) => {
     await deleteList(requireUserId(req), req.params.listId as string);
     res.json({ success: true, message: 'Da xoa danh sach' });
+  }
+);
+
+export const archiveListHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await archiveList(requireUserId(req), req.params.listId as string);
+    res.json({ success: true, message: 'Da luu tru danh sach' });
+  }
+);
+
+export const restoreListHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await restoreList(requireUserId(req), req.params.listId as string);
+    res.json({ success: true, message: 'Da khoi phuc danh sach' });
+  }
+);
+
+export const purgeListHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await purgeList(requireUserId(req), req.params.listId as string);
+    res.json({ success: true, message: 'Da xoa han danh sach' });
   }
 );
 

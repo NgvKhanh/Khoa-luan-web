@@ -7,6 +7,7 @@ import {
   createBoard,
   deleteBoard,
   getBoard,
+  listBoardArchive,
   listMyBoards,
   setBoardBackground,
   setBoardStar,
@@ -34,6 +35,16 @@ export const getBoardHandler = asyncHandler(
       req.params.boardId as string
     );
     res.json({ success: true, data: { board } });
+  }
+);
+
+export const listBoardArchiveHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const archive = await listBoardArchive(
+      requireUserId(req),
+      req.params.boardId as string
+    );
+    res.json({ success: true, data: archive });
   }
 );
 

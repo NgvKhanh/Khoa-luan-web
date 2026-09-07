@@ -20,6 +20,29 @@ export async function fetchBoard(boardId: string): Promise<Board> {
   return res.data.data.board;
 }
 
+export interface ArchivedCard {
+  id: string;
+  title: string;
+  archivedAt: string;
+  list: { id: string; name: string };
+}
+export interface ArchivedList {
+  id: string;
+  name: string;
+  archivedAt: string;
+  cardCount: number;
+}
+
+// Cac muc da luu tru cua bang
+export async function fetchBoardArchive(
+  boardId: string
+): Promise<{ cards: ArchivedCard[]; lists: ArchivedList[] }> {
+  const res = await api.get<{
+    data: { cards: ArchivedCard[]; lists: ArchivedList[] };
+  }>(`/boards/${boardId}/archive`);
+  return res.data.data;
+}
+
 export async function createBoard(input: {
   name: string;
   color?: string;

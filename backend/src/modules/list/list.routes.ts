@@ -2,12 +2,15 @@ import { Router } from 'express';
 import { requireAuth } from '../../middleware/auth.middleware';
 import { validateBody } from '../../middleware/validate.middleware';
 import {
+  archiveListHandler,
   copyListHandler,
   createListHandler,
   deleteAllCardsHandler,
   deleteListHandler,
   listBoardListsHandler,
   moveAllCardsHandler,
+  purgeListHandler,
+  restoreListHandler,
   sortListHandler,
   updateListHandler,
 } from './list.controller';
@@ -28,6 +31,9 @@ boardListRoutes.post('/', validateBody(createListSchema), createListHandler);
 export const listRoutes = Router();
 listRoutes.use(requireAuth);
 listRoutes.patch('/:listId', validateBody(updateListSchema), updateListHandler);
+listRoutes.post('/:listId/archive', archiveListHandler);
+listRoutes.post('/:listId/restore', restoreListHandler);
+listRoutes.delete('/:listId/purge', purgeListHandler);
 listRoutes.delete('/:listId', deleteListHandler);
 
 // Thao tac nang cao voi 1 danh sach

@@ -28,6 +28,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import AddListForm from '../components/board/AddListForm';
+import BoardArchiveMenu from '../components/board/BoardArchiveMenu';
 import BoardBackgroundMenu from '../components/board/BoardBackgroundMenu';
 import BoardFilterPanel from '../components/board/BoardFilterPanel';
 import BoardMembers from '../components/board/BoardMembers';
@@ -48,12 +49,12 @@ import {
   removeBoardMember,
   updateBoard,
 } from '../lib/api/board';
-import { createCard, deleteCard, moveCard, updateCard } from '../lib/api/card';
+import { archiveCard, createCard, moveCard, updateCard } from '../lib/api/card';
 import {
+  archiveList,
   copyList,
   createList,
   deleteAllCards,
-  deleteList,
   fetchBoardLists,
   moveAllCards,
   reorderList,
@@ -104,7 +105,6 @@ const collisionDetectionStrategy: CollisionDetection = (args) => {
 
 type DeleteTarget =
   | { kind: 'list'; list: BoardList }
-  | { kind: 'card'; card: Card }
   | { kind: 'cards-in-list'; list: BoardList }
   | null;
 
@@ -160,6 +160,7 @@ export default function BoardPage() {
   const [deleting, setDeleting] = useState(false);
   const [bgMenuOpen, setBgMenuOpen] = useState(false);
   const [visMenuOpen, setVisMenuOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [filter, setFilter] = useState<BoardFilter>(EMPTY_FILTER);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -383,32 +384,40 @@ export default function BoardPage() {
     }
   }
 
+  // Luu tru the (co the khoi phuc trong "Mục đã lưu trữ")
+  async function handleArchiveCard(card: Card) {
+    setLists((cur) =>
+      cur.map((l) => ({
+        ...l,
+        cards: l.cards.filter((c) => c.id !== card.id),
+      }))
+    );
+    try {
+      await archiveCard(card.id);
+    } catch (err) {
+      setListsError(getErrorMessage(err, 'Không lưu trữ được thẻ.'));
+      reloadLists();
+    }
+  }
+
   async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
       if (deleteTarget.kind === 'list') {
-        await deleteList(deleteTarget.list.id);
+        await archiveList(deleteTarget.list.id);
         setLists((cur) => cur.filter((l) => l.id !== deleteTarget.list.id));
-      } else if (deleteTarget.kind === 'cards-in-list') {
+      } else {
         await deleteAllCards(deleteTarget.list.id);
         setLists((cur) =>
           cur.map((l) =>
             l.id === deleteTarget.list.id ? { ...l, cards: [] } : l
           )
         );
-      } else {
-        await deleteCard(deleteTarget.card.id);
-        setLists((cur) =>
-          cur.map((l) => ({
-            ...l,
-            cards: l.cards.filter((c) => c.id !== deleteTarget.card.id),
-          }))
-        );
       }
       setDeleteTarget(null);
     } catch (err) {
-      setListsError(getErrorMessage(err, 'Xoá không thành công.'));
+      setListsError(getErrorMessage(err, 'Thao tác không thành công.'));
     } finally {
       setDeleting(false);
     }
@@ -706,6 +715,31 @@ export default function BoardPage() {
             <div className="relative">
               <button
                 type="button"
+                data-archive-trigger
+                onClick={() => setArchiveOpen((v) => !v)}
+                title="Mục đã lưu trữ"
+                className="flex items-center gap-1.5 rounded bg-white/25 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-white/40"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="4" width="18" height="4" rx="1" />
+                  <path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8M10 12h4" />
+                </svg>
+                Đã lưu trữ
+              </button>
+              {archiveOpen && (
+                <BoardArchiveMenu
+                  boardId={board.id}
+                  onClose={() => setArchiveOpen(false)}
+                  onChanged={reloadLists}
+                />
+              )}
+            </div>
+          )}
+
+          {!readOnly && (
+            <div className="relative">
+              <button
+                type="button"
                 data-bg-trigger
                 onClick={() => setBgMenuOpen((v) => !v)}
                 className="flex items-center gap-1.5 rounded bg-white/25 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-white/40"
@@ -819,9 +853,7 @@ export default function BoardPage() {
                   }
                   onAddCard={handleAddCard}
                   onToggleCardDone={handleToggleCardDone}
-                  onRequestDeleteCard={(c) =>
-                    setDeleteTarget({ kind: 'card', card: c })
-                  }
+                  onRequestDeleteCard={handleArchiveCard}
                   onOpenCard={setOpenCardId}
                   onCopyList={handleCopyList}
                   onMoveList={handleMoveList}
@@ -852,29 +884,23 @@ export default function BoardPage() {
       <ConfirmDialog
         open={deleteTarget !== null}
         title={
-          deleteTarget?.kind === 'card'
-            ? 'Xoá thẻ?'
-            : deleteTarget?.kind === 'cards-in-list'
-              ? 'Xoá tất cả thẻ?'
-              : 'Xoá danh sách?'
+          deleteTarget?.kind === 'cards-in-list'
+            ? 'Xoá tất cả thẻ?'
+            : 'Lưu trữ danh sách?'
         }
         message={
-          deleteTarget?.kind === 'card'
-            ? `Thẻ "${deleteTarget.card.title}" sẽ bị xoá.`
-            : deleteTarget?.kind === 'cards-in-list'
-              ? `Toàn bộ ${deleteTarget.list.cards.length} thẻ trong danh sách "${deleteTarget.list.name}" sẽ bị xoá.`
-              : deleteTarget?.kind === 'list'
-                ? `Danh sách "${deleteTarget.list.name}" (và các thẻ bên trong) sẽ bị xoá.`
-                : undefined
+          deleteTarget?.kind === 'cards-in-list'
+            ? `Toàn bộ ${deleteTarget.list.cards.length} thẻ trong danh sách "${deleteTarget.list.name}" sẽ bị xoá.`
+            : deleteTarget?.kind === 'list'
+              ? `Danh sách "${deleteTarget.list.name}" (và các thẻ bên trong) sẽ được chuyển vào mục Đã lưu trữ. Bạn có thể khôi phục lại sau.`
+              : undefined
         }
         confirmLabel={
-          deleteTarget?.kind === 'card'
-            ? 'Xoá thẻ'
-            : deleteTarget?.kind === 'cards-in-list'
-              ? 'Xoá tất cả thẻ'
-              : 'Xoá danh sách'
+          deleteTarget?.kind === 'cards-in-list'
+            ? 'Xoá tất cả thẻ'
+            : 'Lưu trữ'
         }
-        danger
+        danger={deleteTarget?.kind === 'cards-in-list'}
         busy={deleting}
         onConfirm={confirmDelete}
         onCancel={() => !deleting && setDeleteTarget(null)}

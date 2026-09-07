@@ -346,13 +346,13 @@ export default function ListColumn({
               </button>
               <button
                 type="button"
-                className={ITEM + ' font-medium text-red-600 hover:bg-red-50'}
+                className={ITEM + ' font-medium'}
                 onClick={() => {
                   onRequestDeleteList(list);
                   closeMenu();
                 }}
               >
-                Xoá danh sách này
+                Lưu trữ danh sách này
               </button>
             </div>
           </>

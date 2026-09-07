@@ -3,9 +3,12 @@ import { uploadCardAttachment } from '../../config/upload';
 import { requireAuth } from '../../middleware/auth.middleware';
 import { validateBody } from '../../middleware/validate.middleware';
 import {
+  archiveCardHandler,
   createCardHandler,
   deleteCardHandler,
   moveCardHandler,
+  purgeCardHandler,
+  restoreCardHandler,
   updateCardHandler,
 } from './card.controller';
 import { createCardSchema, moveCardSchema, updateCardSchema } from './card.schema';
@@ -48,6 +51,9 @@ cardRoutes.use(requireAuth);
 cardRoutes.get('/:cardId', getCardDetailHandler);
 cardRoutes.patch('/:cardId', validateBody(updateCardSchema), updateCardHandler);
 cardRoutes.patch('/:cardId/move', validateBody(moveCardSchema), moveCardHandler);
+cardRoutes.post('/:cardId/archive', archiveCardHandler);
+cardRoutes.post('/:cardId/restore', restoreCardHandler);
+cardRoutes.delete('/:cardId/purge', purgeCardHandler);
 cardRoutes.delete('/:cardId', deleteCardHandler);
 
 // Thanh vien the

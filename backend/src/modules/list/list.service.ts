@@ -12,7 +12,7 @@ import type {
 // Export de module card tai su dung.
 export async function assertListAccess(userId: string, listId: string) {
   const list = await prisma.list.findFirst({
-    where: { id: listId, deletedAt: null },
+    where: { id: listId, deletedAt: null, archivedAt: null },
   });
   if (!list) {
     throw new AppError('Khong tim thay danh sach', 404);
@@ -24,11 +24,11 @@ export async function assertListAccess(userId: string, listId: string) {
 export async function listBoardLists(userId: string, boardId: string) {
   await assertBoardView(userId, boardId);
   return prisma.list.findMany({
-    where: { boardId, deletedAt: null },
+    where: { boardId, deletedAt: null, archivedAt: null },
     orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
     include: {
       cards: {
-        where: { deletedAt: null },
+        where: { deletedAt: null, archivedAt: null },
         orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
         include: {
           labels: { include: { label: true } },
@@ -56,7 +56,7 @@ export async function createList(
   await assertBoardAccess(userId, boardId);
 
   const last = await prisma.list.findFirst({
-    where: { boardId, deletedAt: null },
+    where: { boardId, deletedAt: null, archivedAt: null },
     orderBy: { position: 'desc' },
     select: { position: true },
   });
@@ -77,7 +77,12 @@ export async function updateList(
   // Keo sap xep lai: dua cot nay toi vi tri input.position roi danh so lai het
   if (input.position !== undefined) {
     const others = await prisma.list.findMany({
-      where: { boardId: list.boardId, deletedAt: null, id: { not: listId } },
+      where: {
+        boardId: list.boardId,
+        deletedAt: null,
+        archivedAt: null,
+        id: { not: listId },
+      },
       orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       select: { id: true },
     });
@@ -119,12 +124,54 @@ export async function deleteList(userId: string, listId: string) {
   });
 }
 
+// Lay danh sach (bat ke da luu tru) + kiem tra quyen sua bang
+async function assertArchivedList(userId: string, listId: string) {
+  const list = await prisma.list.findFirst({
+    where: { id: listId, deletedAt: null },
+  });
+  if (!list) throw new AppError('Khong tim thay danh sach', 404);
+  await assertBoardAccess(userId, list.boardId);
+  return list;
+}
+
+// Luu tru danh sach (co the khoi phuc). Cac the ben trong van giu nguyen.
+export async function archiveList(userId: string, listId: string) {
+  await assertListAccess(userId, listId);
+  await prisma.list.update({
+    where: { id: listId },
+    data: { archivedAt: new Date() },
+  });
+}
+
+// Khoi phuc danh sach da luu tru -> dua ve cuoi bang
+export async function restoreList(userId: string, listId: string) {
+  const list = await assertArchivedList(userId, listId);
+  const last = await prisma.list.findFirst({
+    where: { boardId: list.boardId, deletedAt: null, archivedAt: null },
+    orderBy: { position: 'desc' },
+    select: { position: true },
+  });
+  await prisma.list.update({
+    where: { id: listId },
+    data: { archivedAt: null, position: last ? last.position + 1 : 0 },
+  });
+}
+
+// Xoa han danh sach da luu tru
+export async function purgeList(userId: string, listId: string) {
+  await assertArchivedList(userId, listId);
+  await prisma.list.update({
+    where: { id: listId },
+    data: { deletedAt: new Date() },
+  });
+}
+
 // Sao chep danh sach (kem toan bo the) va chen ngay sau danh sach goc
 export async function copyList(userId: string, listId: string) {
   const src = await assertListAccess(userId, listId);
 
   const cards = await prisma.card.findMany({
-    where: { listId, deletedAt: null },
+    where: { listId, deletedAt: null, archivedAt: null },
     orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
   });
 
@@ -133,6 +180,7 @@ export async function copyList(userId: string, listId: string) {
     where: {
       boardId: src.boardId,
       deletedAt: null,
+      archivedAt: null,
       position: { gt: src.position },
     },
     data: { position: { increment: 1 } },
@@ -154,7 +202,7 @@ export async function copyList(userId: string, listId: string) {
     },
     include: {
       cards: {
-        where: { deletedAt: null },
+        where: { deletedAt: null, archivedAt: null },
         orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       },
     },
@@ -173,19 +221,19 @@ export async function moveAllCards(
     throw new AppError('Danh sach dich trung voi danh sach nguon', 400);
   }
   const target = await prisma.list.findFirst({
-    where: { id: input.targetListId, deletedAt: null },
+    where: { id: input.targetListId, deletedAt: null, archivedAt: null },
   });
   if (!target || target.boardId !== src.boardId) {
     throw new AppError('Danh sach dich khong hop le', 400);
   }
 
   const targetCards = await prisma.card.findMany({
-    where: { listId: target.id, deletedAt: null },
+    where: { listId: target.id, deletedAt: null, archivedAt: null },
     orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
     select: { id: true },
   });
   const movingCards = await prisma.card.findMany({
-    where: { listId, deletedAt: null },
+    where: { listId, deletedAt: null, archivedAt: null },
     orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
     select: { id: true },
   });
@@ -213,7 +261,7 @@ export async function sortListCards(
   await assertListAccess(userId, listId);
 
   const cards = await prisma.card.findMany({
-    where: { listId, deletedAt: null },
+    where: { listId, deletedAt: null, archivedAt: null },
   });
 
   const sorted = [...cards].sort((a, b) => {
@@ -243,7 +291,7 @@ export async function sortListCards(
 export async function deleteAllCards(userId: string, listId: string) {
   await assertListAccess(userId, listId);
   await prisma.card.updateMany({
-    where: { listId, deletedAt: null },
+    where: { listId, deletedAt: null, archivedAt: null },
     data: { deletedAt: new Date() },
   });
 }

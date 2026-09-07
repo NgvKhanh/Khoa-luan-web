@@ -20,7 +20,7 @@ const CARD_USER_SELECT = {
 // Lay 1 the con hoat dong + kiem tra quyen. Tra ve card kem boardId (de ghi log).
 export async function assertCardAccess(userId: string, cardId: string) {
   const card = await prisma.card.findFirst({
-    where: { id: cardId, deletedAt: null },
+    where: { id: cardId, deletedAt: null, archivedAt: null },
     include: { list: { select: { boardId: true, name: true } } },
   });
   if (!card) {
@@ -32,14 +32,14 @@ export async function assertCardAccess(userId: string, cardId: string) {
 
 export async function getCardDetail(userId: string, cardId: string) {
   const found = await prisma.card.findFirst({
-    where: { id: cardId, deletedAt: null },
+    where: { id: cardId, deletedAt: null, archivedAt: null },
     include: { list: { select: { boardId: true } } },
   });
   if (!found) throw new AppError('Khong tim thay the', 404);
   await assertBoardView(userId, found.list.boardId);
 
   const card = await prisma.card.findFirst({
-    where: { id: cardId, deletedAt: null },
+    where: { id: cardId, deletedAt: null, archivedAt: null },
     include: {
       list: { select: { id: true, name: true, boardId: true } },
       members: { include: { user: { select: CARD_USER_SELECT } } },
@@ -85,7 +85,7 @@ export async function createCard(
   const list = await assertListAccess(userId, listId);
 
   const last = await prisma.card.findFirst({
-    where: { listId, deletedAt: null },
+    where: { listId, deletedAt: null, archivedAt: null },
     orderBy: { position: 'desc' },
     select: { position: true },
   });
@@ -213,6 +213,61 @@ export async function deleteCard(userId: string, cardId: string) {
   });
 }
 
+// Lay the (bat ke da luu tru) + kiem tra quyen sua bang chua no.
+async function assertArchivedCard(userId: string, cardId: string) {
+  const card = await prisma.card.findFirst({
+    where: { id: cardId, deletedAt: null },
+    include: { list: { select: { boardId: true } } },
+  });
+  if (!card) throw new AppError('Khong tim thay the', 404);
+  await assertBoardAccess(userId, card.list.boardId);
+  return card;
+}
+
+// Luu tru the (co the khoi phuc)
+export async function archiveCard(userId: string, cardId: string) {
+  const card = await assertCardAccess(userId, cardId);
+  await prisma.card.update({
+    where: { id: cardId },
+    data: { archivedAt: new Date() },
+  });
+  await logActivity({
+    boardId: card.list.boardId,
+    cardId,
+    userId,
+    type: 'card.archive',
+  });
+}
+
+// Khoi phuc the da luu tru -> dua ve cuoi danh sach
+export async function restoreCard(userId: string, cardId: string) {
+  const card = await assertArchivedCard(userId, cardId);
+  const last = await prisma.card.findFirst({
+    where: { listId: card.listId, deletedAt: null, archivedAt: null },
+    orderBy: { position: 'desc' },
+    select: { position: true },
+  });
+  await prisma.card.update({
+    where: { id: cardId },
+    data: { archivedAt: null, position: last ? last.position + 1 : 0 },
+  });
+  await logActivity({
+    boardId: card.list.boardId,
+    cardId,
+    userId,
+    type: 'card.restore',
+  });
+}
+
+// Xoa han the da luu tru
+export async function purgeCard(userId: string, cardId: string) {
+  await assertArchivedCard(userId, cardId);
+  await prisma.card.update({
+    where: { id: cardId },
+    data: { deletedAt: new Date() },
+  });
+}
+
 /**
  * Keo tha the: chuyen sang danh sach `listId`, chen vao vi tri `position`.
  */
@@ -239,7 +294,12 @@ export async function moveCard(
   const sourceListName = card.list.name;
 
   const targetCards = await prisma.card.findMany({
-    where: { listId: input.listId, deletedAt: null, id: { not: cardId } },
+    where: {
+      listId: input.listId,
+      deletedAt: null,
+      archivedAt: null,
+      id: { not: cardId },
+    },
     orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
     select: { id: true },
   });
@@ -259,7 +319,12 @@ export async function moveCard(
 
   if (sourceListId !== input.listId) {
     const remaining = await prisma.card.findMany({
-      where: { listId: sourceListId, deletedAt: null, id: { not: cardId } },
+      where: {
+        listId: sourceListId,
+        deletedAt: null,
+        archivedAt: null,
+        id: { not: cardId },
+      },
       orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       select: { id: true },
     });
