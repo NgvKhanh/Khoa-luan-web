@@ -159,6 +159,18 @@ export async function updateChecklistItem(
 export async function deleteChecklistItem(itemId: string) {
   await api.delete(`/checklist-items/${itemId}`);
 }
+export async function reorderChecklistItems(
+  checklistId: string,
+  itemIds: string[]
+) {
+  await api.patch(`/checklists/${checklistId}/reorder`, { itemIds });
+}
+export async function convertItemToCard(itemId: string): Promise<Card> {
+  const res = await api.post<{ data: { card: Card } }>(
+    `/checklist-items/${itemId}/convert-to-card`
+  );
+  return res.data.data.card;
+}
 
 // ----- Tep dinh kem -----
 export async function addAttachment(

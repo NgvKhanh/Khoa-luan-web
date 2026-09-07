@@ -26,6 +26,7 @@ import {
   addChecklistItemHandler,
   addCommentHandler,
   attachLabelHandler,
+  convertItemToCardHandler,
   deleteAttachmentHandler,
   deleteChecklistHandler,
   deleteChecklistItemHandler,
@@ -33,6 +34,7 @@ import {
   detachLabelHandler,
   getCardDetailHandler,
   removeCardMemberHandler,
+  reorderChecklistItemsHandler,
   updateChecklistHandler,
   updateChecklistItemHandler,
   updateCommentHandler,
@@ -42,6 +44,7 @@ import {
   addChecklistItemSchema,
   addChecklistSchema,
   commentSchema,
+  reorderChecklistItemsSchema,
   updateChecklistItemSchema,
   updateChecklistSchema,
 } from './cardExtras.schema';
@@ -112,6 +115,11 @@ checklistRoutes.post(
   validateBody(addChecklistItemSchema),
   addChecklistItemHandler
 );
+checklistRoutes.patch(
+  '/:checklistId/reorder',
+  validateBody(reorderChecklistItemsSchema),
+  reorderChecklistItemsHandler
+);
 
 // Gan vao /api/checklist-items
 export const checklistItemRoutes = Router();
@@ -121,6 +129,7 @@ checklistItemRoutes.patch(
   validateBody(updateChecklistItemSchema),
   updateChecklistItemHandler
 );
+checklistItemRoutes.post('/:itemId/convert-to-card', convertItemToCardHandler);
 checklistItemRoutes.delete('/:itemId', deleteChecklistItemHandler);
 
 // Gan vao /api/attachments

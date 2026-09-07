@@ -223,6 +223,64 @@ export async function deleteChecklistItem(userId: string, itemId: string) {
   await prisma.checklistItem.delete({ where: { id: itemId } });
 }
 
+// Sap xep lai thu tu cac muc trong 1 checklist
+export async function reorderChecklistItems(
+  userId: string,
+  checklistId: string,
+  itemIds: string[]
+) {
+  await checklistCard(userId, checklistId);
+  const items = await prisma.checklistItem.findMany({
+    where: { checklistId },
+    select: { id: true },
+  });
+  const ids = new Set(items.map((i) => i.id));
+  if (itemIds.length !== ids.size || itemIds.some((id) => !ids.has(id))) {
+    throw new AppError('Danh sách mục không hợp lệ', 400);
+  }
+  await prisma.$transaction(
+    itemIds.map((id, i) =>
+      prisma.checklistItem.update({ where: { id }, data: { position: i } })
+    )
+  );
+}
+
+// Chuyen 1 muc checklist thanh 1 the moi (trong cung danh sach voi the cha)
+export async function convertItemToCard(userId: string, itemId: string) {
+  const item = await prisma.checklistItem.findUnique({
+    where: { id: itemId },
+    include: { checklist: { select: { cardId: true } } },
+  });
+  if (!item) throw new AppError('Khong tim thay muc', 404);
+
+  const card = await assertCardAccess(userId, item.checklist.cardId);
+
+  const last = await prisma.card.findFirst({
+    where: { listId: card.listId, deletedAt: null, archivedAt: null },
+    orderBy: { position: 'desc' },
+    select: { position: true },
+  });
+  const created = await prisma.card.create({
+    data: {
+      listId: card.listId,
+      title: item.content.slice(0, 500),
+      position: last ? last.position + 1 : 0,
+    },
+  });
+
+  await prisma.checklistItem.delete({ where: { id: itemId } });
+
+  await logActivity({
+    boardId: card.list.boardId,
+    cardId: created.id,
+    userId,
+    type: 'card.create',
+    data: { listName: card.list.name },
+  });
+
+  return created;
+}
+
 // ---------- Binh luan ----------
 
 // Tim cac thanh vien bang duoc nhac ten (@Ten) trong noi dung binh luan.

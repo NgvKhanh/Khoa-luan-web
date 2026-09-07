@@ -1,6 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   addAttachment,
   addChecklist,
   addChecklistItem,
@@ -8,6 +23,7 @@ import {
   addCardMember,
   archiveCard,
   attachCardLabel,
+  convertItemToCard,
   copyCard,
   deleteAttachment,
   deleteChecklist,
@@ -18,6 +34,7 @@ import {
   fetchCardDetail,
   moveCard,
   removeCardMember,
+  reorderChecklistItems,
   updateCard,
   updateChecklistItem,
 } from '../../lib/api/card';
@@ -136,6 +153,10 @@ export default function CardModal({
   const [clCopyFrom, setClCopyFrom] = useState('');
   const [copyTitle, setCopyTitle] = useState('');
   const [copyListId, setCopyListId] = useState('');
+  const [hideDone, setHideDone] = useState<Record<string, boolean>>({});
+  const itemSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+  );
   const [showDetails, setShowDetails] = useState(false);
   const [itemPanel, setItemPanel] = useState<{
     id: string;
@@ -189,6 +210,35 @@ export default function CardModal({
       onChanged();
     } catch (err) {
       setError(getErrorMessage(err, 'Thao tác thất bại.'));
+    }
+  }
+
+  // Keo sap xep lai cac muc trong 1 checklist
+  async function reorderItems(checklistId: string, e: DragEndEvent) {
+    if (readOnly || !card) return;
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const cl = card.checklists.find((c) => c.id === checklistId);
+    if (!cl) return;
+    const oldIndex = cl.items.findIndex((i) => i.id === active.id);
+    const newIndex = cl.items.findIndex((i) => i.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const nextItems = arrayMove(cl.items, oldIndex, newIndex);
+    setCard({
+      ...card,
+      checklists: card.checklists.map((c) =>
+        c.id === checklistId ? { ...c, items: nextItems } : c
+      ),
+    });
+    try {
+      await reorderChecklistItems(
+        checklistId,
+        nextItems.map((i) => i.id)
+      );
+      onChanged();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Không sắp xếp được mục.'));
+      await reload();
     }
   }
 
@@ -959,10 +1009,28 @@ export default function CardModal({
                   {card.checklists.map((cl) => {
                     const done = cl.items.filter((i) => i.isDone).length;
                     const pct = cl.items.length ? Math.round((done / cl.items.length) * 100) : 0;
+                    const hiding = Boolean(hideDone[cl.id]);
+                    const shownItems = hiding
+                      ? cl.items.filter((i) => !i.isDone)
+                      : cl.items;
+                    const dragDisabled = readOnly || hiding;
                     return (
                       <div key={cl.id}>
                         <div className="mb-1 flex items-center gap-2">
                           <p className="flex-1 text-sm font-semibold text-slate-700">{cl.title}</p>
+                          {done > 0 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setHideDone((h) => ({ ...h, [cl.id]: !h[cl.id] }))
+                              }
+                              className="rounded px-1.5 py-0.5 text-xs text-slate-500 hover:bg-slate-200"
+                            >
+                              {hiding
+                                ? `Hiện mục đã đánh dấu (${done})`
+                                : `Ẩn mục đã đánh dấu (${done})`}
+                            </button>
+                          )}
                           {!readOnly && (
                             <button
                               type="button"
@@ -979,9 +1047,18 @@ export default function CardModal({
                             <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
                           </div>
                         </div>
+                        <DndContext
+                          sensors={itemSensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={(e) => void reorderItems(cl.id, e)}
+                        >
+                          <SortableContext
+                            items={shownItems.map((i) => i.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
                         <div className="flex flex-col gap-1">
-                          {cl.items.map((it) => (
-                            <div key={it.id} className="group relative flex items-center gap-2">
+                          {shownItems.map((it) => (
+                            <SortableItem key={it.id} id={it.id} disabled={dragDisabled}>
                               <input
                                 type="checkbox"
                                 checked={it.isDone}
@@ -1058,6 +1135,19 @@ export default function CardModal({
                                     <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
                                       <circle cx="12" cy="12" r="9" />
                                       <path d="M12 7v5l3 2" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Chuyển thành thẻ"
+                                    onClick={() =>
+                                      void run(() => convertItemToCard(it.id))
+                                    }
+                                    className="rounded p-0.5 text-slate-400 hover:bg-slate-200"
+                                  >
+                                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <rect x="4" y="5" width="16" height="14" rx="2" />
+                                      <path d="M9 12h6M12 9v6" />
                                     </svg>
                                   </button>
                                   <button
@@ -1158,9 +1248,11 @@ export default function CardModal({
                                   </div>
                                 </div>
                               )}
-                            </div>
+                            </SortableItem>
                           ))}
                         </div>
+                          </SortableContext>
+                        </DndContext>
                         {!readOnly && (
                           <AddItemInput onAdd={(c) => run(() => addChecklistItem(cl.id, c))} />
                         )}
@@ -1286,6 +1378,51 @@ export default function CardModal({
       </div>
     </div>,
     document.body
+  );
+}
+
+// Mot dong muc checklist co the keo sap xep (tay cam la bieu tuong luoi hien khi ro chuot)
+function SortableItem({
+  id,
+  disabled,
+  children,
+}: {
+  id: string;
+  disabled: boolean;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id, disabled });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Translate.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : undefined,
+      }}
+      className="group relative flex items-center gap-2"
+    >
+      {!disabled && (
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          title="Kéo để sắp xếp"
+          className="-ml-4 shrink-0 cursor-grab touch-none rounded p-0.5 text-slate-300 opacity-0 hover:bg-slate-200 group-hover:opacity-100"
+        >
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor">
+            <circle cx="9" cy="6" r="1.5" />
+            <circle cx="15" cy="6" r="1.5" />
+            <circle cx="9" cy="12" r="1.5" />
+            <circle cx="15" cy="12" r="1.5" />
+            <circle cx="9" cy="18" r="1.5" />
+            <circle cx="15" cy="18" r="1.5" />
+          </svg>
+        </button>
+      )}
+      {children}
+    </div>
   );
 }
 

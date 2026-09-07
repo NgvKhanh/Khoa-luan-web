@@ -12,11 +12,13 @@ import {
   addChecklist,
   addChecklistItem,
   addComment,
+  convertItemToCard,
   deleteAttachment,
   deleteChecklist,
   deleteChecklistItem,
   deleteComment,
   removeCardMember,
+  reorderChecklistItems,
   updateChecklist,
   updateChecklistItem,
   updateComment,
@@ -118,6 +120,26 @@ export const deleteChecklistItemHandler = asyncHandler(
   async (req: Request, res: Response) => {
     await deleteChecklistItem(uid(req), req.params.itemId as string);
     res.json({ success: true, message: 'Da xoa muc' });
+  }
+);
+
+export const reorderChecklistItemsHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await reorderChecklistItems(
+      uid(req),
+      req.params.checklistId as string,
+      (req.body as { itemIds: string[] }).itemIds
+    );
+    res.json({ success: true, message: 'Da sap xep lai muc' });
+  }
+);
+
+export const convertItemToCardHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const card = await convertItemToCard(uid(req), req.params.itemId as string);
+    res
+      .status(201)
+      .json({ success: true, message: 'Da chuyen muc thanh the', data: { card } });
   }
 );
 

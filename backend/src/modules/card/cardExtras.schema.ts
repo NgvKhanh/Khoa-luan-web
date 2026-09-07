@@ -33,6 +33,10 @@ export const updateChecklistItemSchema = z
     message: 'Khong co du lieu de cap nhat',
   });
 
+export const reorderChecklistItemsSchema = z.object({
+  itemIds: z.array(z.string().min(1)).min(1, 'Thieu danh sach muc'),
+});
+
 export const commentSchema = z.object({
   text: z.string().trim().min(1, 'Binh luan trong').max(5000),
 });
