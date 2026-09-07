@@ -8,6 +8,7 @@ import {
   markNotificationRead,
 } from '../lib/api/notification';
 import { initialsOf } from '../lib/avatar';
+import { socket } from '../lib/socket';
 import type { AppNotification } from '../types/notification';
 
 const AVATAR_COLORS = [
@@ -90,7 +91,7 @@ export default function NotificationBell() {
     fetchUnreadCount().then(setCount).catch(() => {});
   }, []);
 
-  // Hoi so chua doc luc dau + moi 45 giay
+  // Hoi so chua doc luc dau + moi 45 giay (du phong khi socket roi)
   useEffect(() => {
     refreshCount();
     const t = setInterval(refreshCount, 45000);
@@ -108,6 +109,18 @@ export default function NotificationBell() {
   useEffect(() => {
     if (open) load();
   }, [open, load]);
+
+  // Realtime: co thong bao moi -> cap nhat so + danh sach ngay
+  useEffect(() => {
+    const onNew = () => {
+      refreshCount();
+      load();
+    };
+    socket.on('notification:new', onNew);
+    return () => {
+      socket.off('notification:new', onNew);
+    };
+  }, [refreshCount, load]);
 
   useEffect(() => {
     if (!open) return;

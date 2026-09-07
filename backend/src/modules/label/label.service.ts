@@ -1,4 +1,5 @@
 import { prisma } from '../../config/prisma';
+import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import { assertBoardAccess, assertBoardView } from '../board/board.service';
 import { assertCardAccess } from '../card/card.service';
@@ -41,9 +42,11 @@ export async function createLabel(
   input: { name?: string; color: string }
 ) {
   await assertBoardAccess(userId, boardId);
-  return prisma.label.create({
+  const label = await prisma.label.create({
     data: { boardId, name: input.name?.trim() ?? '', color: input.color },
   });
+  emitToBoard(boardId, 'board:lists-changed');
+  return label;
 }
 
 async function labelBoard(userId: string, labelId: string) {
@@ -58,19 +61,22 @@ export async function updateLabel(
   labelId: string,
   input: { name?: string; color?: string }
 ) {
-  await labelBoard(userId, labelId);
-  return prisma.label.update({
+  const label = await labelBoard(userId, labelId);
+  const updated = await prisma.label.update({
     where: { id: labelId },
     data: {
       ...(input.name !== undefined ? { name: input.name.trim() } : {}),
       ...(input.color !== undefined ? { color: input.color } : {}),
     },
   });
+  emitToBoard(label.boardId, 'board:lists-changed');
+  return updated;
 }
 
 export async function deleteLabel(userId: string, labelId: string) {
-  await labelBoard(userId, labelId);
+  const label = await labelBoard(userId, labelId);
   await prisma.label.delete({ where: { id: labelId } });
+  emitToBoard(label.boardId, 'board:lists-changed');
 }
 
 // ---------- Gan / bo nhan tren the ----------
@@ -90,6 +96,7 @@ export async function attachLabel(
     create: { cardId, labelId },
     update: {},
   });
+  emitToBoard(card.list.boardId, 'board:lists-changed');
   return label;
 }
 
@@ -98,6 +105,7 @@ export async function detachLabel(
   cardId: string,
   labelId: string
 ) {
-  await assertCardAccess(userId, cardId);
+  const card = await assertCardAccess(userId, cardId);
   await prisma.cardLabel.deleteMany({ where: { cardId, labelId } });
+  emitToBoard(card.list.boardId, 'board:lists-changed');
 }

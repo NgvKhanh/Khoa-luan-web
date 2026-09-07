@@ -1,11 +1,17 @@
+import { createServer } from 'node:http';
 import { createApp } from './app';
 import { env } from './config/env';
+import { initRealtime, shutdownRealtime } from './realtime/socket';
 
 function startServer() {
   try {
     const app = createApp();
+    const server = createServer(app);
 
-    const server = app.listen(env.port, () => {
+    // Gan Socket.IO (realtime) vao cung HTTP server
+    initRealtime(server);
+
+    server.listen(env.port, () => {
       console.log(`Server dang chay tai http://localhost:${env.port}`);
       console.log(`Moi truong: ${env.nodeEnv}`);
       console.log(`Kiem tra: http://localhost:${env.port}/api/health`);
@@ -26,6 +32,7 @@ function startServer() {
     // Tat server mot cach an toan khi nhan tin hieu dung (Ctrl + C)
     const shutdown = (signal: string) => {
       console.log(`\nNhan tin hieu ${signal}, dang tat server...`);
+      shutdownRealtime();
       server.close(() => {
         console.log('Server da dung.');
         process.exit(0);

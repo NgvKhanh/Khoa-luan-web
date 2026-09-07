@@ -1,4 +1,5 @@
 import { prisma } from '../../config/prisma';
+import { emitToBoard } from '../../realtime/socket';
 
 type ActivityType =
   | 'card.create'
@@ -39,6 +40,8 @@ export async function logActivity(input: LogInput): Promise<void> {
   } catch {
     // bo qua
   }
+  // Moi thao tac co ghi nhat ky deu keo theo thay doi tren bang -> bao realtime
+  emitToBoard(input.boardId, 'board:lists-changed');
 }
 
 const ACTIVITY_USER_SELECT = { id: true, name: true, avatarUrl: true } as const;

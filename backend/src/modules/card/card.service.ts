@@ -1,4 +1,5 @@
 import { prisma } from '../../config/prisma';
+import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity/activity.service';
 import { assertBoardAccess, assertBoardView } from '../board/board.service';
@@ -350,6 +351,7 @@ export async function updateCard(
     }
   }
 
+  emitToBoard(boardId, 'board:lists-changed');
   return updated;
 }
 
@@ -417,11 +419,12 @@ export async function restoreCard(userId: string, cardId: string) {
 
 // Xoa han the da luu tru
 export async function purgeCard(userId: string, cardId: string) {
-  await assertArchivedCard(userId, cardId);
+  const card = await assertArchivedCard(userId, cardId);
   await prisma.card.update({
     where: { id: cardId },
     data: { deletedAt: new Date() },
   });
+  emitToBoard(card.list.boardId, 'board:lists-changed');
 }
 
 /**
@@ -511,5 +514,7 @@ export async function moveCard(
     });
   }
 
+  // Ke ca keo trong cung danh sach (khong ghi log) van bao realtime
+  emitToBoard(targetList.boardId, 'board:lists-changed');
   return prisma.card.findFirst({ where: { id: cardId } });
 }

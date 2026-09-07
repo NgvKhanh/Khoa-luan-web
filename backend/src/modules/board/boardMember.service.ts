@@ -1,4 +1,5 @@
 import { prisma } from '../../config/prisma';
+import { emitToBoard, emitToUser } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import { notify } from '../notification/notification.service';
 import { assertBoardManage, assertBoardView } from './board.service';
@@ -64,6 +65,7 @@ export async function addBoardMember(
     data: { boardName: board.name },
   });
 
+  emitToBoard(boardId, 'board:members-changed');
   return member;
 }
 
@@ -99,6 +101,7 @@ export async function changeMemberRole(
     data: { boardName: board.name, role: input.role },
   });
 
+  emitToBoard(boardId, 'board:members-changed');
   return updated;
 }
 
@@ -124,6 +127,10 @@ export async function removeBoardMember(
     where: { id: membership.id },
     data: { deletedAt: new Date() },
   });
+
+  emitToBoard(boardId, 'board:members-changed');
+  // Nguoi bi xoa: day ra khoi bang ngay (neu dang mo)
+  emitToUser(targetUserId, 'board:removed', { boardId });
 
   // Chi bao khi bi nguoi khac xoa (khong bao khi tu roi bang)
   if (targetUserId !== actorId) {

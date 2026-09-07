@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { api } from '../lib/axios';
+import { connectSocket, disconnectSocket } from '../lib/socket';
 import type { User } from '../types/auth';
 
 interface AuthResponse {
@@ -50,6 +51,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     loadCurrentUser();
   }, []);
+
+  // Nối/ngắt kết nối realtime theo trạng thái đăng nhập
+  useEffect(() => {
+    if (user) connectSocket();
+    else disconnectSocket();
+  }, [user]);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await api.post<AuthResponse>('/auth/login', {

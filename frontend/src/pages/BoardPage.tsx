@@ -1,11 +1,12 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
-import { Link, useOutletContext, useParams } from 'react-router-dom';
+import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import {
   DndContext,
   DragOverlay,
@@ -64,6 +65,7 @@ import {
   type SortListBy,
 } from '../lib/api/list';
 import { assetUrl } from '../lib/assets';
+import { socket } from '../lib/socket';
 import { getErrorMessage } from '../lib/errorMessage';
 import {
   EMPTY_FILTER,
@@ -111,6 +113,7 @@ type DeleteTarget =
 
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { boards, isLoading, error, patchBoard } =
     useOutletContext<BoardOutletContext>();
@@ -169,6 +172,10 @@ export default function BoardPage() {
 
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [activeList, setActiveList] = useState<BoardList | null>(null);
+
+  // Cho realtime: dang keo-tha thi hoan refetch de khoi giat
+  const draggingRef = useRef(false);
+  const pendingReloadRef = useRef(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -252,6 +259,63 @@ export default function BoardPage() {
       )
       .finally(() => setListsLoading(false));
   }, [boardId]);
+
+  // ---------- Realtime: đồng bộ khi người khác thay đổi bảng ----------
+  useEffect(() => {
+    if (!boardId) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const doReloadLists = () => {
+      // Đang kéo-thả -> hoãn lại, chạy sau khi thả tay
+      if (draggingRef.current) {
+        pendingReloadRef.current = true;
+        return;
+      }
+      fetchBoardLists(boardId).then(setLists).catch(() => {});
+    };
+
+    const onListsChanged = () => {
+      clearTimeout(timer);
+      timer = setTimeout(doReloadLists, 400); // gộp nhiều sự kiện liên tiếp
+    };
+    const onMembersChanged = () => {
+      fetchBoardMembers(boardId).then(setMembers).catch(() => {});
+    };
+    const onMetaChanged = () => {
+      fetchBoard(boardId)
+        .then((b) => {
+          patchBoard(b);
+          setFetchedBoard((prev) => (prev ? b : prev));
+        })
+        .catch(() => {});
+    };
+    const onRemoved = (payload: { boardId?: string }) => {
+      if (payload?.boardId === boardId) navigate('/', { replace: true });
+    };
+    // Mất kết nối rồi nối lại: vào phòng lại + tải bù dữ liệu
+    const onConnect = () => {
+      socket.emit('join-board', boardId);
+      onMembersChanged();
+      onListsChanged();
+    };
+
+    socket.emit('join-board', boardId);
+    socket.on('board:lists-changed', onListsChanged);
+    socket.on('board:members-changed', onMembersChanged);
+    socket.on('board:meta-changed', onMetaChanged);
+    socket.on('board:removed', onRemoved);
+    socket.on('connect', onConnect);
+
+    return () => {
+      clearTimeout(timer);
+      socket.emit('leave-board', boardId);
+      socket.off('board:lists-changed', onListsChanged);
+      socket.off('board:members-changed', onMembersChanged);
+      socket.off('board:meta-changed', onMetaChanged);
+      socket.off('board:removed', onRemoved);
+      socket.off('connect', onConnect);
+    };
+  }, [boardId, navigate, patchBoard]);
 
   const listDndIds = useMemo(() => lists.map((l) => `list-${l.id}`), [lists]);
 
@@ -433,6 +497,7 @@ export default function BoardPage() {
   function handleDragStart(event: DragStartEvent) {
     const { active } = event;
     const type = active.data.current?.type;
+    draggingRef.current = true;
     document.body.style.cursor = 'grabbing';
     if (type === 'list') {
       const id = listIdFromDnd(active.id as string);
@@ -487,12 +552,21 @@ export default function BoardPage() {
     });
   }
 
+  function afterDragSettled() {
+    draggingRef.current = false;
+    if (pendingReloadRef.current) {
+      pendingReloadRef.current = false;
+      if (boardId) fetchBoardLists(boardId).then(setLists).catch(() => {});
+    }
+  }
+
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     const type = active.data.current?.type;
     setActiveCard(null);
     setActiveList(null);
     endDragCursor();
+    afterDragSettled();
     if (!over) return;
 
     // ---- Sap xep lai cot ----
@@ -854,6 +928,7 @@ export default function BoardPage() {
             setActiveCard(null);
             setActiveList(null);
             endDragCursor();
+            afterDragSettled();
           }}
         >
           <div

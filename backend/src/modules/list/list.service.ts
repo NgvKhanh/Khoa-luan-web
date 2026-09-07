@@ -1,4 +1,5 @@
 import { prisma } from '../../config/prisma';
+import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import { assertBoardAccess, assertBoardView } from '../board/board.service';
 import type {
@@ -62,9 +63,11 @@ export async function createList(
   });
   const position = last ? last.position + 1 : 0;
 
-  return prisma.list.create({
+  const created = await prisma.list.create({
     data: { boardId, name: input.name, position },
   });
+  emitToBoard(boardId, 'board:lists-changed');
+  return created;
 }
 
 export async function updateList(
@@ -107,21 +110,25 @@ export async function updateList(
       )
     );
 
+    emitToBoard(list.boardId, 'board:lists-changed');
     return prisma.list.findFirst({ where: { id: listId } });
   }
 
-  return prisma.list.update({
+  const updated = await prisma.list.update({
     where: { id: listId },
     data: { ...(input.name !== undefined ? { name: input.name } : {}) },
   });
+  emitToBoard(list.boardId, 'board:lists-changed');
+  return updated;
 }
 
 export async function deleteList(userId: string, listId: string) {
-  await assertListAccess(userId, listId);
+  const list = await assertListAccess(userId, listId);
   await prisma.list.update({
     where: { id: listId },
     data: { deletedAt: new Date() },
   });
+  emitToBoard(list.boardId, 'board:lists-changed');
 }
 
 // Lay danh sach (bat ke da luu tru) + kiem tra quyen sua bang
@@ -136,11 +143,12 @@ async function assertArchivedList(userId: string, listId: string) {
 
 // Luu tru danh sach (co the khoi phuc). Cac the ben trong van giu nguyen.
 export async function archiveList(userId: string, listId: string) {
-  await assertListAccess(userId, listId);
+  const list = await assertListAccess(userId, listId);
   await prisma.list.update({
     where: { id: listId },
     data: { archivedAt: new Date() },
   });
+  emitToBoard(list.boardId, 'board:lists-changed');
 }
 
 // Khoi phuc danh sach da luu tru -> dua ve cuoi bang
@@ -155,15 +163,17 @@ export async function restoreList(userId: string, listId: string) {
     where: { id: listId },
     data: { archivedAt: null, position: last ? last.position + 1 : 0 },
   });
+  emitToBoard(list.boardId, 'board:lists-changed');
 }
 
 // Xoa han danh sach da luu tru
 export async function purgeList(userId: string, listId: string) {
-  await assertArchivedList(userId, listId);
+  const list = await assertArchivedList(userId, listId);
   await prisma.list.update({
     where: { id: listId },
     data: { deletedAt: new Date() },
   });
+  emitToBoard(list.boardId, 'board:lists-changed');
 }
 
 // Sao chep danh sach (kem toan bo the) va chen ngay sau danh sach goc
@@ -186,7 +196,7 @@ export async function copyList(userId: string, listId: string) {
     data: { position: { increment: 1 } },
   });
 
-  return prisma.list.create({
+  const copy = await prisma.list.create({
     data: {
       boardId: src.boardId,
       name: `${src.name} (bản sao)`.slice(0, 100),
@@ -207,6 +217,8 @@ export async function copyList(userId: string, listId: string) {
       },
     },
   });
+  emitToBoard(src.boardId, 'board:lists-changed');
+  return copy;
 }
 
 // Chuyen toan bo the cua danh sach nay sang mot danh sach khac cung bang
@@ -250,6 +262,7 @@ export async function moveAllCards(
       })
     )
   );
+  emitToBoard(src.boardId, 'board:lists-changed');
 }
 
 // Sap xep lai the trong danh sach theo tieu chi
@@ -258,7 +271,7 @@ export async function sortListCards(
   listId: string,
   input: SortListInput
 ) {
-  await assertListAccess(userId, listId);
+  const list = await assertListAccess(userId, listId);
 
   const cards = await prisma.card.findMany({
     where: { listId, deletedAt: null, archivedAt: null },
@@ -285,13 +298,15 @@ export async function sortListCards(
       prisma.card.update({ where: { id: c.id }, data: { position: i } })
     )
   );
+  emitToBoard(list.boardId, 'board:lists-changed');
 }
 
 // Xoa (mem) toan bo the trong danh sach
 export async function deleteAllCards(userId: string, listId: string) {
-  await assertListAccess(userId, listId);
+  const list = await assertListAccess(userId, listId);
   await prisma.card.updateMany({
     where: { listId, deletedAt: null, archivedAt: null },
     data: { deletedAt: new Date() },
   });
+  emitToBoard(list.boardId, 'board:lists-changed');
 }

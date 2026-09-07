@@ -3,6 +3,7 @@ import {
   boardBackgroundPublicPath,
   removeBoardBackgroundFile,
 } from '../../config/upload';
+import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import type { CreateBoardInput, UpdateBoardInput } from './board.schema';
 
@@ -187,6 +188,7 @@ export async function updateBoard(
     removeBoardBackgroundFile(oldFileToRemove);
   }
 
+  emitToBoard(boardId, 'board:meta-changed');
   return updated;
 }
 
@@ -205,6 +207,7 @@ export async function setBoardBackground(
   // Xoa anh cu (neu truoc do da co) de khong ton dung luong
   removeBoardBackgroundFile(board.backgroundImage);
 
+  emitToBoard(boardId, 'board:meta-changed');
   return updated;
 }
 
@@ -218,6 +221,7 @@ export async function clearBoardBackground(userId: string, boardId: string) {
 
   removeBoardBackgroundFile(board.backgroundImage);
 
+  emitToBoard(boardId, 'board:meta-changed');
   return updated;
 }
 

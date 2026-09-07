@@ -1,4 +1,5 @@
 import { prisma } from '../../config/prisma';
+import { emitToBoard, emitToUser } from '../../realtime/socket';
 
 export type NotificationType =
   | 'board.member.added'
@@ -45,6 +46,15 @@ export async function notify(input: NotifyInput): Promise<void> {
         data: (input.data ?? {}) as object,
       })),
     });
+
+    // Bao realtime cho tung nguoi nhan: co thong bao moi
+    for (const userId of ids) {
+      emitToUser(userId, 'notification:new', {});
+    }
+    // Su kien lien quan thanh vien -> lam moi danh sach thanh vien tren bang
+    if (input.boardId && input.type.startsWith('board.')) {
+      emitToBoard(input.boardId, 'board:members-changed');
+    }
   } catch {
     // bo qua
   }

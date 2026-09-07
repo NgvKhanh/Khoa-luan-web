@@ -3,6 +3,7 @@ import {
   cardAttachmentPublicPath,
   removeCardAttachmentFile,
 } from '../../config/upload';
+import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity/activity.service';
 import { cardMemberIds, notify } from '../notification/notification.service';
@@ -67,10 +68,11 @@ export async function removeCardMember(
   cardId: string,
   targetUserId: string
 ) {
-  await assertCardAccess(userId, cardId);
+  const card = await assertCardAccess(userId, cardId);
   await prisma.cardMember.deleteMany({
     where: { cardId, userId: targetUserId },
   });
+  emitToBoard(card.list.boardId, 'board:lists-changed');
 }
 
 // ---------- Checklist ----------
@@ -90,7 +92,7 @@ export async function addChecklist(
   title: string,
   copyFromChecklistId?: string
 ) {
-  await assertCardAccess(userId, cardId);
+  const card = await assertCardAccess(userId, cardId);
   const last = await prisma.checklist.findFirst({
     where: { cardId },
     orderBy: { position: 'desc' },
@@ -114,7 +116,7 @@ export async function addChecklist(
     }
   }
 
-  return prisma.checklist.create({
+  const checklist = await prisma.checklist.create({
     data: {
       cardId,
       title: title.trim() || 'Việc cần làm',
@@ -123,6 +125,8 @@ export async function addChecklist(
     },
     include: { items: { orderBy: [{ position: 'asc' }] } },
   });
+  emitToBoard(card.list.boardId, 'board:lists-changed');
+  return checklist;
 }
 
 export async function updateChecklist(
@@ -130,17 +134,20 @@ export async function updateChecklist(
   checklistId: string,
   title: string
 ) {
-  await checklistCard(userId, checklistId);
-  return prisma.checklist.update({
+  const { boardId } = await checklistCard(userId, checklistId);
+  const updated = await prisma.checklist.update({
     where: { id: checklistId },
     data: { title: title.trim() || 'Việc cần làm' },
     include: { items: { orderBy: [{ position: 'asc' }] } },
   });
+  emitToBoard(boardId, 'board:lists-changed');
+  return updated;
 }
 
 export async function deleteChecklist(userId: string, checklistId: string) {
-  await checklistCard(userId, checklistId);
+  const { boardId } = await checklistCard(userId, checklistId);
   await prisma.checklist.delete({ where: { id: checklistId } });
+  emitToBoard(boardId, 'board:lists-changed');
 }
 
 export async function addChecklistItem(
@@ -148,19 +155,21 @@ export async function addChecklistItem(
   checklistId: string,
   content: string
 ) {
-  await checklistCard(userId, checklistId);
+  const { boardId } = await checklistCard(userId, checklistId);
   const last = await prisma.checklistItem.findFirst({
     where: { checklistId },
     orderBy: { position: 'desc' },
     select: { position: true },
   });
-  return prisma.checklistItem.create({
+  const item = await prisma.checklistItem.create({
     data: {
       checklistId,
       content: content.trim(),
       position: last ? last.position + 1 : 0,
     },
   });
+  emitToBoard(boardId, 'board:lists-changed');
+  return item;
 }
 
 async function itemChecklist(userId: string, itemId: string) {
@@ -198,7 +207,7 @@ export async function updateChecklistItem(
     await assertBoardMemberUser(boardId, input.assigneeId);
   }
 
-  return prisma.checklistItem.update({
+  const updated = await prisma.checklistItem.update({
     where: { id: itemId },
     data: {
       ...(input.content !== undefined
@@ -216,11 +225,14 @@ export async function updateChecklistItem(
       assignee: { select: { id: true, name: true, avatarUrl: true } },
     },
   });
+  emitToBoard(boardId, 'board:lists-changed');
+  return updated;
 }
 
 export async function deleteChecklistItem(userId: string, itemId: string) {
-  await itemChecklist(userId, itemId);
+  const { boardId } = await itemChecklist(userId, itemId);
   await prisma.checklistItem.delete({ where: { id: itemId } });
+  emitToBoard(boardId, 'board:lists-changed');
 }
 
 // Sap xep lai thu tu cac muc trong 1 checklist
@@ -229,7 +241,7 @@ export async function reorderChecklistItems(
   checklistId: string,
   itemIds: string[]
 ) {
-  await checklistCard(userId, checklistId);
+  const { boardId } = await checklistCard(userId, checklistId);
   const items = await prisma.checklistItem.findMany({
     where: { checklistId },
     select: { id: true },
@@ -243,6 +255,7 @@ export async function reorderChecklistItems(
       prisma.checklistItem.update({ where: { id }, data: { position: i } })
     )
   );
+  emitToBoard(boardId, 'board:lists-changed');
 }
 
 // Chuyen 1 muc checklist thanh 1 the moi (trong cung danh sach voi the cha)
@@ -442,7 +455,7 @@ export async function deleteAttachment(userId: string, attachmentId: string) {
     where: { id: attachmentId },
   });
   if (!att) throw new AppError('Khong tim thay tep dinh kem', 404);
-  await assertCardAccess(userId, att.cardId);
+  const card = await assertCardAccess(userId, att.cardId);
 
   await prisma.attachment.delete({ where: { id: attachmentId } });
   removeCardAttachmentFile(att.url);
@@ -451,4 +464,5 @@ export async function deleteAttachment(userId: string, attachmentId: string) {
     where: { id: att.cardId, coverImageUrl: att.url },
     data: { coverImageUrl: null },
   });
+  emitToBoard(card.list.boardId, 'board:lists-changed');
 }
