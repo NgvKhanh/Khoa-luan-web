@@ -28,6 +28,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import AddListForm from '../components/board/AddListForm';
+import BoardActivityMenu from '../components/board/BoardActivityMenu';
 import BoardArchiveMenu from '../components/board/BoardArchiveMenu';
 import BoardBackgroundMenu from '../components/board/BoardBackgroundMenu';
 import BoardFilterPanel from '../components/board/BoardFilterPanel';
@@ -161,6 +162,7 @@ export default function BoardPage() {
   const [bgMenuOpen, setBgMenuOpen] = useState(false);
   const [visMenuOpen, setVisMenuOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [filter, setFilter] = useState<BoardFilter>(EMPTY_FILTER);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -707,6 +709,28 @@ export default function BoardPage() {
                 onChange={setFilter}
                 boardMembers={members}
                 onClose={() => setFilterOpen(false)}
+              />
+            )}
+          </div>
+
+          <div className="relative">
+            <button
+              type="button"
+              data-activity-trigger
+              onClick={() => setActivityOpen((v) => !v)}
+              title="Hoạt động"
+              className="flex items-center gap-1.5 rounded bg-white/25 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-white/40"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 8v4l3 2" />
+                <circle cx="12" cy="12" r="9" />
+              </svg>
+              Hoạt động
+            </button>
+            {activityOpen && (
+              <BoardActivityMenu
+                boardId={board.id}
+                onClose={() => setActivityOpen(false)}
               />
             )}
           </div>

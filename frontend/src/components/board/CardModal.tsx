@@ -21,6 +21,7 @@ import {
   updateCard,
   updateChecklistItem,
 } from '../../lib/api/card';
+import { activityPhrase } from '../../lib/activityText';
 import { assetUrl } from '../../lib/assets';
 import { initialsOf } from '../../lib/avatar';
 import { getErrorMessage } from '../../lib/errorMessage';
@@ -98,31 +99,7 @@ function formatBytes(n: number): string {
 }
 
 function activityText(a: CardActivity): string {
-  const d = a.data as Record<string, string>;
-  switch (a.type) {
-    case 'card.create':
-      return `đã thêm thẻ này vào danh sách ${d.listName ?? ''}`;
-    case 'attachment.add':
-      return `đã đính kèm tệp "${d.name ?? ''}"`;
-    case 'card.move':
-      return `đã chuyển thẻ từ ${d.fromList} sang ${d.toList}`;
-    case 'card.rename':
-      return 'đã đổi tên thẻ';
-    case 'card.done':
-      return 'đã đánh dấu thẻ hoàn thành';
-    case 'card.undone':
-      return 'đã bỏ đánh dấu hoàn thành';
-    case 'card.due.set':
-      return 'đã đặt ngày hết hạn';
-    case 'card.due.clear':
-      return 'đã bỏ ngày hết hạn';
-    case 'member.add':
-      return `đã thêm ${d.memberName} vào thẻ`;
-    case 'checklist.add':
-      return `đã thêm việc cần làm "${d.title}"`;
-    default:
-      return a.type;
-  }
+  return activityPhrase(a);
 }
 
 export default function CardModal({

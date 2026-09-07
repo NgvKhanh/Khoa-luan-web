@@ -1,0 +1,39 @@
+// Cum tu mo ta 1 dong nhat ky hoat dong (dung chung cho CardModal va bang nhat ky bang)
+export function activityPhrase(a: {
+  type: string;
+  data: Record<string, unknown>;
+}): string {
+  const d = a.data as Record<string, string>;
+  switch (a.type) {
+    case 'card.create':
+      return `đã thêm thẻ vào danh sách ${d.listName ?? ''}`;
+    case 'card.move':
+      return `đã chuyển thẻ từ ${d.fromList} sang ${d.toList}`;
+    case 'card.rename':
+      return 'đã đổi tên thẻ';
+    case 'card.done':
+      return 'đã đánh dấu thẻ hoàn thành';
+    case 'card.undone':
+      return 'đã bỏ đánh dấu hoàn thành';
+    case 'card.due.set':
+      return 'đã đặt ngày hết hạn';
+    case 'card.due.clear':
+      return 'đã bỏ ngày hết hạn';
+    case 'card.archive':
+      return 'đã lưu trữ thẻ';
+    case 'card.restore':
+      return 'đã khôi phục thẻ';
+    case 'member.add':
+      return `đã thêm ${d.memberName ?? ''} vào thẻ`;
+    case 'member.remove':
+      return `đã bỏ ${d.memberName ?? ''} khỏi thẻ`;
+    case 'checklist.add':
+      return `đã thêm việc cần làm "${d.title ?? ''}"`;
+    case 'attachment.add':
+      return `đã đính kèm tệp "${d.name ?? ''}"`;
+    case 'comment.create':
+      return `đã bình luận: ${d.text ?? ''}`;
+    default:
+      return a.type;
+  }
+}

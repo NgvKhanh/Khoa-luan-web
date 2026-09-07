@@ -43,6 +43,25 @@ export async function fetchBoardArchive(
   return res.data.data;
 }
 
+export interface BoardActivity {
+  id: string;
+  type: string;
+  data: Record<string, string>;
+  createdAt: string;
+  user: { id: string; name: string; avatarUrl: string | null };
+  card: { id: string; title: string } | null;
+}
+
+// Nhat ky hoat dong ca bang
+export async function fetchBoardActivity(
+  boardId: string
+): Promise<BoardActivity[]> {
+  const res = await api.get<{ data: { activities: BoardActivity[] } }>(
+    `/activities/board/${boardId}`
+  );
+  return res.data.data.activities;
+}
+
 export async function createBoard(input: {
   name: string;
   color?: string;

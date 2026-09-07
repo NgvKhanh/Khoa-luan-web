@@ -52,6 +52,19 @@ export async function listCardActivity(cardId: string) {
   });
 }
 
+// Nhat ky thao tac cua ca 1 bang (moi nguoi, moi the)
+export async function listBoardActivity(boardId: string) {
+  return prisma.activity.findMany({
+    where: { boardId },
+    orderBy: { createdAt: 'desc' },
+    take: 80,
+    include: {
+      user: { select: ACTIVITY_USER_SELECT },
+      card: { select: { id: true, title: true } },
+    },
+  });
+}
+
 // Nhat ky thao tac cua chinh nguoi dung tren moi bang
 export async function listMyActivity(userId: string) {
   return prisma.activity.findMany({
