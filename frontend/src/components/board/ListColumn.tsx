@@ -56,12 +56,19 @@ export default function ListColumn({
   onSortList,
   onRequestDeleteAllCards,
 }: Props) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({
-      id: `list-${list.id}`,
-      data: { type: 'list' },
-      disabled: readOnly,
-    });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: `list-${list.id}`,
+    data: { type: 'list' },
+    disabled: readOnly,
+  });
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(list.name);
@@ -101,7 +108,15 @@ export default function ListColumn({
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') saveName();
+    // Header cua cot cung la tay cam keo. KeyboardSensor cua dnd-kit coi
+    // Enter/Space la phim bat dau keo, nen phai chan su kien lai o day -
+    // neu khong, Enter se vua luu ten vua khoi dong mot luot keo "ma"
+    // khong bao gio ket thuc (cot ket cung, khong keo tha duoc nua).
+    e.stopPropagation();
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveName();
+    }
     if (e.key === 'Escape') {
       setDraft(list.name);
       setEditing(false);
@@ -128,10 +143,11 @@ export default function ListColumn({
     >
       {/* Header - cung la tay cam de keo cot */}
       <div
+        ref={readOnly ? undefined : setActivatorNodeRef}
         {...(readOnly ? {} : attributes)}
         {...(readOnly ? {} : listeners)}
         style={{ touchAction: 'none' }}
-        className={`relative flex items-center gap-1 px-2 py-1.5 ${
+        className={`relative flex shrink-0 items-center gap-1 px-2 py-1.5 ${
           readOnly ? '' : 'cursor-grab active:cursor-grabbing'
         }`}
       >
@@ -359,8 +375,8 @@ export default function ListColumn({
         )}
       </div>
 
-      {/* Vung the - cao theo noi dung, cuon rieng khi nhieu */}
-      <div className="flex min-h-[4px] flex-col gap-2 overflow-y-auto px-2">
+      {/* Vung the - cao theo noi dung, tu cuon khi cham tran chieu cao cot */}
+      <div className="list-scroll flex min-h-[4px] flex-col gap-2 overflow-y-auto overscroll-contain px-2 py-0.5">
         <SortableContext
           items={list.cards.map((c) => c.id)}
           strategy={verticalListSortingStrategy}
@@ -379,7 +395,7 @@ export default function ListColumn({
       </div>
 
       {!readOnly && (
-        <div className="p-2">
+        <div className="shrink-0 p-2">
           <AddCardForm
             open={addCardOpen}
             onOpenChange={setAddCardOpen}

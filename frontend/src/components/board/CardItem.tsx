@@ -59,12 +59,27 @@ export default function CardItem({
   overlay,
   readOnly = false,
 }: Props) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({
-      id: card.id,
-      data: { type: 'card', listId: card.listId },
-      disabled: overlay || readOnly,
-    });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: card.id,
+    data: { type: 'card', listId: card.listId },
+    disabled: overlay || readOnly,
+  });
+
+  // Bao dnd-kit biet dau la "tay cam" keo. Nho vay KeyboardSensor chi nhan
+  // Enter/Space khi dung chinh the dang duoc focus - bam Enter tren cac nut
+  // ben trong (danh dau xong / luu tru) se khong khoi dong luot keo "ma".
+  const setRefs = (node: HTMLElement | null) => {
+    setNodeRef(node);
+    setActivatorNodeRef(node);
+  };
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -200,15 +215,17 @@ export default function CardItem({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={setRefs}
       style={{ ...style, touchAction: 'none' }}
       {...attributes}
       {...listeners}
       onClick={() => onOpen?.(card.id)}
       className={
+        // shrink-0: giu nguyen chieu cao that cua the. Neu khong, khi cot cham
+        // tran chieu cao thi flexbox se bop det cac the lai thay vi cho cuon.
         isDragging
-          ? 'rounded-lg border-2 border-dashed border-slate-300 bg-slate-200/60 text-sm [&_*]:invisible'
-          : 'group/card relative cursor-pointer overflow-hidden rounded-lg bg-white text-sm shadow-sm ring-1 ring-black/[0.04] transition-shadow hover:shadow-md'
+          ? 'shrink-0 rounded-lg border-2 border-dashed border-slate-300 bg-slate-200/60 text-sm [&_*]:invisible'
+          : 'group/card relative shrink-0 cursor-pointer overflow-hidden rounded-lg bg-white text-sm shadow-sm ring-1 ring-black/[0.04] transition-shadow hover:shadow-md'
       }
     >
       {!isDragging && hasCover && <CardCover card={card} />}

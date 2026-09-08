@@ -1034,7 +1034,7 @@ export default function BoardPage() {
           }}
         >
           <div
-            className={`flex flex-1 items-start gap-3 overflow-x-auto p-3 ${
+            className={`board-scroll flex min-h-0 flex-1 items-start gap-3 overflow-x-auto p-3 ${
               activeCard || activeList ? 'select-none' : ''
             }`}
           >
