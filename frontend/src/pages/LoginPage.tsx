@@ -39,7 +39,11 @@ export default function LoginPage() {
       footer={
         <>
           Chưa có tài khoản?{' '}
-          <Link to="/register" className="font-semibold text-white hover:underline">
+          <Link
+            to="/register"
+            state={location.state}
+            className="font-semibold text-white hover:underline"
+          >
             Đăng ký
           </Link>
         </>

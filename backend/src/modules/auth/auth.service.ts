@@ -3,9 +3,11 @@ import { env } from '../../config/env';
 import { sendMail } from '../../config/mailer';
 import { prisma } from '../../config/prisma';
 import { avatarPublicPath, removeAvatarFile } from '../../config/upload';
+import { disconnectUserSockets } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import { signToken } from '../../utils/jwt';
 import { comparePassword, hashPassword } from '../../utils/password';
+import { createPersonalWorkspace } from '../workspace/workspace.service';
 import { consumeAuthToken, createAuthToken } from './authToken.service';
 import { resetPasswordEmail, verifyEmailEmail } from './emailTemplates';
 import type {
@@ -29,6 +31,7 @@ const PUBLIC_USER_SELECT = {
   avatarUrl: true,
   emailVerifiedAt: true,
   createdAt: true,
+  tokenVersion: true,
 } as const;
 
 /**
@@ -82,10 +85,13 @@ export async function registerUser(input: RegisterInput) {
     select: PUBLIC_USER_SELECT,
   });
 
+  // Moi nguoi dung co san 1 khong gian ca nhan
+  await createPersonalWorkspace(user.id, user.name);
+
   // Gui mail xac minh (khong chan neu that bai)
   await sendVerificationEmail(user);
 
-  const token = signToken({ userId: user.id });
+  const token = signToken({ userId: user.id, tokenVersion: user.tokenVersion });
 
   return { user, token };
 }
@@ -115,7 +121,7 @@ export async function loginUser(input: LoginInput) {
     throw new AppError('Email hoac mat khau khong dung', 401);
   }
 
-  const token = signToken({ userId: user.id });
+  const token = signToken({ userId: user.id, tokenVersion: user.tokenVersion });
 
   return {
     user: {
@@ -209,9 +215,11 @@ export async function loginWithGoogle(input: GoogleLoginInput) {
       },
       select: PUBLIC_USER_SELECT,
     });
+    // Moi nguoi dung co san 1 khong gian ca nhan
+    await createPersonalWorkspace(user.id, user.name);
   }
 
-  const token = signToken({ userId: user.id });
+  const token = signToken({ userId: user.id, tokenVersion: user.tokenVersion });
   return { user, token };
 }
 
@@ -288,10 +296,22 @@ export async function changeUserPassword(
     throw new AppError('Mat khau hien tai khong dung', 400);
   }
 
-  await prisma.user.update({
+  const updated = await prisma.user.update({
     where: { id: userId },
-    data: { passwordHash: await hashPassword(input.newPassword) },
+    data: {
+      passwordHash: await hashPassword(input.newPassword),
+      // Thu hoi moi JWT cu (REST + Socket.IO) da cap truoc do; phien hien tai
+      // se duoc cap cookie moi o controller voi tokenVersion vua tang.
+      tokenVersion: { increment: 1 },
+    },
+    select: { tokenVersion: true },
   });
+
+  // Ngat cac ket noi Socket.IO dang mo cua user (chung khong tu ngat khi doi
+  // mat khau, chi bi tu choi o lan ket noi TIEP THEO neu khong lam viec nay).
+  disconnectUserSockets(userId);
+
+  return { token: signToken({ userId, tokenVersion: updated.tokenVersion }) };
 }
 
 /**
@@ -340,16 +360,30 @@ export async function requestPasswordReset(
  * Token hop le -> doi mat khau, danh dau token da dung, coi email da xac minh.
  */
 export async function resetPassword(input: ResetPasswordInput): Promise<void> {
-  const userId = await consumeAuthToken(input.token, 'PASSWORD_RESET');
+  // Bam mat khau TRUOC (ton CPU) de khong keo dai transaction ben duoi
+  const passwordHash = await hashPassword(input.newPassword);
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      passwordHash: await hashPassword(input.newPassword),
-      // Dat lai mat khau qua email cung chung minh so huu email
-      emailVerifiedAt: new Date(),
-    },
+  // Tieu thu token va doi mat khau trong CUNG mot transaction: neu buoc doi
+  // mat khau loi thi token cung duoc hoan (khong mat hieu luc lien ket oan).
+  const userId = await prisma.$transaction(async (tx) => {
+    const uid = await consumeAuthToken(tx, input.token, 'PASSWORD_RESET');
+    await tx.user.update({
+      where: { id: uid },
+      data: {
+        passwordHash,
+        // Dat lai mat khau qua email cung chung minh so huu email
+        emailVerifiedAt: new Date(),
+        // Thu hoi moi JWT da cap truoc do (quan trong khi lay lai tai khoan
+        // tu tay ke chiem doat) - ap dung ca REST lan Socket.IO.
+        tokenVersion: { increment: 1 },
+      },
+    });
+    return uid;
   });
+
+  // Nguoi lay lai tai khoan co the dang bi chiem: ngat ngay moi ket noi
+  // Socket.IO hien co cua tai khoan nay (khong cho tro thu dong duong ket noi).
+  disconnectUserSockets(userId);
 }
 
 /**
@@ -357,20 +391,20 @@ export async function resetPassword(input: ResetPasswordInput): Promise<void> {
  * Neu email da xac minh tu truoc thi giu nguyen moc thoi gian cu.
  */
 export async function verifyEmail(input: VerifyEmailInput) {
-  const userId = await consumeAuthToken(input.token, 'EMAIL_VERIFY');
+  return prisma.$transaction(async (tx) => {
+    const userId = await consumeAuthToken(tx, input.token, 'EMAIL_VERIFY');
 
-  const current = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { emailVerifiedAt: true },
+    const current = await tx.user.findUnique({
+      where: { id: userId },
+      select: { emailVerifiedAt: true },
+    });
+
+    return tx.user.update({
+      where: { id: userId },
+      data: { emailVerifiedAt: current?.emailVerifiedAt ?? new Date() },
+      select: PUBLIC_USER_SELECT,
+    });
   });
-
-  const user = await prisma.user.update({
-    where: { id: userId },
-    data: { emailVerifiedAt: current?.emailVerifiedAt ?? new Date() },
-    select: PUBLIC_USER_SELECT,
-  });
-
-  return user;
 }
 
 /**

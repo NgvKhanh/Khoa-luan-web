@@ -1,6 +1,6 @@
 import { GoogleLogin } from '@react-oauth/google';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getErrorMessage } from '../../lib/errorMessage';
 
@@ -10,6 +10,7 @@ const CONFIGURED = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
 export default function GoogleAuthButton() {
   const { loginWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [error, setError] = useState<string | null>(null);
 
   if (!CONFIGURED) return null;
@@ -34,7 +35,9 @@ export default function GoogleAuthButton() {
             }
             try {
               await loginWithGoogle(res.credential);
-              navigate('/', { replace: true });
+              const redirectTo =
+                (location.state as { from?: string } | null)?.from ?? '/';
+              navigate(redirectTo, { replace: true });
             } catch (err) {
               setError(getErrorMessage(err, 'Đăng nhập Google thất bại.'));
             }

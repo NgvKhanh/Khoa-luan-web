@@ -50,7 +50,17 @@ export const moveCardSchema = z.object({
     .min(0, 'Vi tri khong hop le'),
 });
 
+// Nhac han: chi cho phep vai muc co san (phut truoc dueDate)
+export const REMINDER_OFFSETS = [10, 60, 1440] as const;
+export const createReminderSchema = z.object({
+  offsetMinutes: z.number().int().refine(
+    (v) => (REMINDER_OFFSETS as readonly number[]).includes(v),
+    'Muc nhac khong hop le'
+  ),
+});
+
 export type CreateCardInput = z.infer<typeof createCardSchema>;
 export type UpdateCardInput = z.infer<typeof updateCardSchema>;
 export type CopyCardInput = z.infer<typeof copyCardSchema>;
 export type MoveCardInput = z.infer<typeof moveCardSchema>;
+export type CreateReminderInput = z.infer<typeof createReminderSchema>;

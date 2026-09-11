@@ -2,11 +2,13 @@ import cookieParser from 'cookie-parser';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { env } from './config/env';
-import { UPLOAD_ROOT } from './config/upload';
+import { AVATAR_DIR, BOARD_BG_DIR } from './config/upload';
+import { optionalAuth } from './middleware/auth.middleware';
 import activityRoutes from './modules/activity/activity.routes';
 import authRoutes from './modules/auth/auth.routes';
 import boardRoutes from './modules/board/board.routes';
 import { boardMemberRoutes } from './modules/board/boardMember.routes';
+import publicBoardRoutes from './modules/board/publicBoard.routes';
 import {
   attachmentRoutes,
   cardRoutes,
@@ -15,10 +17,21 @@ import {
   commentRoutes,
   listCardRoutes,
 } from './modules/card/card.routes';
+import { serveCardAttachment } from './modules/card/attachment.serve';
 import { boardListRoutes, listRoutes } from './modules/list/list.routes';
 import { boardLabelRoutes, labelRoutes } from './modules/label/label.routes';
+import {
+  boardCustomFieldRoutes,
+  customFieldOptionRoutes,
+  customFieldRoutes,
+} from './modules/customField/customField.routes';
+import {
+  boardCardTemplateRoutes,
+  cardTemplateRoutes,
+} from './modules/card/cardTemplate.routes';
 import notificationRoutes from './modules/notification/notification.routes';
 import unsplashRoutes from './modules/unsplash/unsplash.routes';
+import workspaceRoutes from './modules/workspace/workspace.routes';
 import { AppError } from './utils/AppError';
 
 /**
@@ -52,14 +65,28 @@ export function createApp() {
     });
   });
 
-  // Phuc vu file tinh da tai len (anh nen bang...)
-  app.use('/uploads', express.static(UPLOAD_ROOT));
+  // Tep dinh kem cua the: co the thuoc bang RIENG TU -> phai kiem tra quyen.
+  // Dung optionalAuth (khong ep dang nhap) vi bang PUBLIC thi khach cung xem
+  // duoc tep - serveCardAttachment tu quyet dinh qua assertBoardView.
+  app.use('/uploads/cards', optionalAuth, serveCardAttachment);
+
+  // Phuc vu file tinh CONG KHAI da tai len: chi tung thu muc duoc phep, KHONG
+  // BAO GIO mount static tren toan bo UPLOAD_ROOT (thu muc cha con chua
+  // "cards" la du lieu rieng tu). Neu mount ca UPLOAD_ROOT, mot request voi
+  // doan duong dan ma hoa (vd "/uploads/%63ards/<file>") se khong khop tien
+  // to "/uploads/cards" o tren nhung van duoc express.static giai ma va phuc
+  // vu thang tu dia, bo qua hoan toan kiem tra quyen phia tren.
+  app.use('/uploads/avatars', express.static(AVATAR_DIR));
+  app.use('/uploads/boards', express.static(BOARD_BG_DIR));
 
   app.use('/api/auth', authRoutes);
+  app.use('/api/workspaces', workspaceRoutes);
   app.use('/api/activities', activityRoutes);
   app.use('/api/boards/:boardId/lists', boardListRoutes);
   app.use('/api/boards/:boardId/members', boardMemberRoutes);
   app.use('/api/boards/:boardId/labels', boardLabelRoutes);
+  app.use('/api/boards/:boardId/custom-fields', boardCustomFieldRoutes);
+  app.use('/api/boards/:boardId/card-templates', boardCardTemplateRoutes);
   app.use('/api/boards', boardRoutes);
   app.use('/api/lists/:listId/cards', listCardRoutes);
   app.use('/api/lists', listRoutes);
@@ -69,8 +96,12 @@ export function createApp() {
   app.use('/api/attachments', attachmentRoutes);
   app.use('/api/comments', commentRoutes);
   app.use('/api/labels', labelRoutes);
+  app.use('/api/custom-fields', customFieldRoutes);
+  app.use('/api/custom-field-options', customFieldOptionRoutes);
+  app.use('/api/card-templates', cardTemplateRoutes);
   app.use('/api/notifications', notificationRoutes);
   app.use('/api/unsplash', unsplashRoutes);
+  app.use('/api/public', publicBoardRoutes);
 
   // Khong khop route nao -> tra ve 404 dang JSON
   app.use((req: Request, res: Response) => {

@@ -17,6 +17,7 @@ import {
   moveCard,
   purgeCard,
   restoreCard,
+  searchCards,
   updateCard,
 } from './card.service';
 
@@ -65,6 +66,14 @@ export const listCalendarHandler = asyncHandler(
       fromDate,
       toDate
     );
+    res.json({ success: true, data: { cards } });
+  }
+);
+
+export const searchCardsHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const q = typeof req.query.q === 'string' ? req.query.q : '';
+    const cards = await searchCards(requireUserId(req), q);
     res.json({ success: true, data: { cards } });
   }
 );

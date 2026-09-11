@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { uploadAvatar } from '../../config/upload';
 import { requireAuth } from '../../middleware/auth.middleware';
-import { authLimiter } from '../../middleware/rateLimit.middleware';
+import {
+  authLimiter,
+  loginLimiter,
+  registerLimiter,
+} from '../../middleware/rateLimit.middleware';
 import { validateBody } from '../../middleware/validate.middleware';
 import {
   changePassword,
@@ -30,8 +34,13 @@ import {
 
 const router = Router();
 
-router.post('/register', validateBody(registerSchema), register);
-router.post('/login', validateBody(loginSchema), login);
+router.post(
+  '/register',
+  registerLimiter,
+  validateBody(registerSchema),
+  register
+);
+router.post('/login', loginLimiter, validateBody(loginSchema), login);
 router.post('/google', authLimiter, validateBody(googleLoginSchema), googleLogin);
 router.post('/logout', logout);
 router.post(

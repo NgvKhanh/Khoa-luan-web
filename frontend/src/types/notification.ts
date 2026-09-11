@@ -3,6 +3,7 @@ export interface AppNotification {
   type: string;
   boardId: string | null;
   cardId: string | null;
+  workspaceId: string | null;
   data: Record<string, string>;
   isRead: boolean;
   createdAt: string;

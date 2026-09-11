@@ -1,7 +1,22 @@
 import { Router } from 'express';
 import { uploadCardAttachment } from '../../config/upload';
 import { requireAuth } from '../../middleware/auth.middleware';
+import {
+  cleanupUploadOnError,
+  requireCardAccess,
+} from '../../middleware/uploadGuard.middleware';
 import { validateBody } from '../../middleware/validate.middleware';
+import { setCardWatchHandler } from '../watch/watch.controller';
+import { setCardFieldValueHandler } from '../customField/customField.controller';
+import { setCardFieldValueSchema } from '../customField/customField.schema';
+import {
+  applyCardTemplateHandler,
+  saveCardAsTemplateHandler,
+} from './cardTemplate.controller';
+import {
+  applyCardTemplateSchema,
+  saveCardAsTemplateSchema,
+} from './cardTemplate.schema';
 import {
   archiveCardHandler,
   copyCardHandler,
@@ -12,17 +27,20 @@ import {
   moveCardHandler,
   purgeCardHandler,
   restoreCardHandler,
+  searchCardsHandler,
   updateCardHandler,
 } from './card.controller';
 import {
   copyCardSchema,
   createCardSchema,
+  createReminderSchema,
   moveCardSchema,
   updateCardSchema,
 } from './card.schema';
 import {
   addAttachmentHandler,
   addCardMemberHandler,
+  addCardReminderHandler,
   addChecklistHandler,
   addChecklistItemHandler,
   addCommentHandler,
@@ -34,7 +52,9 @@ import {
   deleteCommentHandler,
   detachLabelHandler,
   getCardDetailHandler,
+  listCardRemindersHandler,
   removeCardMemberHandler,
+  removeCardReminderHandler,
   reorderChecklistItemsHandler,
   updateChecklistHandler,
   updateChecklistItemHandler,
@@ -54,6 +74,11 @@ import {
 export const listCardRoutes = Router({ mergeParams: true });
 listCardRoutes.use(requireAuth);
 listCardRoutes.post('/', validateBody(createCardSchema), createCardHandler);
+listCardRoutes.post(
+  '/from-template/:templateId',
+  validateBody(applyCardTemplateSchema),
+  applyCardTemplateHandler
+);
 
 // Gan vao /api/cards
 export const cardRoutes = Router();
@@ -61,7 +86,19 @@ cardRoutes.use(requireAuth);
 
 cardRoutes.get('/mine', listMyCardsHandler);
 cardRoutes.get('/calendar', listCalendarHandler);
+cardRoutes.get('/search', searchCardsHandler);
 cardRoutes.get('/:cardId', getCardDetailHandler);
+cardRoutes.put('/:cardId/watch', setCardWatchHandler);
+cardRoutes.put(
+  '/:cardId/custom-fields/:fieldId',
+  validateBody(setCardFieldValueSchema),
+  setCardFieldValueHandler
+);
+cardRoutes.post(
+  '/:cardId/save-as-template',
+  validateBody(saveCardAsTemplateSchema),
+  saveCardAsTemplateHandler
+);
 cardRoutes.patch('/:cardId', validateBody(updateCardSchema), updateCardHandler);
 cardRoutes.patch('/:cardId/move', validateBody(moveCardSchema), moveCardHandler);
 cardRoutes.post('/:cardId/copy', validateBody(copyCardSchema), copyCardHandler);
@@ -89,6 +126,18 @@ cardRoutes.post(
   addChecklistHandler
 );
 
+// Nhac han (rieng cho nguoi dat, khong dung chung giua cac thanh vien the)
+cardRoutes.get('/:cardId/reminders', listCardRemindersHandler);
+cardRoutes.post(
+  '/:cardId/reminders',
+  validateBody(createReminderSchema),
+  addCardReminderHandler
+);
+cardRoutes.delete(
+  '/:cardId/reminders/:offsetMinutes',
+  removeCardReminderHandler
+);
+
 // Binh luan
 cardRoutes.post(
   '/:cardId/comments',
@@ -97,10 +146,13 @@ cardRoutes.post(
 );
 
 // Tep dinh kem (multipart, field "file")
+// Kiem tra quyen the TRUOC khi ghi file; don file rac neu handler loi.
 cardRoutes.post(
   '/:cardId/attachments',
+  requireCardAccess,
   uploadCardAttachment,
-  addAttachmentHandler
+  addAttachmentHandler,
+  cleanupUploadOnError
 );
 
 // Gan vao /api/checklists

@@ -101,9 +101,14 @@ export const listTemplatesHandler = asyncHandler(
 
 export const createFromTemplateHandler = asyncHandler(
   async (req: Request, res: Response) => {
-    const body = req.body as { templateId: string; name?: string };
+    const body = req.body as {
+      templateId: string;
+      workspaceId: string;
+      name?: string;
+    };
     const board = await createBoardFromTemplate(
       requireUserId(req),
+      body.workspaceId,
       body.templateId,
       body.name
     );

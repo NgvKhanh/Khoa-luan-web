@@ -1,10 +1,18 @@
 import { prisma } from '../../config/prisma';
+import { Prisma } from '../../generated/prisma/client';
 import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity/activity.service';
-import { assertBoardAccess, assertBoardView } from '../board/board.service';
+import {
+  assertBoardAccess,
+  assertBoardView,
+  isBoardParticipant,
+} from '../board/board.service';
 import { cardMemberIds, notify } from '../notification/notification.service';
-import { assertListAccess } from '../list/list.service';
+import { assertListAccess, assertListView } from '../list/list.service';
+import { memberWorkspaceIds } from '../workspace/workspace.service';
+import { resetCardRemindersOnDueDateChange } from './cardReminder.service';
+import { isWatchingCard } from '../watch/watch.service';
 import type {
   CreateCardInput,
   MoveCardInput,
@@ -114,8 +122,26 @@ export async function assertCardAccess(userId: string, cardId: string) {
   return card;
 }
 
+// Nhu tren nhung chi doi hoi QUYEN XEM (VIEWER cung qua duoc) - dung cho cac
+// thiet lap ca nhan khong lam thay doi noi dung the: watch, nhac han rieng.
+export async function assertCardView(userId: string, cardId: string) {
+  const card = await prisma.card.findFirst({
+    where: { id: cardId, deletedAt: null, archivedAt: null },
+    include: { list: { select: { boardId: true, name: true } } },
+  });
+  if (!card) {
+    throw new AppError('Khong tim thay the', 404);
+  }
+  await assertListView(userId, card.listId);
+  return card;
+}
+
 // Tat ca cac the ma nguoi dung duoc gan lam thanh vien, tren moi bang
 export async function listMyCards(userId: string) {
+  // Chi lay the o bang nguoi dung CON quyen truy cap: chu bang / thanh vien bang
+  // con hieu luc / thanh vien khong gian (bang WORKSPACE). Nguoi da bi thu hoi
+  // quyen se khong con thay the du van con ban ghi CardMember cu.
+  const myWorkspaceIds = await memberWorkspaceIds(userId);
   return prisma.card.findMany({
     where: {
       deletedAt: null,
@@ -124,7 +150,14 @@ export async function listMyCards(userId: string) {
       list: {
         deletedAt: null,
         archivedAt: null,
-        board: { deletedAt: null },
+        board: {
+          deletedAt: null,
+          OR: [
+            { ownerId: userId },
+            { members: { some: { userId, deletedAt: null } } },
+            { visibility: 'WORKSPACE', workspaceId: { in: myWorkspaceIds } },
+          ],
+        },
       },
     },
     orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
@@ -187,6 +220,56 @@ export async function listCalendarCards(
   });
 }
 
+// Tim the theo tu khoa (tieu de + mo ta), tren moi bang nguoi dung co quyen truy cap
+export async function searchCards(userId: string, query: string) {
+  const term = query.trim();
+  if (!term) return [];
+
+  const myWorkspaceIds = await memberWorkspaceIds(userId);
+  return prisma.card.findMany({
+    where: {
+      deletedAt: null,
+      archivedAt: null,
+      OR: [
+        { title: { contains: term, mode: 'insensitive' } },
+        { description: { contains: term, mode: 'insensitive' } },
+      ],
+      list: {
+        deletedAt: null,
+        archivedAt: null,
+        board: {
+          deletedAt: null,
+          OR: [
+            { ownerId: userId },
+            { members: { some: { userId, deletedAt: null } } },
+            { visibility: 'WORKSPACE', workspaceId: { in: myWorkspaceIds } },
+            { visibility: 'PUBLIC' },
+          ],
+        },
+      },
+    },
+    orderBy: [{ updatedAt: 'desc' }],
+    take: 30,
+    select: {
+      id: true,
+      title: true,
+      isDone: true,
+      dueDate: true,
+      coverColor: true,
+      list: {
+        select: {
+          id: true,
+          name: true,
+          boardId: true,
+          board: { select: { id: true, name: true, color: true } },
+        },
+      },
+      labels: { include: { label: true } },
+      members: { include: { user: { select: CARD_USER_SELECT } } },
+    },
+  });
+}
+
 export async function getCardDetail(userId: string, cardId: string) {
   const found = await prisma.card.findFirst({
     where: { id: cardId, deletedAt: null, archivedAt: null },
@@ -228,10 +311,11 @@ export async function getCardDetail(userId: string, cardId: string) {
         take: 50,
         include: { user: { select: { id: true, name: true, avatarUrl: true } } },
       },
+      fieldValues: true,
     },
   });
   if (!card) throw new AppError('Khong tim thay the', 404);
-  return card;
+  return { ...card, isWatching: await isWatchingCard(userId, cardId) };
 }
 
 export async function createCard(
@@ -332,6 +416,7 @@ export async function updateCard(
     }
   }
   if (input.dueDate !== undefined) {
+    await resetCardRemindersOnDueDateChange(cardId, Boolean(input.dueDate));
     await logActivity({
       boardId,
       cardId,
@@ -438,19 +523,18 @@ export async function moveCard(
   const card = await assertCardAccess(userId, cardId);
 
   const targetList = await prisma.list.findFirst({
-    where: { id: input.listId, deletedAt: null },
+    where: { id: input.listId, deletedAt: null, archivedAt: null },
+    include: { board: { select: { id: true, name: true } } },
   });
   if (!targetList) {
     throw new AppError('Danh sach dich khong ton tai', 400);
   }
   await assertBoardAccess(userId, targetList.boardId);
 
-  if (card.list.boardId !== targetList.boardId) {
-    throw new AppError('Khong the chuyen the sang bang khac', 400);
-  }
-
   const sourceListId = card.listId;
   const sourceListName = card.list.name;
+  const sourceBoardId = card.list.boardId;
+  const crossBoard = sourceBoardId !== targetList.boardId;
 
   const targetCards = await prisma.card.findMany({
     where: {
@@ -469,7 +553,7 @@ export async function moveCard(
     ...targetCards.slice(index).map((c) => c.id),
   ];
 
-  const writes = orderedIds.map((id, i) =>
+  const writes: Prisma.PrismaPromise<unknown>[] = orderedIds.map((id, i) =>
     prisma.card.update({
       where: { id },
       data: { position: i, listId: input.listId },
@@ -494,6 +578,75 @@ export async function moveCard(
     });
   }
 
+  // Chuyen sang bang khac: don du lieu khong con hop le o bang dich - nhan
+  // gan tren the / gan tren muc checklist khong con la thanh vien bang dich
+  // thi go ra (khong xoa the); nhan cua the thuoc bang cu cung bi go vi
+  // Label la rieng theo tung bang. Gia tri truong tuy chinh cung rieng theo
+  // tung bang (CustomField.boardId) nen cung phai go, khong the giu lai vi
+  // bang dich khong co dinh nghia truong tuong ung.
+  if (crossBoard) {
+    writes.push(
+      prisma.cardLabel.deleteMany({
+        where: { cardId, label: { boardId: { not: targetList.boardId } } },
+      }),
+      prisma.cardFieldValue.deleteMany({
+        where: { cardId, field: { boardId: { not: targetList.boardId } } },
+      })
+    );
+
+    const [members, items] = await Promise.all([
+      prisma.cardMember.findMany({ where: { cardId }, select: { userId: true } }),
+      prisma.checklistItem.findMany({
+        where: { checklist: { cardId }, assigneeId: { not: null } },
+        select: { id: true, assigneeId: true },
+      }),
+    ]);
+    const staleMemberIds = (
+      await Promise.all(
+        members.map(async (m) => ({
+          userId: m.userId,
+          stale: !(await isBoardParticipant(targetList.boardId, m.userId)),
+        }))
+      )
+    )
+      .filter((m) => m.stale)
+      .map((m) => m.userId);
+    if (staleMemberIds.length > 0) {
+      writes.push(
+        prisma.cardMember.deleteMany({
+          where: { cardId, userId: { in: staleMemberIds } },
+        })
+      );
+    }
+
+    const distinctAssigneeIds = [
+      ...new Set(items.map((it) => it.assigneeId as string)),
+    ];
+    const staleAssigneeIds = new Set(
+      (
+        await Promise.all(
+          distinctAssigneeIds.map(async (uid) => ({
+            uid,
+            stale: !(await isBoardParticipant(targetList.boardId, uid)),
+          }))
+        )
+      )
+        .filter((a) => a.stale)
+        .map((a) => a.uid)
+    );
+    const staleItemIds = items
+      .filter((it) => staleAssigneeIds.has(it.assigneeId as string))
+      .map((it) => it.id);
+    if (staleItemIds.length > 0) {
+      writes.push(
+        prisma.checklistItem.updateMany({
+          where: { id: { in: staleItemIds } },
+          data: { assigneeId: null },
+        })
+      );
+    }
+  }
+
   await prisma.$transaction(writes);
 
   if (sourceListId !== input.listId) {
@@ -502,7 +655,13 @@ export async function moveCard(
       cardId,
       userId,
       type: 'card.move',
-      data: { fromList: sourceListName, toList: targetList.name },
+      data: crossBoard
+        ? {
+            fromList: sourceListName,
+            toList: targetList.name,
+            toBoard: targetList.board.name,
+          }
+        : { fromList: sourceListName, toList: targetList.name },
     });
     await notify({
       recipients: await cardMemberIds(cardId),
@@ -510,11 +669,20 @@ export async function moveCard(
       type: 'card.moved',
       boardId: targetList.boardId,
       cardId,
-      data: { cardTitle: card.title, toList: targetList.name },
+      data: {
+        cardTitle: card.title,
+        toList: crossBoard
+          ? `${targetList.board.name} / ${targetList.name}`
+          : targetList.name,
+      },
     });
   }
 
-  // Ke ca keo trong cung danh sach (khong ghi log) van bao realtime
+  // Ke ca keo trong cung danh sach (khong ghi log) van bao realtime.
+  // Chuyen xuyen bang: bao ca 2 phia, phia nguon can biet the vua "bien mat".
   emitToBoard(targetList.boardId, 'board:lists-changed');
+  if (crossBoard) {
+    emitToBoard(sourceBoardId, 'board:lists-changed');
+  }
   return prisma.card.findFirst({ where: { id: cardId } });
 }

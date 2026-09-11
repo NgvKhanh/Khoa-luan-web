@@ -9,8 +9,8 @@ import type {
   UpdateListInput,
 } from './list.schema';
 
-// Lay 1 danh sach con hoat dong va kiem tra nguoi dung so huu bang chua no.
-// Export de module card tai su dung.
+// Lay 1 danh sach con hoat dong va kiem tra nguoi dung CO QUYEN SUA bang
+// chua no. Export de module card tai su dung.
 export async function assertListAccess(userId: string, listId: string) {
   const list = await prisma.list.findFirst({
     where: { id: listId, deletedAt: null, archivedAt: null },
@@ -19,6 +19,19 @@ export async function assertListAccess(userId: string, listId: string) {
     throw new AppError('Khong tim thay danh sach', 404);
   }
   await assertBoardAccess(userId, list.boardId);
+  return list;
+}
+
+// Nhu tren nhung chi doi hoi QUYEN XEM (VIEWER cung qua duoc) - dung cho cac
+// thiet lap ca nhan khong lam thay doi noi dung bang: watch, nhac han rieng.
+export async function assertListView(userId: string, listId: string) {
+  const list = await prisma.list.findFirst({
+    where: { id: listId, deletedAt: null, archivedAt: null },
+  });
+  if (!list) {
+    throw new AppError('Khong tim thay danh sach', 404);
+  }
+  await assertBoardView(userId, list.boardId);
   return list;
 }
 

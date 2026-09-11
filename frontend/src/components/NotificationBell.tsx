@@ -8,6 +8,7 @@ import {
   markNotificationRead,
 } from '../lib/api/notification';
 import { initialsOf } from '../lib/avatar';
+import { logError } from '../lib/logError';
 import { socket } from '../lib/socket';
 import type { AppNotification } from '../types/notification';
 
@@ -47,8 +48,24 @@ function notifText(n: AppNotification): string {
       return `${a} đã xoá bạn khỏi bảng "${d.boardName}"`;
     case 'board.role.changed':
       return `${a} đã đổi vai trò của bạn thành ${
-        d.role === 'ADMIN' ? 'Quản trị viên' : 'Thành viên'
+        d.role === 'ADMIN'
+          ? 'Quản trị viên'
+          : d.role === 'VIEWER'
+            ? 'Người xem'
+            : 'Thành viên'
       } ở bảng "${d.boardName}"`;
+    case 'board.ownership.transferred':
+      return `${a} đã chuyển quyền sở hữu bảng "${d.boardName}" cho bạn`;
+    case 'workspace.member.added':
+      return `${a} đã thêm bạn vào không gian "${d.workspaceName}"`;
+    case 'workspace.member.removed':
+      return `${a} đã xoá bạn khỏi không gian "${d.workspaceName}"`;
+    case 'workspace.role.changed':
+      return `${a} đã đổi vai trò của bạn thành ${
+        d.role === 'ADMIN' ? 'Quản trị viên' : 'Thành viên'
+      } ở không gian "${d.workspaceName}"`;
+    case 'workspace.ownership.transferred':
+      return `${a} đã chuyển quyền sở hữu không gian "${d.workspaceName}" cho bạn`;
     case 'board.join.request':
       return `${a} muốn tham gia bảng "${d.boardName}"`;
     case 'board.join.approved':
@@ -69,6 +86,8 @@ function notifText(n: AppNotification): string {
       return `${a} đã đổi tên thẻ thành "${d.cardTitle}"`;
     case 'card.due.set':
       return `${a} đã đặt ngày hết hạn cho thẻ "${d.cardTitle}"`;
+    case 'card.due.reminder':
+      return `Sắp đến hạn thẻ "${d.cardTitle}" — còn ${d.offsetLabel} nữa`;
     case 'card.marked.done':
       return `${a} đã đánh dấu hoàn thành thẻ "${d.cardTitle}"`;
     case 'card.deleted':
@@ -88,7 +107,9 @@ export default function NotificationBell() {
   const ref = useRef<HTMLDivElement>(null);
 
   const refreshCount = useCallback(() => {
-    fetchUnreadCount().then(setCount).catch(() => {});
+    fetchUnreadCount()
+      .then(setCount)
+      .catch(logError('NotificationBell: dem chua doc'));
   }, []);
 
   // Hoi so chua doc luc dau + moi 45 giay (du phong khi socket roi)
@@ -102,7 +123,7 @@ export default function NotificationBell() {
     setLoading(true);
     fetchNotifications(unreadOnly)
       .then(setItems)
-      .catch(() => {})
+      .catch(logError('NotificationBell: tai thong bao'))
       .finally(() => setLoading(false));
   }, [unreadOnly]);
 
@@ -148,7 +169,18 @@ export default function NotificationBell() {
     }
     if (n.boardId) {
       setOpen(false);
-      navigate(`/boards/${n.boardId}`);
+      // Yeu cau tham gia -> mo thang tab "Yeu cau tham gia" trong panel Chia se
+      // Co the -> mo thang the lien quan
+      const suffix =
+        n.type === 'board.join.request'
+          ? '?share=requests'
+          : n.cardId
+            ? `?card=${n.cardId}`
+            : '';
+      navigate(`/boards/${n.boardId}${suffix}`);
+    } else if (n.workspaceId) {
+      setOpen(false);
+      navigate(`/workspaces/${n.workspaceId}`);
     }
   }
 

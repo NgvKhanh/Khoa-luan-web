@@ -10,6 +10,7 @@ import {
   trackUnsplashDownload,
   type UnsplashPhoto,
 } from '../../lib/api/unsplash';
+import { useWorkspaces } from '../../context/WorkspacesContext';
 import { BOARD_COLORS } from '../../lib/boardColors';
 import { getErrorMessage } from '../../lib/errorMessage';
 import { useUnsplashPhotos } from '../../lib/useUnsplashPhotos';
@@ -65,15 +66,22 @@ interface Props {
   onCreated: (board: Board) => void;
   onClose: () => void;
   className?: string;
+  // Neu truyen: khoa bang vao dung khong gian nay (an o chon)
+  workspaceId?: string;
 }
 
 export default function CreateBoardDialog({
   onCreated,
   onClose,
   className = '',
+  workspaceId: forcedWorkspaceId,
 }: Props) {
+  const { workspaces, currentWorkspaceId } = useWorkspaces();
   const [view, setView] = useState<'main' | 'photos'>('main');
   const [name, setName] = useState('');
+  const [workspaceId, setWorkspaceId] = useState(
+    forcedWorkspaceId ?? currentWorkspaceId ?? ''
+  );
   const [bg, setBg] = useState<Background>(DEFAULT_BG);
   const touched = useRef(false);
 
@@ -100,6 +108,13 @@ export default function CreateBoardDialog({
     });
   }, [onFirstLoad]);
 
+  // Khong gian mac dinh khi context tai xong
+  useEffect(() => {
+    if (!workspaceId && (forcedWorkspaceId || currentWorkspaceId)) {
+      setWorkspaceId(forcedWorkspaceId ?? currentWorkspaceId ?? '');
+    }
+  }, [workspaceId, forcedWorkspaceId, currentWorkspaceId]);
+
   function pick(next: Background) {
     touched.current = true;
     setBg(next);
@@ -108,11 +123,16 @@ export default function CreateBoardDialog({
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim() || submitting) return;
+    if (!workspaceId) {
+      setError('Hãy chọn không gian làm việc.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
       const board = await createBoard({
         name: name.trim(),
+        workspaceId,
         color: bg.type === 'color' ? bg.value : undefined,
         backgroundImage: bg.type === 'image' ? bg.url : undefined,
       });
@@ -134,14 +154,14 @@ export default function CreateBoardDialog({
   if (view === 'photos') {
     return (
       <div
-        className={`w-80 rounded-xl border border-slate-200 bg-white p-3 text-slate-800 shadow-2xl ${className}`}
+        className={`w-80 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 text-slate-800 dark:text-slate-100 shadow-2xl ${className}`}
       >
         <div className="mb-2 flex items-center">
           <button
             type="button"
             onClick={() => setView('main')}
             aria-label="Quay lại"
-            className="rounded p-1 text-slate-500 hover:bg-slate-100"
+            className="rounded p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M15 18l-6-6 6-6" />
@@ -154,7 +174,7 @@ export default function CreateBoardDialog({
             type="button"
             onClick={onClose}
             aria-label="Đóng"
-            className="rounded p-1 text-slate-500 hover:bg-slate-100"
+            className="rounded p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 6l12 12M18 6L6 18" />
@@ -166,7 +186,7 @@ export default function CreateBoardDialog({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Tìm ảnh (biển, núi, bầu trời...)"
-          className="mb-2 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+          className="mb-2 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
         />
 
         {photosError && (
@@ -175,9 +195,9 @@ export default function CreateBoardDialog({
 
         <div className="max-h-72 overflow-y-auto">
           {loadingPhotos ? (
-            <p className="py-6 text-center text-sm text-slate-400">Đang tải...</p>
+            <p className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">Đang tải...</p>
           ) : photos.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-400">
+            <p className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">
               Không có ảnh nào.
             </p>
           ) : (
@@ -211,7 +231,7 @@ export default function CreateBoardDialog({
                   type="button"
                   onClick={loadMore}
                   disabled={loadingMore}
-                  className="mt-2 w-full rounded-lg border border-slate-200 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  className="mt-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
                 >
                   {loadingMore ? 'Đang tải...' : 'Tải thêm ảnh'}
                 </button>
@@ -220,7 +240,7 @@ export default function CreateBoardDialog({
           )}
         </div>
 
-        <p className="mt-2 text-center text-[11px] text-slate-400">
+        <p className="mt-2 text-center text-[11px] text-slate-500 dark:text-slate-400">
           Ảnh cung cấp bởi Unsplash
         </p>
       </div>
@@ -231,7 +251,7 @@ export default function CreateBoardDialog({
   return (
     <form
       onSubmit={submit}
-      className={`w-80 rounded-xl border border-slate-200 bg-white p-3 text-slate-800 shadow-2xl ${className}`}
+      className={`w-80 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 text-slate-800 dark:text-slate-100 shadow-2xl ${className}`}
     >
       <div className="mb-2 flex items-center">
         <p className="flex-1 text-center text-sm font-semibold">Tạo bảng</p>
@@ -239,7 +259,7 @@ export default function CreateBoardDialog({
           type="button"
           onClick={onClose}
           aria-label="Đóng"
-          className="rounded p-1 text-slate-500 hover:bg-slate-100"
+          className="rounded p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M6 6l12 12M18 6L6 18" />
@@ -249,7 +269,7 @@ export default function CreateBoardDialog({
 
       <Preview bg={bg} />
 
-      <p className="mb-1.5 text-xs font-semibold text-slate-500">Phông nền</p>
+      <p className="mb-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">Phông nền</p>
 
       {!unsplashOff && (
         <div className="mb-2 grid grid-cols-5 gap-1.5">
@@ -273,17 +293,17 @@ export default function CreateBoardDialog({
           })}
           {loadingPhotos && quickPhotos.length === 0 && (
             <>
-              <span className="h-10 animate-pulse rounded-md bg-slate-200" />
-              <span className="h-10 animate-pulse rounded-md bg-slate-200" />
-              <span className="h-10 animate-pulse rounded-md bg-slate-200" />
-              <span className="h-10 animate-pulse rounded-md bg-slate-200" />
+              <span className="h-10 animate-pulse rounded-md bg-slate-200 dark:bg-slate-600" />
+              <span className="h-10 animate-pulse rounded-md bg-slate-200 dark:bg-slate-600" />
+              <span className="h-10 animate-pulse rounded-md bg-slate-200 dark:bg-slate-600" />
+              <span className="h-10 animate-pulse rounded-md bg-slate-200 dark:bg-slate-600" />
             </>
           )}
           <button
             type="button"
             onClick={() => setView('photos')}
             aria-label="Xem thêm ảnh"
-            className="grid h-10 place-items-center rounded-md bg-slate-100 text-slate-500 hover:bg-slate-200"
+            className="grid h-10 place-items-center rounded-md bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
               <circle cx="5" cy="12" r="1.8" />
@@ -313,7 +333,7 @@ export default function CreateBoardDialog({
       </div>
 
       {bg.type === 'image' && (
-        <p className="mb-2 truncate text-[11px] text-slate-400">
+        <p className="mb-2 truncate text-[11px] text-slate-500 dark:text-slate-400">
           Ảnh:{' '}
           <a
             href={bg.creditUrl}
@@ -327,7 +347,7 @@ export default function CreateBoardDialog({
         </p>
       )}
 
-      <label className="mb-1 block text-xs font-semibold text-slate-500">
+      <label className="mb-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
         Tiêu đề bảng <span className="text-red-500">*</span>
       </label>
       <input
@@ -336,24 +356,39 @@ export default function CreateBoardDialog({
         onChange={(e) => setName(e.target.value)}
         onKeyDown={onNameKeyDown}
         placeholder="Nhập tên bảng..."
-        className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-sm focus:border-[#0c66e4] focus:outline-none focus:ring-1 focus:ring-[#0c66e4]"
+        className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-2 text-sm focus:border-[#0c66e4] focus:outline-none focus:ring-1 focus:ring-[#0c66e4]"
       />
       {!name.trim() && (
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           👋 Tiêu đề bảng là bắt buộc
         </p>
       )}
 
-      <label className="mb-1 mt-3 block text-xs font-semibold text-slate-500">
-        Quyền xem
-      </label>
-      <div className="flex items-center gap-2 rounded-lg border border-slate-300 px-2.5 py-2 text-sm text-slate-600">
-        <svg viewBox="0 0 24 24" className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18" />
-        </svg>
+      <label className="mb-1 mt-3 block text-xs font-semibold text-slate-500 dark:text-slate-400">
         Không gian làm việc
-      </div>
+      </label>
+      {forcedWorkspaceId ? (
+        <div className="flex items-center gap-2 rounded-lg border border-slate-300 px-2.5 py-2 text-sm text-slate-600 dark:border-slate-600 dark:text-slate-300">
+          <svg viewBox="0 0 24 24" className="h-4 w-4 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M9 8a3 3 0 100-6 3 3 0 000 6zM3 20a6 6 0 0112 0M17 8a3 3 0 100-6M15 20a6 6 0 019-5" />
+          </svg>
+          {workspaces.find((w) => w.id === forcedWorkspaceId)?.name ??
+            'Không gian làm việc'}
+        </div>
+      ) : (
+        <select
+          value={workspaceId}
+          onChange={(e) => setWorkspaceId(e.target.value)}
+          className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-700 focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+        >
+          {workspaces.length === 0 && <option value="">Đang tải...</option>}
+          {workspaces.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
+            </option>
+          ))}
+        </select>
+      )}
 
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
 

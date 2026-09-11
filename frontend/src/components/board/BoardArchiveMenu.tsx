@@ -83,8 +83,8 @@ export default function BoardArchiveMenu({ boardId, onClose, onChanged }: Props)
       onClick={() => setTab(key)}
       className={`flex-1 rounded-lg py-1.5 text-sm font-medium ${
         tab === key
-          ? 'bg-slate-200 text-slate-800'
-          : 'text-slate-500 hover:bg-slate-100'
+          ? 'bg-slate-200 dark:bg-slate-600 text-slate-800 dark:text-slate-100'
+          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
       }`}
     >
       {label} {n > 0 && <span className="text-xs">({n})</span>}
@@ -94,7 +94,7 @@ export default function BoardArchiveMenu({ boardId, onClose, onChanged }: Props)
   return createPortal(
     <div
       ref={ref}
-      className="fixed right-3 top-14 z-50 w-80 rounded-xl border border-slate-200 bg-white p-2 text-slate-800 shadow-2xl"
+      className="fixed right-3 top-14 z-50 w-80 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-slate-800 dark:text-slate-100 shadow-2xl"
     >
       <p className="pb-1 text-center text-sm font-semibold">Mục đã lưu trữ</p>
       <div className="mb-2 flex gap-1">
@@ -104,10 +104,10 @@ export default function BoardArchiveMenu({ boardId, onClose, onChanged }: Props)
 
       {error && <p className="mb-1 px-1 text-xs text-red-600">{error}</p>}
       {loading ? (
-        <p className="px-1 py-4 text-center text-sm text-slate-400">Đang tải...</p>
+        <p className="px-1 py-4 text-center text-sm text-slate-500 dark:text-slate-400">Đang tải...</p>
       ) : tab === 'cards' ? (
         cards.length === 0 ? (
-          <p className="px-1 py-4 text-center text-sm text-slate-400">
+          <p className="px-1 py-4 text-center text-sm text-slate-500 dark:text-slate-400">
             Không có thẻ nào được lưu trữ.
           </p>
         ) : (
@@ -115,12 +115,12 @@ export default function BoardArchiveMenu({ boardId, onClose, onChanged }: Props)
             {cards.map((c) => (
               <li
                 key={c.id}
-                className="rounded-lg border border-slate-200 p-2"
+                className="rounded-lg border border-slate-200 dark:border-slate-700 p-2"
               >
-                <p className="truncate text-sm font-medium text-slate-700">
+                <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
                   {c.title}
                 </p>
-                <p className="mb-1.5 truncate text-xs text-slate-400">
+                <p className="mb-1.5 truncate text-xs text-slate-500 dark:text-slate-400">
                   trong danh sách "{c.list.name}"
                 </p>
                 <div className="flex gap-2 text-xs">
@@ -128,7 +128,7 @@ export default function BoardArchiveMenu({ boardId, onClose, onChanged }: Props)
                     type="button"
                     disabled={busyId === c.id}
                     onClick={() => void act(c.id, () => restoreCard(c.id))}
-                    className="rounded bg-slate-100 px-2 py-1 font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+                    className="rounded bg-slate-100 dark:bg-slate-700 px-2 py-1 font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50"
                   >
                     Khôi phục
                   </button>
@@ -146,17 +146,17 @@ export default function BoardArchiveMenu({ boardId, onClose, onChanged }: Props)
           </ul>
         )
       ) : lists.length === 0 ? (
-        <p className="px-1 py-4 text-center text-sm text-slate-400">
+        <p className="px-1 py-4 text-center text-sm text-slate-500 dark:text-slate-400">
           Không có danh sách nào được lưu trữ.
         </p>
       ) : (
         <ul className="flex max-h-80 flex-col gap-1 overflow-y-auto">
           {lists.map((l) => (
-            <li key={l.id} className="rounded-lg border border-slate-200 p-2">
-              <p className="truncate text-sm font-medium text-slate-700">
+            <li key={l.id} className="rounded-lg border border-slate-200 dark:border-slate-700 p-2">
+              <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
                 {l.name}
               </p>
-              <p className="mb-1.5 text-xs text-slate-400">
+              <p className="mb-1.5 text-xs text-slate-500 dark:text-slate-400">
                 {l.cardCount} thẻ bên trong
               </p>
               <div className="flex gap-2 text-xs">
@@ -164,7 +164,7 @@ export default function BoardArchiveMenu({ boardId, onClose, onChanged }: Props)
                   type="button"
                   disabled={busyId === l.id}
                   onClick={() => void act(l.id, () => restoreList(l.id))}
-                  className="rounded bg-slate-100 px-2 py-1 font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+                  className="rounded bg-slate-100 dark:bg-slate-700 px-2 py-1 font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50"
                 >
                   Khôi phục
                 </button>

@@ -7,6 +7,12 @@ import {
 } from '../label/label.service';
 import { getCardDetail } from './card.service';
 import {
+  addCardReminder,
+  listCardReminders,
+  removeCardReminder,
+} from './cardReminder.service';
+import type { CreateReminderInput } from './card.schema';
+import {
   addAttachment,
   addCardMember,
   addChecklist,
@@ -33,6 +39,39 @@ export const getCardDetailHandler = asyncHandler(
   async (req: Request, res: Response) => {
     const card = await getCardDetail(uid(req), req.params.cardId as string);
     res.json({ success: true, data: { card } });
+  }
+);
+
+// ----- Nhac han -----
+export const listCardRemindersHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const reminders = await listCardReminders(
+      uid(req),
+      req.params.cardId as string
+    );
+    res.json({ success: true, data: { reminders } });
+  }
+);
+
+export const addCardReminderHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const reminder = await addCardReminder(
+      uid(req),
+      req.params.cardId as string,
+      (req.body as CreateReminderInput).offsetMinutes
+    );
+    res.status(201).json({ success: true, data: { reminder } });
+  }
+);
+
+export const removeCardReminderHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    await removeCardReminder(
+      uid(req),
+      req.params.cardId as string,
+      Number(req.params.offsetMinutes)
+    );
+    res.json({ success: true, message: 'Da bo nhac han' });
   }
 );
 

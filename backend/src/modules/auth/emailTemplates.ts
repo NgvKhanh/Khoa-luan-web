@@ -73,6 +73,75 @@ export function verifyEmailEmail(input: {
   };
 }
 
+export function boardInviteEmail(input: {
+  inviterName: string;
+  boardName: string;
+  url: string;
+}): { subject: string; html: string } {
+  const { inviterName, boardName, url } = input;
+  return {
+    subject: `${inviterName} moi ban vao bang "${boardName}" tren TaskFlow`,
+    html: layout(`
+      <p>Chao ban,</p>
+      <p><strong>${escapeHtml(inviterName)}</strong> vua moi ban tham gia bang
+         <strong>${escapeHtml(boardName)}</strong> tren TaskFlow.</p>
+      <p>Ban chua co tai khoan TaskFlow. Hay bam nut duoi day de dang ky (hoac dang nhap),
+         sau do gui yeu cau tham gia bang:</p>
+      <p style="margin:20px 0">${button(url, 'Xem loi moi')}</p>
+      <p style="color:#94a3b8;font-size:12px;word-break:break-all">
+         Neu nut khong hoat dong, sao chep dia chi sau vao trinh duyet:<br>${url}</p>
+    `),
+  };
+}
+
+export function workspaceInviteEmail(input: {
+  inviterName: string;
+  workspaceName: string;
+  url: string;
+}): { subject: string; html: string } {
+  const { inviterName, workspaceName, url } = input;
+  return {
+    subject: `${inviterName} moi ban vao khong gian "${workspaceName}" tren TaskFlow`,
+    html: layout(`
+      <p>Chao ban,</p>
+      <p><strong>${escapeHtml(inviterName)}</strong> vua moi ban tham gia khong gian lam viec
+         <strong>${escapeHtml(workspaceName)}</strong> tren TaskFlow.</p>
+      <p>Ban chua co tai khoan TaskFlow. Hay bam nut duoi day de dang ky; sau khi co tai khoan,
+         quan tri vien khong gian se them ban vao.</p>
+      <p style="margin:20px 0">${button(url, 'Dang ky TaskFlow')}</p>
+      <p style="color:#94a3b8;font-size:12px;word-break:break-all">
+         Neu nut khong hoat dong, sao chep dia chi sau vao trinh duyet:<br>${url}</p>
+    `),
+  };
+}
+
+export function dueReminderEmail(input: {
+  name: string;
+  cardTitle: string;
+  boardName: string;
+  dueDate: Date;
+  offsetLabel: string;
+  url: string;
+}): { subject: string; html: string } {
+  const { name, cardTitle, boardName, dueDate, offsetLabel, url } = input;
+  const dueLabel = dueDate.toLocaleString('vi-VN', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
+  return {
+    subject: `Sắp đến hạn: "${cardTitle}"`,
+    html: layout(`
+      <p>Chao ${escapeHtml(name)},</p>
+      <p>Thẻ <strong>${escapeHtml(cardTitle)}</strong> (bảng ${escapeHtml(boardName)})
+         sẽ hết hạn vào <strong>${dueLabel}</strong> &mdash; còn ${offsetLabel} nữa,
+         theo lời nhắc bạn đã đặt.</p>
+      <p style="margin:20px 0">${button(url, 'Xem thẻ')}</p>
+      <p style="color:#94a3b8;font-size:12px;word-break:break-all">
+         Neu nut khong hoat dong, sao chep dia chi sau vao trinh duyet:<br>${url}</p>
+    `),
+  };
+}
+
 /** Chan cac ky tu HTML nguy hiem trong du lieu do nguoi dung nhap (ten). */
 function escapeHtml(s: string): string {
   return s

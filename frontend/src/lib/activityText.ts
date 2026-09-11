@@ -8,7 +8,9 @@ export function activityPhrase(a: {
     case 'card.create':
       return `đã thêm thẻ vào danh sách ${d.listName ?? ''}`;
     case 'card.move':
-      return `đã chuyển thẻ từ ${d.fromList} sang ${d.toList}`;
+      return d.toBoard
+        ? `đã chuyển thẻ từ ${d.fromList} sang bảng "${d.toBoard}" (${d.toList})`
+        : `đã chuyển thẻ từ ${d.fromList} sang ${d.toList}`;
     case 'card.rename':
       return 'đã đổi tên thẻ';
     case 'card.done':

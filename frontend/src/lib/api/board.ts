@@ -76,6 +76,7 @@ export async function fetchHomeActivity(): Promise<HomeActivity[]> {
 
 export async function createBoard(input: {
   name: string;
+  workspaceId: string;
   color?: string;
   backgroundImage?: string;
 }): Promise<Board> {
@@ -150,10 +151,12 @@ export async function fetchTemplates(): Promise<BoardTemplate[]> {
 }
 export async function createBoardFromTemplate(
   templateId: string,
+  workspaceId: string,
   name?: string
 ): Promise<Board> {
   const res = await api.post<{ data: { board: Board } }>('/boards/from-template', {
     templateId,
+    workspaceId,
     ...(name ? { name } : {}),
   });
   return res.data.data.board;
@@ -165,6 +168,14 @@ export async function setBoardStar(
   starred: boolean
 ): Promise<void> {
   await api.put(`/boards/${boardId}/star`, { starred });
+}
+
+// Theo doi / bo theo doi bang: nhan thong bao hoat dong du khong phai thanh vien duoc gan
+export async function setBoardWatch(
+  boardId: string,
+  watching: boolean
+): Promise<void> {
+  await api.put(`/boards/${boardId}/watch`, { watching });
 }
 
 // Tai anh nen len (field "image", dang multipart/form-data)
@@ -199,16 +210,30 @@ export async function fetchBoardMembers(
   return res.data.data.members;
 }
 
+// Ket qua: da them thanh vien ngay (user co tai khoan) hoac da gui email moi.
+export type AddMemberResult =
+  | { kind: 'member'; member: BoardMember }
+  | { kind: 'invited'; email: string };
+
 export async function addBoardMember(
   boardId: string,
   email: string,
   role: Exclude<BoardRole, 'OWNER'> = 'MEMBER'
-): Promise<BoardMember> {
-  const res = await api.post<{ data: { member: BoardMember } }>(
-    `/boards/${boardId}/members`,
-    { email, role }
-  );
-  return res.data.data.member;
+): Promise<AddMemberResult> {
+  const res = await api.post<{
+    data: { member?: BoardMember; invitedEmail?: string };
+  }>(`/boards/${boardId}/members`, { email, role });
+  const { member, invitedEmail } = res.data.data;
+  if (member) return { kind: 'member', member };
+  return { kind: 'invited', email: invitedEmail ?? email };
+}
+
+// Chuyen quyen so huu bang cho 1 thanh vien khac (chi chu bang goi duoc)
+export async function transferOwnership(
+  boardId: string,
+  userId: string
+): Promise<void> {
+  await api.post(`/boards/${boardId}/members/${userId}/transfer-ownership`);
 }
 
 export async function changeMemberRole(

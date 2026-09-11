@@ -17,6 +17,7 @@ export const createBoardSchema = z.object({
     .trim()
     .min(1, 'Ten bang khong duoc de trong')
     .max(100, 'Ten bang qua dai'),
+  workspaceId: z.string().trim().min(1, 'Thieu khong gian lam viec'),
   color: hexColor.optional(),
   backgroundImage: imageUrl.optional(),
 });
@@ -32,6 +33,8 @@ export const updateBoardSchema = z
     color: hexColor.optional(),
     // string -> doi sang anh nen moi; null -> bo anh nen, quay ve mau
     backgroundImage: imageUrl.nullable().optional(),
+    // PRIVATE: chi thanh vien bang. WORKSPACE: moi thanh vien khong gian xem/sua.
+    // PUBLIC: ai co link deu xem (chi doc).
     visibility: z.enum(['PRIVATE', 'WORKSPACE', 'PUBLIC']).optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
@@ -40,6 +43,7 @@ export const updateBoardSchema = z
 
 export const fromTemplateSchema = z.object({
   templateId: z.string().trim().min(1, 'Thieu ma mau'),
+  workspaceId: z.string().trim().min(1, 'Thieu khong gian lam viec'),
   name: z.string().trim().min(1).max(100).optional(),
 });
 

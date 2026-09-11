@@ -1,3 +1,5 @@
+import type { CardFieldValue } from './customField';
+
 // The nam trong 1 danh sach
 export interface Card {
   id: string;
@@ -97,4 +99,6 @@ export interface CardDetail {
   comments: CardComment[];
   attachments: CardAttachment[];
   activities: CardActivity[];
+  isWatching: boolean;
+  fieldValues: CardFieldValue[];
 }

@@ -20,6 +20,7 @@ import {
   sortListSchema,
   updateListSchema,
 } from './list.schema';
+import { getListWatchHandler, setListWatchHandler } from '../watch/watch.controller';
 
 // Gan vao /api/boards/:boardId/lists
 export const boardListRoutes = Router({ mergeParams: true });
@@ -31,6 +32,8 @@ boardListRoutes.post('/', validateBody(createListSchema), createListHandler);
 export const listRoutes = Router();
 listRoutes.use(requireAuth);
 listRoutes.patch('/:listId', validateBody(updateListSchema), updateListHandler);
+listRoutes.get('/:listId/watch', getListWatchHandler);
+listRoutes.put('/:listId/watch', setListWatchHandler);
 listRoutes.post('/:listId/archive', archiveListHandler);
 listRoutes.post('/:listId/restore', restoreListHandler);
 listRoutes.delete('/:listId/purge', purgeListHandler);

@@ -59,14 +59,14 @@ export default function BoardActivityMenu({ boardId, onClose }: Props) {
   return createPortal(
     <div
       ref={ref}
-      className="fixed right-3 top-14 z-50 w-96 rounded-xl border border-slate-200 bg-white p-2 text-slate-800 shadow-2xl"
+      className="fixed right-3 top-14 z-50 w-96 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-slate-800 dark:text-slate-100 shadow-2xl"
     >
       <p className="pb-1 text-center text-sm font-semibold">Hoạt động</p>
       {error && <p className="px-1 text-xs text-red-600">{error}</p>}
       {loading ? (
-        <p className="px-1 py-4 text-center text-sm text-slate-400">Đang tải...</p>
+        <p className="px-1 py-4 text-center text-sm text-slate-500 dark:text-slate-400">Đang tải...</p>
       ) : items.length === 0 ? (
-        <p className="px-1 py-4 text-center text-sm text-slate-400">
+        <p className="px-1 py-4 text-center text-sm text-slate-500 dark:text-slate-400">
           Chưa có hoạt động nào.
         </p>
       ) : (
@@ -76,16 +76,16 @@ export default function BoardActivityMenu({ boardId, onClose }: Props) {
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#7f5ad5] text-[10px] font-semibold text-white">
                 {initialsOf(a.user.name)}
               </span>
-              <p className="text-xs text-slate-600">
-                <span className="font-semibold text-slate-700">
+              <p className="text-xs text-slate-600 dark:text-slate-300">
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
                   {a.user.name}
                 </span>{' '}
                 {activityPhrase(a)}
                 {a.card && (
-                  <span className="text-slate-500"> — “{a.card.title}”</span>
+                  <span className="text-slate-500 dark:text-slate-400"> — “{a.card.title}”</span>
                 )}
                 <br />
-                <span className="text-slate-400">{timeAgo(a.createdAt)}</span>
+                <span className="text-slate-500 dark:text-slate-400">{timeAgo(a.createdAt)}</span>
               </p>
             </li>
           ))}

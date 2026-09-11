@@ -1,4 +1,5 @@
 import { api } from '../axios';
+import { connectSocket, disconnectSocket } from '../socket';
 import type { User } from '../../types/auth';
 
 export interface MyActivity {
@@ -22,6 +23,15 @@ export async function changePassword(input: {
   newPassword: string;
 }): Promise<void> {
   await api.patch('/auth/password', input);
+  // Backend cap cookie MOI nhung da chu dong ngat moi socket dang mo cua
+  // phien nay (thu hoi token cu). Socket.IO KHONG tu ket noi lai khi bi
+  // server chu dong ngat (disconnect reason "io server disconnect"), nen
+  // phai tu ngat + noi lai o day - neu khong, cap nhat realtime cua bang se
+  // ngung hoat dong cho toi khi nguoi dung tu tai lai trang.
+  // disconnectSocket() truoc de dam bao noi lai voi cookie MOI ke ca khi
+  // su kien ngat tu server chua kip toi client luc ham nay chay.
+  disconnectSocket();
+  connectSocket();
 }
 
 // Tai anh dai dien len (field "image", multipart/form-data)

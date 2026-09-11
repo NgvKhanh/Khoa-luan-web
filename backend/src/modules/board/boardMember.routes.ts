@@ -6,6 +6,7 @@ import {
   changeMemberRoleHandler,
   listBoardMembersHandler,
   removeBoardMemberHandler,
+  transferOwnershipHandler,
 } from './boardMember.controller';
 import {
   addBoardMemberSchema,
@@ -26,4 +27,5 @@ boardMemberRoutes.patch(
   validateBody(changeMemberRoleSchema),
   changeMemberRoleHandler
 );
+boardMemberRoutes.post('/:userId/transfer-ownership', transferOwnershipHandler);
 boardMemberRoutes.delete('/:userId', removeBoardMemberHandler);

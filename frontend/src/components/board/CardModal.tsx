@@ -11,12 +11,11 @@ import {
 import {
   SortableContext,
   arrayMove,
-  useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import {
   addAttachment,
+  addCardReminder,
   addChecklist,
   addChecklistItem,
   addComment,
@@ -32,20 +31,49 @@ import {
   detachCardLabel,
   fetchBoardLabels,
   fetchCardDetail,
+  fetchCardReminders,
   moveCard,
   removeCardMember,
+  removeCardReminder,
   reorderChecklistItems,
+  REMINDER_OFFSETS,
+  setCardWatch,
   updateCard,
   updateChecklistItem,
+  type CardReminder,
+  type ReminderOffset,
 } from '../../lib/api/card';
-import { activityPhrase } from '../../lib/activityText';
 import { assetUrl } from '../../lib/assets';
 import Avatar from '../Avatar';
 import LabelPanel from './LabelPanel';
+import { useBoards } from '../../context/BoardsContext';
+import {
+  fetchBoardCustomFields,
+  setCardFieldValue,
+} from '../../lib/api/customField';
+import { saveCardAsTemplate } from '../../lib/api/cardTemplate';
+import type { CustomField } from '../../types/customField';
 import { getErrorMessage } from '../../lib/errorMessage';
+import { logError } from '../../lib/logError';
+import { fetchBoardLists } from '../../lib/api/list';
 import { MiniMarkdown } from '../../lib/miniMarkdown';
 import type { BoardMember } from '../../types/board';
-import type { CardActivity, CardComment, CardDetail, Label } from '../../types/card';
+import type {
+  CardActivity,
+  CardComment,
+  CardDetail,
+  Label,
+} from '../../types/card';
+import type { BoardList } from '../../types/list';
+import { AddItemInput } from './cardModal/AddItemInput';
+import { SortableItem } from './cardModal/SortableItem';
+import { useCardRealtime } from './cardModal/useCardRealtime';
+import {
+  COVER_COLORS,
+  activityText,
+  fmt,
+  formatBytes,
+} from './cardModal/helpers';
 
 interface Props {
   cardId: string;
@@ -57,38 +85,55 @@ interface Props {
   onChanged: () => void;
 }
 
-function fmt(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString('vi-VN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-}
-
-const COVER_COLORS = [
-  '#4bce97',
-  '#f5cd47',
-  '#fea362',
-  '#f87168',
-  '#9f8fef',
-  '#579dff',
-  '#6cc3e0',
-  '#94c748',
-  '#e774bb',
-  '#8590a2',
-];
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function activityText(a: CardActivity): string {
-  return activityPhrase(a);
+// Nhac han la thiet lap CA NHAN (rieng cho tung nguoi), khong phai sua noi
+// dung the - nen luon bat tuong tac duoc, ke ca voi VIEWER (readOnly=true).
+// Tach rieng khoi panel "Ngay" (chi danh cho nguoi co quyen sua) de dung lai
+// duoc o ca 2 noi: trong panel "Ngay" va o popover rieng canh huy hieu ngay.
+function ReminderCheckboxes({
+  cardId,
+  reminders,
+  onChanged,
+  onError,
+}: {
+  cardId: string;
+  reminders: CardReminder[];
+  onChanged: () => void;
+  onError: (msg: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      {REMINDER_OFFSETS.map((offset) => {
+        const active = reminders.some((r) => r.offsetMinutes === offset);
+        return (
+          <label
+            key={offset}
+            className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200"
+          >
+            <input
+              type="checkbox"
+              checked={active}
+              onChange={() => {
+                const toggle = (offsetMinutes: ReminderOffset) =>
+                  active
+                    ? removeCardReminder(cardId, offsetMinutes)
+                    : addCardReminder(cardId, offsetMinutes);
+                toggle(offset)
+                  .then(onChanged)
+                  .catch((err) =>
+                    onError(getErrorMessage(err, 'Không đặt được nhắc hẹn.'))
+                  );
+              }}
+            />
+            {offset === 10
+              ? '10 phút trước'
+              : offset === 60
+                ? '1 giờ trước'
+                : '1 ngày trước'}
+          </label>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function CardModal({
@@ -102,8 +147,12 @@ export default function CardModal({
 }: Props) {
   const [card, setCard] = useState<CardDetail | null>(null);
   const [labels, setLabels] = useState<Label[]>([]);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [templateSaveState, setTemplateSaveState] = useState<'idle' | 'busy' | 'done'>(
+    'idle'
+  );
 
   const [titleDraft, setTitleDraft] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
@@ -115,16 +164,23 @@ export default function CardModal({
     | 'due'
     | 'members'
     | 'list'
+    | 'move-board'
     | 'menu'
     | 'checklist'
     | 'cover'
     | 'copy'
+    | 'reminders'
     | null
   >(null);
   const [clTitle, setClTitle] = useState('Việc cần làm');
   const [clCopyFrom, setClCopyFrom] = useState('');
   const [copyTitle, setCopyTitle] = useState('');
   const [copyListId, setCopyListId] = useState('');
+  const { boards: myBoards } = useBoards();
+  const [moveBoardId, setMoveBoardId] = useState('');
+  const [moveTargetLists, setMoveTargetLists] = useState<BoardList[]>([]);
+  const [moveListId, setMoveListId] = useState('');
+  const [moveLoadingLists, setMoveLoadingLists] = useState(false);
   const [hideDone, setHideDone] = useState<Record<string, boolean>>({});
   const itemSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -135,6 +191,38 @@ export default function CardModal({
     kind: 'assign' | 'due';
   } | null>(null);
   const itemDueRef = useRef<HTMLInputElement>(null);
+  const [reminders, setReminders] = useState<CardReminder[]>([]);
+  const loadReminders = useCallback(() => {
+    fetchCardReminders(cardId)
+      .then(setReminders)
+      .catch(logError('CardModal: tai nhac han'));
+  }, [cardId]);
+  useEffect(() => {
+    if (panel === 'due' || panel === 'reminders') loadReminders();
+  }, [panel, loadReminders]);
+
+  // Chon bang dich (khac bang hien tai) o panel "move-board" -> tai danh
+  // sach cua bang do de chon list dich
+  useEffect(() => {
+    if (!moveBoardId) {
+      setMoveTargetLists([]);
+      setMoveListId('');
+      return;
+    }
+    let alive = true;
+    setMoveLoadingLists(true);
+    fetchBoardLists(moveBoardId)
+      .then((ls) => {
+        if (!alive) return;
+        setMoveTargetLists(ls);
+        setMoveListId(ls[0]?.id ?? '');
+      })
+      .catch(logError('CardModal: tai danh sach bang dich'))
+      .finally(() => alive && setMoveLoadingLists(false));
+    return () => {
+      alive = false;
+    };
+  }, [moveBoardId]);
 
   const reload = useCallback(async () => {
     const d = await fetchCardDetail(cardId);
@@ -146,7 +234,9 @@ export default function CardModal({
 
   const reloadLabels = useCallback(() => {
     if (!card) return;
-    fetchBoardLabels(card.list.boardId).then(setLabels).catch(() => {});
+    fetchBoardLabels(card.list.boardId)
+      .then(setLabels)
+      .catch(logError('CardModal: tai nhan'));
     void reload();
     onChanged();
   }, [card, reload, onChanged]);
@@ -156,10 +246,17 @@ export default function CardModal({
     setLoading(true);
     reload()
       .then((d) => {
-        if (alive) return fetchBoardLabels(d.list.boardId);
+        if (!alive) return null;
+        return Promise.all([
+          fetchBoardLabels(d.list.boardId),
+          fetchBoardCustomFields(d.list.boardId),
+        ]);
       })
-      .then((ls) => {
-        if (alive && ls) setLabels(ls);
+      .then((res) => {
+        if (!alive || !res) return;
+        const [ls, fs] = res;
+        setLabels(ls);
+        setCustomFields(fs);
       })
       .catch((err) => alive && setError(getErrorMessage(err, 'Không tải được thẻ.')))
       .finally(() => alive && setLoading(false));
@@ -179,6 +276,13 @@ export default function CardModal({
       document.body.style.overflow = '';
     };
   }, [onClose]);
+
+  // Realtime: nguoi khac binh luan / sua the tren cung bang -> tai lai ngay
+  const editingRef = useRef(false);
+  editingRef.current = editingTitle || editingDesc;
+  const boardIdRef = useRef<string | null>(null);
+  boardIdRef.current = card?.list.boardId ?? null;
+  useCardRealtime({ reload, editingRef, boardIdRef });
 
   async function run(fn: () => Promise<unknown>) {
     if (readOnly) return;
@@ -267,9 +371,9 @@ export default function CardModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-[760px] max-w-full rounded-xl bg-[#f4f5f7] shadow-2xl">
+      <div className="w-[760px] max-w-full rounded-xl bg-[#f4f5f7] shadow-2xl dark:bg-slate-900">
         {loading || !card ? (
-          <p className="p-10 text-center text-sm text-slate-500">
+          <p className="p-10 text-center text-sm text-slate-600 dark:text-slate-400">
             {error ?? 'Đang tải...'}
           </p>
         ) : (
@@ -287,19 +391,19 @@ export default function CardModal({
             )}
 
             {/* Header */}
-            <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+            <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 px-4 py-3">
               <div className="relative">
                 <button
                   type="button"
                   disabled={readOnly}
                   onClick={() => setPanel(panel === 'list' ? null : 'list')}
-                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-700 enabled:hover:bg-slate-50"
+                  className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2.5 py-1 text-sm text-slate-700 dark:text-slate-200 enabled:hover:bg-slate-50 dark:enabled:hover:bg-slate-700"
                 >
                   {card.list.name}
                   {!readOnly && ' ▾'}
                 </button>
                 {panel === 'list' && !readOnly && (
-                  <div className="absolute left-0 top-9 z-10 w-48 rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
+                  <div className="absolute left-0 top-9 z-10 w-48 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-xl">
                     {lists.map((l) => (
                       <button
                         key={l.id}
@@ -309,13 +413,101 @@ export default function CardModal({
                           if (l.id !== card.listId)
                             void run(() => moveCard(card.id, { listId: l.id, position: 0 }));
                         }}
-                        className={`block w-full truncate rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100 ${
-                          l.id === card.listId ? 'font-semibold text-[#0c66e4]' : 'text-slate-700'
+                        className={`block w-full truncate rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 ${
+                          l.id === card.listId ? 'font-semibold text-[#0c66e4]' : 'text-slate-700 dark:text-slate-200'
                         }`}
                       >
                         {l.name}
                       </button>
                     ))}
+                    <div className="mt-1 border-t border-slate-200 pt-1 dark:border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMoveBoardId('');
+                          setPanel('move-board');
+                        }}
+                        className="block w-full truncate rounded px-2 py-1.5 text-left text-sm text-[#0c66e4] hover:bg-slate-100 dark:hover:bg-slate-700"
+                      >
+                        Chuyển sang bảng khác…
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {panel === 'move-board' && !readOnly && (
+                  <div className="absolute left-0 top-9 z-10 w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-xl">
+                    <p className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-100">
+                      Chuyển thẻ sang bảng khác
+                    </p>
+                    <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">
+                      Bảng đích
+                    </label>
+                    <select
+                      autoFocus
+                      value={moveBoardId}
+                      onChange={(e) => setMoveBoardId(e.target.value)}
+                      className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+                    >
+                      <option value="">Chọn bảng…</option>
+                      {myBoards
+                        .filter((b) => b.id !== card.list.boardId)
+                        .map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}
+                            {b.workspaceName ? ` (${b.workspaceName})` : ''}
+                          </option>
+                        ))}
+                    </select>
+
+                    {moveBoardId && (
+                      <>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">
+                          Danh sách đích
+                        </label>
+                        <select
+                          value={moveListId}
+                          onChange={(e) => setMoveListId(e.target.value)}
+                          disabled={moveLoadingLists || moveTargetLists.length === 0}
+                          className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none disabled:opacity-60"
+                        >
+                          {moveTargetLists.length === 0 ? (
+                            <option value="">
+                              {moveLoadingLists ? 'Đang tải…' : 'Bảng chưa có danh sách'}
+                            </option>
+                          ) : (
+                            moveTargetLists.map((l) => (
+                              <option key={l.id} value={l.id}>
+                                {l.name}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      </>
+                    )}
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={!moveListId}
+                        onClick={() => {
+                          const targetListId = moveListId;
+                          setPanel(null);
+                          void run(() =>
+                            moveCard(card.id, { listId: targetListId, position: 0 })
+                          );
+                        }}
+                        className="flex-1 rounded-lg bg-[#0c66e4] py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+                      >
+                        Chuyển
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPanel('list')}
+                        className="rounded-lg px-2 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                      >
+                        Quay lại
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -325,7 +517,7 @@ export default function CardModal({
                     type="button"
                     onClick={() => setPanel(panel === 'menu' ? null : 'menu')}
                     aria-label="Hành động"
-                    className="rounded p-1.5 text-slate-500 hover:bg-slate-200"
+                    className="rounded p-1.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600"
                   >
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
                       <circle cx="5" cy="12" r="1.8" />
@@ -335,7 +527,7 @@ export default function CardModal({
                   </button>
                 )}
                 {panel === 'menu' && !readOnly && (
-                  <div className="absolute right-0 top-9 z-10 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
+                  <div className="absolute right-0 top-9 z-10 w-40 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-xl">
                     <button
                       type="button"
                       onClick={() => {
@@ -343,9 +535,35 @@ export default function CardModal({
                         setCopyListId(card.listId);
                         setPanel('copy');
                       }}
-                      className="block w-full rounded px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100"
+                      className="block w-full rounded px-2 py-1.5 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
                     >
                       Sao chép thẻ
+                    </button>
+                    <button
+                      type="button"
+                      disabled={templateSaveState === 'busy'}
+                      onClick={() => {
+                        setTemplateSaveState('busy');
+                        saveCardAsTemplate(card.id)
+                          .then(() => {
+                            setTemplateSaveState('done');
+                            setTimeout(() => {
+                              setTemplateSaveState('idle');
+                              setPanel(null);
+                            }, 1200);
+                          })
+                          .catch((err) => {
+                            setTemplateSaveState('idle');
+                            setError(getErrorMessage(err, 'Không lưu được mẫu.'));
+                          });
+                      }}
+                      className="block w-full rounded px-2 py-1.5 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+                    >
+                      {templateSaveState === 'busy'
+                        ? 'Đang lưu...'
+                        : templateSaveState === 'done'
+                          ? 'Đã lưu thành mẫu ✓'
+                          : 'Lưu thành mẫu thẻ'}
                     </button>
                     <button
                       type="button"
@@ -356,16 +574,16 @@ export default function CardModal({
                           onClose();
                         });
                       }}
-                      className="block w-full rounded px-2 py-1.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
+                      className="block w-full rounded px-2 py-1.5 text-left text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
                     >
                       Lưu trữ
                     </button>
                   </div>
                 )}
                 {panel === 'copy' && !readOnly && (
-                  <div className="absolute right-0 top-9 z-10 w-64 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+                  <div className="absolute right-0 top-9 z-10 w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-xl">
                     <p className="mb-2 text-sm font-semibold">Sao chép thẻ</p>
-                    <label className="mb-1 block text-xs font-semibold text-slate-500">
+                    <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">
                       Tiêu đề
                     </label>
                     <textarea
@@ -373,15 +591,15 @@ export default function CardModal({
                       rows={2}
                       value={copyTitle}
                       onChange={(e) => setCopyTitle(e.target.value)}
-                      className="mb-2 w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+                      className="mb-2 w-full resize-none rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
                     />
-                    <label className="mb-1 block text-xs font-semibold text-slate-500">
+                    <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">
                       Danh sách
                     </label>
                     <select
                       value={copyListId}
                       onChange={(e) => setCopyListId(e.target.value)}
-                      className="mb-3 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+                      className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
                     >
                       {lists.map((l) => (
                         <option key={l.id} value={l.id}>
@@ -411,7 +629,7 @@ export default function CardModal({
                 type="button"
                 onClick={onClose}
                 aria-label="Đóng"
-                className="rounded p-1.5 text-slate-500 hover:bg-slate-200"
+                className="rounded p-1.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600"
               >
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M6 6l12 12M18 6L6 18" />
@@ -459,7 +677,7 @@ export default function CardModal({
                         }
                       }}
                       rows={1}
-                      className="w-full resize-none rounded border border-[#0c66e4] px-2 py-1 text-lg font-semibold text-slate-900 focus:outline-none"
+                      className="w-full resize-none rounded border border-[#0c66e4] px-2 py-1 text-lg font-semibold text-slate-900 dark:text-slate-100 focus:outline-none"
                     />
                   ) : (
                     <h2
@@ -467,12 +685,44 @@ export default function CardModal({
                       className={`text-lg font-semibold ${
                         readOnly ? '' : 'cursor-pointer'
                       } ${
-                        card.isDone ? 'text-slate-400 line-through' : 'text-slate-900'
+                        card.isDone ? 'text-slate-600 dark:text-slate-400 line-through' : 'text-slate-900 dark:text-slate-100'
                       }`}
                     >
                       {card.title}
                     </h2>
                   )}
+                </div>
+
+                {/* Theo doi the: nhan thong bao hoat dong du khong phai thanh vien duoc gan */}
+                <div className="mb-4 pl-7">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setCardWatch(card.id, !card.isWatching)
+                        .then(reload)
+                        .then(onChanged)
+                        .catch((err) =>
+                          setError(
+                            getErrorMessage(
+                              err,
+                              'Không đổi được trạng thái theo dõi.'
+                            )
+                          )
+                        );
+                    }}
+                    className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium ${
+                      card.isWatching
+                        ? 'bg-[#0c66e4]/10 text-[#0c66e4]'
+                        : 'bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-200 dark:hover:bg-slate-600'
+                    }`}
+                  >
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    {card.isWatching ? 'Đang theo dõi' : 'Theo dõi'}
+                  </button>
                 </div>
 
                 {/* Huy hieu: nhan / ngay / thanh vien */}
@@ -483,7 +733,7 @@ export default function CardModal({
                   <div className="mb-4 flex flex-wrap gap-4 pl-7">
                     {card.labels.length > 0 && (
                       <div>
-                        <p className="mb-1 text-xs font-semibold text-slate-500">Nhãn</p>
+                        <p className="mb-1 text-xs font-semibold text-slate-600 dark:text-slate-400">Nhãn</p>
                         <div className="flex flex-wrap gap-1">
                           {card.labels.map((l) => (
                             <span
@@ -498,25 +748,56 @@ export default function CardModal({
                       </div>
                     )}
                     {(card.startDate || card.dueDate) && (
-                      <div>
-                        <p className="mb-1 text-xs font-semibold text-slate-500">
+                      <div className="relative">
+                        <p className="mb-1 text-xs font-semibold text-slate-600 dark:text-slate-400">
                           {card.startDate && card.dueDate
                             ? 'Ngày bắt đầu → hết hạn'
                             : card.startDate
                               ? 'Ngày bắt đầu'
                               : 'Ngày hết hạn'}
                         </p>
-                        <span className="inline-flex items-center gap-1.5 rounded bg-white px-2 py-1 text-xs text-slate-700 ring-1 ring-slate-200">
+                        <span className="inline-flex items-center gap-1.5 rounded bg-white dark:bg-slate-800 px-2 py-1 text-xs text-slate-700 dark:text-slate-200 ring-1 ring-slate-200">
                           {[card.startDate, card.dueDate]
                             .filter(Boolean)
                             .map((d) => fmt(d as string))
                             .join('  →  ')}
                         </span>
+                        {card.dueDate && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPanel(panel === 'reminders' ? null : 'reminders')
+                              }
+                              title="Nhắc tôi trước hạn"
+                              aria-label="Nhắc tôi trước hạn"
+                              className="ml-1 inline-grid h-6 w-6 place-items-center rounded-full text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-600"
+                            >
+                              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                                <path d="M13.73 21a2 2 0 01-3.46 0" />
+                              </svg>
+                            </button>
+                            {panel === 'reminders' && (
+                              <div className="absolute left-0 top-full z-10 mt-1 w-56 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-xl">
+                                <p className="mb-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                  Nhắc tôi trước hạn
+                                </p>
+                                <ReminderCheckboxes
+                                  cardId={card.id}
+                                  reminders={reminders}
+                                  onChanged={loadReminders}
+                                  onError={setError}
+                                />
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
                     )}
                     {card.members.length > 0 && (
                       <div>
-                        <p className="mb-1 text-xs font-semibold text-slate-500">Thành viên</p>
+                        <p className="mb-1 text-xs font-semibold text-slate-600 dark:text-slate-400">Thành viên</p>
                         <div className="flex -space-x-1">
                           {card.members.map((m) => (
                             <Avatar
@@ -543,7 +824,7 @@ export default function CardModal({
                       key={p}
                       type="button"
                       onClick={() => setPanel(panel === p ? null : p)}
-                      className="rounded bg-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-300"
+                      className="rounded bg-slate-200 dark:bg-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
                     >
                       {p === 'labels' ? 'Nhãn' : p === 'due' ? 'Ngày' : 'Thành viên'}
                     </button>
@@ -559,14 +840,14 @@ export default function CardModal({
                         setPanel('checklist');
                       }
                     }}
-                    className="rounded bg-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-300"
+                    className="rounded bg-slate-200 dark:bg-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
                   >
                     Việc cần làm
                   </button>
                   <button
                     type="button"
                     onClick={() => setPanel(panel === 'cover' ? null : 'cover')}
-                    className="rounded bg-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-300"
+                    className="rounded bg-slate-200 dark:bg-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
                   >
                     Ảnh bìa
                   </button>
@@ -574,7 +855,7 @@ export default function CardModal({
                     type="button"
                     disabled={uploading}
                     onClick={() => fileRef.current?.click()}
-                    className="rounded bg-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-300 disabled:opacity-60"
+                    className="rounded bg-slate-200 dark:bg-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-60"
                   >
                     {uploading ? 'Đang tải lên...' : 'Đính kèm'}
                   </button>
@@ -600,8 +881,8 @@ export default function CardModal({
                   />
 
                   {panel === 'cover' && (
-                    <div className="absolute left-7 top-10 z-10 w-64 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
-                      <p className="mb-2 text-xs font-semibold text-slate-500">Ảnh bìa</p>
+                    <div className="absolute left-7 top-10 z-10 w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-xl">
+                      <p className="mb-2 text-xs font-semibold text-slate-600 dark:text-slate-400">Ảnh bìa</p>
                       <div className="grid grid-cols-5 gap-2">
                         {COVER_COLORS.map((c) => (
                           <button
@@ -639,7 +920,7 @@ export default function CardModal({
                               })
                             );
                           }}
-                          className="mt-3 w-full rounded bg-slate-100 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-200"
+                          className="mt-3 w-full rounded bg-slate-100 dark:bg-slate-700 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
                         >
                           Bỏ ảnh bìa
                         </button>
@@ -648,11 +929,11 @@ export default function CardModal({
                   )}
 
                   {panel === 'checklist' && (
-                    <div className="absolute left-7 top-10 z-10 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+                    <div className="absolute left-7 top-10 z-10 w-72 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-xl">
                       <p className="mb-2 text-center text-sm font-semibold">
                         Thêm danh sách công việc
                       </p>
-                      <label className="mb-1 block text-xs font-semibold text-slate-500">
+                      <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">
                         Tiêu đề
                       </label>
                       <input
@@ -660,17 +941,17 @@ export default function CardModal({
                         value={clTitle}
                         onChange={(e) => setClTitle(e.target.value)}
                         onFocus={(e) => e.target.select()}
-                        className="mb-3 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+                        className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
                       />
                       {card.checklists.length > 0 && (
                         <>
-                          <label className="mb-1 block text-xs font-semibold text-slate-500">
+                          <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">
                             Sao chép mục từ …
                           </label>
                           <select
                             value={clCopyFrom}
                             onChange={(e) => setClCopyFrom(e.target.value)}
-                            className="mb-3 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+                            className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
                           >
                             <option value="">(không có)</option>
                             {card.checklists.map((c) => (
@@ -717,8 +998,8 @@ export default function CardModal({
                   )}
 
                   {panel === 'due' && (
-                    <div className="absolute left-7 top-10 z-10 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
-                      <label className="mb-1 block text-xs font-semibold text-slate-500">
+                    <div className="absolute left-7 top-10 z-10 w-72 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-xl">
+                      <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">
                         Ngày bắt đầu
                       </label>
                       <input
@@ -729,9 +1010,9 @@ export default function CardModal({
                             ? new Date(card.startDate).toISOString().slice(0, 16)
                             : ''
                         }
-                        className="mb-3 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                        className="mb-3 w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm"
                       />
-                      <label className="mb-1 block text-xs font-semibold text-slate-500">
+                      <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">
                         Ngày hết hạn
                       </label>
                       <input
@@ -742,7 +1023,7 @@ export default function CardModal({
                             ? new Date(card.dueDate).toISOString().slice(0, 16)
                             : ''
                         }
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                        className="w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm"
                       />
                       <div className="mt-3 flex gap-2">
                         <button
@@ -774,18 +1055,32 @@ export default function CardModal({
                                 })
                               );
                             }}
-                            className="rounded px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+                            className="rounded px-2 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                           >
                             Bỏ
                           </button>
                         )}
                       </div>
+
+                      {card.dueDate && (
+                        <div className="mt-3 border-t border-slate-200 dark:border-slate-700 pt-3">
+                          <p className="mb-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                            Nhắc tôi trước hạn
+                          </p>
+                          <ReminderCheckboxes
+                            cardId={card.id}
+                            reminders={reminders}
+                            onChanged={loadReminders}
+                            onError={setError}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {panel === 'members' && (
-                    <div className="absolute left-7 top-10 z-10 w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
-                      <p className="mb-1 text-xs font-semibold text-slate-500">Thành viên</p>
+                    <div className="absolute left-7 top-10 z-10 w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 shadow-xl">
+                      <p className="mb-1 text-xs font-semibold text-slate-600 dark:text-slate-400">Thành viên</p>
                       <div className="flex flex-col gap-1">
                         {boardMembers.map((m) => (
                           <button
@@ -798,7 +1093,7 @@ export default function CardModal({
                                   : addCardMember(card.id, m.userId)
                               )
                             }
-                            className="flex items-center gap-2 rounded px-1 py-1 text-left hover:bg-slate-100"
+                            className="flex items-center gap-2 rounded px-1 py-1 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
                           >
                             <Avatar
                               id={m.userId}
@@ -807,7 +1102,7 @@ export default function CardModal({
                             />
                             <span className="flex-1 truncate text-sm">{m.user.name}</span>
                             {cardMemberIds.has(m.userId) && (
-                              <svg viewBox="0 0 24 24" className="h-4 w-4 text-slate-600" fill="none" stroke="currentColor" strokeWidth="2">
+                              <svg viewBox="0 0 24 24" className="h-4 w-4 text-slate-600 dark:text-slate-300" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M5 13l4 4L19 7" />
                               </svg>
                             )}
@@ -818,20 +1113,106 @@ export default function CardModal({
                   )}
                 </div>
 
+                {/* Truong tuy chinh */}
+                {customFields.length > 0 && (
+                  <div className="mb-5 pl-7">
+                    <p className="mb-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      Trường tùy chỉnh
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {customFields.map((f) => {
+                        const fv = card.fieldValues.find((v) => v.fieldId === f.id);
+                        const save = (value: string | number | boolean | null) => {
+                          void run(() => setCardFieldValue(card.id, f.id, value));
+                        };
+                        return (
+                          <div key={f.id} className="flex items-center gap-3">
+                            <label className="w-32 shrink-0 truncate text-xs font-medium text-slate-600 dark:text-slate-400">
+                              {f.name}
+                            </label>
+                            {readOnly ? (
+                              <span className="text-sm text-slate-700 dark:text-slate-200">
+                                {f.type === 'CHECKBOX'
+                                  ? fv?.boolValue
+                                    ? 'Có'
+                                    : 'Không'
+                                  : f.type === 'DROPDOWN'
+                                    ? (f.options.find((o) => o.id === fv?.optionId)?.value ?? '—')
+                                    : f.type === 'DATE'
+                                      ? (fv?.dateValue ? fmt(fv.dateValue) : '—')
+                                      : (fv?.textValue ?? fv?.numberValue ?? '—')}
+                              </span>
+                            ) : f.type === 'TEXT' ? (
+                              <input
+                                key={fv?.textValue ?? ''}
+                                defaultValue={fv?.textValue ?? ''}
+                                onBlur={(e) => {
+                                  const v = e.target.value.trim();
+                                  if (v !== (fv?.textValue ?? '')) save(v || null);
+                                }}
+                                className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
+                              />
+                            ) : f.type === 'NUMBER' ? (
+                              <input
+                                type="number"
+                                key={fv?.numberValue ?? ''}
+                                defaultValue={fv?.numberValue ?? ''}
+                                onBlur={(e) => {
+                                  const raw = e.target.value.trim();
+                                  save(raw === '' ? null : Number(raw));
+                                }}
+                                className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
+                              />
+                            ) : f.type === 'DATE' ? (
+                              <input
+                                type="date"
+                                defaultValue={fv?.dateValue ? fv.dateValue.slice(0, 10) : ''}
+                                onChange={(e) =>
+                                  save(e.target.value ? new Date(e.target.value).toISOString() : null)
+                                }
+                                className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
+                              />
+                            ) : f.type === 'CHECKBOX' ? (
+                              <input
+                                type="checkbox"
+                                checked={Boolean(fv?.boolValue)}
+                                onChange={(e) => save(e.target.checked)}
+                              />
+                            ) : (
+                              <select
+                                value={fv?.optionId ?? ''}
+                                onChange={(e) => save(e.target.value || null)}
+                                className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
+                              >
+                                <option value="">(chưa chọn)</option>
+                                {f.options.map((o) => (
+                                  <option key={o.id} value={o.id}>
+                                    {o.value}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Mo ta */}
                 <div className="mb-5 pl-7">
-                  <p className="mb-1 text-sm font-semibold text-slate-700">
+                  <p className="mb-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
                     Mô tả{' '}
-                    <span className="font-normal text-xs text-slate-400">
+                    <span className="font-normal text-xs text-slate-600 dark:text-slate-400">
                       (hỗ trợ Markdown)
                     </span>
                   </p>
                   {readOnly ? (
-                    <div className="rounded-lg bg-white p-2 ring-1 ring-slate-200">
+                    <div className="rounded-lg bg-white dark:bg-slate-800 p-2 ring-1 ring-slate-200">
                       {card.description ? (
                         <MiniMarkdown text={card.description} />
                       ) : (
-                        <p className="text-sm text-slate-400">Không có mô tả.</p>
+                        <p className="text-sm text-slate-600 dark:text-slate-400">Không có mô tả.</p>
                       )}
                     </div>
                   ) : editingDesc ? (
@@ -842,7 +1223,7 @@ export default function CardModal({
                         value={descDraft}
                         onChange={(e) => setDescDraft(e.target.value)}
                         placeholder="**đậm**, *nghiêng*, - danh sách, [chữ](liên kết)..."
-                        className="w-full rounded-lg border border-slate-300 p-2 text-sm focus:border-[#0c66e4] focus:outline-none"
+                        className="w-full rounded-lg border border-slate-300 dark:border-slate-600 p-2 text-sm focus:border-[#0c66e4] focus:outline-none"
                       />
                       <div className="mt-2 flex gap-2">
                         <button
@@ -863,7 +1244,7 @@ export default function CardModal({
                             setEditingDesc(false);
                             setDescDraft(card.description ?? '');
                           }}
-                          className="rounded px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+                          className="rounded px-2 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                         >
                           Huỷ
                         </button>
@@ -877,7 +1258,7 @@ export default function CardModal({
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') setEditingDesc(true);
                       }}
-                      className="cursor-pointer rounded-lg bg-white p-2 ring-1 ring-slate-200 hover:bg-slate-50"
+                      className="cursor-pointer rounded-lg bg-white dark:bg-slate-800 p-2 ring-1 ring-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                     >
                       <MiniMarkdown text={card.description} />
                     </div>
@@ -885,7 +1266,7 @@ export default function CardModal({
                     <button
                       type="button"
                       onClick={() => setEditingDesc(true)}
-                      className="block w-full rounded-lg bg-white p-2 text-left text-sm text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                      className="block w-full rounded-lg bg-white dark:bg-slate-800 p-2 text-left text-sm text-slate-600 dark:text-slate-300 ring-1 ring-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                     >
                       Thêm mô tả chi tiết hơn...
                     </button>
@@ -895,7 +1276,7 @@ export default function CardModal({
                 {/* Tep dinh kem */}
                 {card.attachments.length > 0 && (
                   <div className="mb-5 pl-7">
-                    <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                    <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
                       <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M21 12.5l-8.5 8.5a5 5 0 01-7-7l9-9a3.5 3.5 0 015 5l-9 9a2 2 0 01-3-3l8-8" />
                       </svg>
@@ -907,13 +1288,13 @@ export default function CardModal({
                         return (
                           <div
                             key={att.id}
-                            className="flex items-center gap-3 rounded-lg bg-white p-2 ring-1 ring-slate-200"
+                            className="flex items-center gap-3 rounded-lg bg-white dark:bg-slate-800 p-2 ring-1 ring-slate-200"
                           >
                             <a
                               href={assetUrl(att.url)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded bg-slate-100"
+                              className="grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded bg-slate-100 dark:bg-slate-700"
                             >
                               {isImg ? (
                                 <img
@@ -922,7 +1303,7 @@ export default function CardModal({
                                   className="h-full w-full object-cover"
                                 />
                               ) : (
-                                <span className="text-[10px] font-bold uppercase text-slate-500">
+                                <span className="text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400">
                                   {att.name.split('.').pop()?.slice(0, 4) || 'TỆP'}
                                 </span>
                               )}
@@ -932,11 +1313,11 @@ export default function CardModal({
                                 href={assetUrl(att.url)}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="block truncate text-sm font-medium text-slate-700 hover:underline"
+                                className="block truncate text-sm font-medium text-slate-700 dark:text-slate-200 hover:underline"
                               >
                                 {att.name}
                               </a>
-                              <p className="text-xs text-slate-400">
+                              <p className="text-xs text-slate-600 dark:text-slate-400">
                                 {formatBytes(att.size)} · {fmt(att.createdAt)}
                               </p>
                               {!readOnly && (
@@ -952,7 +1333,7 @@ export default function CardModal({
                                           })
                                         )
                                       }
-                                      className="text-slate-500 hover:underline"
+                                      className="text-slate-600 dark:text-slate-400 hover:underline"
                                     >
                                       Làm ảnh bìa
                                     </button>
@@ -962,7 +1343,7 @@ export default function CardModal({
                                     onClick={() =>
                                       void run(() => deleteAttachment(att.id))
                                     }
-                                    className="text-slate-500 hover:underline"
+                                    className="text-slate-600 dark:text-slate-400 hover:underline"
                                   >
                                     Xoá
                                   </button>
@@ -989,14 +1370,14 @@ export default function CardModal({
                     return (
                       <div key={cl.id}>
                         <div className="mb-1 flex items-center gap-2">
-                          <p className="flex-1 text-sm font-semibold text-slate-700">{cl.title}</p>
+                          <p className="flex-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{cl.title}</p>
                           {done > 0 && (
                             <button
                               type="button"
                               onClick={() =>
                                 setHideDone((h) => ({ ...h, [cl.id]: !h[cl.id] }))
                               }
-                              className="rounded px-1.5 py-0.5 text-xs text-slate-500 hover:bg-slate-200"
+                              className="rounded px-1.5 py-0.5 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600"
                             >
                               {hiding
                                 ? `Hiện mục đã đánh dấu (${done})`
@@ -1007,15 +1388,15 @@ export default function CardModal({
                             <button
                               type="button"
                               onClick={() => void run(() => deleteChecklist(cl.id))}
-                              className="rounded px-1.5 py-0.5 text-xs text-slate-500 hover:bg-slate-200"
+                              className="rounded px-1.5 py-0.5 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600"
                             >
                               Xoá
                             </button>
                           )}
                         </div>
                         <div className="mb-2 flex items-center gap-2">
-                          <span className="text-xs text-slate-500">{pct}%</span>
-                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
+                          <span className="text-xs text-slate-600 dark:text-slate-400">{pct}%</span>
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-600">
                             <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
                           </div>
                         </div>
@@ -1044,7 +1425,7 @@ export default function CardModal({
                               />
                               <span
                                 className={`min-w-0 flex-1 text-sm ${
-                                  it.isDone ? 'text-slate-400 line-through' : 'text-slate-700'
+                                  it.isDone ? 'text-slate-600 dark:text-slate-400 line-through' : 'text-slate-700 dark:text-slate-200'
                                 }`}
                               >
                                 {it.content}
@@ -1059,7 +1440,7 @@ export default function CardModal({
                                 />
                               )}
                               {it.dueDate && (
-                                <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-slate-100 px-1 text-[11px] text-slate-600">
+                                <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-slate-100 dark:bg-slate-700 px-1 text-[11px] text-slate-600 dark:text-slate-300">
                                   <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
                                     <circle cx="12" cy="12" r="9" />
                                     <path d="M12 7v5l3 2" />
@@ -1084,7 +1465,7 @@ export default function CardModal({
                                           : { id: it.id, kind: 'assign' }
                                       )
                                     }
-                                    className="rounded p-0.5 text-slate-400 hover:bg-slate-200"
+                                    className="rounded p-0.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600"
                                   >
                                     <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
                                       <circle cx="9" cy="8" r="3.5" />
@@ -1102,7 +1483,7 @@ export default function CardModal({
                                           : { id: it.id, kind: 'due' }
                                       )
                                     }
-                                    className="rounded p-0.5 text-slate-400 hover:bg-slate-200"
+                                    className="rounded p-0.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600"
                                   >
                                     <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
                                       <circle cx="12" cy="12" r="9" />
@@ -1115,7 +1496,7 @@ export default function CardModal({
                                     onClick={() =>
                                       void run(() => convertItemToCard(it.id))
                                     }
-                                    className="rounded p-0.5 text-slate-400 hover:bg-slate-200"
+                                    className="rounded p-0.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600"
                                   >
                                     <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
                                       <rect x="4" y="5" width="16" height="14" rx="2" />
@@ -1126,7 +1507,7 @@ export default function CardModal({
                                     type="button"
                                     title="Xoá"
                                     onClick={() => void run(() => deleteChecklistItem(it.id))}
-                                    className="rounded p-0.5 text-slate-400 hover:bg-slate-200"
+                                    className="rounded p-0.5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600"
                                   >
                                     <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
                                       <path d="M6 6l12 12M18 6L6 18" />
@@ -1136,8 +1517,8 @@ export default function CardModal({
                               )}
 
                               {itemPanel?.id === it.id && itemPanel.kind === 'assign' && (
-                                <div className="absolute right-0 top-6 z-20 w-48 rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
-                                  <p className="px-2 py-1 text-[11px] font-semibold text-slate-500">
+                                <div className="absolute right-0 top-6 z-20 w-48 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-xl">
+                                  <p className="px-2 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400">
                                     Chỉ định
                                   </p>
                                   {boardMembers.map((m) => (
@@ -1155,7 +1536,7 @@ export default function CardModal({
                                           })
                                         );
                                       }}
-                                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100"
+                                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
                                     >
                                       <Avatar
                                         id={m.userId}
@@ -1174,8 +1555,8 @@ export default function CardModal({
                                 </div>
                               )}
                               {itemPanel?.id === it.id && itemPanel.kind === 'due' && (
-                                <div className="absolute right-0 top-6 z-20 w-56 rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
-                                  <p className="mb-1 text-[11px] font-semibold text-slate-500">
+                                <div className="absolute right-0 top-6 z-20 w-56 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 shadow-xl">
+                                  <p className="mb-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400">
                                     Ngày hết hạn
                                   </p>
                                   <input
@@ -1186,7 +1567,7 @@ export default function CardModal({
                                         ? new Date(it.dueDate).toISOString().slice(0, 16)
                                         : ''
                                     }
-                                    className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                                    className="w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm"
                                   />
                                   <div className="mt-2 flex gap-2">
                                     <button
@@ -1215,7 +1596,7 @@ export default function CardModal({
                                             updateChecklistItem(it.id, { dueDate: null })
                                           );
                                         }}
-                                        className="rounded px-2 py-1 text-sm text-slate-600 hover:bg-slate-100"
+                                        className="rounded px-2 py-1 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                                       >
                                         Bỏ
                                       </button>
@@ -1240,7 +1621,7 @@ export default function CardModal({
               {/* ===== Cot phai: nhan xet + hoat dong ===== */}
               <div className="w-full shrink-0 md:w-72">
                 <div className="mb-2 flex items-center gap-2">
-                  <p className="flex flex-1 items-center gap-1.5 text-sm font-semibold text-slate-700">
+                  <p className="flex flex-1 items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
                     </svg>
@@ -1249,7 +1630,7 @@ export default function CardModal({
                   <button
                     type="button"
                     onClick={() => setShowDetails((v) => !v)}
-                    className="shrink-0 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                    className="shrink-0 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                   >
                     {showDetails ? 'Ẩn chi tiết' : 'Hiện chi tiết'}
                   </button>
@@ -1270,7 +1651,7 @@ export default function CardModal({
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
                       placeholder="Viết bình luận... (gõ @ để nhắc tên)"
-                      className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0c66e4] focus:outline-none"
+                      className="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-[#0c66e4] focus:outline-none"
                     />
                     {comment.trim() && (
                       <button
@@ -1281,7 +1662,7 @@ export default function CardModal({
                       </button>
                     )}
                     {mentionQuery !== null && mentionMatches.length > 0 && (
-                      <div className="absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-xl">
+                      <div className="absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-1 shadow-xl">
                         {mentionMatches.map((m) => (
                           <button
                             key={m.userId}
@@ -1292,7 +1673,7 @@ export default function CardModal({
                                 c.replace(/@[^@\s]*$/, `@${m.user.name} `)
                               )
                             }
-                            className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-slate-100"
+                            className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
                           >
                             <Avatar
                               id={m.userId}
@@ -1321,17 +1702,17 @@ export default function CardModal({
                         />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs">
-                            <span className="font-semibold text-slate-700">{it.c.user.name}</span>{' '}
-                            <span className="text-slate-400">{fmt(it.c.createdAt)}</span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-200">{it.c.user.name}</span>{' '}
+                            <span className="text-slate-600 dark:text-slate-400">{fmt(it.c.createdAt)}</span>
                           </p>
-                          <p className="mt-0.5 rounded-lg bg-white p-2 text-sm text-slate-700 ring-1 ring-slate-200">
+                          <p className="mt-0.5 rounded-lg bg-white dark:bg-slate-800 p-2 text-sm text-slate-700 dark:text-slate-200 ring-1 ring-slate-200">
                             {it.c.text}
                           </p>
                           {!readOnly && it.c.user.id === currentUserId && (
                             <button
                               type="button"
                               onClick={() => void run(() => deleteComment(it.c.id))}
-                              className="mt-0.5 text-xs text-slate-400 hover:underline"
+                              className="mt-0.5 text-xs text-slate-600 dark:text-slate-400 hover:underline"
                             >
                               Xoá
                             </button>
@@ -1346,11 +1727,11 @@ export default function CardModal({
                           avatarUrl={it.a.user.avatarUrl}
                           className="h-6 w-6 text-[10px]"
                         />
-                        <p className="text-xs text-slate-500">
-                          <span className="font-semibold text-slate-700">{it.a.user.name}</span>{' '}
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                          <span className="font-semibold text-slate-700 dark:text-slate-200">{it.a.user.name}</span>{' '}
                           {activityText(it.a)}
                           <br />
-                          <span className="text-slate-400">{fmt(it.a.createdAt)}</span>
+                          <span className="text-slate-600 dark:text-slate-400">{fmt(it.a.createdAt)}</span>
                         </p>
                       </li>
                     )
@@ -1363,90 +1744,5 @@ export default function CardModal({
       </div>
     </div>,
     document.body
-  );
-}
-
-// Mot dong muc checklist co the keo sap xep (tay cam la bieu tuong luoi hien khi ro chuot)
-function SortableItem({
-  id,
-  disabled,
-  children,
-}: {
-  id: string;
-  disabled: boolean;
-  children: React.ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id, disabled });
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Translate.toString(transform),
-        transition,
-        opacity: isDragging ? 0.4 : undefined,
-      }}
-      className="group relative flex items-center gap-2"
-    >
-      {!disabled && (
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          title="Kéo để sắp xếp"
-          className="-ml-4 shrink-0 cursor-grab touch-none rounded p-0.5 text-slate-300 opacity-0 hover:bg-slate-200 group-hover:opacity-100"
-        >
-          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor">
-            <circle cx="9" cy="6" r="1.5" />
-            <circle cx="15" cy="6" r="1.5" />
-            <circle cx="9" cy="12" r="1.5" />
-            <circle cx="15" cy="12" r="1.5" />
-            <circle cx="9" cy="18" r="1.5" />
-            <circle cx="15" cy="18" r="1.5" />
-          </svg>
-        </button>
-      )}
-      {children}
-    </div>
-  );
-}
-
-function AddItemInput({ onAdd }: { onAdd: (content: string) => Promise<unknown> }) {
-  const [open, setOpen] = useState(false);
-  const [v, setV] = useState('');
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="mt-1 rounded px-2 py-1 text-left text-sm text-slate-500 hover:bg-slate-200"
-      >
-        + Thêm mục
-      </button>
-    );
-  }
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        const t = v.trim();
-        if (!t) return;
-        setV('');
-        void onAdd(t);
-      }}
-      className="mt-1 flex gap-2"
-    >
-      <input
-        autoFocus
-        value={v}
-        onChange={(e) => setV(e.target.value)}
-        onBlur={() => !v.trim() && setOpen(false)}
-        placeholder="Thêm một mục..."
-        className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
-      />
-      <button type="submit" className="rounded bg-[#0c66e4] px-3 text-sm font-medium text-white">
-        Thêm
-      </button>
-    </form>
   );
 }

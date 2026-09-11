@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchBoardLabels } from '../../lib/api/card';
+import { logError } from '../../lib/logError';
 import { initialsOf } from '../../lib/avatar';
 import {
   EMPTY_FILTER,
@@ -35,13 +36,13 @@ function Check({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-2 rounded px-1.5 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100"
+      className="flex w-full items-center gap-2 rounded px-1.5 py-1.5 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
     >
       <span
         className={`grid h-4 w-4 shrink-0 place-items-center rounded border ${
           checked
             ? 'border-[#0c66e4] bg-[#0c66e4] text-white'
-            : 'border-slate-300'
+            : 'border-slate-300 dark:border-slate-600'
         }`}
       >
         {checked && (
@@ -57,7 +58,7 @@ function Check({
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-1 mt-3 px-1.5 text-xs font-semibold text-slate-500">
+    <p className="mb-1 mt-3 px-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
       {children}
     </p>
   );
@@ -75,7 +76,9 @@ export default function BoardFilterPanel({
   const set = (patch: Partial<BoardFilter>) => onChange({ ...filter, ...patch });
 
   useEffect(() => {
-    fetchBoardLabels(boardId).then(setLabels).catch(() => {});
+    fetchBoardLabels(boardId)
+      .then(setLabels)
+      .catch(logError('BoardFilterPanel: tai nhan'));
   }, [boardId]);
 
   useEffect(() => {
@@ -103,7 +106,7 @@ export default function BoardFilterPanel({
   return createPortal(
     <div
       ref={ref}
-      className="fixed right-3 top-14 z-50 w-72 rounded-xl border border-slate-200 bg-white p-2 text-slate-800 shadow-2xl"
+      className="fixed right-3 top-14 z-50 w-72 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-slate-800 dark:text-slate-100 shadow-2xl"
     >
       <div className="flex items-center px-1.5 pb-1">
         <p className="flex-1 text-center text-sm font-semibold">Lọc</p>
@@ -111,7 +114,7 @@ export default function BoardFilterPanel({
           type="button"
           onClick={onClose}
           aria-label="Đóng"
-          className="rounded p-1 text-slate-500 hover:bg-slate-100"
+          className="rounded p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M6 6l12 12M18 6L6 18" />
@@ -126,9 +129,9 @@ export default function BoardFilterPanel({
             value={filter.keyword}
             onChange={(e) => set({ keyword: e.target.value })}
             placeholder="Nhập từ khoá..."
-            className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
           />
-          <p className="pt-1 text-[11px] text-slate-400">
+          <p className="pt-1 text-[11px] text-slate-500 dark:text-slate-400">
             Tìm trong tên và mô tả thẻ.
           </p>
         </div>
@@ -217,7 +220,7 @@ export default function BoardFilterPanel({
                     className="h-5 w-10 shrink-0 rounded"
                     style={{ backgroundColor: l.color }}
                   />
-                  <span className="truncate text-xs text-slate-500">
+                  <span className="truncate text-xs text-slate-500 dark:text-slate-400">
                     {l.name || 'Không tên'}
                   </span>
                 </span>
@@ -231,7 +234,7 @@ export default function BoardFilterPanel({
         <button
           type="button"
           onClick={() => onChange(EMPTY_FILTER)}
-          className="mt-1 w-full rounded-lg bg-slate-100 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-200"
+          className="mt-1 w-full rounded-lg bg-slate-100 dark:bg-slate-700 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
         >
           Xoá bộ lọc
         </button>

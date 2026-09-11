@@ -6,6 +6,7 @@ import {
 import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity/activity.service';
+import { isBoardParticipant } from '../board/board.service';
 import { cardMemberIds, notify } from '../notification/notification.service';
 import { assertCardAccess } from './card.service';
 
@@ -26,14 +27,9 @@ export async function addCardMember(
   const card = await assertCardAccess(userId, cardId);
   const boardId = card.list.boardId;
 
-  // Nguoi duoc gan phai la thanh vien cua bang (hoac chu bang)
-  const board = await prisma.board.findUnique({ where: { id: boardId } });
-  const isBoardMember =
-    board?.ownerId === targetUserId ||
-    (await prisma.boardMember.findFirst({
-      where: { boardId, userId: targetUserId, deletedAt: null },
-    })) !== null;
-  if (!isBoardMember) {
+  // Nguoi duoc gan phai co quyen o bang (thanh vien bang, hoac thanh vien
+  // khong gian neu bang o muc WORKSPACE)
+  if (!(await isBoardParticipant(boardId, targetUserId))) {
     throw new AppError('Chi gan duoc thanh vien cua bang vao the', 400);
   }
 
@@ -180,13 +176,7 @@ async function itemChecklist(userId: string, itemId: string) {
 }
 
 async function assertBoardMemberUser(boardId: string, targetUserId: string) {
-  const board = await prisma.board.findUnique({ where: { id: boardId } });
-  const ok =
-    board?.ownerId === targetUserId ||
-    (await prisma.boardMember.findFirst({
-      where: { boardId, userId: targetUserId, deletedAt: null },
-    })) !== null;
-  if (!ok) {
+  if (!(await isBoardParticipant(boardId, targetUserId))) {
     throw new AppError('Chi chi dinh duoc thanh vien cua bang', 400);
   }
 }
@@ -368,6 +358,9 @@ export async function addComment(
     data: { cardTitle: card.title, text: trimmed.slice(0, 120) },
   });
 
+  // Realtime: ai dang mo bang / the nay -> tai lai ngay
+  emitToBoard(card.list.boardId, 'board:lists-changed');
+
   return comment;
 }
 
@@ -376,11 +369,11 @@ async function ownComment(userId: string, commentId: string) {
     where: { id: commentId, deletedAt: null },
   });
   if (!comment) throw new AppError('Khong tim thay binh luan', 404);
-  await assertCardAccess(userId, comment.cardId);
+  const card = await assertCardAccess(userId, comment.cardId);
   if (comment.userId !== userId) {
     throw new AppError('Chi tac gia moi sua/xoa duoc binh luan', 403);
   }
-  return comment;
+  return { comment, boardId: card.list.boardId };
 }
 
 export async function updateComment(
@@ -388,20 +381,23 @@ export async function updateComment(
   commentId: string,
   text: string
 ) {
-  await ownComment(userId, commentId);
-  return prisma.comment.update({
+  const { boardId } = await ownComment(userId, commentId);
+  const updated = await prisma.comment.update({
     where: { id: commentId },
     data: { text: text.trim() },
     include: { user: { select: USER_SELECT } },
   });
+  emitToBoard(boardId, 'board:lists-changed');
+  return updated;
 }
 
 export async function deleteComment(userId: string, commentId: string) {
-  await ownComment(userId, commentId);
+  const { boardId } = await ownComment(userId, commentId);
   await prisma.comment.update({
     where: { id: commentId },
     data: { deletedAt: new Date() },
   });
+  emitToBoard(boardId, 'board:lists-changed');
 }
 
 // ---------- Tep dinh kem ----------

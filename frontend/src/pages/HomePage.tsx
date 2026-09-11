@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import BoardCard from '../components/BoardCard';
 import CreateBoardDialog from '../components/board/CreateBoardDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useBoards } from '../context/BoardsContext';
+import { useWorkspaces } from '../context/WorkspacesContext';
 import {
   archiveBoard,
   deleteBoard,
@@ -12,10 +14,17 @@ import {
   type ArchivedBoard,
 } from '../lib/api/board';
 import { assetUrl } from '../lib/assets';
+import { logError } from '../lib/logError';
 import { getErrorMessage } from '../lib/errorMessage';
 import type { Board } from '../types/board';
 
-function CreateBoardTile({ onCreated }: { onCreated: (board: Board) => void }) {
+function CreateBoardTile({
+  onCreated,
+  workspaceId,
+}: {
+  onCreated: (board: Board) => void;
+  workspaceId?: string;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -41,6 +50,7 @@ function CreateBoardTile({ onCreated }: { onCreated: (board: Board) => void }) {
       {open && (
         <CreateBoardDialog
           className="absolute left-0 top-[calc(100%+6px)] z-40"
+          workspaceId={workspaceId}
           onClose={() => setOpen(false)}
           onCreated={(board) => {
             onCreated(board);
@@ -55,8 +65,11 @@ function CreateBoardTile({ onCreated }: { onCreated: (board: Board) => void }) {
 export default function HomePage() {
   const { boards, isLoading, error, reload, upsertBoard, removeBoard, toggleStar } =
     useBoards();
+  const { workspaces } = useWorkspaces();
 
   const starred = boards.filter((b) => b.isStarred);
+  const knownWsIds = new Set(workspaces.map((w) => w.id));
+  const orphanBoards = boards.filter((b) => !knownWsIds.has(b.workspaceId));
 
   const [deleteTarget, setDeleteTarget] = useState<Board | null>(null);
   const [permTarget, setPermTarget] = useState<Board | null>(null);
@@ -70,7 +83,7 @@ export default function HomePage() {
   const loadArchived = useCallback(() => {
     fetchArchivedBoards()
       .then(setArchived)
-      .catch(() => {});
+      .catch(logError('HomePage: tai bang luu tru'));
   }, []);
   useEffect(() => {
     loadArchived();
@@ -163,25 +176,60 @@ export default function HomePage() {
             </div>
           )}
 
-          <div className="flex flex-col gap-3">
-            <h1 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Các bảng của bạn
-            </h1>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {boards.map((board) => (
-                <BoardCard
-                  key={board.id}
-                  board={board}
-                  onChanged={upsertBoard}
-                  onRequestDelete={setDeleteTarget}
-                  onRequestPermanentDelete={setPermTarget}
-                  onToggleStar={toggleStar}
-                />
-              ))}
+          {workspaces.map((ws) => {
+            const wsBoards = boards.filter((b) => b.workspaceId === ws.id);
+            return (
+              <div key={ws.id} className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 8a3 3 0 100-6 3 3 0 000 6zM3 20a6 6 0 0112 0M17 8a3 3 0 100-6M15 20a6 6 0 019-5" />
+                  </svg>
+                  <h1 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    {ws.name}
+                  </h1>
+                  <Link
+                    to={`/workspaces/${ws.id}`}
+                    className="text-xs font-medium text-[#0c66e4] hover:underline"
+                  >
+                    Quản lý
+                  </Link>
+                </div>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                  {wsBoards.map((board) => (
+                    <BoardCard
+                      key={board.id}
+                      board={board}
+                      onChanged={upsertBoard}
+                      onRequestDelete={setDeleteTarget}
+                      onRequestPermanentDelete={setPermTarget}
+                      onToggleStar={toggleStar}
+                    />
+                  ))}
+                  <CreateBoardTile onCreated={upsertBoard} workspaceId={ws.id} />
+                </div>
+              </div>
+            );
+          })}
 
-              <CreateBoardTile onCreated={upsertBoard} />
+          {orphanBoards.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <h1 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Bảng khác
+              </h1>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {orphanBoards.map((board) => (
+                  <BoardCard
+                    key={board.id}
+                    board={board}
+                    onChanged={upsertBoard}
+                    onRequestDelete={setDeleteTarget}
+                    onRequestPermanentDelete={setPermTarget}
+                    onToggleStar={toggleStar}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {archived.length > 0 && (
             <div className="flex flex-col gap-3">

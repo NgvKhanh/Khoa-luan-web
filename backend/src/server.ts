@@ -1,6 +1,10 @@
 import { createServer } from 'node:http';
 import { createApp } from './app';
 import { env } from './config/env';
+import {
+  startReminderScheduler,
+  stopReminderScheduler,
+} from './modules/card/reminder.scheduler';
 import { initRealtime, shutdownRealtime } from './realtime/socket';
 
 function startServer() {
@@ -10,6 +14,7 @@ function startServer() {
 
     // Gan Socket.IO (realtime) vao cung HTTP server
     initRealtime(server);
+    startReminderScheduler();
 
     server.listen(env.port, () => {
       console.log(`Server dang chay tai http://localhost:${env.port}`);
@@ -32,6 +37,7 @@ function startServer() {
     // Tat server mot cach an toan khi nhan tin hieu dung (Ctrl + C)
     const shutdown = (signal: string) => {
       console.log(`\nNhan tin hieu ${signal}, dang tat server...`);
+      stopReminderScheduler();
       shutdownRealtime();
       server.close(() => {
         console.log('Server da dung.');

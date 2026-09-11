@@ -69,6 +69,7 @@ function renderBoard(lists: BoardList[], handlers: {
               onRename={handlers.onRename ?? noop}
               onRequestDeleteList={noop}
               onAddCard={asyncNoop}
+              onApplyCardTemplate={asyncNoop}
               onToggleCardDone={noop}
               onRequestDeleteCard={noop}
               onOpenCard={noop}

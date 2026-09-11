@@ -3,12 +3,22 @@ import {
   boardBackgroundPublicPath,
   removeBoardBackgroundFile,
 } from '../../config/upload';
-import { emitToBoard, emitToUser } from '../../realtime/socket';
+import {
+  emitToBoard,
+  emitToUser,
+  reconcileBoardRoomAccess,
+} from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
+import {
+  assertWorkspaceAccess,
+  memberWorkspaceIds,
+  workspaceRoleOf,
+} from '../workspace/workspace.service';
 import type { CreateBoardInput, UpdateBoardInput } from './board.schema';
 import { getTemplate } from './boardTemplates';
+import { isWatchingBoard } from '../watch/watch.service';
 
-// Kiem tra nguoi dung la CHU bang. Dung cho: xoa bang, quan ly thanh vien.
+// Kiem tra nguoi dung la CHU bang. Dung cho: xoa bang, luu tru, chuyen chu bang.
 export async function assertBoardOwner(userId: string, boardId: string) {
   const board = await prisma.board.findFirst({
     where: { id: boardId, deletedAt: null, archivedAt: null },
@@ -22,8 +32,9 @@ export async function assertBoardOwner(userId: string, boardId: string) {
   return board;
 }
 
-// Kiem tra nguoi dung CO QUYEN TRUY CAP bang: la chu HOAC la thanh vien.
-// Dung cho: xem/sua bang, danh sach, the. Export de module list/card dung chung.
+// CO QUYEN SUA bang: chu bang / thanh vien bang (tru vai tro VIEWER - chi xem) /
+// (bang WORKSPACE + la thanh vien cua khong gian chua bang). Dung cho: sua
+// bang, danh sach, the.
 export async function assertBoardAccess(userId: string, boardId: string) {
   const board = await prisma.board.findFirst({
     where: { id: boardId, deletedAt: null, archivedAt: null },
@@ -37,29 +48,49 @@ export async function assertBoardAccess(userId: string, boardId: string) {
   const membership = await prisma.boardMember.findFirst({
     where: { boardId, userId, deletedAt: null },
   });
-  if (!membership) {
-    throw new AppError('Ban khong co quyen truy cap bang nay', 403);
+  if (membership && membership.role !== 'VIEWER') {
+    return board;
   }
-  return board;
+  if (
+    !membership &&
+    board.visibility === 'WORKSPACE' &&
+    (await workspaceRoleOf(userId, board.workspaceId)) !== null
+  ) {
+    return board;
+  }
+  throw new AppError('Ban khong co quyen truy cap bang nay', 403);
 }
 
-// Kiem tra QUYEN XEM: chu bang / thanh vien -> xem + sua; bang PUBLIC -> ai cung xem (chi doc).
+// QUYEN XEM: chu bang / thanh vien bang / thanh vien khong gian (bang WORKSPACE)
+// -> xem (+ sua neu khong phai VIEWER); bang PUBLIC -> ai cung xem (chi doc),
+// KE CA KHACH CHUA DANG NHAP (userId = null) - dung cho lien ket cong khai.
 // Tra ve { board, canEdit }.
-export async function assertBoardView(userId: string, boardId: string) {
+export async function assertBoardView(
+  userId: string | null,
+  boardId: string
+) {
   const board = await prisma.board.findFirst({
     where: { id: boardId, deletedAt: null, archivedAt: null },
   });
   if (!board) {
     throw new AppError('Khong tim thay bang', 404);
   }
-  if (board.ownerId === userId) {
-    return { board, canEdit: true };
-  }
-  const membership = await prisma.boardMember.findFirst({
-    where: { boardId, userId, deletedAt: null },
-  });
-  if (membership) {
-    return { board, canEdit: true };
+  if (userId) {
+    if (board.ownerId === userId) {
+      return { board, canEdit: true };
+    }
+    const membership = await prisma.boardMember.findFirst({
+      where: { boardId, userId, deletedAt: null },
+    });
+    if (membership) {
+      return { board, canEdit: membership.role !== 'VIEWER' };
+    }
+    if (
+      board.visibility === 'WORKSPACE' &&
+      (await workspaceRoleOf(userId, board.workspaceId)) !== null
+    ) {
+      return { board, canEdit: true };
+    }
   }
   if (board.visibility === 'PUBLIC') {
     return { board, canEdit: false };
@@ -67,18 +98,48 @@ export async function assertBoardView(userId: string, boardId: string) {
   throw new AppError('Ban khong co quyen truy cap bang nay', 403);
 }
 
-// Lay chi tiet 1 bang (dung khi mo bang qua link, nguoi xem co the chua la thanh vien).
+// Lay chi tiet 1 bang (kem ten khong gian).
 export async function getBoard(userId: string, boardId: string) {
   const { board, canEdit } = await assertBoardView(userId, boardId);
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: board.workspaceId },
+    select: { name: true, isPersonal: true },
+  });
   return {
     ...board,
+    workspaceName: workspace?.name ?? '',
+    workspaceIsPersonal: workspace?.isPersonal ?? false,
     isOwner: board.ownerId === userId,
     canEdit,
+    // Quyen quan ly tinh o backend (tinh ca OWNER/ADMIN cua khong gian) de
+    // frontend khong phai suy doan lai va bo sot truong hop.
+    canManage: await canManageBoard(userId, board),
+    isWatching: await isWatchingBoard(userId, boardId),
   };
 }
 
-// Kiem tra nguoi dung CO QUYEN QUAN LY thanh vien: chu bang HOAC Quan tri vien (ADMIN).
-// Dung cho: moi/xoa thanh vien, doi vai tro, link moi, duyet yeu cau tham gia.
+// Predicate (khong nem loi): nguoi dung co QUYEN QUAN LY bang khong?
+// chu bang / Quan tri vien bang / chu hoac ADMIN cua khong gian chua bang.
+export async function canManageBoard(
+  userId: string,
+  board: { id: string; ownerId: string; workspaceId: string }
+): Promise<boolean> {
+  if (board.ownerId === userId) return true;
+  const membership = await prisma.boardMember.findFirst({
+    where: { boardId: board.id, userId, deletedAt: null },
+    select: { role: true },
+  });
+  if (
+    membership &&
+    (membership.role === 'ADMIN' || membership.role === 'OWNER')
+  )
+    return true;
+  const wsRole = await workspaceRoleOf(userId, board.workspaceId);
+  return wsRole === 'OWNER' || wsRole === 'ADMIN';
+}
+
+// CO QUYEN QUAN LY bang: chu bang / Quan tri vien bang / chu hoac ADMIN cua
+// khong gian chua bang. Dung cho: moi-xoa thanh vien, link moi, doi hien thi.
 export async function assertBoardManage(userId: string, boardId: string) {
   const board = await prisma.board.findFirst({
     where: { id: boardId, deletedAt: null, archivedAt: null },
@@ -86,62 +147,98 @@ export async function assertBoardManage(userId: string, boardId: string) {
   if (!board) {
     throw new AppError('Khong tim thay bang', 404);
   }
-  if (board.ownerId === userId) {
+  if (await canManageBoard(userId, board)) {
     return board;
   }
-  const membership = await prisma.boardMember.findFirst({
-    where: { boardId, userId, deletedAt: null },
+  throw new AppError('Chi Quan tri vien moi thuc hien duoc thao tac nay', 403);
+}
+
+// Nguoi dung co "thuoc ve" bang khong (de gan lam thanh vien the / nguoi phu trach):
+// chu bang, thanh vien bang, hoac thanh vien khong gian neu bang o muc WORKSPACE.
+export async function isBoardParticipant(
+  boardId: string,
+  userId: string
+): Promise<boolean> {
+  const board = await prisma.board.findUnique({
+    where: { id: boardId },
+    select: { ownerId: true, visibility: true, workspaceId: true },
   });
-  if (!membership || membership.role === 'MEMBER') {
-    throw new AppError('Chi Quan tri vien moi thuc hien duoc thao tac nay', 403);
+  if (!board) return false;
+  if (board.ownerId === userId) return true;
+  // VIEWER chi xem - khong duoc gan lam thanh vien the / nguoi phu trach
+  const bm = await prisma.boardMember.findFirst({
+    where: { boardId, userId, deletedAt: null, role: { not: 'VIEWER' } },
+    select: { id: true },
+  });
+  if (bm) return true;
+  if (board.visibility === 'WORKSPACE') {
+    return (await workspaceRoleOf(userId, board.workspaceId)) !== null;
   }
-  return board;
+  return false;
 }
 
 export async function listMyBoards(userId: string) {
+  const myWorkspaceIds = await memberWorkspaceIds(userId);
   const boards = await prisma.board.findMany({
     where: {
       deletedAt: null,
       archivedAt: null,
-      members: { some: { userId, deletedAt: null } },
+      OR: [
+        { members: { some: { userId, deletedAt: null } } },
+        { visibility: 'WORKSPACE', workspaceId: { in: myWorkspaceIds } },
+      ],
     },
     orderBy: { createdAt: 'desc' },
     include: {
+      workspace: { select: { name: true, isPersonal: true } },
       _count: { select: { members: { where: { deletedAt: null } } } },
       members: {
         where: { userId, deletedAt: null },
-        select: { starred: true },
+        select: { id: true },
       },
+      stars: { where: { userId }, select: { userId: true } },
     },
   });
 
-  return boards.map(({ _count, members, ...board }) => ({
+  return boards.map(({ _count, members, stars, workspace, ...board }) => ({
     ...board,
+    workspaceName: workspace.name,
+    workspaceIsPersonal: workspace.isPersonal,
     memberCount: _count.members,
     isOwner: board.ownerId === userId,
-    isStarred: members[0]?.starred ?? false,
+    isMember: members.length > 0,
+    isStarred: stars.length > 0,
   }));
 }
 
-// Danh dau / bo danh dau sao bang cho nguoi dung hien tai
+// Danh dau / bo danh dau sao bang cho nguoi dung hien tai.
+// Luu vao bang BoardStar rieng -> nguoi truy cap qua "khong gian lam viec"
+// (chua la thanh vien truc tiep cua bang) van luu duoc dau sao.
 export async function setBoardStar(
   userId: string,
   boardId: string,
   starred: boolean
 ) {
   await assertBoardAccess(userId, boardId);
-  await prisma.boardMember.updateMany({
-    where: { boardId, userId, deletedAt: null },
-    data: { starred },
-  });
+  if (starred) {
+    await prisma.boardStar.upsert({
+      where: { userId_boardId: { userId, boardId } },
+      create: { userId, boardId },
+      update: {},
+    });
+  } else {
+    await prisma.boardStar.deleteMany({ where: { userId, boardId } });
+  }
 }
 
 // Tao 1 bang tu mau co san (kem toan bo list + the mau)
 export async function createBoardFromTemplate(
   userId: string,
+  workspaceId: string,
   templateId: string,
   name?: string
 ) {
+  await assertWorkspaceAccess(userId, workspaceId);
   const tpl = getTemplate(templateId);
   if (!tpl) {
     throw new AppError('Không tìm thấy mẫu này', 404);
@@ -149,6 +246,7 @@ export async function createBoardFromTemplate(
   return prisma.board.create({
     data: {
       ownerId: userId,
+      workspaceId,
       name: name?.trim() || tpl.name,
       color: tpl.color,
       members: { create: { userId, role: 'OWNER' } },
@@ -166,9 +264,11 @@ export async function createBoardFromTemplate(
 }
 
 export async function createBoard(userId: string, input: CreateBoardInput) {
+  await assertWorkspaceAccess(userId, input.workspaceId);
   return prisma.board.create({
     data: {
       ownerId: userId,
+      workspaceId: input.workspaceId,
       name: input.name,
       ...(input.color ? { color: input.color } : {}),
       ...(input.backgroundImage
@@ -184,7 +284,12 @@ export async function updateBoard(
   boardId: string,
   input: UpdateBoardInput
 ) {
-  const board = await assertBoardAccess(userId, boardId);
+  // Doi ten / mau / anh nen: chi can quyen SUA bang.
+  // Doi che do hien thi (visibility): phai co quyen QUAN LY bang.
+  const board =
+    input.visibility !== undefined
+      ? await assertBoardManage(userId, boardId)
+      : await assertBoardAccess(userId, boardId);
 
   const data: {
     name?: string;
@@ -220,6 +325,22 @@ export async function updateBoard(
   }
 
   emitToBoard(boardId, 'board:meta-changed');
+
+  // Doi muc hien thi -> danh sach bang cua moi thanh vien khong gian co the doi
+  if (input.visibility !== undefined && input.visibility !== board.visibility) {
+    const wsMembers = await prisma.workspaceMember.findMany({
+      where: { workspaceId: board.workspaceId, deletedAt: null },
+      select: { userId: true },
+    });
+    for (const { userId: uid } of wsMembers) {
+      emitToUser(uid, 'board:access-changed');
+    }
+    // Visibility thu hep lai (vd PUBLIC/WORKSPACE -> PRIVATE) co the khien
+    // nguoi dang o trong "phong" Socket.IO cua bang nay mat quyen xem ngay
+    // lap tuc -> don ho ra khoi phong, khong doi den khi ho tu ket noi lai.
+    void reconcileBoardRoomAccess(boardId);
+  }
+
   return updated;
 }
 

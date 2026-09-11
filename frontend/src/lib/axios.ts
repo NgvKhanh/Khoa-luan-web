@@ -28,8 +28,17 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // /auth/me la cau hoi "minh co dang dang nhap khong" - 401 o day la
+      // ket qua BINH THUONG cho khach chua dang nhap tren MOI trang (ke ca
+      // /boards/:id truoc khi ProtectedRoute kip dieu huong sang ban xem
+      // cong khai), khong duoc coi la loi phien dang nhap can day ve /login.
+      const requestUrl: string = error.config?.url ?? '';
+      if (requestUrl.includes('/auth/me')) {
+        return Promise.reject(error);
+      }
       const path = window.location.pathname;
-      if (!PUBLIC_PATHS.includes(path)) {
+      // /public/... la trang xem bang PUBLIC danh cho khach chua dang nhap.
+      if (!PUBLIC_PATHS.includes(path) && !path.startsWith('/public/')) {
         window.location.assign('/login');
       }
     }

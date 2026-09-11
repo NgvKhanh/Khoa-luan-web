@@ -27,7 +27,7 @@ function renderInline(text: string, keyBase: string): ReactNode[] {
       nodes.push(
         <code
           key={key}
-          className="rounded bg-slate-200 px-1 py-0.5 text-[0.85em] text-slate-800"
+          className="rounded bg-slate-200 px-1 py-0.5 text-[0.85em] text-slate-800 dark:bg-slate-700 dark:text-slate-100"
         >
           {m[8]}
         </code>
@@ -42,7 +42,7 @@ function renderInline(text: string, keyBase: string): ReactNode[] {
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[#0c66e4] hover:underline"
+            className="text-[#0c66e4] hover:underline dark:text-sky-400"
           >
             {m[10]}
           </a>
@@ -142,7 +142,7 @@ export function MiniMarkdown({ text }: { text: string }) {
       blocks.push(
         <p
           key={`q-${key++}`}
-          className="border-l-4 border-slate-300 pl-2 text-slate-600"
+          className="border-l-4 border-slate-300 pl-2 text-slate-600 dark:border-slate-600 dark:text-slate-300"
         >
           {renderInline(quote[1]!, `q-${key}`)}
         </p>
@@ -158,5 +158,9 @@ export function MiniMarkdown({ text }: { text: string }) {
   flushPara();
   flushList();
 
-  return <div className="flex flex-col gap-2 text-sm text-slate-700">{blocks}</div>;
+  return (
+    <div className="flex flex-col gap-2 text-sm text-slate-700 dark:text-slate-200">
+      {blocks}
+    </div>
+  );
 }

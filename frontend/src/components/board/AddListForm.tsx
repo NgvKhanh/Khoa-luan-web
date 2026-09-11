@@ -55,7 +55,7 @@ export default function AddListForm({ onAdd }: Props) {
   return (
     <form
       onSubmit={onSubmit}
-      className="w-72 shrink-0 rounded-xl bg-[#f1f2f4] p-2 shadow-sm"
+      className="w-72 shrink-0 rounded-xl bg-[#f1f2f4] p-2 shadow-sm dark:bg-slate-800"
     >
       <input
         autoFocus
@@ -64,9 +64,11 @@ export default function AddListForm({ onAdd }: Props) {
         onChange={(e) => setName(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder="Nhập tên danh sách..."
-        className="w-full rounded border border-[#0c66e4] bg-white px-2 py-1.5 text-sm focus:outline-none"
+        className="w-full rounded border border-[#0c66e4] bg-white px-2 py-1.5 text-sm focus:outline-none dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
       />
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {error && (
+        <p className="mt-1 text-xs text-red-600 dark:text-red-400">{error}</p>
+      )}
       <div className="mt-2 flex items-center gap-2">
         <button
           type="submit"
@@ -79,7 +81,7 @@ export default function AddListForm({ onAdd }: Props) {
           type="button"
           onClick={close}
           aria-label="Đóng"
-          className="rounded p-1 text-slate-500 hover:bg-black/10"
+          className="rounded p-1 text-slate-500 hover:bg-black/10 dark:text-slate-400 dark:hover:bg-white/10"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M6 6l12 12M18 6L6 18" />

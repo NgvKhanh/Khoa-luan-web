@@ -28,7 +28,7 @@ const OPTIONS: {
   {
     key: 'WORKSPACE',
     label: 'Không gian làm việc',
-    desc: 'Mọi thành viên trong không gian làm việc có thể xem và sửa bảng này.',
+    desc: 'Mọi thành viên của không gian chứa bảng đều xem và sửa được bảng này.',
     icon: (
       <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M9 8a3 3 0 100-6 3 3 0 000 6zM3 20a6 6 0 0112 0M17 8a3 3 0 100-6M15 20a6 6 0 019-5" />
@@ -80,7 +80,7 @@ export default function BoardVisibilityMenu({
   return createPortal(
     <div
       ref={ref}
-      className="fixed right-3 top-14 z-50 w-80 rounded-xl border border-slate-200 bg-white p-2 text-slate-800 shadow-2xl"
+      className="fixed right-3 top-14 z-50 w-80 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-slate-800 dark:text-slate-100 shadow-2xl"
     >
       <div className="flex items-center px-1.5 pb-1">
         <p className="flex-1 text-center text-sm font-semibold">
@@ -95,9 +95,9 @@ export default function BoardVisibilityMenu({
             onChange(o.key);
             onClose();
           }}
-          className="flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left hover:bg-slate-100"
+          className="flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
         >
-          <span className="mt-0.5 shrink-0 text-slate-500">{o.icon}</span>
+          <span className="mt-0.5 shrink-0 text-slate-500 dark:text-slate-400">{o.icon}</span>
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5 text-sm font-medium">
               {o.label}
@@ -107,7 +107,7 @@ export default function BoardVisibilityMenu({
                 </svg>
               )}
             </span>
-            <span className="mt-0.5 block text-xs text-slate-500">{o.desc}</span>
+            <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{o.desc}</span>
           </span>
         </button>
       ))}

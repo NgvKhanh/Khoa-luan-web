@@ -7,9 +7,14 @@ import { AppError } from '../utils/AppError';
 
 // Thu muc luu file tai len (nam ngoai src, khong commit len git)
 export const UPLOAD_ROOT = path.join(process.cwd(), 'uploads');
-const BOARD_BG_DIR = path.join(UPLOAD_ROOT, 'boards');
+// CHI xuat cac thu muc CONG KHAI (avatars, boards) de app.ts mount static
+// dung tung thu muc do. KHONG bao gio mount static tren UPLOAD_ROOT: no chua
+// ca CARD_ATTACH_DIR (rieng tu) va lam vo hieu lop kiem tra quyen o
+// attachment.serve.ts (vi du request toi /uploads/%63ards/<file> khong khop
+// prefix "/uploads/cards" nhung van duoc express.static giai ma va phuc vu).
+export const BOARD_BG_DIR = path.join(UPLOAD_ROOT, 'boards');
+export const AVATAR_DIR = path.join(UPLOAD_ROOT, 'avatars');
 const CARD_ATTACH_DIR = path.join(UPLOAD_ROOT, 'cards');
-const AVATAR_DIR = path.join(UPLOAD_ROOT, 'avatars');
 
 fs.mkdirSync(BOARD_BG_DIR, { recursive: true });
 fs.mkdirSync(CARD_ATTACH_DIR, { recursive: true });
@@ -140,6 +145,53 @@ const ATTACH_ALLOWED_EXT = new Set([
   '.zip',
 ]);
 
+// Content-Type SUY TU DUOI FILE (dang tin cay) khi phuc vu tep - KHONG BAO GIO
+// dung file.mimetype nguoi upload tu khai bao. Nguoi upload co the dat ten
+// "bao-cao.txt" nhung khai Content-Type "text/html" trong multipart; neu server
+// phuc vu lai dung gia tri do va cho mo "inline", trinh duyet se dung noi dung
+// nhu HTML -> XSS luu tru tren origin cua backend.
+const ATTACH_EXT_TO_TRUSTED_MIME: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.pdf': 'application/pdf',
+  '.txt': 'text/plain',
+  '.csv': 'text/plain', // khong dung text/csv: mot so trinh duyet tu mo bang, van an toan hon la de lo Content-Type nguoi dung tu khai
+  '.doc': 'application/msword',
+  '.docx':
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  '.pptx':
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.zip': 'application/zip',
+};
+
+// Chi anh moi duoc mo TRUC TIEP (Content-Disposition: inline) tren trinh duyet;
+// cac dinh dang con lai LUON ep tai xuong, du client co truyen ?download hay
+// khong, de trinh duyet khong bao gio "dung" duoc noi dung tren origin backend.
+const ATTACH_INLINE_SAFE_EXT = new Set([
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+  '.gif',
+]);
+
+/** Content-Type an toan de phuc vu 1 tep dinh kem, suy tu ten file (duoi). */
+export function trustedAttachmentContentType(filename: string): string {
+  const ext = path.extname(filename).toLowerCase();
+  return ATTACH_EXT_TO_TRUSTED_MIME[ext] ?? 'application/octet-stream';
+}
+
+/** True neu dinh dang nay duoc phep mo inline (chi anh); con lai phai tai xuong. */
+export function isInlineSafeAttachment(filename: string): boolean {
+  return ATTACH_INLINE_SAFE_EXT.has(path.extname(filename).toLowerCase());
+}
+
 const cardAttachmentUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, CARD_ATTACH_DIR),
@@ -182,6 +234,12 @@ export function uploadCardAttachment(
 
 export function cardAttachmentPublicPath(filename: string): string {
   return `/uploads/cards/${filename}`;
+}
+
+// Duong dan tuyet doi tren o dia cua 1 tep dinh kem (tu ten file hoac public path).
+// Dung path.basename de chan path traversal (../).
+export function cardAttachmentDiskPath(filenameOrPath: string): string {
+  return path.join(CARD_ATTACH_DIR, path.basename(filenameOrPath));
 }
 
 export function removeCardAttachmentFile(publicPath: string | null): void {

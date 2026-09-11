@@ -69,6 +69,30 @@ export async function fetchCalendarCards(
   return res.data.data.cards;
 }
 
+export interface SearchCard {
+  id: string;
+  title: string;
+  isDone: boolean;
+  dueDate: string | null;
+  coverColor: string | null;
+  list: {
+    id: string;
+    name: string;
+    boardId: string;
+    board: { id: string; name: string; color: string };
+  };
+  labels: { labelId: string; label: Label }[];
+  members: { userId: string; user: { id: string; name: string; avatarUrl: string | null } }[];
+}
+
+// Tim the theo tu khoa, tren moi bang minh co quyen truy cap
+export async function searchCards(query: string): Promise<SearchCard[]> {
+  const res = await api.get<{ data: { cards: SearchCard[] } }>(
+    `/cards/search?q=${encodeURIComponent(query)}`
+  );
+  return res.data.data.cards;
+}
+
 export async function updateCard(
   cardId: string,
   input: {
@@ -112,6 +136,52 @@ export async function restoreCard(cardId: string): Promise<void> {
 }
 export async function purgeCard(cardId: string): Promise<void> {
   await api.delete(`/cards/${cardId}/purge`);
+}
+
+// ----- Nhac han (rieng cho nguoi dat) -----
+export const REMINDER_OFFSETS = [10, 60, 1440] as const;
+export type ReminderOffset = (typeof REMINDER_OFFSETS)[number];
+
+export interface CardReminder {
+  id: string;
+  cardId: string;
+  userId: string;
+  offsetMinutes: number;
+  sentAt: string | null;
+  createdAt: string;
+}
+
+export async function fetchCardReminders(cardId: string): Promise<CardReminder[]> {
+  const res = await api.get<{ data: { reminders: CardReminder[] } }>(
+    `/cards/${cardId}/reminders`
+  );
+  return res.data.data.reminders;
+}
+
+export async function addCardReminder(
+  cardId: string,
+  offsetMinutes: ReminderOffset
+): Promise<CardReminder> {
+  const res = await api.post<{ data: { reminder: CardReminder } }>(
+    `/cards/${cardId}/reminders`,
+    { offsetMinutes }
+  );
+  return res.data.data.reminder;
+}
+
+export async function removeCardReminder(
+  cardId: string,
+  offsetMinutes: ReminderOffset
+): Promise<void> {
+  await api.delete(`/cards/${cardId}/reminders/${offsetMinutes}`);
+}
+
+// Theo doi / bo theo doi the: nhan thong bao hoat dong du khong phai thanh vien duoc gan
+export async function setCardWatch(
+  cardId: string,
+  watching: boolean
+): Promise<void> {
+  await api.put(`/cards/${cardId}/watch`, { watching });
 }
 
 export async function moveCard(

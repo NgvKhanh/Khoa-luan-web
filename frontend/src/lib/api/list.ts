@@ -83,3 +83,17 @@ export async function sortListCards(
 export async function deleteAllCards(listId: string): Promise<void> {
   await api.delete(`/lists/${listId}/cards`);
 }
+
+// Theo doi / bo theo doi danh sach: nhan thong bao hoat dong cua moi the trong do
+export async function fetchListWatch(listId: string): Promise<boolean> {
+  const res = await api.get<{ data: { watching: boolean } }>(
+    `/lists/${listId}/watch`
+  );
+  return res.data.data.watching;
+}
+export async function setListWatch(
+  listId: string,
+  watching: boolean
+): Promise<void> {
+  await api.put(`/lists/${listId}/watch`, { watching });
+}

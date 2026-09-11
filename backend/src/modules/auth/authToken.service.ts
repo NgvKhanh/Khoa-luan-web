@@ -1,7 +1,11 @@
 import crypto from 'node:crypto';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
+import type { Prisma } from '../../generated/prisma/client';
 import type { AuthTokenType } from '../../generated/prisma/enums';
+
+// Prisma Client thuong HOAC client trong 1 transaction ($transaction(async (tx) => ...))
+type Db = typeof prisma | Prisma.TransactionClient;
 
 /**
  * Token 1 lan dung cho xac minh email va dat lai mat khau.
@@ -38,29 +42,35 @@ export async function createAuthToken(
 }
 
 /**
- * Kiem tra + "tieu thu" token (danh dau da dung). Tra ve userId.
+ * Kiem tra + "tieu thu" token (danh dau da dung) MOT CACH NGUYEN TU. Tra ve userId.
  * Nem AppError neu token sai / het han / da dung.
+ *
+ * Truyen `db` la client trong transaction de viec tieu thu token va thay doi
+ * du lieu di kem (doi mat khau, xac minh email) cung thanh/that bai voi nhau:
+ * neu buoc sau loi, token khong bi mat hieu luc oan.
+ *
+ * Dung updateMany co dieu kien (usedAt: null, chua het han) -> hai request
+ * dong thoi thi chi dung mot cai co count === 1, cai con lai bi tu choi.
  */
 export async function consumeAuthToken(
+  db: Db,
   raw: string,
   type: AuthTokenType
 ): Promise<string> {
   const tokenHash = hashToken(raw);
-  const record = await prisma.authToken.findUnique({ where: { tokenHash } });
 
-  if (
-    !record ||
-    record.type !== type ||
-    record.usedAt !== null ||
-    record.expiresAt.getTime() < Date.now()
-  ) {
+  const consumed = await db.authToken.updateMany({
+    where: { tokenHash, type, usedAt: null, expiresAt: { gt: new Date() } },
+    data: { usedAt: new Date() },
+  });
+  if (consumed.count === 0) {
     throw new AppError('Lien ket khong hop le hoac da het han', 400);
   }
 
-  await prisma.authToken.update({
-    where: { id: record.id },
-    data: { usedAt: new Date() },
+  const record = await db.authToken.findUnique({
+    where: { tokenHash },
+    select: { userId: true },
   });
-
-  return record.userId;
+  // count === 1 dam bao ban ghi ton tai
+  return record!.userId;
 }

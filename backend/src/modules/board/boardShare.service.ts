@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { prisma } from '../../config/prisma';
+import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import {
   boardManagerIds,
@@ -111,6 +112,9 @@ export async function requestToJoin(userId: string, token: string) {
     data: { boardName: board.name },
   });
 
+  // Quan tri vien dang mo bang -> cap nhat tab "Yeu cau tham gia" ngay
+  emitToBoard(board.id, 'board:join-requests-changed');
+
   return { boardName: board.name };
 }
 
@@ -164,6 +168,9 @@ export async function approveJoinRequest(
     data: { boardName: board?.name ?? '' },
   });
 
+  emitToBoard(boardId, 'board:join-requests-changed');
+  emitToBoard(boardId, 'board:members-changed');
+
   return member;
 }
 
@@ -197,4 +204,6 @@ export async function rejectJoinRequest(
     boardId,
     data: { boardName: board?.name ?? '' },
   });
+
+  emitToBoard(boardId, 'board:join-requests-changed');
 }

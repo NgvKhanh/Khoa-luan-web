@@ -133,7 +133,12 @@ export const changePassword = asyncHandler(
     if (!req.user) {
       throw new AppError('Ban chua dang nhap', 401);
     }
-    await changeUserPassword(req.user.id, req.body as ChangePasswordInput);
+    const { token } = await changeUserPassword(
+      req.user.id,
+      req.body as ChangePasswordInput
+    );
+    // Cap lai cookie cho phien hien tai de khong bi dang xuat ngay sau khi doi
+    res.cookie(TOKEN_COOKIE_NAME, token, tokenCookieOptions());
     res.json({ success: true, message: 'Da doi mat khau' });
   }
 );

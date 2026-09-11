@@ -9,6 +9,7 @@ import HomeDashboard from './pages/HomeDashboard';
 import HomePage from './pages/HomePage';
 import JoinBoardPage from './pages/JoinBoardPage';
 import LoginPage from './pages/LoginPage';
+import PublicBoardPage from './pages/PublicBoardPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import MyActivityPage from './pages/MyActivityPage';
@@ -16,6 +17,7 @@ import MyCardsPage from './pages/MyCardsPage';
 import ProfilePage from './pages/ProfilePage';
 import TemplatesPage from './pages/TemplatesPage';
 import RegisterPage from './pages/RegisterPage';
+import WorkspaceSettingsPage from './pages/WorkspaceSettingsPage';
 import ProtectedRoute from './routes/ProtectedRoute';
 
 function App() {
@@ -26,12 +28,17 @@ function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/public/boards/:boardId" element={<PublicBoardPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/home" element={<HomeDashboard />} />
           <Route path="/templates" element={<TemplatesPage />} />
+          <Route
+            path="/workspaces/:workspaceId"
+            element={<WorkspaceSettingsPage />}
+          />
           <Route path="/my-cards" element={<MyCardsPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/settings/profile" element={<ProfilePage />} />

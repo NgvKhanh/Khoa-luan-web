@@ -58,7 +58,7 @@ export default function AddCardForm({ onAdd, open, onOpenChange }: Props) {
         type="button"
         data-add-card
         onClick={() => setIsOpen(true)}
-        className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-sm text-slate-500 hover:bg-black/5"
+        className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-sm text-slate-600 hover:bg-black/5 dark:text-slate-300 dark:hover:bg-white/10"
       >
         <span className="text-base leading-none">+</span> Thêm thẻ
       </button>
@@ -75,9 +75,9 @@ export default function AddCardForm({ onAdd, open, onOpenChange }: Props) {
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder="Nhập nội dung cho thẻ này..."
-        className="w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 text-sm shadow-sm focus:border-[#0c66e4] focus:outline-none"
+        className="w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 text-sm shadow-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
       />
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex items-center gap-2">
         <button
           type="submit"
@@ -90,7 +90,7 @@ export default function AddCardForm({ onAdd, open, onOpenChange }: Props) {
           type="button"
           onClick={close}
           aria-label="Đóng"
-          className="rounded p-1 text-slate-500 hover:bg-black/10"
+          className="rounded p-1 text-slate-500 hover:bg-black/10 dark:text-slate-400 dark:hover:bg-white/10"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M6 6l12 12M18 6L6 18" />

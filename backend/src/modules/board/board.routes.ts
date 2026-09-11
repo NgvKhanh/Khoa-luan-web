@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import { uploadBoardBackground } from '../../config/upload';
 import { requireAuth } from '../../middleware/auth.middleware';
+import {
+  cleanupUploadOnError,
+  requireBoardAccess,
+} from '../../middleware/uploadGuard.middleware';
 import { validateBody } from '../../middleware/validate.middleware';
 import {
   archiveBoardHandler,
@@ -35,6 +39,16 @@ import {
   rejectJoinRequestHandler,
   requestToJoinHandler,
 } from './boardShare.controller';
+import { setBoardWatchHandler } from '../watch/watch.controller';
+import {
+  createFromUserTemplateHandler,
+  deleteBoardTemplateHandler,
+  saveBoardAsTemplateHandler,
+} from './boardTemplate.controller';
+import {
+  createFromUserTemplateSchema,
+  saveAsTemplateSchema,
+} from './boardTemplate.schema';
 
 const router = Router();
 
@@ -47,27 +61,41 @@ router.post('/join/:token', requestToJoinHandler);
 router.get('/', listMyBoardsHandler);
 router.get('/archived', listArchivedBoardsHandler);
 router.get('/templates', listTemplatesHandler);
+router.delete('/templates/:templateId', deleteBoardTemplateHandler);
 router.post('/', validateBody(createBoardSchema), createBoardHandler);
 router.post(
   '/from-template',
   validateBody(fromTemplateSchema),
   createFromTemplateHandler
 );
+router.post(
+  '/from-saved-template',
+  validateBody(createFromUserTemplateSchema),
+  createFromUserTemplateHandler
+);
 router.get('/:boardId', getBoardHandler);
 router.get('/:boardId/archive', listBoardArchiveHandler);
 router.get('/:boardId/export', exportBoardHandler);
 router.patch('/:boardId', validateBody(updateBoardSchema), updateBoardHandler);
 router.put('/:boardId/star', setBoardStarHandler);
+router.put('/:boardId/watch', setBoardWatchHandler);
+router.post(
+  '/:boardId/save-as-template',
+  validateBody(saveAsTemplateSchema),
+  saveBoardAsTemplateHandler
+);
 router.post('/:boardId/archive-board', archiveBoardHandler);
 router.post('/:boardId/restore', restoreBoardHandler);
 router.delete('/:boardId/purge', purgeBoardHandler);
 router.delete('/:boardId', deleteBoardHandler);
 
-// Anh nen
+// Anh nen: kiem tra quyen sua bang TRUOC khi ghi file; don file rac neu loi.
 router.post(
   '/:boardId/background',
+  requireBoardAccess,
   uploadBoardBackground,
-  uploadBoardBackgroundHandler
+  uploadBoardBackgroundHandler,
+  cleanupUploadOnError
 );
 router.delete('/:boardId/background', deleteBoardBackgroundHandler);
 

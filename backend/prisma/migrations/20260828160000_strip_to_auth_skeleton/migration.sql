@@ -10,7 +10,9 @@ DROP TABLE IF EXISTS "Comment" CASCADE;
 DROP TABLE IF EXISTS "TaskDependency" CASCADE;
 DROP TABLE IF EXISTS "Subtask" CASCADE;
 DROP TABLE IF EXISTS "Task" CASCADE;
-DROP TABLE IF EXISTS "List" CASCADE;
+-- KHONG xoa "List" o day: tu 20260828154735 bang List da chuyen sang mo hinh
+-- theo Board va con duoc dung o cac migration sau (vd 20260907120300_archive).
+-- FK cua "Task" -> "List" da bi xoa theo `DROP TABLE "Task" CASCADE` ben tren.
 DROP TABLE IF EXISTS "ProjectMember" CASCADE;
 DROP TABLE IF EXISTS "Project" CASCADE;
 DROP TABLE IF EXISTS "TeamMember" CASCADE;

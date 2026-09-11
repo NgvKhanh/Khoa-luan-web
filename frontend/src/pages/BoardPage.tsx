@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -6,33 +7,32 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
-import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import {
+  Link,
+  useNavigate,
+  useOutletContext,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import {
   DndContext,
   DragOverlay,
-  KeyboardSensor,
-  PointerSensor,
-  closestCorners,
   defaultDropAnimationSideEffects,
-  useSensor,
-  useSensors,
-  type CollisionDetection,
-  type DragEndEvent,
-  type DragOverEvent,
-  type DragStartEvent,
   type DropAnimation,
 } from '@dnd-kit/core';
 import {
   SortableContext,
   arrayMove,
   horizontalListSortingStrategy,
-  sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import AddListForm from '../components/board/AddListForm';
 import BoardActionsMenu from '../components/board/BoardActionsMenu';
 import BoardActivityMenu from '../components/board/BoardActivityMenu';
 import BoardArchiveMenu from '../components/board/BoardArchiveMenu';
 import BoardBackgroundMenu from '../components/board/BoardBackgroundMenu';
+import BoardStatsPanel from '../components/board/BoardStatsPanel';
+import BoardTableView from '../components/board/BoardTableView';
+import CustomFieldsPanel from '../components/board/CustomFieldsPanel';
 import BoardFilterPanel from '../components/board/BoardFilterPanel';
 import BoardMembers from '../components/board/BoardMembers';
 import CardModal from '../components/board/CardModal';
@@ -51,9 +51,12 @@ import {
   fetchBoard,
   fetchBoardMembers,
   removeBoardMember,
+  setBoardWatch,
+  transferOwnership,
   updateBoard,
 } from '../lib/api/board';
-import { archiveCard, createCard, moveCard, updateCard } from '../lib/api/card';
+import { archiveCard, createCard, updateCard } from '../lib/api/card';
+import { applyCardTemplate } from '../lib/api/cardTemplate';
 import {
   archiveList,
   copyList,
@@ -67,9 +70,9 @@ import {
   type SortListBy,
 } from '../lib/api/list';
 import { assetUrl } from '../lib/assets';
-import { socket } from '../lib/socket';
 import { pushRecentBoard } from '../lib/recentBoards';
 import { getErrorMessage } from '../lib/errorMessage';
+import { logError } from '../lib/logError';
 import {
   EMPTY_FILTER,
   cardMatchesFilter,
@@ -81,10 +84,20 @@ import type { Board, BoardMember, BoardVisibility } from '../types/board';
 import BoardVisibilityMenu from '../components/board/BoardVisibilityMenu';
 import type { Card } from '../types/card';
 import type { BoardList } from '../types/list';
+import { useBoardRealtime } from './boardPage/useBoardRealtime';
+import { useBoardShortcuts } from './boardPage/useBoardShortcuts';
+import {
+  collisionDetectionStrategy,
+  useBoardDnd,
+} from './boardPage/useBoardDnd';
 
-function listIdFromDnd(id: string): string | null {
-  return id.startsWith('list-') ? id.slice('list-'.length) : null;
-}
+// Nut tren thanh cong cu cua bang: chi hien icon cho do chiem cho, chu nam o
+// title/aria-label. Tach rieng phan hinh dang va phan mau nen - de chung mot
+// chuoi thi bg-white cua trang thai "dang bat" se dung do voi bg-white/25.
+const TOOLBAR_BTN_BASE =
+  'grid h-8 w-8 shrink-0 place-items-center rounded transition-colors';
+const TOOLBAR_BTN = `${TOOLBAR_BTN_BASE} bg-white/25 text-white hover:bg-white/40`;
+const TOOLBAR_BTN_ON = `${TOOLBAR_BTN_BASE} bg-white text-[#0c66e4]`;
 
 // Hieu ung khi tha: ban goc mo dan trong luc "ban noi" bay ve cho -> muot hon
 const dropAnimation: DropAnimation = {
@@ -95,20 +108,6 @@ const dropAnimation: DropAnimation = {
   }),
 };
 
-// Khi keo 1 CỘT: chi xet va cham voi cac cot khac (bo qua the ben trong)
-// -> "over" luon la 1 cot, hoat hinh + tha dung. Keo the thi giu mac dinh.
-const collisionDetectionStrategy: CollisionDetection = (args) => {
-  if (args.active.data.current?.type === 'list') {
-    return closestCorners({
-      ...args,
-      droppableContainers: args.droppableContainers.filter((c) =>
-        String(c.id).startsWith('list-')
-      ),
-    });
-  }
-  return closestCorners(args);
-};
-
 type DeleteTarget =
   | { kind: 'list'; list: BoardList }
   | { kind: 'cards-in-list'; list: BoardList }
@@ -117,6 +116,18 @@ type DeleteTarget =
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Mo thang panel "Chia se" tu link thong bao: /boards/:id?share=requests
+  const shareParam = searchParams.get('share');
+  const consumeShareParam = useCallback(() => {
+    setSearchParams(
+      (prev) => {
+        prev.delete('share');
+        return prev;
+      },
+      { replace: true }
+    );
+  }, [setSearchParams]);
   const { user } = useAuth();
   const { boards, isLoading, error, patchBoard } =
     useOutletContext<BoardOutletContext>();
@@ -126,27 +137,37 @@ export default function BoardPage() {
   // Bang cong khai ma minh chua phai thanh vien -> tai truc tiep theo id
   const [fetchedBoard, setFetchedBoard] = useState<Board | null>(null);
   const [fetchBoardError, setFetchBoardError] = useState<string | null>(null);
+  const hasMemberBoard = memberBoard !== undefined;
+  // Luon tai chi tiet bang tu backend (ke ca khi minh la thanh vien) de lay
+  // canEdit / canManage do backend tinh - frontend khong tu suy doan quyen nua.
   useEffect(() => {
-    if (!boardId || memberBoard || isLoading) return;
+    if (!boardId) return;
     let alive = true;
     setFetchedBoard(null);
     setFetchBoardError(null);
     fetchBoard(boardId)
       .then((b) => alive && setFetchedBoard(b))
-      .catch(
-        (err) =>
-          alive &&
+      .catch((err) => {
+        // Bang minh la thanh vien van hien duoc tu du lieu danh sach -> khong chan
+        if (alive && !hasMemberBoard) {
           setFetchBoardError(
             getErrorMessage(err, 'Bạn không có quyền xem bảng này.')
-          )
-      );
+          );
+        }
+      });
     return () => {
       alive = false;
     };
-  }, [boardId, memberBoard, isLoading]);
+  }, [boardId, hasMemberBoard]);
 
   const board = memberBoard ?? fetchedBoard ?? undefined;
-  const canEdit = Boolean(memberBoard) || fetchedBoard?.canEdit === true;
+  // Uu tien canEdit do BACKEND tinh (memberBoard tu danh sach bang KHONG co
+  // vai tro, chi bao "co la thanh vien" - the VIEWER cung la thanh vien nhung
+  // khong duoc sua). Trong luc fetchedBoard chua tai xong, chi tam coi la
+  // sua duoc neu chac chan la chu bang (memberBoard.isOwner) - cac vai tro
+  // khac phai doi ket qua tu backend, tranh loe UI sua roi lai an di.
+  const canEdit =
+    fetchedBoard?.canEdit ?? Boolean(memberBoard?.isOwner);
 
   // Ghi nho bang vua mo cho muc "Truy cap nhanh" o Trang chu
   useEffect(() => {
@@ -154,15 +175,37 @@ export default function BoardPage() {
   }, [board?.id]);
   const readOnly = board != null && !canEdit;
   const isOwner = Boolean(board && user && board.ownerId === user.id);
+  // Theo doi bang: chi co tu GET chi tiet bang (fetchedBoard), khong co trong
+  // danh sach bang cache (memberBoard) -> luon doc tu fetchedBoard.
+  const isWatchingBoard = Boolean(fetchedBoard?.isWatching);
+  const [watchBusy, setWatchBusy] = useState(false);
+  async function toggleBoardWatch() {
+    if (!board || watchBusy) return;
+    setWatchBusy(true);
+    try {
+      await setBoardWatch(board.id, !isWatchingBoard);
+      const fresh = await fetchBoard(board.id);
+      setFetchedBoard(fresh);
+    } catch (err) {
+      logError('BoardPage: theo doi bang')(err);
+    } finally {
+      setWatchBusy(false);
+    }
+  }
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const [members, setMembers] = useState<BoardMember[]>([]);
+  // userId cua nhung nguoi DANG mo bang nay (realtime presence)
+  const [onlineIds, setOnlineIds] = useState<string[]>([]);
+  // Uu tien quyen do backend tra ve (tinh ca OWNER/ADMIN cua khong gian).
+  // Khi chua tai xong chi tiet bang thi tam suy doan tu vai tro thanh vien.
   const canManageBoard =
-    isOwner ||
-    members.find((m) => m.userId === user?.id)?.role === 'ADMIN';
+    fetchedBoard?.canManage ??
+    (isOwner ||
+      members.find((m) => m.userId === user?.id)?.role === 'ADMIN');
 
   const [lists, setLists] = useState<BoardList[]>([]);
   const [listsLoading, setListsLoading] = useState(true);
@@ -172,51 +215,102 @@ export default function BoardPage() {
   const [deleting, setDeleting] = useState(false);
   const [bgMenuOpen, setBgMenuOpen] = useState(false);
   const [visMenuOpen, setVisMenuOpen] = useState(false);
+  const [publicLinkCopied, setPublicLinkCopied] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
+  const [fieldsMenuOpen, setFieldsMenuOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [boardView, setBoardView] = useState<'board' | 'table'>('board');
   const [openCardId, setOpenCardId] = useState<string | null>(null);
+  // Mo the truc tiep tu link tim kiem: /boards/:id?card=<cardId>
+  const cardParam = searchParams.get('card');
+  useEffect(() => {
+    if (!cardParam) return;
+    setOpenCardId(cardParam);
+    setSearchParams(
+      (prev) => {
+        prev.delete('card');
+        return prev;
+      },
+      { replace: true }
+    );
+  }, [cardParam, setSearchParams]);
   const [filter, setFilter] = useState<BoardFilter>(EMPTY_FILTER);
   const [filterOpen, setFilterOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [boardMenuOpen, setBoardMenuOpen] = useState(false);
 
-  const [activeCard, setActiveCard] = useState<Card | null>(null);
-  const [activeList, setActiveList] = useState<BoardList | null>(null);
-
   // Cho realtime: dang keo-tha thi hoan refetch de khoi giat
   const draggingRef = useRef(false);
   const pendingReloadRef = useRef(false);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
-
   function reloadLists() {
-    if (boardId) fetchBoardLists(boardId).then(setLists).catch(() => {});
+    if (boardId)
+      fetchBoardLists(boardId)
+        .then(setLists)
+        .catch(logError('BoardPage: tai lai danh sach'));
   }
+
+  const {
+    sensors,
+    activeCard,
+    activeList,
+    handleDragStart,
+    handleDragOver,
+    handleDragEnd,
+    handleDragCancel,
+  } = useBoardDnd({
+    lists,
+    setLists,
+    reloadLists,
+    setListsError,
+    draggingRef,
+    pendingReloadRef,
+  });
 
   useEffect(() => {
     if (!boardId) return;
     setMembers([]);
     fetchBoardMembers(boardId)
       .then(setMembers)
-      .catch(() => {});
+      .catch(logError('BoardPage: tai thanh vien'));
   }, [boardId]);
 
-  async function handleAddMember(email: string, role: 'ADMIN' | 'MEMBER') {
+  async function handleAddMember(
+    email: string,
+    role: 'ADMIN' | 'MEMBER' | 'VIEWER'
+  ) {
+    if (!boardId) throw new Error('Thiếu mã bảng');
+    const result = await addBoardMember(boardId, email, role);
+    if (result.kind === 'member') {
+      const created = result.member;
+      setMembers((cur) =>
+        cur.some((m) => m.userId === created.userId)
+          ? cur.map((m) => (m.userId === created.userId ? created : m))
+          : [...cur, created]
+      );
+    }
+    return result;
+  }
+
+  async function handleTransferOwnership(userId: string) {
     if (!boardId) return;
-    const created = await addBoardMember(boardId, email, role);
-    setMembers((cur) =>
-      cur.some((m) => m.userId === created.userId)
-        ? cur.map((m) => (m.userId === created.userId ? created : m))
-        : [...cur, created]
-    );
+    await transferOwnership(boardId, userId);
+    // Cap nhat ngay tai cho; realtime cung se lam moi cho nguoi khac
+    const [nextMembers, nextBoard] = await Promise.all([
+      fetchBoardMembers(boardId).catch(() => members),
+      fetchBoard(boardId).catch(() => null),
+    ]);
+    setMembers(nextMembers);
+    if (nextBoard) {
+      patchBoard(nextBoard);
+      setFetchedBoard((prev) => (prev ? nextBoard : prev));
+    }
   }
 
   async function handleChangeMemberRole(
     userId: string,
-    role: 'ADMIN' | 'MEMBER'
+    role: 'ADMIN' | 'MEMBER' | 'VIEWER'
   ) {
     if (!boardId) return;
     const prev = members;
@@ -271,117 +365,27 @@ export default function BoardPage() {
   }, [boardId]);
 
   // ---------- Realtime: đồng bộ khi người khác thay đổi bảng ----------
-  useEffect(() => {
-    if (!boardId) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const doReloadLists = () => {
-      // Đang kéo-thả -> hoãn lại, chạy sau khi thả tay
-      if (draggingRef.current) {
-        pendingReloadRef.current = true;
-        return;
-      }
-      fetchBoardLists(boardId).then(setLists).catch(() => {});
-    };
-
-    const onListsChanged = () => {
-      clearTimeout(timer);
-      timer = setTimeout(doReloadLists, 400); // gộp nhiều sự kiện liên tiếp
-    };
-    const onMembersChanged = () => {
-      fetchBoardMembers(boardId).then(setMembers).catch(() => {});
-    };
-    const onMetaChanged = () => {
-      fetchBoard(boardId)
-        .then((b) => {
-          patchBoard(b);
-          setFetchedBoard((prev) => (prev ? b : prev));
-        })
-        .catch(() => {});
-    };
-    const onRemoved = (payload: { boardId?: string }) => {
-      if (payload?.boardId === boardId) navigate('/', { replace: true });
-    };
-    // Mất kết nối rồi nối lại: vào phòng lại + tải bù dữ liệu
-    const onConnect = () => {
-      socket.emit('join-board', boardId);
-      onMembersChanged();
-      onListsChanged();
-    };
-
-    socket.emit('join-board', boardId);
-    socket.on('board:lists-changed', onListsChanged);
-    socket.on('board:members-changed', onMembersChanged);
-    socket.on('board:meta-changed', onMetaChanged);
-    socket.on('board:removed', onRemoved);
-    socket.on('connect', onConnect);
-
-    return () => {
-      clearTimeout(timer);
-      socket.emit('leave-board', boardId);
-      socket.off('board:lists-changed', onListsChanged);
-      socket.off('board:members-changed', onMembersChanged);
-      socket.off('board:meta-changed', onMetaChanged);
-      socket.off('board:removed', onRemoved);
-      socket.off('connect', onConnect);
-    };
-  }, [boardId, navigate, patchBoard]);
+  useBoardRealtime({
+    boardId,
+    patchBoard,
+    setLists,
+    setMembers,
+    setFetchedBoard,
+    setOnlineIds,
+    draggingRef,
+    pendingReloadRef,
+  });
 
   // ---------- Phím tắt ----------
-  useEffect(() => {
-    const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const el = document.activeElement as HTMLElement | null;
-      const typing =
-        el &&
-        (el.tagName === 'INPUT' ||
-          el.tagName === 'TEXTAREA' ||
-          el.tagName === 'SELECT' ||
-          el.isContentEditable);
-      if (typing) return;
-
-      // '?' luôn dùng được (kể cả khi mở thẻ)
-      if (e.key === '?') {
-        e.preventDefault();
-        setShortcutsOpen((v) => !v);
-        return;
-      }
-      // Đang mở modal thẻ hoặc bảng phím tắt -> bỏ qua các phím còn lại
-      if (openCardId || shortcutsOpen) return;
-
-      switch (e.key.toLowerCase()) {
-        case 'n': {
-          e.preventDefault();
-          const btn = document.querySelector<HTMLButtonElement>('[data-add-card]');
-          btn?.scrollIntoView({ block: 'nearest', inline: 'center' });
-          btn?.click();
-          break;
-        }
-        case 'f':
-          e.preventDefault();
-          setFilterOpen((v) => !v);
-          break;
-        case 'b':
-          e.preventDefault();
-          if (!readOnly) setBgMenuOpen((v) => !v);
-          break;
-        case 'x':
-          e.preventDefault();
-          setFilter(EMPTY_FILTER);
-          break;
-        case 'q':
-          e.preventDefault();
-          setFilter((f) => ({
-            ...EMPTY_FILTER,
-            ...f,
-            assignedToMe: !f.assignedToMe,
-          }));
-          break;
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [openCardId, shortcutsOpen, readOnly]);
+  useBoardShortcuts({
+    cardOpen: openCardId !== null,
+    shortcutsOpen,
+    readOnly,
+    setShortcutsOpen,
+    setFilterOpen,
+    setBgMenuOpen,
+    setFilter,
+  });
 
   const listDndIds = useMemo(() => lists.map((l) => `list-${l.id}`), [lists]);
 
@@ -399,10 +403,6 @@ export default function BoardPage() {
         : lists,
     [filterOn, lists, filter, user?.id]
   );
-
-  function findListIdByCard(cardId: string): string | undefined {
-    return lists.find((l) => l.cards.some((c) => c.id === cardId))?.id;
-  }
 
   // ---------- Ten bang ----------
   async function saveName() {
@@ -444,6 +444,15 @@ export default function BoardPage() {
 
   async function handleAddCard(listId: string, title: string) {
     const created = await createCard(listId, title);
+    setLists((cur) =>
+      cur.map((l) =>
+        l.id === listId ? { ...l, cards: [...l.cards, created] } : l
+      )
+    );
+  }
+
+  async function handleApplyCardTemplate(listId: string, templateId: string) {
+    const created = await applyCardTemplate(listId, templateId);
     setLists((cur) =>
       cur.map((l) =>
         l.id === listId ? { ...l, cards: [...l.cards, created] } : l
@@ -555,149 +564,6 @@ export default function BoardPage() {
     }
   }
 
-  // ---------- Keo tha ----------
-  function endDragCursor() {
-    document.body.style.cursor = '';
-  }
-
-  function handleDragStart(event: DragStartEvent) {
-    const { active } = event;
-    const type = active.data.current?.type;
-    draggingRef.current = true;
-    document.body.style.cursor = 'grabbing';
-    if (type === 'list') {
-      const id = listIdFromDnd(active.id as string);
-      setActiveList(lists.find((l) => l.id === id) ?? null);
-    } else if (type === 'card') {
-      const listId = findListIdByCard(active.id as string);
-      const card = lists
-        .find((l) => l.id === listId)
-        ?.cards.find((c) => c.id === active.id);
-      setActiveCard(card ?? null);
-    }
-  }
-
-  function handleDragOver(event: DragOverEvent) {
-    const { active, over } = event;
-    if (!over || active.data.current?.type !== 'card') return;
-
-    const activeId = active.id as string;
-    const overId = over.id as string;
-    const fromListId = findListIdByCard(activeId);
-    const toListId =
-      over.data.current?.type === 'card'
-        ? findListIdByCard(overId)
-        : (listIdFromDnd(overId) ?? undefined);
-
-    if (!fromListId || !toListId || fromListId === toListId) return;
-
-    setLists((prev) => {
-      const fromList = prev.find((l) => l.id === fromListId);
-      const toList = prev.find((l) => l.id === toListId);
-      if (!fromList || !toList) return prev;
-      const moving = fromList.cards.find((c) => c.id === activeId);
-      if (!moving) return prev;
-
-      const overIndex =
-        over.data.current?.type === 'card'
-          ? toList.cards.findIndex((c) => c.id === overId)
-          : toList.cards.length;
-      const insertAt = overIndex >= 0 ? overIndex : toList.cards.length;
-
-      return prev.map((l) => {
-        if (l.id === fromListId) {
-          return { ...l, cards: l.cards.filter((c) => c.id !== activeId) };
-        }
-        if (l.id === toListId) {
-          const next = [...l.cards];
-          next.splice(insertAt, 0, { ...moving, listId: toListId });
-          return { ...l, cards: next };
-        }
-        return l;
-      });
-    });
-  }
-
-  function afterDragSettled() {
-    draggingRef.current = false;
-    if (pendingReloadRef.current) {
-      pendingReloadRef.current = false;
-      if (boardId) fetchBoardLists(boardId).then(setLists).catch(() => {});
-    }
-  }
-
-  async function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    const type = active.data.current?.type;
-    setActiveCard(null);
-    setActiveList(null);
-    endDragCursor();
-    afterDragSettled();
-    if (!over) return;
-
-    // ---- Sap xep lai cot ----
-    if (type === 'list') {
-      const overListId =
-        listIdFromDnd(over.id as string) ??
-        (over.data.current?.type === 'card'
-          ? (over.data.current.listId as string)
-          : null);
-      const oldIndex = lists.findIndex((l) => `list-${l.id}` === active.id);
-      const newIndex = lists.findIndex((l) => l.id === overListId);
-      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
-      const reordered = arrayMove(lists, oldIndex, newIndex);
-      setLists(reordered);
-      try {
-        await reorderList(reordered[newIndex]!.id, newIndex);
-      } catch (err) {
-        setListsError(getErrorMessage(err, 'Không lưu được thứ tự danh sách.'));
-        reloadLists();
-      }
-      return;
-    }
-
-    // ---- Keo tha the ----
-    if (type === 'card') {
-      const activeId = active.id as string;
-      const overId = over.id as string;
-      const toListId =
-        over.data.current?.type === 'card'
-          ? findListIdByCard(overId)
-          : (listIdFromDnd(overId) ?? undefined);
-      if (!toListId) return;
-
-      const toList = lists.find((l) => l.id === toListId);
-      if (!toList) return;
-
-      const oldIndex = toList.cards.findIndex((c) => c.id === activeId);
-      const overIndex =
-        over.data.current?.type === 'card'
-          ? toList.cards.findIndex((c) => c.id === overId)
-          : toList.cards.length - 1;
-      const newIndex = overIndex >= 0 ? overIndex : toList.cards.length - 1;
-
-      let finalIndex = oldIndex;
-      if (oldIndex !== -1 && oldIndex !== newIndex) {
-        const reorderedCards = arrayMove(toList.cards, oldIndex, newIndex);
-        finalIndex = reorderedCards.findIndex((c) => c.id === activeId);
-        setLists((prev) =>
-          prev.map((l) =>
-            l.id === toListId ? { ...l, cards: reorderedCards } : l
-          )
-        );
-      } else if (oldIndex === -1) {
-        finalIndex = toList.cards.length;
-      }
-
-      try {
-        await moveCard(activeId, { listId: toListId, position: finalIndex });
-      } catch (err) {
-        setListsError(getErrorMessage(err, 'Không di chuyển được thẻ.'));
-        reloadLists();
-      }
-    }
-  }
-
   if (isLoading) {
     return <div className="p-6 text-sm text-slate-500">Đang tải bảng...</div>;
   }
@@ -732,7 +598,7 @@ export default function BoardPage() {
     : { backgroundColor: board.color };
 
   return (
-    <div className="flex h-full flex-col" style={canvasStyle}>
+    <div className="board-canvas flex h-full flex-col" style={canvasStyle}>
       {/* Thanh ten bang */}
       <div className="flex shrink-0 items-center gap-2 bg-gradient-to-b from-black/35 to-black/5 px-4 py-2 backdrop-blur-sm">
         <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-white/20 text-white">
@@ -766,6 +632,20 @@ export default function BoardPage() {
           </button>
         )}
 
+        {board.workspaceName && (
+          <button
+            type="button"
+            onClick={() => navigate(`/workspaces/${board.workspaceId}`)}
+            title="Mở không gian làm việc"
+            className="hidden max-w-[10rem] items-center gap-1 truncate rounded bg-white/20 px-2 py-1 text-xs font-medium text-white hover:bg-white/30 sm:flex"
+          >
+            <svg viewBox="0 0 24 24" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 8a3 3 0 100-6 3 3 0 000 6zM3 20a6 6 0 0112 0M17 8a3 3 0 100-6M15 20a6 6 0 019-5" />
+            </svg>
+            <span className="truncate">{board.workspaceName}</span>
+          </button>
+        )}
+
         {!readOnly && (
           <StarButton
             starred={Boolean(board.isStarred)}
@@ -775,6 +655,26 @@ export default function BoardPage() {
             }`}
           />
         )}
+
+        <button
+          type="button"
+          disabled={watchBusy}
+          onClick={toggleBoardWatch}
+          title={isWatchingBoard ? 'Đang theo dõi bảng' : 'Theo dõi bảng'}
+          className={`flex items-center gap-1 rounded px-2 py-1 text-xs font-medium disabled:opacity-60 ${
+            isWatchingBoard
+              ? 'bg-white/30 text-white'
+              : 'text-white hover:bg-white/20'
+          }`}
+        >
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <span className="hidden sm:inline">
+            {isWatchingBoard ? 'Đang theo dõi' : 'Theo dõi'}
+          </span>
+        </button>
 
         {canManageBoard && (
           <div className="relative">
@@ -820,24 +720,85 @@ export default function BoardPage() {
           </div>
         )}
 
+        {board.visibility === 'PUBLIC' && (
+          <button
+            type="button"
+            onClick={async () => {
+              const url = `${window.location.origin}/public/boards/${board.id}`;
+              try {
+                await navigator.clipboard.writeText(url);
+                setPublicLinkCopied(true);
+                setTimeout(() => setPublicLinkCopied(false), 2000);
+              } catch {
+                /* trinh duyet chan clipboard */
+              }
+            }}
+            title="Bất kỳ ai có liên kết này đều xem được, không cần đăng nhập"
+            className="flex items-center gap-1 rounded bg-white/25 px-2 py-1 text-xs font-medium text-white hover:bg-white/40"
+          >
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1" />
+            </svg>
+            {publicLinkCopied ? 'Đã sao chép!' : 'Sao chép liên kết công khai'}
+          </button>
+        )}
+
         <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-center gap-0.5 rounded bg-white/20 p-0.5">
+            <button
+              type="button"
+              onClick={() => setBoardView('board')}
+              title="Xem dạng bảng"
+              className={`rounded px-2 py-1 text-xs font-medium ${
+                boardView === 'board' ? 'bg-white/40 text-white' : 'text-white/80 hover:bg-white/25'
+              }`}
+            >
+              Bảng
+            </button>
+            <button
+              type="button"
+              onClick={() => setBoardView('table')}
+              title="Xem dạng bảng biểu"
+              className={`rounded px-2 py-1 text-xs font-medium ${
+                boardView === 'table' ? 'bg-white/40 text-white' : 'text-white/80 hover:bg-white/25'
+              }`}
+            >
+              Bảng biểu
+            </button>
+          </div>
+
+          <div className="relative">
+            <button
+              type="button"
+              data-stats-trigger
+              onClick={() => setStatsOpen((v) => !v)}
+              title="Thống kê tiến độ"
+              aria-label="Thống kê tiến độ"
+              className={TOOLBAR_BTN}
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 20V10M12 20V4M20 20v-7" />
+              </svg>
+            </button>
+            {statsOpen && (
+              <BoardStatsPanel lists={lists} onClose={() => setStatsOpen(false)} />
+            )}
+          </div>
+
           <div className="relative">
             <button
               type="button"
               data-filter-trigger
               onClick={() => setFilterOpen((v) => !v)}
-              className={`flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium ${
-                filterOn
-                  ? 'bg-white text-[#0c66e4]'
-                  : 'bg-white/25 text-white hover:bg-white/40'
-              }`}
+              title="Lọc thẻ"
+              aria-label="Lọc thẻ"
+              className={`relative ${filterOn ? TOOLBAR_BTN_ON : TOOLBAR_BTN}`}
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M3 5h18M6 12h12M10 19h4" />
               </svg>
-              Lọc
               {filterOn && (
-                <span className="grid h-4 min-w-[16px] place-items-center rounded-full bg-[#0c66e4] px-1 text-[10px] font-bold text-white">
+                <span className="absolute -right-1 -top-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-[#0c66e4] px-1 text-[10px] font-bold text-white ring-2 ring-white">
                   {filterActiveCount(filter)}
                 </span>
               )}
@@ -859,13 +820,13 @@ export default function BoardPage() {
               data-activity-trigger
               onClick={() => setActivityOpen((v) => !v)}
               title="Hoạt động"
-              className="flex items-center gap-1.5 rounded bg-white/25 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-white/40"
+              aria-label="Hoạt động"
+              className={TOOLBAR_BTN}
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 8v4l3 2" />
                 <circle cx="12" cy="12" r="9" />
               </svg>
-              Hoạt động
             </button>
             {activityOpen && (
               <BoardActivityMenu
@@ -879,16 +840,42 @@ export default function BoardPage() {
             <div className="relative">
               <button
                 type="button"
+                data-fields-trigger
+                onClick={() => setFieldsMenuOpen((v) => !v)}
+                title="Trường tùy chỉnh"
+                aria-label="Trường tùy chỉnh"
+                className={TOOLBAR_BTN}
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="4" width="18" height="4" rx="1" />
+                  <rect x="3" y="10" width="18" height="4" rx="1" />
+                  <rect x="3" y="16" width="10" height="4" rx="1" />
+                </svg>
+              </button>
+              {fieldsMenuOpen && (
+                <CustomFieldsPanel
+                  boardId={board.id}
+                  onClose={() => setFieldsMenuOpen(false)}
+                  onChanged={reloadLists}
+                />
+              )}
+            </div>
+          )}
+
+          {!readOnly && (
+            <div className="relative">
+              <button
+                type="button"
                 data-archive-trigger
                 onClick={() => setArchiveOpen((v) => !v)}
                 title="Mục đã lưu trữ"
-                className="flex items-center gap-1.5 rounded bg-white/25 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-white/40"
+                aria-label="Mục đã lưu trữ"
+                className={TOOLBAR_BTN}
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="3" y="4" width="18" height="4" rx="1" />
                   <path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8M10 12h4" />
                 </svg>
-                Đã lưu trữ
               </button>
               {archiveOpen && (
                 <BoardArchiveMenu
@@ -906,14 +893,15 @@ export default function BoardPage() {
                 type="button"
                 data-bg-trigger
                 onClick={() => setBgMenuOpen((v) => !v)}
-                className="flex items-center gap-1.5 rounded bg-white/25 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-white/40"
+                title="Hình nền"
+                aria-label="Hình nền"
+                className={TOOLBAR_BTN}
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="3" y="4" width="18" height="16" rx="2" />
                   <circle cx="9" cy="10" r="2" />
                   <path d="M21 16l-5-5-4 4-2-2-4 4" />
                 </svg>
-                Hình nền
               </button>
               {bgMenuOpen && (
                 <BoardBackgroundMenu
@@ -925,15 +913,23 @@ export default function BoardPage() {
             </div>
           )}
 
-          {!readOnly && (
+          {/* canManageBoard co the true du readOnly=true (vd ADMIN khong gian
+              xem 1 bang PUBLIC ma chua la thanh vien truc tiep -> khong sua
+              duoc noi dung the nhung van quan ly duoc thanh vien/hien thi) */}
+          {(!readOnly || canManageBoard) && (
             <BoardMembers
               boardId={board.id}
               members={members}
               currentUserId={user?.id}
+              onlineUserIds={onlineIds}
               isOwner={isOwner}
+              canManage={canManageBoard}
+              openTo={shareParam === 'requests' ? 'requests' : null}
+              onOpened={consumeShareParam}
               onAdd={handleAddMember}
               onChangeRole={handleChangeMemberRole}
               onRemove={handleRemoveMember}
+              onTransferOwnership={handleTransferOwnership}
               onApproved={(member) =>
                 setMembers((cur) =>
                   cur.some((m) => m.userId === member.userId)
@@ -951,7 +947,8 @@ export default function BoardPage() {
                 data-board-menu-trigger
                 onClick={() => setBoardMenuOpen((v) => !v)}
                 title="Thao tác với bảng"
-                className="rounded bg-white/25 p-1.5 text-white hover:bg-white/40"
+                aria-label="Thao tác với bảng"
+                className={TOOLBAR_BTN}
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
                   <circle cx="5" cy="12" r="1.8" />
@@ -1019,6 +1016,8 @@ export default function BoardPage() {
         <p className="m-4 w-fit rounded bg-white/80 px-3 py-2 text-sm text-slate-600">
           Đang tải danh sách...
         </p>
+      ) : boardView === 'table' ? (
+        <BoardTableView lists={displayLists} onOpenCard={setOpenCardId} />
       ) : (
         <DndContext
           sensors={sensors}
@@ -1026,12 +1025,7 @@ export default function BoardPage() {
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
-          onDragCancel={() => {
-            setActiveCard(null);
-            setActiveList(null);
-            endDragCursor();
-            afterDragSettled();
-          }}
+          onDragCancel={handleDragCancel}
         >
           <div
             className={`board-scroll flex min-h-0 flex-1 items-start gap-3 overflow-x-auto p-3 ${
@@ -1048,6 +1042,7 @@ export default function BoardPage() {
                   list={list}
                   allLists={lists}
                   readOnly={readOnly}
+                  onApplyCardTemplate={handleApplyCardTemplate}
                   onRename={handleRenameList}
                   onRequestDeleteList={(l) =>
                     setDeleteTarget({ kind: 'list', list: l })

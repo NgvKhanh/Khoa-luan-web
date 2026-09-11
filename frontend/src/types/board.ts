@@ -3,21 +3,31 @@ export type BoardVisibility = 'PRIVATE' | 'WORKSPACE' | 'PUBLIC';
 export interface Board {
   id: string;
   ownerId: string;
+  workspaceId: string;
   name: string;
   color: string;
   backgroundImage: string | null;
   visibility: BoardVisibility;
   createdAt: string;
   updatedAt: string;
+  // Ten khong gian chua bang (GET /api/boards va GET /api/boards/:id)
+  workspaceName?: string;
+  workspaceIsPersonal?: boolean;
   // Chi co trong danh sach bang (GET /api/boards)
   memberCount?: number;
   isOwner?: boolean;
+  isMember?: boolean;
   isStarred?: boolean;
   // Chi co khi GET /api/boards/:id (nguoi xem co the chua la thanh vien)
   canEdit?: boolean;
+  // Chi co khi GET /api/boards/:id: quyen quan ly bang (tinh ca OWNER/ADMIN
+  // cua khong gian chua bang), do backend tinh san.
+  canManage?: boolean;
+  // Chi co khi GET /api/boards/:id: minh co dang theo doi (watch) bang nay khong.
+  isWatching?: boolean;
 }
 
-export type BoardRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+export type BoardRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
 
 interface BoardUserBrief {
   id: string;
@@ -32,6 +42,8 @@ export interface BoardMember {
   userId: string;
   role: BoardRole;
   user: BoardUserBrief;
+  // true = có quyền qua "Không gian làm việc", chưa được thêm thẳng vào bảng
+  viaWorkspace?: boolean;
 }
 
 export interface JoinRequest {

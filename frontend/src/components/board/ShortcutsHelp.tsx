@@ -27,13 +27,13 @@ export default function ShortcutsHelp({ onClose }: { onClose: () => void }) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-80 rounded-xl bg-white p-4 shadow-2xl">
+      <div className="w-80 rounded-xl bg-white dark:bg-slate-800 p-4 shadow-2xl">
         <div className="mb-3 flex items-center">
-          <p className="flex-1 text-sm font-semibold text-slate-700">Phím tắt</p>
+          <p className="flex-1 text-sm font-semibold text-slate-700 dark:text-slate-200">Phím tắt</p>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-slate-400 hover:bg-slate-100"
+            className="rounded p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
             aria-label="Đóng"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
@@ -48,13 +48,13 @@ export default function ShortcutsHelp({ onClose }: { onClose: () => void }) {
                 {r.keys.map((k) => (
                   <kbd
                     key={k}
-                    className="min-w-[24px] rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-center text-xs font-semibold text-slate-600"
+                    className="min-w-[24px] rounded border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 px-1.5 py-0.5 text-center text-xs font-semibold text-slate-600 dark:text-slate-300"
                   >
                     {k}
                   </kbd>
                 ))}
               </span>
-              <span className="text-slate-600">{r.desc}</span>
+              <span className="text-slate-600 dark:text-slate-300">{r.desc}</span>
             </li>
           ))}
         </ul>

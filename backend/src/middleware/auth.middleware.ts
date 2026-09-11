@@ -46,7 +46,13 @@ export async function requireAuth(
 
     const user = await prisma.user.findFirst({
       where: { id: payload.userId, deletedAt: null },
-      select: { id: true, email: true, name: true, avatarUrl: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatarUrl: true,
+        tokenVersion: true,
+      },
     });
 
     if (!user) {
@@ -57,7 +63,18 @@ export async function requireAuth(
       return;
     }
 
-    req.user = user;
+    // Token khong con khop tokenVersion hien tai (da doi/dat lai mat khau
+    // sau khi token nay duoc cap) -> het hieu luc ngay lap tuc.
+    if ((payload.tokenVersion ?? -1) !== user.tokenVersion) {
+      res.status(401).json({
+        success: false,
+        message: 'Mat khau da thay doi. Vui long dang nhap lai.',
+      });
+      return;
+    }
+
+    const { tokenVersion: _tv, ...safeUser } = user;
+    req.user = safeUser;
     next();
   } catch {
     res.status(401).json({
@@ -65,6 +82,43 @@ export async function requireAuth(
       message: 'Phien dang nhap khong hop le hoac da het han.',
     });
   }
+}
+
+/**
+ * Middleware KHONG bat buoc dang nhap: neu co JWT hop le thi gan req.user
+ * (giong requireAuth), nguoc lai (khong co token / token khong hop le) van
+ * cho request di tiep nhu khach chua dang nhap - khong tra loi 401.
+ * Dung cho cac endpoint doc du lieu ma khach cung xem duoc (vd bang PUBLIC).
+ */
+export async function optionalAuth(
+  req: Request,
+  _res: Response,
+  next: NextFunction
+) {
+  try {
+    const token = extractToken(req);
+    if (!token) return next();
+
+    const payload = verifyToken(token);
+    const user = await prisma.user.findFirst({
+      where: { id: payload.userId, deletedAt: null },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatarUrl: true,
+        tokenVersion: true,
+      },
+    });
+
+    if (user && (payload.tokenVersion ?? -1) === user.tokenVersion) {
+      const { tokenVersion: _tv, ...safeUser } = user;
+      req.user = safeUser;
+    }
+  } catch {
+    // Token khong hop le -> coi nhu khach chua dang nhap, khong chan request
+  }
+  next();
 }
 
 export { TOKEN_COOKIE_NAME };

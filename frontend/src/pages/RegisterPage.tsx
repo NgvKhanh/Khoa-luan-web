@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AuthShell, { authFieldClass } from '../components/auth/AuthShell';
 import GoogleAuthButton from '../components/auth/GoogleAuthButton';
 import PasswordField from '../components/auth/PasswordField';
@@ -9,6 +9,7 @@ import { getErrorMessage } from '../lib/errorMessage';
 export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -22,7 +23,9 @@ export default function RegisterPage() {
     setIsSubmitting(true);
     try {
       await register(name, email, password);
-      navigate('/', { replace: true });
+      const redirectTo =
+        (location.state as { from?: string } | null)?.from ?? '/';
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       setError(getErrorMessage(err, 'Không thể đăng ký. Vui lòng thử lại.'));
     } finally {
@@ -37,7 +40,11 @@ export default function RegisterPage() {
       footer={
         <>
           Đã có tài khoản?{' '}
-          <Link to="/login" className="font-semibold text-white hover:underline">
+          <Link
+            to="/login"
+            state={location.state}
+            className="font-semibold text-white hover:underline"
+          >
             Đăng nhập
           </Link>
         </>

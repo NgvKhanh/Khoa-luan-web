@@ -76,7 +76,7 @@ export default function BoardBackgroundMenu({
   return createPortal(
     <div
       ref={ref}
-      className="fixed right-3 top-14 z-50 max-h-[80vh] w-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 text-slate-800 shadow-2xl"
+      className="fixed right-3 top-14 z-50 max-h-[80vh] w-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 text-slate-800 dark:text-slate-100 shadow-2xl"
     >
       <div className="mb-2 flex items-center">
         <p className="flex-1 text-center text-sm font-semibold">
@@ -86,7 +86,7 @@ export default function BoardBackgroundMenu({
           type="button"
           onClick={onClose}
           aria-label="Đóng"
-          className="rounded p-1 text-slate-500 hover:bg-slate-100"
+          className="rounded p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M6 6l12 12M18 6L6 18" />
@@ -94,7 +94,7 @@ export default function BoardBackgroundMenu({
         </button>
       </div>
 
-      <p className="mb-1.5 text-xs font-semibold text-slate-500">Màu</p>
+      <p className="mb-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">Màu</p>
       <div className="mb-3 grid grid-cols-4 gap-1.5">
         {BOARD_COLORS.map((c) => {
           const selected = !hasImage && board.color === c;
@@ -115,19 +115,19 @@ export default function BoardBackgroundMenu({
       </div>
 
       {unavailable ? (
-        <p className="rounded-lg bg-slate-50 px-2 py-1.5 text-[11px] text-slate-400">
+        <p className="rounded-lg bg-slate-50 dark:bg-slate-700 px-2 py-1.5 text-[11px] text-slate-500 dark:text-slate-400">
           Chưa cấu hình Unsplash trên server nên chưa chọn ảnh được.
         </p>
       ) : (
         <>
-          <p className="mb-1.5 text-xs font-semibold text-slate-500">
+          <p className="mb-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
             Ảnh của Unsplash
           </p>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Tìm ảnh (biển, núi, bầu trời...)"
-            className="mb-2 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+            className="mb-2 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
           />
 
           {(error || photosError) && (
@@ -136,11 +136,11 @@ export default function BoardBackgroundMenu({
 
           <div className="max-h-56 overflow-y-auto">
             {loading ? (
-              <p className="py-6 text-center text-sm text-slate-400">
+              <p className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">
                 Đang tải...
               </p>
             ) : photos.length === 0 ? (
-              <p className="py-6 text-center text-sm text-slate-400">
+              <p className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">
                 Không có ảnh nào.
               </p>
             ) : (
@@ -182,7 +182,7 @@ export default function BoardBackgroundMenu({
                     type="button"
                     onClick={loadMore}
                     disabled={loadingMore}
-                    className="mt-2 w-full rounded-lg border border-slate-200 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                    className="mt-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
                   >
                     {loadingMore ? 'Đang tải...' : 'Tải thêm ảnh'}
                   </button>
@@ -191,7 +191,7 @@ export default function BoardBackgroundMenu({
             )}
           </div>
 
-          <p className="mt-2 text-center text-[11px] text-slate-400">
+          <p className="mt-2 text-center text-[11px] text-slate-500 dark:text-slate-400">
             Ảnh cung cấp bởi Unsplash
           </p>
         </>
@@ -202,7 +202,7 @@ export default function BoardBackgroundMenu({
           type="button"
           disabled={busy}
           onClick={() => void run(() => clearBoardBackground(board.id))}
-          className="mt-2 w-full rounded-lg py-1.5 text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+          className="mt-2 w-full rounded-lg py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
         >
           Bỏ hình nền (quay về màu)
         </button>

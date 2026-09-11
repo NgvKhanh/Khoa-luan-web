@@ -100,20 +100,20 @@ export default function LabelPanel({
   };
 
   return (
-    <div className="absolute left-7 top-10 z-10 w-72 rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
-      <p className="mb-1 px-1 text-xs font-semibold text-slate-500">Nhãn</p>
+    <div className="absolute left-7 top-10 z-10 w-72 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 shadow-xl">
+      <p className="mb-1 px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Nhãn</p>
       {error && <p className="mb-1 px-1 text-xs text-red-600">{error}</p>}
 
       <div className="flex flex-col gap-1">
         {labels.map((l) =>
           editing === l.id ? (
-            <div key={l.id} className="rounded-lg bg-slate-50 p-2">
+            <div key={l.id} className="rounded-lg bg-slate-50 dark:bg-slate-700 p-2">
               <input
                 autoFocus
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}
                 placeholder="Tên nhãn (tuỳ chọn)"
-                className="mb-2 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
+                className="mb-2 w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
               />
               <ColorGrid value={draftColor} onPick={setDraftColor} />
               <div className="mt-2 flex gap-2">
@@ -143,7 +143,7 @@ export default function LabelPanel({
                 <button
                   type="button"
                   onClick={() => setEditing(null)}
-                  className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
+                  className="rounded px-2 py-1 text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
                 >
                   Huỷ
                 </button>
@@ -154,7 +154,7 @@ export default function LabelPanel({
               <button
                 type="button"
                 onClick={() => onToggle(l.id, cardLabelIds.has(l.id))}
-                className="flex flex-1 items-center gap-2 rounded px-1 py-1 hover:bg-slate-100"
+                className="flex flex-1 items-center gap-2 rounded px-1 py-1 hover:bg-slate-100 dark:hover:bg-slate-700"
               >
                 <span
                   className="grid h-7 flex-1 place-items-center rounded px-2 text-left text-xs font-medium text-white"
@@ -163,7 +163,7 @@ export default function LabelPanel({
                   <span className="w-full truncate">{l.name}</span>
                 </span>
                 {cardLabelIds.has(l.id) && (
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-slate-600" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-slate-600 dark:text-slate-300" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M5 13l4 4L19 7" />
                   </svg>
                 )}
@@ -172,7 +172,7 @@ export default function LabelPanel({
                 type="button"
                 onClick={() => startEdit(l)}
                 title="Sửa nhãn"
-                className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-200"
+                className="shrink-0 rounded p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600"
               >
                 <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" />
@@ -184,13 +184,13 @@ export default function LabelPanel({
       </div>
 
       {creating ? (
-        <div className="mt-1 rounded-lg bg-slate-50 p-2">
+        <div className="mt-1 rounded-lg bg-slate-50 dark:bg-slate-700 p-2">
           <input
             autoFocus
             value={draftName}
             onChange={(e) => setDraftName(e.target.value)}
             placeholder="Tên nhãn (tuỳ chọn)"
-            className="mb-2 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
+            className="mb-2 w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
           />
           <ColorGrid value={draftColor} onPick={setDraftColor} />
           <div className="mt-2 flex gap-2">
@@ -212,7 +212,7 @@ export default function LabelPanel({
             <button
               type="button"
               onClick={() => setCreating(false)}
-              className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
+              className="rounded px-2 py-1 text-xs text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
             >
               Huỷ
             </button>
@@ -222,7 +222,7 @@ export default function LabelPanel({
         <button
           type="button"
           onClick={startCreate}
-          className="mt-1 w-full rounded bg-slate-100 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200"
+          className="mt-1 w-full rounded bg-slate-100 dark:bg-slate-700 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
         >
           + Tạo nhãn mới
         </button>

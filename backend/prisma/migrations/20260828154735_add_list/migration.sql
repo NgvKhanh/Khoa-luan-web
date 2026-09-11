@@ -1,3 +1,8 @@
+-- Chuyen mo hinh List: tu "thuoc Project" sang "thuoc Board".
+-- Bo bang List cu (neu co, tu migration 20260827133020) truoc khi tao lai theo
+-- boardId. Can thiet de `migrate deploy` chay duoc tren DB moi tinh.
+DROP TABLE IF EXISTS "List" CASCADE;
+
 -- CreateTable
 CREATE TABLE "List" (
     "id" TEXT NOT NULL,
