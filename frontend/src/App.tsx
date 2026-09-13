@@ -14,9 +14,11 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import MyActivityPage from './pages/MyActivityPage';
 import MyCardsPage from './pages/MyCardsPage';
+import NotificationSettingsPage from './pages/NotificationSettingsPage';
 import ProfilePage from './pages/ProfilePage';
 import TemplatesPage from './pages/TemplatesPage';
 import RegisterPage from './pages/RegisterPage';
+import SearchPage from './pages/SearchPage';
 import WorkspaceSettingsPage from './pages/WorkspaceSettingsPage';
 import ProtectedRoute from './routes/ProtectedRoute';
 
@@ -40,9 +42,11 @@ function App() {
             element={<WorkspaceSettingsPage />}
           />
           <Route path="/my-cards" element={<MyCardsPage />} />
+          <Route path="/search" element={<SearchPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/settings/profile" element={<ProfilePage />} />
           <Route path="/settings/password" element={<ChangePasswordPage />} />
+          <Route path="/settings/notifications" element={<NotificationSettingsPage />} />
           <Route path="/activity" element={<MyActivityPage />} />
         </Route>
 

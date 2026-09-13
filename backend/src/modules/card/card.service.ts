@@ -3,6 +3,7 @@ import { Prisma } from '../../generated/prisma/client';
 import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity/activity.service';
+import { runAutomationsForCard } from '../automation/automation.service';
 import {
   assertBoardAccess,
   assertBoardView,
@@ -23,6 +24,14 @@ const CARD_USER_SELECT = {
   id: true,
   name: true,
   email: true,
+  avatarUrl: true,
+} as const;
+
+// Dung rieng cho searchCards(): ket qua co the tra ve the tren bang PUBLIC
+// ma nguoi goi khong phai thanh vien - khong duoc lo email cho khach xem nhu vay.
+const SEARCH_USER_SELECT = {
+  id: true,
+  name: true,
   avatarUrl: true,
 } as const;
 
@@ -181,17 +190,25 @@ export async function listMyCards(userId: string) {
   });
 }
 
-// Cac the co ngay het han trong khoang [from, to], tren cac bang minh la thanh vien
-export async function listCalendarCards(
-  userId: string,
-  from: Date,
-  to: Date
-) {
+const CALENDAR_LIST_SELECT = {
+  id: true,
+  name: true,
+  boardId: true,
+  board: { select: { id: true, name: true, color: true } },
+} as const;
+
+// Cac the co KHOANG [startDate, dueDate] (hoac chi dueDate neu khong dat
+// startDate) GIAO voi khoang [from, to] dang xem - tren cac bang minh la
+// thanh vien. The chi co dueDate coi nhu 1 diem (startDate = dueDate).
+export async function listCalendarCards(userId: string, from: Date, to: Date) {
   return prisma.card.findMany({
     where: {
       deletedAt: null,
       archivedAt: null,
-      dueDate: { gte: from, lte: to },
+      OR: [
+        { startDate: null, dueDate: { gte: from, lte: to } },
+        { startDate: { lte: to }, dueDate: { gte: from } },
+      ],
       list: {
         deletedAt: null,
         archivedAt: null,
@@ -208,12 +225,51 @@ export async function listCalendarCards(
       isDone: true,
       startDate: true,
       dueDate: true,
-      list: {
+      list: { select: CALENDAR_LIST_SELECT },
+    },
+  });
+}
+
+// Cac muc checklist co han trong khoang [from, to], tren cac bang minh la
+// thanh vien - de hien thi cung luc voi the tren lich.
+export async function listCalendarChecklistItems(
+  userId: string,
+  from: Date,
+  to: Date
+) {
+  return prisma.checklistItem.findMany({
+    where: {
+      dueDate: { gte: from, lte: to },
+      checklist: {
+        card: {
+          deletedAt: null,
+          archivedAt: null,
+          list: {
+            deletedAt: null,
+            archivedAt: null,
+            board: {
+              deletedAt: null,
+              members: { some: { userId, deletedAt: null } },
+            },
+          },
+        },
+      },
+    },
+    orderBy: { dueDate: 'asc' },
+    select: {
+      id: true,
+      content: true,
+      isDone: true,
+      dueDate: true,
+      checklist: {
         select: {
-          id: true,
-          name: true,
-          boardId: true,
-          board: { select: { id: true, name: true, color: true } },
+          card: {
+            select: {
+              id: true,
+              title: true,
+              list: { select: CALENDAR_LIST_SELECT },
+            },
+          },
         },
       },
     },
@@ -265,7 +321,7 @@ export async function searchCards(userId: string, query: string) {
         },
       },
       labels: { include: { label: true } },
-      members: { include: { user: { select: CARD_USER_SELECT } } },
+      members: { include: { user: { select: SEARCH_USER_SELECT } } },
     },
   });
 }
@@ -344,7 +400,11 @@ export async function createCard(
     data: { listName: list.name },
   });
 
-  return card;
+  await runAutomationsForCard('CARD_CREATED', card.id, card.title, list.boardId, listId);
+
+  // Tu dong hoa (vd SET_DONE) co the vua doi du lieu the - doc lai truoc khi
+  // tra ve, tranh response cu (con isDone/... truoc khi tu dong hoa chay).
+  return (await prisma.card.findUnique({ where: { id: card.id } })) ?? card;
 }
 
 export async function updateCard(
@@ -676,6 +736,13 @@ export async function moveCard(
           : targetList.name,
       },
     });
+    await runAutomationsForCard(
+      'CARD_MOVED_TO_LIST',
+      cardId,
+      card.title,
+      targetList.boardId,
+      input.listId
+    );
   }
 
   // Ke ca keo trong cung danh sach (khong ghi log) van bao realtime.

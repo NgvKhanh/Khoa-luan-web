@@ -1,0 +1,366 @@
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import {
+  deleteSavedFilter,
+  fetchSavedFilters,
+  saveFilter,
+  searchCardsAdvanced,
+  type AssigneeFilter,
+  type SavedFilter,
+  type SearchCardsResult,
+  type SearchFilterParams,
+  type StatusFilter,
+} from '../lib/api/search';
+import { getErrorMessage } from '../lib/errorMessage';
+import { logError } from '../lib/logError';
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+const EMPTY_FILTERS: SearchFilterParams = { status: 'all' };
+
+export default function SearchPage() {
+  const [urlParams] = useSearchParams();
+
+  const [filters, setFilters] = useState<SearchFilterParams>(() => ({
+    ...EMPTY_FILTERS,
+    q: urlParams.get('q') ?? undefined,
+  }));
+  const [page, setPage] = useState(1);
+  const [result, setResult] = useState<SearchCardsResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
+  const [savingName, setSavingName] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const loadSavedFilters = useCallback(() => {
+    fetchSavedFilters()
+      .then(setSavedFilters)
+      .catch(logError('SearchPage: tai bo loc da luu'));
+  }, []);
+
+  useEffect(() => {
+    loadSavedFilters();
+  }, [loadSavedFilters]);
+
+  // Tim kiem lai khi doi bo loc (go chu debounce 400ms) hoac doi trang (ngay lap tuc)
+  useEffect(() => {
+    setLoading(true);
+    const timer = setTimeout(() => {
+      searchCardsAdvanced(filters, page)
+        .then((res) => {
+          setResult(res);
+          setError(null);
+        })
+        .catch((err) => setError(getErrorMessage(err, 'Không tìm được thẻ.')))
+        .finally(() => setLoading(false));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [filters, page]);
+
+  function updateFilter<K extends keyof SearchFilterParams>(
+    key: K,
+    value: SearchFilterParams[K]
+  ) {
+    setPage(1);
+    setFilters((cur) => ({ ...cur, [key]: value }));
+  }
+
+  function applySavedFilter(f: SavedFilter) {
+    setPage(1);
+    setFilters({ status: 'all', ...f.params });
+  }
+
+  function resetFilters() {
+    setPage(1);
+    setFilters(EMPTY_FILTERS);
+  }
+
+  async function confirmSave() {
+    const name = savingName?.trim();
+    if (!name || busy) return;
+    setBusy(true);
+    try {
+      await saveFilter(name, filters);
+      setSavingName(null);
+      loadSavedFilters();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Không lưu được bộ lọc.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeSavedFilter(id: string) {
+    const prev = savedFilters;
+    setSavedFilters((cur) => cur.filter((f) => f.id !== id));
+    try {
+      await deleteSavedFilter(id);
+    } catch (err) {
+      setSavedFilters(prev);
+      setError(getErrorMessage(err, 'Không xoá được bộ lọc.'));
+    }
+  }
+
+  const totalPages = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1;
+
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col gap-4">
+      <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+        Tìm kiếm nâng cao
+      </h1>
+
+      {savedFilters.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {savedFilters.map((f) => (
+            <span
+              key={f.id}
+              className="flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
+            >
+              <button
+                type="button"
+                onClick={() => applySavedFilter(f)}
+                className="font-medium hover:text-[#0c66e4]"
+              >
+                {f.name}
+              </button>
+              <button
+                type="button"
+                onClick={() => removeSavedFilter(f.id)}
+                aria-label={`Xoá bộ lọc ${f.name}`}
+                className="text-slate-400 hover:text-red-600"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+        <input
+          type="text"
+          value={filters.q ?? ''}
+          onChange={(e) => updateFilter('q', e.target.value || undefined)}
+          placeholder="Từ khoá (tiêu đề, mô tả)..."
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-900"
+        />
+
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={filters.assignee ?? ''}
+            onChange={(e) =>
+              updateFilter(
+                'assignee',
+                (e.target.value || undefined) as AssigneeFilter | undefined
+              )
+            }
+            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-900"
+          >
+            <option value="">Mọi người phụ trách</option>
+            <option value="me">Của tôi</option>
+            <option value="unassigned">Chưa giao</option>
+          </select>
+
+          <select
+            value={filters.status ?? 'all'}
+            onChange={(e) =>
+              updateFilter('status', e.target.value as StatusFilter)
+            }
+            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-900"
+          >
+            <option value="all">Mọi trạng thái</option>
+            <option value="active">Đang làm</option>
+            <option value="done">Đã hoàn thành</option>
+          </select>
+
+          <input
+            type="text"
+            value={filters.labelName ?? ''}
+            onChange={(e) => updateFilter('labelName', e.target.value || undefined)}
+            placeholder="Tên nhãn..."
+            className="w-32 rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-900"
+          />
+
+          <label className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-600 dark:border-slate-600 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={filters.overdue ?? false}
+              onChange={(e) => updateFilter('overdue', e.target.checked || undefined)}
+            />
+            Quá hạn
+          </label>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+          <span>Hạn từ</span>
+          <input
+            type="date"
+            value={filters.dueFrom ? filters.dueFrom.slice(0, 10) : ''}
+            onChange={(e) =>
+              updateFilter(
+                'dueFrom',
+                e.target.value ? `${e.target.value}T00:00:00.000Z` : undefined
+              )
+            }
+            className="rounded-lg border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
+          />
+          <span>đến</span>
+          <input
+            type="date"
+            value={filters.dueTo ? filters.dueTo.slice(0, 10) : ''}
+            onChange={(e) =>
+              updateFilter(
+                'dueTo',
+                e.target.value ? `${e.target.value}T23:59:59.000Z` : undefined
+              )
+            }
+            className="rounded-lg border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
+          />
+
+          <div className="ml-auto flex gap-2">
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+            >
+              Xoá bộ lọc
+            </button>
+            {savingName === null ? (
+              <button
+                type="button"
+                onClick={() => setSavingName('')}
+                className="rounded-lg px-2 py-1 text-xs font-medium text-[#0c66e4] hover:underline"
+              >
+                Lưu bộ lọc này
+              </button>
+            ) : (
+              <span className="flex items-center gap-1">
+                <input
+                  autoFocus
+                  value={savingName}
+                  onChange={(e) => setSavingName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && confirmSave()}
+                  placeholder="Tên bộ lọc"
+                  className="w-32 rounded-lg border border-slate-300 px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-900"
+                />
+                <button
+                  type="button"
+                  disabled={busy || !savingName.trim()}
+                  onClick={confirmSave}
+                  className="rounded-lg bg-[#0c66e4] px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
+                >
+                  Lưu
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSavingName(null)}
+                  className="rounded-lg px-1.5 py-1 text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+                >
+                  Huỷ
+                </button>
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {loading && !result ? (
+        <p className="text-sm text-slate-500">Đang tìm...</p>
+      ) : !result || result.items.length === 0 ? (
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Không tìm thấy thẻ nào khớp bộ lọc.
+        </p>
+      ) : (
+        <>
+          <p className="text-xs text-slate-400">{result.total} kết quả</p>
+          <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800">
+            {result.items.map((c) => (
+              <li key={c.id}>
+                <Link
+                  to={`/boards/${c.list.boardId}?card=${c.id}`}
+                  className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                >
+                  <span
+                    className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border-2 ${
+                      c.isDone
+                        ? 'border-emerald-600 bg-emerald-600 text-white'
+                        : 'border-slate-300'
+                    }`}
+                  >
+                    {c.isDone && (
+                      <svg viewBox="0 0 24 24" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="4">
+                        <path d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    {c.labels.length > 0 && (
+                      <span className="mb-1 flex flex-wrap gap-1">
+                        {c.labels.map((l) => (
+                          <span
+                            key={l.labelId}
+                            className="h-1.5 w-8 rounded-full"
+                            style={{ backgroundColor: l.label.color }}
+                          />
+                        ))}
+                      </span>
+                    )}
+                    <span
+                      className={`block text-sm ${
+                        c.isDone
+                          ? 'text-slate-400 line-through'
+                          : 'text-slate-800 dark:text-slate-100'
+                      }`}
+                    >
+                      {c.title}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-slate-400">
+                      {c.list.board.name} · {c.list.name}
+                      {c.dueDate && ` · hạn ${fmtDate(c.dueDate)}`}
+                      {c.members.length > 0 &&
+                        ` · ${c.members.map((m) => m.user.name).join(', ')}`}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 text-sm">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+                className="rounded-lg px-2 py-1 font-medium text-[#0c66e4] hover:underline disabled:text-slate-300 disabled:no-underline"
+              >
+                Trước
+              </button>
+              <span className="text-slate-500">
+                Trang {page}/{totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={!result.hasMore}
+                onClick={() => setPage((p) => p + 1)}
+                className="rounded-lg px-2 py-1 font-medium text-[#0c66e4] hover:underline disabled:text-slate-300 disabled:no-underline"
+              >
+                Sau
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

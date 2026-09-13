@@ -14,6 +14,7 @@ import type { CardTemplate } from '../../types/cardTemplate';
 import type { BoardList } from '../../types/list';
 import AddCardForm from './AddCardForm';
 import CardItem from './CardItem';
+import RecurringScheduleModal from './RecurringScheduleModal';
 
 interface Props {
   list: BoardList;
@@ -83,6 +84,7 @@ export default function ListColumn({
     'move' | 'moveCards' | 'sort' | 'cardTemplates' | null
   >(null);
   const [addCardOpen, setAddCardOpen] = useState(false);
+  const [recurringOpen, setRecurringOpen] = useState(false);
   const [watching, setWatching] = useState(false);
   const [cardTemplates, setCardTemplates] = useState<CardTemplate[]>([]);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
@@ -286,6 +288,17 @@ export default function ListColumn({
                     }
                   >
                     Thêm thẻ từ mẫu
+                  </button>
+
+                  <button
+                    type="button"
+                    className={ITEM}
+                    onClick={() => {
+                      setRecurringOpen(true);
+                      closeMenu();
+                    }}
+                  >
+                    Thẻ định kỳ...
                   </button>
                   {submenu === 'cardTemplates' && (
                     <div className="mb-1 ml-2 max-h-40 overflow-y-auto border-l border-slate-200 pl-1.5 dark:border-slate-700">
@@ -505,6 +518,14 @@ export default function ListColumn({
             onAdd={(title) => onAddCard(list.id, title)}
           />
         </div>
+      )}
+
+      {recurringOpen && (
+        <RecurringScheduleModal
+          listId={list.id}
+          boardId={list.boardId}
+          onClose={() => setRecurringOpen(false)}
+        />
       )}
     </div>
   );

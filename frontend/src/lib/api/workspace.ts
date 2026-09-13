@@ -1,4 +1,5 @@
 import { api } from '../axios';
+import type { SearchCard } from './card';
 import type {
   Workspace,
   WorkspaceMember,
@@ -83,6 +84,42 @@ export async function removeWorkspaceMember(
   userId: string
 ): Promise<void> {
   await api.delete(`/workspaces/${workspaceId}/members/${userId}`);
+}
+
+// ----- Tong quan khong gian -----
+export type OverviewStatusFilter = 'all' | 'overdue' | 'unassigned' | 'done';
+
+export interface WorkspaceOverviewBoard {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface WorkspaceOverviewStats {
+  total: number;
+  done: number;
+  overdue: number;
+  unassigned: number;
+}
+
+export interface WorkspaceOverview {
+  boards: WorkspaceOverviewBoard[];
+  stats: WorkspaceOverviewStats;
+  cards: SearchCard[];
+}
+
+export async function fetchWorkspaceOverview(
+  workspaceId: string,
+  filters: { assigneeId?: string; status?: OverviewStatusFilter } = {}
+): Promise<WorkspaceOverview> {
+  const params = new URLSearchParams();
+  if (filters.assigneeId) params.set('assigneeId', filters.assigneeId);
+  if (filters.status) params.set('status', filters.status);
+  const qs = params.toString();
+  const res = await api.get<{ data: WorkspaceOverview }>(
+    `/workspaces/${workspaceId}/overview${qs ? `?${qs}` : ''}`
+  );
+  return res.data.data;
 }
 
 export async function transferWorkspaceOwnership(

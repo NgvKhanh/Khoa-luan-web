@@ -264,7 +264,8 @@ function BoardSearch() {
   }
 
   function seeAll() {
-    navigate('/');
+    navigate(q.trim() ? `/search?q=${encodeURIComponent(q.trim())}` : '/search');
+    setQ('');
     setOpen(false);
   }
 
@@ -337,34 +338,32 @@ function BoardSearch() {
                 Không tìm thấy bảng nào khớp "{q.trim()}".
               </p>
             ) : (
-              <>
-                {matches.map((b) => (
-                  <button
-                    key={b.id}
-                    type="button"
-                    onClick={() => go(b.id)}
-                    className="flex w-full items-center gap-3 px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
-                  >
-                    <Thumb board={b} />
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm text-[#172b4d] dark:text-slate-100">
-                        {b.name}
-                      </span>
-                      <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
-                        {b.workspaceName ?? 'Không gian làm việc'}
-                      </span>
-                    </span>
-                  </button>
-                ))}
+              matches.map((b) => (
                 <button
+                  key={b.id}
                   type="button"
-                  onClick={seeAll}
-                  className="px-3 py-2 text-sm font-medium text-[#0c66e4] hover:underline"
+                  onClick={() => go(b.id)}
+                  className="flex w-full items-center gap-3 px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
                 >
-                  Xem tất cả các kết quả
+                  <Thumb board={b} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm text-[#172b4d] dark:text-slate-100">
+                      {b.name}
+                    </span>
+                    <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
+                      {b.workspaceName ?? 'Không gian làm việc'}
+                    </span>
+                  </span>
                 </button>
-              </>
+              ))
             )}
+            <button
+              type="button"
+              onClick={seeAll}
+              className="px-3 py-2 text-sm font-medium text-[#0c66e4] hover:underline"
+            >
+              Tìm nâng cao "{q.trim()}"...
+            </button>
           </div>
 
           <div className="max-h-80 overflow-y-auto border-t border-slate-200 py-2 dark:border-slate-700">
@@ -547,6 +546,9 @@ function AccountMenu() {
             </button>
             <button type="button" className={item} onClick={() => go('/calendar')}>
               Lịch
+            </button>
+            <button type="button" className={item} onClick={() => go('/settings/notifications')}>
+              Cài đặt thông báo
             </button>
             <button type="button" className={item} onClick={() => go('/settings/password')}>
               Đổi mật khẩu

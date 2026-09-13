@@ -5,6 +5,14 @@ import {
   startReminderScheduler,
   stopReminderScheduler,
 } from './modules/card/reminder.scheduler';
+import {
+  startDigestScheduler,
+  stopDigestScheduler,
+} from './modules/notification/digest.scheduler';
+import {
+  startRecurringScheduler,
+  stopRecurringScheduler,
+} from './modules/card/recurringSchedule.scheduler';
 import { initRealtime, shutdownRealtime } from './realtime/socket';
 
 function startServer() {
@@ -15,6 +23,8 @@ function startServer() {
     // Gan Socket.IO (realtime) vao cung HTTP server
     initRealtime(server);
     startReminderScheduler();
+    startDigestScheduler();
+    startRecurringScheduler();
 
     server.listen(env.port, () => {
       console.log(`Server dang chay tai http://localhost:${env.port}`);
@@ -38,6 +48,8 @@ function startServer() {
     const shutdown = (signal: string) => {
       console.log(`\nNhan tin hieu ${signal}, dang tat server...`);
       stopReminderScheduler();
+      stopDigestScheduler();
+      stopRecurringScheduler();
       shutdownRealtime();
       server.close(() => {
         console.log('Server da dung.');

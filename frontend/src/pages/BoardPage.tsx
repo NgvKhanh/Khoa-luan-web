@@ -26,6 +26,7 @@ import {
   horizontalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import AddListForm from '../components/board/AddListForm';
+import AutomationPanel from '../components/board/AutomationPanel';
 import BoardActionsMenu from '../components/board/BoardActionsMenu';
 import BoardActivityMenu from '../components/board/BoardActivityMenu';
 import BoardArchiveMenu from '../components/board/BoardArchiveMenu';
@@ -219,6 +220,7 @@ export default function BoardPage() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [fieldsMenuOpen, setFieldsMenuOpen] = useState(false);
+  const [automationOpen, setAutomationOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [boardView, setBoardView] = useState<'board' | 'table'>('board');
   const [openCardId, setOpenCardId] = useState<string | null>(null);
@@ -857,6 +859,29 @@ export default function BoardPage() {
                   boardId={board.id}
                   onClose={() => setFieldsMenuOpen(false)}
                   onChanged={reloadLists}
+                />
+              )}
+            </div>
+          )}
+
+          {!readOnly && (
+            <div className="relative">
+              <button
+                type="button"
+                data-automation-trigger
+                onClick={() => setAutomationOpen((v) => !v)}
+                title="Tự động hoá"
+                aria-label="Tự động hoá"
+                className={TOOLBAR_BTN}
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M13 3L4 14h7l-1 7 9-11h-7l1-7z" />
+                </svg>
+              </button>
+              {automationOpen && (
+                <AutomationPanel
+                  boardId={board.id}
+                  onClose={() => setAutomationOpen(false)}
                 />
               )}
             </div>

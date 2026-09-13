@@ -21,6 +21,17 @@ import {
   removeWorkspaceMember,
   transferWorkspaceOwnership,
 } from './workspaceMember.service';
+import {
+  getWorkspaceOverview,
+  type OverviewStatusFilter,
+} from './workspaceOverview.service';
+
+const OVERVIEW_STATUSES: OverviewStatusFilter[] = [
+  'all',
+  'overdue',
+  'unassigned',
+  'done',
+];
 
 function requireUserId(req: Request): string {
   if (!req.user) {
@@ -76,6 +87,26 @@ export const deleteWorkspaceHandler = asyncHandler(
       req.params.workspaceId as string
     );
     res.json({ success: true, message: 'Da xoa khong gian' });
+  }
+);
+
+export const getWorkspaceOverviewHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { assigneeId, status } = req.query as {
+      assigneeId?: string;
+      status?: string;
+    };
+    const overview = await getWorkspaceOverview(
+      requireUserId(req),
+      req.params.workspaceId as string,
+      {
+        assigneeId: assigneeId || undefined,
+        status: OVERVIEW_STATUSES.includes(status as OverviewStatusFilter)
+          ? (status as OverviewStatusFilter)
+          : undefined,
+      }
+    );
+    res.json({ success: true, data: overview });
   }
 );
 

@@ -12,14 +12,32 @@ import {
   deleteWorkspace,
   fetchWorkspace,
   fetchWorkspaceMembers,
+  fetchWorkspaceOverview,
   removeWorkspaceMember,
   transferWorkspaceOwnership,
   updateWorkspace,
+  type OverviewStatusFilter,
+  type WorkspaceOverview,
 } from '../lib/api/workspace';
 import { getErrorMessage } from '../lib/errorMessage';
 import { logError } from '../lib/logError';
 import { socket } from '../lib/socket';
 import type { Workspace, WorkspaceMember } from '../types/workspace';
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+const STATUS_OPTIONS: { value: OverviewStatusFilter; label: string }[] = [
+  { value: 'all', label: 'Tất cả' },
+  { value: 'overdue', label: 'Quá hạn' },
+  { value: 'unassigned', label: 'Chưa giao' },
+  { value: 'done', label: 'Đã hoàn thành' },
+];
 
 type AssignableRole = 'ADMIN' | 'MEMBER';
 
@@ -41,6 +59,11 @@ export default function WorkspaceSettingsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  const [overview, setOverview] = useState<WorkspaceOverview | null>(null);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [assigneeFilter, setAssigneeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<OverviewStatusFilter>('all');
 
   const [nameDraft, setNameDraft] = useState('');
   const [editingName, setEditingName] = useState(false);
@@ -79,6 +102,25 @@ export default function WorkspaceSettingsPage() {
       socket.off('workspace:changed', onChanged);
     };
   }, [load]);
+
+  const loadOverview = useCallback(() => {
+    if (!workspaceId) return;
+    fetchWorkspaceOverview(workspaceId, {
+      assigneeId: assigneeFilter || undefined,
+      status: statusFilter,
+    })
+      .then((data) => {
+        setOverview(data);
+        setOverviewError(null);
+      })
+      .catch((err) =>
+        setOverviewError(getErrorMessage(err, 'Không tải được tổng quan.'))
+      );
+  }, [workspaceId, assigneeFilter, statusFilter]);
+
+  useEffect(() => {
+    loadOverview();
+  }, [loadOverview]);
 
   const myRole = ws?.myRole ?? 'MEMBER';
   const isOwner = myRole === 'OWNER';
@@ -290,6 +332,139 @@ export default function WorkspaceSettingsPage() {
           {notice}
         </p>
       )}
+
+      {/* Tong quan */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Tổng quan
+          </h2>
+          <button
+            type="button"
+            onClick={loadOverview}
+            className="text-xs font-medium text-[#0c66e4] hover:underline"
+          >
+            Làm mới
+          </button>
+        </div>
+
+        {overviewError ? (
+          <p className="text-sm text-red-600">{overviewError}</p>
+        ) : !overview ? (
+          <p className="text-sm text-slate-500">Đang tải...</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Tổng số thẻ</p>
+                <p className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+                  {overview.stats.total}
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Quá hạn</p>
+                <p className="text-xl font-semibold text-red-600">
+                  {overview.stats.overdue}
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Chưa giao</p>
+                <p className="text-xl font-semibold text-amber-600">
+                  {overview.stats.unassigned}
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Đã hoàn thành</p>
+                <p className="text-xl font-semibold text-emerald-600">
+                  {overview.stats.done}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <select
+                value={assigneeFilter}
+                onChange={(e) => setAssigneeFilter(e.target.value)}
+                className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
+              >
+                <option value="">Mọi người phụ trách</option>
+                {members.map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    {m.user.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) =>
+                  setStatusFilter(e.target.value as OverviewStatusFilter)
+                }
+                className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
+              >
+                {STATUS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {overview.cards.length === 0 ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Không có thẻ nào khớp bộ lọc.
+              </p>
+            ) : (
+              <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800">
+                {overview.cards.map((c) => (
+                  <li key={c.id}>
+                    <Link
+                      to={`/boards/${c.list.boardId}`}
+                      className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                    >
+                      <span
+                        className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border-2 ${
+                          c.isDone
+                            ? 'border-emerald-600 bg-emerald-600 text-white'
+                            : 'border-slate-300'
+                        }`}
+                      >
+                        {c.isDone && (
+                          <svg
+                            viewBox="0 0 24 24"
+                            className="h-2.5 w-2.5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          >
+                            <path d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className={`block text-sm ${
+                            c.isDone
+                              ? 'text-slate-400 line-through'
+                              : 'text-slate-800 dark:text-slate-100'
+                          }`}
+                        >
+                          {c.title}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-slate-400">
+                          {c.list.board.name} · {c.list.name}
+                          {c.dueDate && ` · hạn ${fmtDate(c.dueDate)}`}
+                          {c.members.length > 0 &&
+                            ` · ${c.members.map((m) => m.user.name).join(', ')}`}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </section>
 
       {/* Thanh vien */}
       <section className="flex flex-col gap-3">

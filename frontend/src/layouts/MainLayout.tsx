@@ -5,12 +5,12 @@ import Sidebar from '../components/Sidebar';
 
 export default function MainLayout() {
   return (
-    <div className="flex min-h-screen flex-col bg-white dark:bg-slate-900">
+    <div className="flex h-screen flex-col bg-white dark:bg-slate-900">
       <Header />
       <EmailVerifyBanner />
       <div className="flex min-h-0 flex-1">
         <Sidebar />
-        <main className="min-w-0 flex-1 bg-[var(--app-bg)]">
+        <main className="min-w-0 flex-1 overflow-y-auto bg-[var(--app-bg)]">
           <div className="mx-auto w-full max-w-5xl p-4 sm:p-6">
             <Outlet />
           </div>

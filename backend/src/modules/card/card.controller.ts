@@ -13,6 +13,7 @@ import {
   createCard,
   deleteCard,
   listCalendarCards,
+  listCalendarChecklistItems,
   listMyCards,
   moveCard,
   purgeCard,
@@ -61,12 +62,12 @@ export const listCalendarHandler = asyncHandler(
     ) {
       throw new AppError('Thieu hoac sai tham so from/to', 400);
     }
-    const cards = await listCalendarCards(
-      requireUserId(req),
-      fromDate,
-      toDate
-    );
-    res.json({ success: true, data: { cards } });
+    const uid = requireUserId(req);
+    const [cards, checklistItems] = await Promise.all([
+      listCalendarCards(uid, fromDate, toDate),
+      listCalendarChecklistItems(uid, fromDate, toDate),
+    ]);
+    res.json({ success: true, data: { cards, checklistItems } });
   }
 );
 

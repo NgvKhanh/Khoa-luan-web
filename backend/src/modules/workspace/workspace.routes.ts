@@ -7,6 +7,7 @@ import {
   createWorkspaceHandler,
   deleteWorkspaceHandler,
   getWorkspaceHandler,
+  getWorkspaceOverviewHandler,
   listMyWorkspacesHandler,
   listWorkspaceMembersHandler,
   removeWorkspaceMemberHandler,
@@ -34,6 +35,9 @@ router.patch(
   updateWorkspaceHandler
 );
 router.delete('/:workspaceId', deleteWorkspaceHandler);
+
+// Tong quan: the tren moi bang trong khong gian, so lieu quá han / chưa giao
+router.get('/:workspaceId/overview', getWorkspaceOverviewHandler);
 
 // Mau bang do nguoi dung tu luu, pham vi khong gian nay
 router.get('/:workspaceId/board-templates', listBoardTemplatesHandler);

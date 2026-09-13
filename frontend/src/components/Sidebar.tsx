@@ -34,6 +34,15 @@ function ActivityIcon() {
   );
 }
 
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.3-4.3" />
+    </svg>
+  );
+}
+
 export default function Sidebar() {
   const { boards } = useBoards();
   const { workspaces, currentWorkspaceId, setCurrentWorkspaceId } =
@@ -41,7 +50,7 @@ export default function Sidebar() {
   const starred = boards.filter((b) => b.isStarred);
 
   return (
-    <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white p-2 md:block dark:border-slate-700 dark:bg-slate-800">
+    <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-2 md:block dark:border-slate-700 dark:bg-slate-800">
       <nav className="flex flex-col gap-0.5">
         <NavLink to="/" end className={({ isActive }) => (isActive ? ACTIVE : INACTIVE)}>
           <span className="text-slate-500">
@@ -68,6 +77,16 @@ export default function Sidebar() {
             <ActivityIcon />
           </span>
           Trang chủ
+        </NavLink>
+
+        <NavLink
+          to="/search"
+          className={({ isActive }) => (isActive ? ACTIVE : INACTIVE)}
+        >
+          <span className="text-slate-500">
+            <SearchIcon />
+          </span>
+          Tìm kiếm nâng cao
         </NavLink>
       </nav>
 

@@ -2,6 +2,7 @@ import { prisma } from '../../config/prisma';
 import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import { assertBoardAccess } from '../board/board.service';
+import { runAutomationsForCard } from '../automation/automation.service';
 import { assertCardAccess } from './card.service';
 import { assertListAccess } from '../list/list.service';
 import { logActivity } from '../activity/activity.service';
@@ -160,5 +161,9 @@ export async function applyCardTemplate(
     data: { listName: list.name },
   });
   emitToBoard(list.boardId, 'board:lists-changed');
-  return card;
+  await runAutomationsForCard('CARD_CREATED', card.id, card.title, list.boardId, listId);
+
+  // Tu dong hoa (vd SET_DONE) co the vua doi du lieu the - doc lai truoc khi
+  // tra ve, tranh response cu (con isDone/... truoc khi tu dong hoa chay).
+  return (await prisma.card.findUnique({ where: { id: card.id } })) ?? card;
 }

@@ -142,6 +142,34 @@ export function dueReminderEmail(input: {
   };
 }
 
+export function dailyDigestEmail(input: {
+  name: string;
+  cardCount: number;
+  boardCount: number;
+  url: string;
+}): { subject: string; html: string } {
+  const { name, cardCount, boardCount, url } = input;
+  const total = cardCount + boardCount;
+  const lines: string[] = [];
+  if (cardCount > 0) {
+    lines.push(`<li>${cardCount} thông báo hoạt động trên thẻ</li>`);
+  }
+  if (boardCount > 0) {
+    lines.push(`<li>${boardCount} thông báo về bảng / không gian làm việc</li>`);
+  }
+  return {
+    subject: `TaskFlow: ${total} thông báo mới hôm nay`,
+    html: layout(`
+      <p>Chao ${escapeHtml(name)},</p>
+      <p>Tổng hợp thông báo bạn nhận được trong 24 giờ qua:</p>
+      <ul style="padding-left:20px;margin:12px 0">${lines.join('')}</ul>
+      <p style="margin:20px 0">${button(url, 'Xem trên TaskFlow')}</p>
+      <p style="color:#94a3b8;font-size:12px">
+         Bạn nhận được email này vì đã bật "Email tổng hợp hằng ngày" trong Cài đặt thông báo.</p>
+    `),
+  };
+}
+
 /** Chan cac ky tu HTML nguy hiem trong du lieu do nguoi dung nhap (ten). */
 function escapeHtml(s: string): string {
   return s

@@ -3,6 +3,8 @@ import { sendMail } from '../../config/mailer';
 import { prisma } from '../../config/prisma';
 import { dueReminderEmail } from '../auth/emailTemplates';
 import { notifyDueReminder } from '../notification/notification.service';
+import { getOrCreatePreference } from '../notification/notificationPreference.service';
+import { emitToUser } from '../../realtime/socket';
 import { assertBoardView } from '../board/board.service';
 import { REMINDER_OFFSETS } from './card.schema';
 
@@ -89,14 +91,6 @@ export async function runOnce(): Promise<void> {
       const remindAt = new Date(dueDate.getTime() - r.offsetMinutes * 60_000);
       if (remindAt > now) continue;
 
-      // Compare-and-set: tranh gui trung neu 2 vong quet chong len nhau
-      const claimed = await prisma.cardReminder.updateMany({
-        where: { id: r.id, sentAt: null },
-        data: { sentAt: now },
-      });
-      if (claimed.count === 0) continue;
-      claimedAny = true;
-
       const boardId = r.card.list.boardId;
 
       // Nguoi dat nhac co the da mat quyen xem bang tu luc dat toi luc nay
@@ -113,30 +107,72 @@ export async function runOnce(): Promise<void> {
 
       const offsetLabel = OFFSET_LABELS[r.offsetMinutes] ?? `${r.offsetMinutes} phút`;
 
-      await notifyDueReminder({
-        userId: r.userId,
-        cardId: r.cardId,
-        boardId,
-        data: {
-          cardTitle: r.card.title,
-          dueDate: dueDate.toISOString(),
-          offsetLabel,
-        },
-      });
+      // Cai dat thong bao ca nhan: co the da tat thong bao trong-app va/hoac
+      // email rieng cho nhac han (van tinh la "da gui" - claim - du tat ca,
+      // vi nhac han gan voi 1 thoi diem cu the, khong "gui bu" duoc sau).
+      const pref = await getOrCreatePreference(r.userId);
 
+      // Claim (CAS) + tao thong bao trong CUNG 1 transaction:
+      // - Neu tao thong bao that bai (vd loi DB) hoac tien trinh dung giua
+      //   chung, ca buoc claim cung bi rollback -> sentAt van null, vong quet
+      //   sau se tu thu lai, khong "mat" reminder ma khong ai duoc bao.
+      // - Dieu kien "card.dueDate = dueDate" (gia tri doc luc dau tick) khoa
+      //   luon ca han: neu nguoi dung doi han ngay sau khi scheduler doc du
+      //   lieu (thao tac doi han se reset sentAt ve null cho han moi), CAS se
+      //   khong khop nua (dueDate trong DB da khac) -> khong claim, khong gui
+      //   nham theo han cu, va reminder van sentAt=null de vong sau xet lai
+      //   dung theo han moi.
+      // Loi cua 1 reminder (vd tao thong bao that bai) khong duoc lam hong ca
+      // vong quet - cac reminder KHAC trong cung trang/tick van phai duoc xu
+      // ly tiep, nen bat loi rieng cho tung reminder thay vi de $transaction
+      // nem thang ra ngoai vong lap.
+      let claimed: boolean;
       try {
-        const { subject, html } = dueReminderEmail({
-          name: r.user.name,
-          cardTitle: r.card.title,
-          boardName: r.card.list.board.name,
-          dueDate,
-          offsetLabel,
-          url: `${env.frontendUrl}/boards/${boardId}?card=${r.cardId}`,
+        claimed = await prisma.$transaction(async (tx) => {
+          const claim = await tx.cardReminder.updateMany({
+            where: { id: r.id, sentAt: null, card: { dueDate } },
+            data: { sentAt: now },
+          });
+          if (claim.count === 0) return false;
+          if (pref.dueReminderInApp) {
+            await notifyDueReminder(tx, {
+              userId: r.userId,
+              cardId: r.cardId,
+              boardId,
+              data: {
+                cardTitle: r.card.title,
+                dueDate: dueDate.toISOString(),
+                offsetLabel,
+              },
+            });
+          }
+          return true;
         });
-        await sendMail({ to: r.user.email, subject, html });
       } catch (err) {
-        // Loi gui mail khong duoc lam hong vong quet (thong bao trong-app da co)
-        console.error('[reminder] gui email that bai:', err);
+        console.error('[reminder] claim/tao thong bao that bai, se thu lai vong sau:', err);
+        continue;
+      }
+      if (!claimed) continue;
+      claimedAny = true;
+      if (pref.dueReminderInApp) {
+        emitToUser(r.userId, 'notification:new', {});
+      }
+
+      if (pref.dueReminderEmail) {
+        try {
+          const { subject, html } = dueReminderEmail({
+            name: r.user.name,
+            cardTitle: r.card.title,
+            boardName: r.card.list.board.name,
+            dueDate,
+            offsetLabel,
+            url: `${env.frontendUrl}/boards/${boardId}?card=${r.cardId}`,
+          });
+          await sendMail({ to: r.user.email, subject, html });
+        } catch (err) {
+          // Loi gui mail khong duoc lam hong vong quet (thong bao trong-app da co)
+          console.error('[reminder] gui email that bai:', err);
+        }
       }
     }
 

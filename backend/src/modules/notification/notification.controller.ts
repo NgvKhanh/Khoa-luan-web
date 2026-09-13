@@ -1,12 +1,17 @@
 import type { Request, Response } from 'express';
 import { AppError } from '../../utils/AppError';
 import { asyncHandler } from '../../utils/asyncHandler';
+import type { UpdateNotificationPreferenceInput } from './notification.schema';
 import {
   countUnread,
   listNotifications,
   markAllRead,
   markRead,
 } from './notification.service';
+import {
+  getOrCreatePreference,
+  updatePreference,
+} from './notificationPreference.service';
 
 function uid(req: Request): string {
   if (!req.user) throw new AppError('Ban chua dang nhap', 401);
@@ -39,5 +44,26 @@ export const markAllReadHandler = asyncHandler(
   async (req: Request, res: Response) => {
     await markAllRead(uid(req));
     res.json({ success: true });
+  }
+);
+
+export const getPreferenceHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const preference = await getOrCreatePreference(uid(req));
+    res.json({ success: true, data: { preference } });
+  }
+);
+
+export const updatePreferenceHandler = asyncHandler(
+  async (req: Request, res: Response) => {
+    const preference = await updatePreference(
+      uid(req),
+      req.body as UpdateNotificationPreferenceInput
+    );
+    res.json({
+      success: true,
+      message: 'Da cap nhat cai dat thong bao',
+      data: { preference },
+    });
   }
 );

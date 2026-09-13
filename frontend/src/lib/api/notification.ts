@@ -25,3 +25,30 @@ export async function markNotificationRead(id: string): Promise<void> {
 export async function markAllNotificationsRead(): Promise<void> {
   await api.post('/notifications/read-all');
 }
+
+export interface NotificationPreference {
+  cardInApp: boolean;
+  cardEmailDigest: boolean;
+  boardInApp: boolean;
+  boardEmailDigest: boolean;
+  dueReminderInApp: boolean;
+  dueReminderEmail: boolean;
+  dailyDigestEnabled: boolean;
+}
+
+export async function fetchNotificationPreference(): Promise<NotificationPreference> {
+  const res = await api.get<{ data: { preference: NotificationPreference } }>(
+    '/notifications/preferences'
+  );
+  return res.data.data.preference;
+}
+
+export async function updateNotificationPreference(
+  patch: Partial<NotificationPreference>
+): Promise<NotificationPreference> {
+  const res = await api.patch<{ data: { preference: NotificationPreference } }>(
+    '/notifications/preferences',
+    patch
+  );
+  return res.data.data.preference;
+}

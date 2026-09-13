@@ -45,6 +45,30 @@ export async function logActivity(input: LogInput): Promise<void> {
 }
 
 const ACTIVITY_USER_SELECT = { id: true, name: true, avatarUrl: true } as const;
+const ACTIVITY_CARD_SELECT = {
+  id: true,
+  title: true,
+  list: { select: { boardId: true } },
+} as const;
+
+type ActivityCardRow = { id: string; title: string; list: { boardId: string } } | null;
+
+// The co the da CHUYEN SANG bang khac (kem doi ten) sau khi nhat ky duoc ghi.
+// Nhat ky luu theo boardId tai THOI DIEM ghi (boardId cua row), con include
+// card.title lai lay ten HIEN TAI cua the -> neu khong che, nguoi chi co
+// quyen o bang cu van doc duoc ten moi (co the nhay cam) cua the o bang rieng
+// tu ma ho khong he co quyen. Ten chi duoc giu neu the VAN con o dung bang da
+// ghi nhat ky; nguoc lai chi tra ve id (de lien ket), che ten.
+function redactMovedCard<T extends { boardId: string; card: ActivityCardRow }>(
+  activity: T
+): Omit<T, 'card'> & { card: { id: string; title: string | null } | null } {
+  const { card, ...rest } = activity;
+  if (!card) return { ...rest, card: null };
+  if (card.list.boardId !== activity.boardId) {
+    return { ...rest, card: { id: card.id, title: null } };
+  }
+  return { ...rest, card: { id: card.id, title: card.title } };
+}
 
 export async function listCardActivity(cardId: string) {
   return prisma.activity.findMany({
@@ -57,15 +81,16 @@ export async function listCardActivity(cardId: string) {
 
 // Nhat ky thao tac cua ca 1 bang (moi nguoi, moi the)
 export async function listBoardActivity(boardId: string) {
-  return prisma.activity.findMany({
+  const rows = await prisma.activity.findMany({
     where: { boardId },
     orderBy: { createdAt: 'desc' },
     take: 80,
     include: {
       user: { select: ACTIVITY_USER_SELECT },
-      card: { select: { id: true, title: true } },
+      card: { select: ACTIVITY_CARD_SELECT },
     },
   });
+  return rows.map(redactMovedCard);
 }
 
 // Nhat ky hoat dong tren TAT CA cac bang user tham gia (ke ca nguoi khac lam)
@@ -77,16 +102,17 @@ export async function listHomeActivity(userId: string) {
   const boardIds = memberships.map((m) => m.boardId);
   if (boardIds.length === 0) return [];
 
-  return prisma.activity.findMany({
+  const rows = await prisma.activity.findMany({
     where: { boardId: { in: boardIds } },
     orderBy: { createdAt: 'desc' },
     take: 30,
     include: {
       user: { select: ACTIVITY_USER_SELECT },
       board: { select: { id: true, name: true } },
-      card: { select: { id: true, title: true } },
+      card: { select: ACTIVITY_CARD_SELECT },
     },
   });
+  return rows.map(redactMovedCard);
 }
 
 // Nhat ky thao tac cua chinh nguoi dung tren moi bang

@@ -29,7 +29,16 @@ import {
   boardCardTemplateRoutes,
   cardTemplateRoutes,
 } from './modules/card/cardTemplate.routes';
+import {
+  automationRoutes,
+  boardAutomationRoutes,
+} from './modules/automation/automation.routes';
+import {
+  listRecurringScheduleRoutes,
+  recurringScheduleRoutes,
+} from './modules/card/recurringSchedule.routes';
 import notificationRoutes from './modules/notification/notification.routes';
+import searchRoutes from './modules/search/search.routes';
 import unsplashRoutes from './modules/unsplash/unsplash.routes';
 import workspaceRoutes from './modules/workspace/workspace.routes';
 import { AppError } from './utils/AppError';
@@ -87,10 +96,15 @@ export function createApp() {
   app.use('/api/boards/:boardId/labels', boardLabelRoutes);
   app.use('/api/boards/:boardId/custom-fields', boardCustomFieldRoutes);
   app.use('/api/boards/:boardId/card-templates', boardCardTemplateRoutes);
+  app.use('/api/boards/:boardId/automation-rules', boardAutomationRoutes);
   app.use('/api/boards', boardRoutes);
+  app.use('/api/automation-rules', automationRoutes);
   app.use('/api/lists/:listId/cards', listCardRoutes);
+  app.use('/api/lists/:listId/recurring-schedules', listRecurringScheduleRoutes);
   app.use('/api/lists', listRoutes);
+  app.use('/api/recurring-schedules', recurringScheduleRoutes);
   app.use('/api/cards', cardRoutes);
+  app.use('/api/search', searchRoutes);
   app.use('/api/checklists', checklistRoutes);
   app.use('/api/checklist-items', checklistItemRoutes);
   app.use('/api/attachments', attachmentRoutes);

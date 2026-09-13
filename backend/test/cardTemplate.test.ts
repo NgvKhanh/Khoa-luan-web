@@ -97,6 +97,36 @@ describe('Mau the do nguoi dung tu luu', () => {
     expect(res.status).toBe(400);
   });
 
+  it('[P4] the tao tu mau cung duoc chay tu dong hoa "khi tao the" (nhat quan voi tao thu cong)', async () => {
+    const owner = await makeUser();
+    const board = await makeBoard(owner);
+    const list = await makeList(owner, board.id, 'Danh sach co luat');
+
+    const ruleRes = await agent()
+      .post(`/api/boards/${board.id}/automation-rules`)
+      .set('Cookie', owner.cookie)
+      .send({
+        name: 'The moi trong list nay -> danh dau xong',
+        triggerType: 'CARD_CREATED',
+        triggerListId: list.id,
+        actions: [{ type: 'SET_DONE', boolValue: true }],
+      });
+    expect(ruleRes.status).toBe(201);
+
+    const tplRes = await agent()
+      .post(`/api/boards/${board.id}/card-templates`)
+      .set('Cookie', owner.cookie)
+      .send({ name: 'Mau bat ky' });
+    const templateId = tplRes.body.data.template.id as string;
+
+    const applyRes = await agent()
+      .post(`/api/lists/${list.id}/cards/from-template/${templateId}`)
+      .set('Cookie', owner.cookie)
+      .send({});
+    expect(applyRes.status).toBe(201);
+    expect(applyRes.body.data.card.isDone).toBe(true);
+  });
+
   it('nguoi ngoai bang khong tao duoc mau -> 403', async () => {
     const owner = await makeUser();
     const board = await makeBoard(owner);

@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { prisma } from '../src/config/prisma';
 import { runOnce } from '../src/modules/card/reminder.scheduler';
+import * as notificationService from '../src/modules/notification/notification.service';
+import * as boardService from '../src/modules/board/board.service';
 import {
   addMember,
   agent,
@@ -183,6 +185,85 @@ describe('Vong quet nhac han (reminder.scheduler)', () => {
 
     const noti = await prisma.notification.findFirst({
       where: { userId: member.id, cardId: card.id, type: 'card.due.reminder' },
+    });
+    expect(noti).toBeNull();
+  });
+
+  it('[P2] tao thong bao that bai giua chung -> claim (sentAt) cung bi rollback, khong "mat" reminder', async () => {
+    const owner = await makeUser();
+    const board = await makeBoard(owner);
+    const list = await makeList(owner, board.id);
+    const card = await makeCard(owner, list.id);
+    await setDueDate(owner, card.id, new Date(Date.now() - 60_000).toISOString());
+    await addReminder(owner, card.id, 10);
+
+    // Gia lap loi khi tao thong bao (vd loi DB nhat thoi) NGAY GIUA vong xu ly,
+    // sau khi da "claim" (dat sentAt). Neu claim va tao thong bao khong nam
+    // trong cung 1 transaction, sentAt se bi dat = da gui trong khi thuc te
+    // chua ai duoc bao -> reminder mat vinh vien, khong bao gio duoc thu lai.
+    const spy = vi
+      .spyOn(notificationService, 'notifyDueReminder')
+      .mockRejectedValueOnce(new Error('Loi DB gia lap'));
+
+    await expect(runOnce()).resolves.toBeUndefined();
+
+    const rowAfterFailure = await prisma.cardReminder.findFirst({
+      where: { cardId: card.id },
+    });
+    // Van con null (CHUA "mat") -> vong quet sau phai thu lai duoc
+    expect(rowAfterFailure?.sentAt).toBeNull();
+
+    const notiAfterFailure = await prisma.notification.findFirst({
+      where: { cardId: card.id, type: 'card.due.reminder' },
+    });
+    expect(notiAfterFailure).toBeNull();
+
+    spy.mockRestore();
+    await runOnce();
+
+    const rowAfterRetry = await prisma.cardReminder.findFirst({
+      where: { cardId: card.id },
+    });
+    expect(rowAfterRetry?.sentAt).not.toBeNull();
+    const notiAfterRetry = await prisma.notification.findFirst({
+      where: { cardId: card.id, type: 'card.due.reminder' },
+    });
+    expect(notiAfterRetry).toBeTruthy();
+  });
+
+  it('[P2] doi han ngay khi scheduler dang xu ly (sau khi da doc du lieu) -> khong gui nham theo han cu, khong "nuot" mat nhac cho han moi', async () => {
+    const owner = await makeUser();
+    const board = await makeBoard(owner);
+    const list = await makeList(owner, board.id);
+    const card = await makeCard(owner, list.id);
+
+    const oldDueDate = new Date(Date.now() - 60_000).toISOString();
+    await setDueDate(owner, card.id, oldDueDate);
+    await addReminder(owner, card.id, 10);
+
+    // Con xa (24h nua): sau khi doi han, KHONG con den luc nhac nua trong tick nay
+    const newDueDate = new Date(Date.now() + 24 * 60 * 60_000).toISOString();
+
+    // assertBoardView duoc goi giua luc scheduler doc du lieu va luc "claim":
+    // gia lap dung thoi diem do nguoi dung doi han sang gia tri MOI.
+    const realAssertBoardView = boardService.assertBoardView;
+    const spy = vi
+      .spyOn(boardService, 'assertBoardView')
+      .mockImplementation(async (userId: string, boardId: string) => {
+        await setDueDate(owner, card.id, newDueDate);
+        return realAssertBoardView(userId, boardId);
+      });
+
+    await runOnce();
+    spy.mockRestore();
+
+    const row = await prisma.cardReminder.findFirst({ where: { cardId: card.id } });
+    // Khong duoc claim voi du lieu han CU -> sentAt phai con null de cho
+    // vong quet sau xet lai dung theo han MOI (khi thuc su toi luc).
+    expect(row?.sentAt).toBeNull();
+
+    const noti = await prisma.notification.findFirst({
+      where: { cardId: card.id, type: 'card.due.reminder' },
     });
     expect(noti).toBeNull();
   });
