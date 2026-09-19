@@ -218,7 +218,12 @@ async function runAction(
       select: { isDone: true },
     });
     if (!card || card.isDone === isDone) return;
-    await prisma.card.update({ where: { id: cardId }, data: { isDone } });
+    // Da chan truong hop khong doi o tren -> day luon la mot lan CHUYEN trang
+    // thai, nen ghi completedAt thang. Bat bien: isDone <-> completedAt != null.
+    await prisma.card.update({
+      where: { id: cardId },
+      data: { isDone, completedAt: isDone ? new Date() : null },
+    });
     await logActivity({
       boardId,
       cardId,
@@ -255,10 +260,16 @@ async function runAction(
     if (!(await isBoardParticipant(boardId, action.userId))) return; // khong con la thanh vien bang
     await prisma.cardMember.upsert({
       where: { cardId_userId: { cardId, userId: action.userId } },
-      create: { cardId, userId: action.userId },
+      create: { cardId, userId: action.userId, assignedById: actorId },
       update: {},
     });
-    await logActivity({ boardId, cardId, userId: actorId, type: 'member.add' });
+    await logActivity({
+      boardId,
+      cardId,
+      userId: actorId,
+      type: 'member.add',
+      data: { memberId: action.userId },
+    });
     await notify({
       recipients: [action.userId],
       actorId,

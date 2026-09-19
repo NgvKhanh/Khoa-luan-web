@@ -422,7 +422,17 @@ export async function updateCard(
       ...(input.description !== undefined
         ? { description: input.description }
         : {}),
-      ...(input.isDone !== undefined ? { isDone: input.isDone } : {}),
+      ...(input.isDone !== undefined
+        ? {
+            isDone: input.isDone,
+            // Chi ghi completedAt khi trang thai THAY DOI, de cap nhat khong
+            // lien quan (doi ten...) khong lam troi moc hoan thanh. Bat bien:
+            // isDone <-> completedAt != null.
+            ...(input.isDone !== card.isDone
+              ? { completedAt: input.isDone ? new Date() : null }
+              : {}),
+          }
+        : {}),
       ...(input.startDate !== undefined
         ? { startDate: input.startDate ? new Date(input.startDate) : null }
         : {}),

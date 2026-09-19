@@ -124,34 +124,36 @@ model User {
   // tokenVersion == gia tri hien tai cua user moi hop le. Doi/dat lai mat khau
   // -> tang so nay len 1 -> moi JWT cu (REST lan Socket.IO) mat hieu luc ngay
   // lap tuc, khong bi anh huong boi do phan giai giay cua truong iat.
-  tokenVersion Int @default(0)
+  tokenVersion    Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
-  boards             Board[]
-  ownedWorkspaces     Workspace[] @relation("WorkspaceOwner")
-  workspaceMembers    WorkspaceMember[]
-  boardMembers        BoardMember[]
-  boardStars          BoardStar[]
-  joinRequests        BoardJoinRequest[]
-  cardMembers         CardMember[]
-  cardReminders       CardReminder[]
-  watches             Watch[]
-  createdBoardTemplates BoardTemplate[] @relation("BoardTemplateCreator")
-  comments            Comment[]
-  checklistItems      ChecklistItem[]
-  activities          Activity[]
-  attachments         Attachment[]
-  authTokens          AuthToken[]
-  notifications       Notification[] @relation("NotifRecipient")
-  actedNotifications  Notification[] @relation("NotifActor")
-  savedFilters        SavedFilter[]
+  boards                 Board[]
+  ownedWorkspaces        Workspace[]             @relation("WorkspaceOwner")
+  workspaceMembers       WorkspaceMember[]
+  boardMembers           BoardMember[]
+  boardStars             BoardStar[]
+  joinRequests           BoardJoinRequest[]
+  cardMembers            CardMember[]            @relation("CardMemberUser")
+  assignedCardMembers    CardMember[]            @relation("CardMemberAssigner")
+  workProfiles           MemberWorkProfile[]
+  cardReminders          CardReminder[]
+  watches                Watch[]
+  createdBoardTemplates  BoardTemplate[]         @relation("BoardTemplateCreator")
+  comments               Comment[]
+  checklistItems         ChecklistItem[]
+  activities             Activity[]
+  attachments            Attachment[]
+  authTokens             AuthToken[]
+  notifications          Notification[]          @relation("NotifRecipient")
+  actedNotifications     Notification[]          @relation("NotifActor")
+  savedFilters           SavedFilter[]
   notificationPreference NotificationPreference?
-  recurringSchedules  RecurringCardSchedule[]
-  automationRules     AutomationRule[]
-  automationActions   AutomationAction[]
-  aiRuns              AiRun[]
+  recurringSchedules     RecurringCardSchedule[]
+  automationRules        AutomationRule[]
+  automationActions      AutomationAction[]
+  aiRuns                 AiRun[]
 
   @@index([email])
 }
@@ -217,7 +219,7 @@ model AuthToken {
 
 // Thong bao gui rieng cho tung nguoi nhan (userId), co trang thai da doc.
 model Notification {
-  id        String   @id @default(cuid())
+  id          String   @id @default(cuid())
   userId      String // nguoi nhan
   actorId     String // nguoi gay ra hanh dong
   type        String
@@ -225,8 +227,8 @@ model Notification {
   cardId      String?
   workspaceId String?
   data        Json     @default("{}")
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
 
   user  User @relation("NotifRecipient", fields: [userId], references: [id], onDelete: Cascade)
   actor User @relation("NotifActor", fields: [actorId], references: [id], onDelete: Cascade)
@@ -253,6 +255,10 @@ model Workspace {
   boards    Board[]
   templates BoardTemplate[]
   aiRuns    AiRun[]
+
+  workProfiles  MemberWorkProfile[]
+  assignWeights WorkspaceAssignWeights?
+  assignRuns    AssignRun[]
 
   @@index([ownerId])
 }
@@ -308,8 +314,8 @@ model CardTemplate {
   description String?
   createdAt   DateTime @default(now())
 
-  board      Board                   @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  checklists CardTemplateChecklist[]
+  board              Board                   @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  checklists         CardTemplateChecklist[]
   recurringSchedules RecurringCardSchedule[]
 
   @@index([boardId])
@@ -321,7 +327,7 @@ model CardTemplateChecklist {
   title      String
   position   Int    @default(0)
 
-  template CardTemplate         @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  template CardTemplate       @relation(fields: [templateId], references: [id], onDelete: Cascade)
   items    CardTemplateItem[]
 
   @@index([templateId])
@@ -354,11 +360,11 @@ enum AutomationActionType {
 // Luat "khi X thi Y", pham vi 1 bang. Khong co hanh dong nao DI CHUYEN the
 // hoac TAO the moi - tranh vong lap vo han giua cac luat.
 model AutomationRule {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   boardId     String
   createdById String
   name        String
-  isEnabled   Boolean  @default(true)
+  isEnabled   Boolean @default(true)
 
   triggerType   AutomationTriggerType
   triggerListId String? // bat buoc voi CARD_MOVED_TO_LIST; null = moi list (chi hop le voi CARD_CREATED)
@@ -428,19 +434,20 @@ model Board {
   updatedAt       DateTime        @updatedAt
   deletedAt       DateTime?
 
-  owner        User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  workspace    Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  lists        List[]
-  members      BoardMember[]
-  stars        BoardStar[]
-  joinRequests BoardJoinRequest[]
-  labels       Label[]
-  activities   Activity[]
-  watches      Watch[]
-  customFields CustomField[]
-  cardTemplates CardTemplate[]
+  owner           User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  workspace       Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lists           List[]
+  members         BoardMember[]
+  stars           BoardStar[]
+  joinRequests    BoardJoinRequest[]
+  labels          Label[]
+  activities      Activity[]
+  watches         Watch[]
+  customFields    CustomField[]
+  cardTemplates   CardTemplate[]
   automationRules AutomationRule[]
-  aiRuns       AiRun[]
+  aiRuns          AiRun[]
+  assignRuns      AssignRun[]
 
   @@index([ownerId])
   @@index([workspaceId])
@@ -457,7 +464,7 @@ model Watch {
   cardId    String?
   createdAt DateTime @default(now())
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   board Board? @relation(fields: [boardId], references: [id], onDelete: Cascade)
   list  List?  @relation(fields: [listId], references: [id], onDelete: Cascade)
   card  Card?  @relation(fields: [cardId], references: [id], onDelete: Cascade)
@@ -533,9 +540,9 @@ model List {
   updatedAt  DateTime  @updatedAt
   deletedAt  DateTime?
 
-  board   Board   @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  cards   Card[]
-  watches Watch[]
+  board              Board                   @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards              Card[]
+  watches            Watch[]
   recurringSchedules RecurringCardSchedule[]
   automationRules    AutomationRule[]
 
@@ -556,7 +563,7 @@ enum RecurrenceFrequency {
 // lan sau. "isPaused" tam dung (khong xoa lich); "endDate" = ngay dung han
 // (null = khong co, chay mai mai).
 model RecurringCardSchedule {
-  id             String   @id @default(cuid())
+  id             String  @id @default(cuid())
   listId         String
   createdById    String
   title          String
@@ -590,22 +597,27 @@ model RecurringCardSchedule {
 
 // The nam trong 1 danh sach. "position" quyet dinh thu tu tu tren xuong.
 model Card {
-  id          String    @id @default(cuid())
-  listId      String
-  title       String
-  description String?
+  id            String    @id @default(cuid())
+  listId        String
+  title         String
+  description   String?
   isDone        Boolean   @default(false) // Danh dau the da hoan thanh
+  // Thoi diem danh dau xong LAN GAN NHAT. Bat bien: isDone <-> completedAt != null.
+  // Bo xong roi danh dau xong lai -> ghi de bang lan moi nhat (lich su mo lai
+  // van con trong Activity kieu card.undone). Module goi y phan cong dua vao
+  // cot nay de biet dung han hay tre; isDone don thuan khong du.
+  completedAt   DateTime?
   startDate     DateTime? // Ngay bat dau (null = khong dat)
   dueDate       DateTime? // Ngay het han (null = khong dat)
   coverColor    String? // Mau anh bia (hex) - null = khong co
   coverImageUrl String? // Anh bia (duong dan/URL) - uu tien hon coverColor
   archivedAt    DateTime? // Luu tru (co the khoi phuc); khac voi deletedAt (xoa han)
-  position    Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  position      Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 
-  list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
+  list        List             @relation(fields: [listId], references: [id], onDelete: Cascade)
   members     CardMember[]
   labels      CardLabel[]
   checklists  Checklist[]
@@ -615,6 +627,7 @@ model Card {
   reminders   CardReminder[]
   watches     Watch[]
   fieldValues CardFieldValue[]
+  assignRuns  AssignRun[]
 
   @@index([listId])
 }
@@ -657,15 +670,22 @@ model Attachment {
 
 // Gan 1 thanh vien bang vao 1 the
 model CardMember {
-  id     String @id @default(cuid())
-  cardId String
-  userId String
+  id           String   @id @default(cuid())
+  cardId       String
+  userId       String
+  // Hai cot duoi phuc vu module goi y phan cong: khong co moc thoi gian thi
+  // khong tinh duoc toc do lam viec, va khong phan biet duoc tu nhan viec voi
+  // duoc giao viec. Nhat ky Activity khong thay the duoc vi chi luu TEN.
+  createdAt    DateTime @default(now())
+  assignedById String? // Nguoi da gan; null = tu nhan hoac khong ro (du lieu cu)
 
-  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card       Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user       User  @relation("CardMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy User? @relation("CardMemberAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
 
   @@unique([cardId, userId])
   @@index([cardId])
+  @@index([userId, createdAt])
 }
 
 // Nhan mau, pham vi 1 bang
@@ -676,8 +696,8 @@ model Label {
   color     String // hex #RRGGBB
   createdAt DateTime @default(now())
 
-  board Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  cards CardLabel[]
+  board             Board              @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards             CardLabel[]
   automationActions AutomationAction[]
 
   @@index([boardId])
@@ -701,7 +721,7 @@ model CustomField {
   position  Int             @default(0)
   createdAt DateTime        @default(now())
 
-  board   Board                @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  board   Board               @relation(fields: [boardId], references: [id], onDelete: Cascade)
   options CustomFieldOption[]
   values  CardFieldValue[]
 
@@ -726,15 +746,15 @@ model CustomFieldOption {
 // lieu, tuy theo CustomField.type (textValue/numberValue/dateValue/
 // boolValue/optionId) - tach cot thay vi dung JSON de query/sap xep de hon.
 model CardFieldValue {
-  id         String    @id @default(cuid())
-  cardId     String
-  fieldId    String
-  textValue  String?
+  id          String    @id @default(cuid())
+  cardId      String
+  fieldId     String
+  textValue   String?
   numberValue Float?
-  dateValue  DateTime?
-  boolValue  Boolean?
-  optionId   String?
-  updatedAt  DateTime  @updatedAt
+  dateValue   DateTime?
+  boolValue   Boolean?
+  optionId    String?
+  updatedAt   DateTime  @updatedAt
 
   card   Card               @relation(fields: [cardId], references: [id], onDelete: Cascade)
   field  CustomField        @relation(fields: [fieldId], references: [id], onDelete: Cascade)
@@ -817,4 +837,109 @@ model Activity {
 
   @@index([cardId])
   @@index([boardId])
+}
+
+// ===================== GOI Y PHAN CONG CONG VIEC (module assign) =====================
+// Thiet ke day du o ASSIGN_MODULE.md. Nguyen tac: bang CAU HINH dung Cascade
+// (xoa khong gian lam viec thi cau hinh vo nghia), bang NHAT KY dung SetNull
+// (log phai song sot qua viec xoa bang/the/nguoi) - giong AiRun cua module AI.
+
+// Cau hinh lam viec cua 1 nguoi TRONG 1 khong gian lam viec. Khong bat buoc
+// phai co: thieu thi dung gia tri mac dinh trong code.
+model MemberWorkProfile {
+  id          String @id @default(cuid())
+  userId      String
+  workspaceId String
+
+  maxParallelCards    Int       @default(5) // Nguong the song song, dung cho diem kha dung
+  pausedUntil         DateTime? // Tam nghi den ngay nay (null = dang lam binh thuong)
+  // Cho phep muon lich su tu cac khong gian lam viec KHAC khi o day chua du
+  // du lieu. Mac dinh TAT vi ly do rieng tu: du lieu nhom nay se anh huong
+  // goi y o nhom kia.
+  allowCrossWorkspace Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+}
+
+// Ba trong so hien tai cua 1 nhom. Mac dinh 0.45 / 0.30 / 0.25 (ASSIGN_MODULE.md
+// §5.7). Tong luon bang 1 va moi trong so nam trong [0.05, 0.70] - rang buoc
+// nay do code bao dam, Postgres khong kiem duoc.
+model WorkspaceAssignWeights {
+  workspaceId String @id
+
+  wExperience   Float @default(0.45)
+  wReliability  Float @default(0.30)
+  wAvailability Float @default(0.25)
+  // So luot phan hoi da nhan. Chi bat dau HOC tu luot thu 10 tro di, truoc do
+  // chi ghi nhan (muc 1) de tranh vai luot dau keo trong so di lung tung.
+  feedbackCount Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  history   AssignWeightHistory[]
+}
+
+// Moi lan trong so doi ghi 1 dong -> ve duoc DUONG HOI TU cho chuong danh gia.
+// Day la bang chung nhin thay duoc rang "ca nhan hoa" co xay ra that.
+model AssignWeightHistory {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  wExperience   Float
+  wReliability  Float
+  wAvailability Float
+  feedbackCount Int // Day la luot phan hoi thu may
+  runId         String? // Luot goi y gay ra thay doi nay (khong FK, xem AssignRun)
+
+  createdAt DateTime @default(now())
+
+  weights WorkspaceAssignWeights @relation(fields: [workspaceId], references: [workspaceId], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+// Nhat ky 1 luot goi y phan cong. MOT bang lam ba viec:
+//   (1) nhat ky de tra cuu,
+//   (2) nguon do "ti le chap nhan" - chi so danh gia truc tuyen,
+//   (3) dau vao cho hoc trong so (muc 2).
+// topUserId/chosenUserId co y KHONG dat khoa ngoai: xoa tai khoan thi log van
+// phai doc duoc (cung ly do voi actorKey cua AiRun).
+model AssignRun {
+  id String @id @default(cuid())
+
+  workspaceId String?
+  boardId     String?
+  cardId      String?
+  actorKey    String  @default("") // Nguoi bam goi y, dang ban bam
+
+  algorithmVersion String @default("")
+  weights          Json // Bo trong so tai thoi diem cham
+  candidates       Json // Ung vien da cham: diem, tach nho 3 thanh phan, co, bang chung
+  candidateCount   Int    @default(0)
+
+  topUserId    String? // Nguoi duoc xep dau
+  chosenUserId String? // Nguoi thuc su duoc gan (null = chua quyet)
+  accepted     Boolean   @default(false) // chosenUserId === topUserId
+  decidedAt    DateTime?
+  learned      Boolean   @default(false) // Da dung luot nay de cap nhat trong so chua
+
+  latencyMs Int?
+  createdAt DateTime @default(now())
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  board     Board?     @relation(fields: [boardId], references: [id], onDelete: SetNull)
+  card      Card?      @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([accepted])
+  @@index([actorKey])
 }

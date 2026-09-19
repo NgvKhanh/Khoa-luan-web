@@ -35,7 +35,7 @@ export async function addCardMember(
 
   const member = await prisma.cardMember.upsert({
     where: { cardId_userId: { cardId, userId: targetUserId } },
-    create: { cardId, userId: targetUserId },
+    create: { cardId, userId: targetUserId, assignedById: userId },
     update: {},
     include: { user: { select: USER_SELECT } },
   });
@@ -45,7 +45,10 @@ export async function addCardMember(
     cardId,
     userId,
     type: 'member.add',
-    data: { memberName: member.user.name },
+    // memberId la bat buoc: chi co memberName thi hai nguoi trung ten se lan
+    // nhau, khong tai dung duoc lich su phan cong. memberName van giu de giao
+    // dien hien duoc ten cu ke ca sau khi nguoi do doi ten hoac bi xoa.
+    data: { memberId: targetUserId, memberName: member.user.name },
   });
   await notify({
     recipients: [targetUserId],

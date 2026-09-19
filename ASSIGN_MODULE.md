@@ -542,3 +542,56 @@ Ba chỗ được đọc từ mã thật để chốt thiết kế, không đoá
 
 Bước tiếp theo: **bước 1 — schema**, gồm bốn sửa đổi trên bảng có sẵn và bốn
 bảng mới ở §9, làm migration bằng `migrate diff` chứ không `migrate dev`.
+
+### Đã xong — Bước 1: nền dữ liệu (20/09/2026)
+
+**Schema** — đúng như §9: thêm `Card.completedAt`, `CardMember.createdAt` +
+`assignedById` (kèm chỉ mục `[userId, createdAt]`), và bốn bảng mới
+`MemberWorkProfile`, `WorkspaceAssignWeights`, `AssignWeightHistory`,
+`AssignRun`. Bảng cấu hình dùng `Cascade`, bảng nhật ký dùng `SetNull`;
+`topUserId`/`chosenUserId` cố ý **không** đặt khoá ngoại để log sống sót khi
+xoá tài khoản.
+
+**Migration** `20260920120000_assign_profiles`, sinh bằng
+`prisma migrate diff --from-schema <schema ở HEAD> --to-schema prisma/schema.prisma --script`.
+Lưu ý cho các bước sau: dự án đã lên **Prisma 7** với `backend/prisma.config.ts`,
+nên lệnh phải chạy **từ thư mục `backend/`** (chạy ở gốc repo thì diff trả về
+rỗng mà không báo lỗi — mất 15 phút mới phát hiện), và cờ cũ
+`--from-schema-datamodel` đã bị bỏ, nay là `--from-schema`.
+
+**Lấp dữ liệu cũ** (phần tự viết thêm vào cuối migration, `migrate diff` không
+sinh ra): `completedAt` của thẻ đã xong lấy từ lần ghi nhật ký `card.done` gần
+nhất của chính thẻ đó, không có thì lùi về `updatedAt`; thẻ chưa xong bị ép
+`completedAt = NULL` để giữ bất biến; `CardMember.createdAt` cũ lấy theo ngày
+tạo thẻ — **xấp xỉ có chủ ý**, vì nhật ký `member.add` cũ chỉ lưu tên nên không
+đối chiếu được, mà để mặc định `CURRENT_TIMESTAMP` thì toàn bộ lịch sử hoá
+thành "vừa mới gán".
+
+**Bốn chỗ ghi trong mã** (đây là phần dễ quên nhất — thêm cột mà không nuôi cột
+thì cột vô dụng):
+
+| Tệp | Sửa gì |
+|---|---|
+| `card/card.service.ts` | `updateCard` ghi `completedAt` **chỉ khi trạng thái thay đổi**, để cập nhật khác (đổi tên) không làm trôi mốc |
+| `automation/automation.service.ts` | `SET_DONE` ghi `completedAt` (đường ghi `isDone` thứ hai trong mã nguồn) |
+| `card/cardExtras.service.ts` | Gán người: lưu `assignedById`, nhật ký lưu thêm `memberId` |
+| `automation/automation.service.ts` | `ASSIGN_MEMBER`: như trên |
+
+`copyCard` **cố ý** không đặt `assignedById` (bản sao có giá trị `null` =
+"không rõ"): sao chép thẻ không phải hành vi chọn người có chủ đích, mà mức 2
+chỉ nên học từ những lần người dùng thực sự chọn.
+
+**Kiểm thử**: `test/assign.schema.test.ts`, 3 ca gộp (theo lệ cũ: `setup.ts`
+TRUNCATE trước mỗi `it` và `registerLimiter` giới hạn 10 đăng ký mỗi tệp).
+Canh giữ ba bất biến: `completedAt` khớp `isDone` và không trôi, `CardMember`
+ghi đủ thời điểm + người gán, nhật ký có `memberId`.
+
+**Cài lỗi: 8/8 bị bắt**, mã nguồn khôi phục nguyên vẹn (so từng byte). Tám phép
+cài: bỏ hẳn ghi `completedAt`; bỏ chặn "chỉ ghi khi đổi trạng thái"; bỏ xong mà
+không xoá mốc; đường tự động hoá không ghi mốc; và bốn phép tương ứng cho
+`assignedById` / `memberId` trên cả hai đường gán người.
+
+**Suite**: backend 49 tệp / 357 test xanh (trước bước này: 48 / 354).
+
+Bước tiếp theo: **bước 2 — bộ sinh dữ liệu mô phỏng** (§7), gồm hàm sinh tất
+định có hạt giống cố định và script đổ vào CSDL.
