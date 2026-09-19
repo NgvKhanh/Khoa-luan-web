@@ -1,6 +1,7 @@
 # Module Gợi ý phân công công việc (cá nhân hoá từ lịch sử)
 
-> **Trạng thái: đang ở bước 0** — mới chốt thiết kế, chưa có dòng mã sản phẩm nào.
+> **Trạng thái: xong bước 0–2** — thiết kế đã chốt; nền dữ liệu và bộ dữ liệu
+> mô phỏng đã có; **chưa có thuật toán chấm điểm nào** (bắt đầu từ bước 3).
 > Tài liệu này là hợp đồng thiết kế; mỗi bước xong sẽ thêm một mục
 > "Đã xong — Bước N" ở cuối file, giống cách `AI_MODULE.md` ghi nhật ký.
 >
@@ -595,3 +596,105 @@ không xoá mốc; đường tự động hoá không ghi mốc; và bốn phép
 
 Bước tiếp theo: **bước 2 — bộ sinh dữ liệu mô phỏng** (§7), gồm hàm sinh tất
 định có hạt giống cố định và script đổ vào CSDL.
+
+### Đã xong — Bước 2: bộ dữ liệu mô phỏng (20/09/2026)
+
+**Tệp mới** (đều nằm ngoài đường chạy của sản phẩm, trong `backend/src/scripts/`):
+
+| Tệp | Việc |
+|---|---|
+| `simVocab.ts` | Từ vựng 8 chủ đề ẩn + từ đồng nghĩa/viết tắt + tiêu đề và mô tả "mơ hồ" |
+| `simGenerator.ts` | **Hàm thuần, tất định**: người có kỹ năng ẩn, bảng, thẻ, phân công, kết quả. Không đọc đồng hồ, không đọc CSDL |
+| `simSeed.ts` | Đổ bộ dữ liệu vào Postgres trong **một** transaction; dọn bản cũ; đổi "ngày số" sang giờ Việt Nam |
+| `seedSimulation.ts` | CLI: `npm run seed:sim` · `-- --seed=N` · `-- --remove` |
+
+**Bộ dữ liệu mặc định** (`DEFAULT_SIM`, hạt giống 20260920): 6 người · 5 bảng ·
+120 thẻ · lịch sử 300 ngày · sha256 đóng băng
+`e7ddf9ac5a61e70048eab3c8cbcfaaf44b2b4c15d9d90be560086078b591e9d9`. Số đo: 12 thẻ
+đang mở (tất cả ở "dự án đang chạy"), đúng hạn 46%, bị mở lại 10%, thẻ mơ hồ 11%,
+**phân công lịch sử trùng người giỏi nhất chỉ 48%** (nếu ≈100% thì lịch sử chính là
+đáp án và bài toán tầm thường). Trên 8 hạt giống khác: đúng hạn 39–58%, trùng
+người giỏi nhất 42–55%, luôn đủ 8/8 chủ đề, đủ 5–6/6 người là "đáp án tốt nhất"
+của ít nhất một thẻ. Đúng hạn theo kỹ năng: 67% (kỹ năng ≥ 0,6) so với 22% (< 0,3).
+
+**Sáu nguồn lệch (§7) đều đo được bằng test**, không chỉ nằm trong comment: đồng
+nghĩa/viết tắt · lỗi chính tả · thẻ mơ hồ · 25% giao sai · người học nghề (kỹ năng
+tăng dần) · đúng hạn theo xác suất. Mỗi nguồn có một ca test bật/tắt nguồn đó và
+chứng minh sự khác biệt.
+
+**Quy ước quan trọng cho các bước sau**
+- **Định nghĩa duy nhất của "đúng hạn"**: `completedAt <= dueDate`. Bộ sinh, phần
+  đổ CSDL và bộ chấm điểm sau này đều phải dùng đúng định nghĩa này. Test đối chiếu
+  cờ `onTime` của bộ sinh với phép so sánh trên mốc thời gian thật trong DB.
+- **Đáp án tốt nhất** (`bestCandidate`) = người có kỹ năng ẩn cao nhất trong
+  **họ bốc** (`assignablePool`): còn làm việc lúc giao **và** không rời nhóm trước khi
+  việc có thể xong (`hạn + 9 ngày`). Bước 7 dùng hàm này làm mốc so sánh; bộ chấm
+  điểm **không được** import `simGenerator` (chỉ bước 7 được nhìn kỹ năng ẩn).
+- Giờ lưu: bắt đầu `00:00`, hạn `23:59` giờ VN (§5.3 của `AI_MODULE.md`); thời điểm
+  xong `17:00`, tạo thẻ `09:00`, giao việc `10:00`.
+- Tài khoản mô phỏng: `sim1@sim.local`…`sim6@sim.local`, mật khẩu `Password123`.
+  `sim1` là chủ nhóm và là người giao việc; chủ nhóm nhận việc = **tự nhận**
+  (`assignedById = null`). Người thứ 5 nghỉ giữa chừng (xoá mềm khỏi không gian
+  và các bảng), người thứ 6 vào muộn (ngày 157) nên không có lịch sử trước đó.
+- Dọn dẹp chỉ chạm tài khoản `@sim.local` và thứ họ sở hữu. Nếu ai đó đăng ký thật
+  bằng một địa chỉ đuôi `@sim.local` thì tài khoản đó **sẽ bị xoá** khi chạy lại
+  `seed:sim` — không dùng đuôi này cho tài khoản thật.
+
+**Giới hạn phải khai trong luận văn** (đừng để hội đồng tự phát hiện)
+1. Các công thức của bộ sinh là **giả định của tác giả**: xác suất đúng hạn
+   `0,15 + 0,7·kỹ năng − phạt tải`, chọn người theo `kỹ năng³`, tỉ lệ giao sai 25%,
+   tỉ lệ thẻ mơ hồ 12%… Kết quả đánh giá chỉ có nghĩa **trong thế giới giả định này**.
+2. Bộ dữ liệu nhỏ (120 thẻ / 6 người). Bước 7 chạy 20 hạt giống để có độ lệch chuẩn,
+   nhưng mỗi bộ vẫn nhỏ.
+3. Từ vựng chỉ có 8 chủ đề, mỗi chủ đề 140–175 tổ hợp tiêu đề (tổng 1 190, chưa tính
+   đồng nghĩa và lỗi chính tả); văn bản thật đa dạng hơn nhiều.
+4. Tỉ lệ đúng hạn 46% thấp hơn nhiều nhóm thật — tham số, không phải quan sát.
+
+**Kiểm thử**: `assign.sim.test.ts` (13 ca, thuần), `assign.seed.test.ts` (5 ca, DB
+test). Ràng buộc chính: không mâu thuẫn nội tại trên 16 hạt giống × 3 cấu hình (48
+bộ); đóng băng sha256; không sửa đầu vào (`Object.freeze`); từng thẻ trong DB khớp
+bộ sinh; chạy lại không nhân đôi, không đụng dữ liệu thật; seed hỏng giữa chừng thì
+bản cũ còn nguyên; dữ liệu đi qua **đăng nhập + phân quyền thật** (người nghỉ bị
+chặn, người vào muộn chỉ vào được dự án đang chạy).
+
+**Cài lỗi: 38/39 bị bắt bởi test độc lập** (bộ sinh 23/24, phần đổ CSDL 15/15), mã
+nguồn khôi phục nguyên vẹn. Vì mọi thay đổi ở bộ sinh đều làm đổi mã băm đóng băng
+nên phép đó "bắt hộ" mọi lỗi; để đo sức mạnh của các test còn lại, lô bộ sinh chạy
+trên bản sao đã vô hiệu hoá riêng phép đóng băng. Phép còn lại (G24: đổi
+`rng.int(3)` thành `rng.int(2)`) là **đối chứng có chủ ý**: dữ liệu vẫn nhất quán
+nên chỉ phép đóng băng được phép bắt — đúng như kết quả.
+
+**Suite**: backend 51 tệp / 375 test xanh (trước bước này: 49 / 357). `tsc` và
+`eslint` sạch.
+
+**Việc tham dò phát hiện — bài học cho các bước sau**
+1. Đọc kết quả tham dò **trước** khi viết `expect` lại lộ lỗi thật: chỉ 3/120 thẻ còn
+   mở (điểm khả dụng không có dữ liệu để tính); chủ đề 1 chỉ có 1/120 thẻ (người
+   mạnh chủ đề đó không bao giờ là đáp án đúng); một số tiêu đề vô nghĩa do ghép động
+   từ với đối tượng bừa. Sửa: bảng cuối là "dự án đang chạy" ép sát hôm nay; **chia
+   bài** chủ đề từ một cỗ đã xáo thay vì bốc ngẫu nhiên; chỉnh động từ.
+2. Ba mâu thuẫn dữ liệu tìm ra khi đọc mã: kẹp ngày hoàn thành vào "hôm nay" biến
+   thẻ trễ hạn thành đúng hạn (nay: thẻ đó **còn mở**); người sắp nghỉ vẫn được giao
+   việc kéo qua ngày nghỉ (nay: lọc bằng `assignablePool`); và `replace` chỉ thay cụm
+   đồng nghĩa **lần đầu** nên `synonymRate = 1` không nghĩa "thay hết" (nay thay mọi
+   lần xuất hiện).
+3. **Đính chính một chẩn đoán sai**: lúc đầu tôi kết luận LCG thô "có tương quan" và
+   thêm bước trộn bit. Đo lại (200 000 mẫu × 4 hạt giống): tương quan liền kề ≈ 0,001,
+   tần suất đúng 0,55; cửa sổ 17 lần có ≤ 4 lần "đúng" xảy ra 0,6–1,2% ở **cả** LCG thô
+   lẫn LCG đã trộn — tức 4/17 chỉ là sự kiện hiếm tình cờ. Mã trộn bit đã gỡ; LCG thuần
+   (cùng hằng số với các test khác) là đủ. Điều thật sự sửa được vấn đề "quá ít thẻ mở"
+   là thu hẹp cửa sổ của bảng cuối. Nếu trích dẫn lại trong luận văn: **không** viết
+   "LCG có tương quan".
+4. Test đầu tiên tôi viết cho bộ quy đổi ngày có kỳ vọng tính tay sai (28/02 00:00 giờ VN
+   là `27/02T17:00Z`, không phải `28/02T17:00Z`). Mã đúng, test sai — kiểm chứng bằng
+   dòng kiểm ngay bên cạnh trước khi sửa test.
+5. Test đổ CSDL kiểm luôn **quan hệ giữa hai đầu**: cờ `onTime` của bộ sinh so với
+   phép `completedAt <= dueDate` trên dữ liệu đã đọc lại từ DB — một phép quy đổi múi
+   giờ sai lệch dù chỉ 1 ngày sẽ bị lộ ngay.
+
+**Đã đổ vào CSDL dev** (20/09/2026): 6 người · 5 bảng · 120 thẻ · 370 dòng nhật ký.
+Dữ liệu thật giữ nguyên (10 người dùng); bảng 40 → 45, thẻ 207 → 327. Chạy lại lần
+hai không nhân đôi. Xoá: `npm run seed:sim -- --remove`.
+
+Bước tiếp theo: **bước 3 — tách từ + TF-IDF + hồ sơ người** (§5.1–5.2), hàm thuần,
+không import `simGenerator`.
