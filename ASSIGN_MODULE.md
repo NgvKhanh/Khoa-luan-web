@@ -1,7 +1,8 @@
 # Module Gợi ý phân công công việc (cá nhân hoá từ lịch sử)
 
-> **Trạng thái: xong bước 0–2** — thiết kế đã chốt; nền dữ liệu và bộ dữ liệu
-> mô phỏng đã có; **chưa có thuật toán chấm điểm nào** (bắt đầu từ bước 3).
+> **Trạng thái: xong bước 0–3** — thiết kế đã chốt; nền dữ liệu, bộ dữ liệu mô
+> phỏng, bộ tách từ + TF-IDF + hồ sơ người đã có; **chưa có điểm số nào** (bộ
+> chấm cặp bắt đầu ở bước 4).
 > Tài liệu này là hợp đồng thiết kế; mỗi bước xong sẽ thêm một mục
 > "Đã xong — Bước N" ở cuối file, giống cách `AI_MODULE.md` ghi nhật ký.
 >
@@ -102,15 +103,27 @@ v1 phình to rồi bị xoá. Lớp 2 bản này chỉ là vòng lặp tham lam 
 
 ## 5. Công thức và tham số mặc định
 
-### 5.1 Tách từ
+### 5.1 Tách từ (đã hiện thực ở bước 3: `assign.text.ts`)
 
-- Chuẩn hoá NFC, hạ chữ thường, bỏ dấu — **dùng lại** `normalizeText` ở
-  `backend/src/modules/ai/ai.rules.ts:86` và hàm bỏ dấu ở dòng 118.
-- Bỏ khoảng 100 hư từ tiếng Việt tự soạn ("và", "của", "cho", "các", "một",
-  "được", "khi", "để"...).
-- Sinh **uni-gram + bi-gram liền kề**. Bi-gram là cách rẻ nhất để bắt cụm
+- Chuẩn hoá NFC, hạ chữ thường, bỏ dấu — **dùng lại** `normalizeText`
+  (`ai.rules.ts:86`) và `foldText` (`ai.rules.ts:111`, bỏ dấu từng ký tự, `đ → d`).
+- **Hư từ được nhận diện trên dạng CÓ DẤU, sau đó mới bỏ dấu.** Bỏ dấu làm các từ
+  khác nghĩa đụng nhau: `bằng`/`bảng` → `bang`, `đang`/`đăng` → `dang`,
+  `trong`/`trọng` → `trong`, `cơ`/`có`, `nền`/`nên`, `đề`/`để`, `vẽ`/`về`, `vá`/`và`,
+  `tải`/`tại`. Xét hư từ trên dạng đã bỏ dấu sẽ xoá mất `bảng`, `đăng`, `trọng` —
+  ba từ nội dung của chính dự án này. Có **79 hư từ có dấu** (`STOP_ACCENTED`) và
+  **13 hư từ khi gõ không dấu** (`STOP_PLAIN`, chỉ những dạng không mơ hồ). Cố ý
+  **không** đưa vào: `chỉ` (chỉ mục), `từ` (từ khoá), `quá` (quá hạn), `the` (= `thẻ`,
+  từ trung tâm của ứng dụng), `that` (= `thất bại`).
+- Sinh **uni-gram + bi-gram liền kề**, mỗi token qua bộ lọc: dài 2–30 ký tự, không
+  toàn chữ số, không phải hư từ. **Bi-gram không bắc qua** hư từ, token bị bỏ, hay dấu
+  câu (`. , ; : ! ? ( ) [ ] { } " / | …` và xuống dòng) — dấu gạch nối, gạch dưới,
+  khoảng trắng và ký hiệu khác chỉ tách token. Bi-gram là cách rẻ nhất để bắt cụm
   "đăng nhập", "kiểm thử", "cơ sở dữ liệu" mà không cần thư viện tách từ.
-- Bỏ token dài dưới 2 ký tự và token chỉ gồm chữ số.
+- Chỉ đọc tối đa **4000 ký tự** mỗi trường (mô tả thẻ có thể rất dài); bộ quét đi một
+  lần theo từng ký tự, không dùng regex trên cả chuỗi → thời gian tuyến tính.
+- **Tiêu đề đếm gấp đôi mô tả** (`TITLE_WEIGHT = 2`, xem §5.8 — đây là quyết định
+  tiên nghiệm, chưa có bằng chứng).
 
 ### 5.2 TF-IDF và độ giống
 
@@ -192,6 +205,8 @@ thành phần này báo **không có dữ liệu** (xem nguyên tắc 4).
 | `cap` | Số thẻ song song tối đa | 5 |
 | `eta` | Tốc độ học trọng số | 0.05 |
 | trọng số | kinh nghiệm / tin cậy / khả dụng | 0.45 / 0.30 / 0.25 |
+| `TITLE_WEIGHT` | Trọng số tiêu đề so với mô tả khi đếm thuật ngữ | 2 (**chưa có bằng chứng**: trên dữ liệu mô phỏng ×2 và ×1 cho kết quả ngang nhau — 3 hạt giống dương, 3 âm) |
+| `MAX_TEXT_CHARS` / `MAX_TOKEN_CHARS` | Số ký tự đọc tối đa mỗi trường / độ dài token tối đa (tối thiểu 2) | 4000 / 30 |
 
 ## 6. Cá nhân hoá nằm ở đâu — bốn chỗ
 
@@ -698,3 +713,98 @@ hai không nhân đôi. Xoá: `npm run seed:sim -- --remove`.
 
 Bước tiếp theo: **bước 3 — tách từ + TF-IDF + hồ sơ người** (§5.1–5.2), hàm thuần,
 không import `simGenerator`.
+
+### Đã xong — Bước 3: tách từ, TF-IDF, hồ sơ người (20/09/2026)
+
+**Tệp mới** — ba tệp lõi là **hàm thuần** trong `backend/src/modules/assign/` (không
+Prisma, không đồng hồ, không mạng, không import `simGenerator`):
+
+| Tệp | Việc |
+|---|---|
+| `assign.text.ts` | Tách từ (§5.1): hư từ trên dạng có dấu, uni+bi-gram không bắc qua dấu câu, `countTerms` |
+| `assign.tfidf.ts` | `buildIdf`, `idfOf`, `vectorize` (chuẩn hoá độ dài 1), `cosine` ∈ [0,1] |
+| `assign.profile.ts` | `decay` (nửa đời 90 ngày), `buildProfile` (từng thẻ cũ giữ véc-tơ riêng), `topTerms` |
+| `scripts/showKeywords.ts` | `npm run assign:keywords [-- --seed=N --top=N]`: in top thuật ngữ từng người + phép đo bên dưới |
+| `scripts/simTextEval.ts` | Phép đo "láng giềng gần nhất có cùng chủ đề không" (dùng chung với test) |
+
+Hồ sơ **không** gộp lịch sử thành một véc-tơ (§5.4 đã loại cách đó): mỗi thẻ đã xong
+giữ véc-tơ và trọng số thời gian riêng, bước 4 sẽ lấy K láng giềng trên đó. `topTerms`
+chỉ để hiển thị/gỡ lỗi. `buildIdf` nhận kho ngữ liệu từ bên ngoài — **bước 4/5 phải
+quyết định** thẻ đang xét có nằm trong kho hay không (mặc định: có, vì nó thuộc không
+gian làm việc).
+
+**Đo được** (`npm run assign:keywords`, dữ liệu mô phỏng): láng giềng gần nhất của một
+thẻ có cùng chủ đề ẩn không?
+
+| Biến thể (trung bình 7 hạt giống: mặc định + 1…6) | top-1 | P@5 |
+|---|---|---|
+| uni + bi-gram, tiêu đề ×2 (**mặc định**) | **96,9%** (93,9 – 99,1) | **84,7%** (80,7 – 87,5) |
+| chỉ uni-gram | 96,0% | 83,6% |
+| tiêu đề ×1 (ngang mô tả) | 96,4% | 84,2% |
+| chỉ tiêu đề | 95,7% | 79,5% |
+| chỉ mô tả | 75,3% (65,7 – 83,6) | 59,4% (50,3 – 67,9) |
+| ngẫu nhiên (theo phân bố chủ đề thật) | ≈ 13,2% | |
+
+**Đọc số liệu cho đúng** (đừng nói quá trong luận văn):
+- 93,9–99,1% là **cận trên trên một thị trường đồ chơi**: 8 chủ đề, mỗi chủ đề có bộ từ
+  riêng, nhiều thẻ trùng tiêu đề. Nó chỉ chứng minh chuỗi xử lý **không hỏng** (so với
+  13% ngẫu nhiên), không chứng minh độ tốt trên văn bản thật.
+- **Bi-gram: chênh nhỏ, cùng chiều nhưng chưa vững.** So với chỉ uni-gram: top-1 +0,9
+  điểm (độ lệch chuẩn giữa các hạt giống 1,3; **4 dương / 2 hoà / 1 âm** — hạt giống
+  mặc định uni-gram còn hơn 1,0 điểm), P@5 +1,1 điểm (sd 1,1; 5 dương / 2 âm). Chưa đủ
+  để viết "bi-gram tốt hơn"; bước 7 chạy 20 hạt giống mới kết luận được.
+- **`TITLE_WEIGHT = 2` không có bằng chứng**: so với ×1, top-1 +0,5 (sd 1,6; 3 dương /
+  1 hoà / 3 âm), P@5 +0,4 (sd 1,8; 4 dương / 3 âm) — coi như bằng nhau. Giữ ×2 vì mô
+  tả thật dài và nhiều chữ đệm, nhưng ghi rõ là giả định tiên nghiệm.
+- Tiêu đề mang gần hết tín hiệu (chỉ tiêu đề 95,7%, chỉ mô tả 75,3%) — hệ quả của cách
+  bộ sinh viết mô tả (nhiều câu đệm chung), không phải quy luật của dữ liệu thật.
+
+**Phát hiện khi tham dò và khi soạn test** (không phải lúc thiết kế):
+1. `chỉ`, `từ`, `quá` từng nằm trong danh sách hư từ → "Tạo **chỉ** mục" mất `chi`,
+   và gõ có dấu/không dấu ra hai tập thuật ngữ khác nhau. Cả ba đều hai nghĩa ngay cả
+   khi có dấu (chỉ mục, từ khoá, quá hạn). Đã gỡ; phép kiểm dữ liệu-làm-căn-cứ (mọi
+   cụm trong từ vựng lĩnh vực phải giữ đủ âm tiết) sẽ bắt lại nếu ai đưa chúng vào.
+2. `STOP_PLAIN` từng chứa `the` và `that` — gõ không dấu thì **`thẻ` thành `the`** và
+   `thất bại` thành `that bai`, bị nuốt. Phát hiện lúc soạn phép kiểm "STOP_PLAIN không
+   nuốt từ nội dung", **trước khi chạy** nó. Chính ghi chú tôi viết ("không đưa từ trùng
+   tiếng Việt") vẫn để lọt hai từ này.
+3. **Bỏ dấu gộp `cầu` (yêu cầu) và `cấu` (cấu hình) thành `cau`** — thẻ "Cấu hình
+   Docker" đóng góp cho thuật ngữ `cau` của người chuyên "Phân tích yêu cầu". Hạn chế
+   thật của việc bỏ dấu; bi-gram (`yeu cau` ≠ `cau hinh`) giữ lại được sự phân biệt.
+4. **Hồ sơ phản ánh việc đã được giao, không phải kỹ năng ẩn.** `sim1` mạnh CSDL (0,84)
+   và Kiểm thử (0,82) nhưng top từ khoá là "biên tập, báo cáo, buổi bảo vệ" (11 thẻ Tài
+   liệu, kỹ năng 0,50); `sim4` làm 6 thẻ API dù kỹ năng API chỉ 0,27. Đây đúng là hiện
+   tượng "lịch sử ≠ năng lực" mà module phải xử lý — và là lý do tách `experience`
+   (đã làm gì) khỏi `reliability` (làm có tốt không) ở §5.4–5.5.
+5. Gõ không dấu, các hư từ vốn không dấu (`cho`, `trong`, `theo`, `sau`…) áp dụng cho cả
+   hai cách viết vì chúng trùng nhau: **"trọng số" gõ không dấu mất `trong`** (gõ có dấu
+   thì giữ). Hệ quả chấp nhận được, đã ghi trong mã.
+6. Sai sót của chính tôi khi làm bước này: hai ngưỡng đếm test đoán sai thay vì đếm (25
+   cụm, không phải > 25; từ vựng 279, không phải > 300); và chèn mã bằng heredoc Bash
+   đã nuốt dấu gạch chéo ngược làm hỏng cú pháp test — đúng bài học cũ "dùng Write/Edit,
+   không dùng heredoc khi có `\`".
+
+**Kiểm thử**: `assign.text.test.ts` (12 ca), `assign.tfidf.test.ts` (4), `assign.profile.test.ts`
+(6). Ràng buộc chính: câu mẫu với kết quả **đọc từ tham dò** (không đoán); có dấu ≡ không
+dấu ≡ NFD ≡ HOA; 9 cặp từ đồng âm khác nghĩa (hư từ bỏ, từ nội dung giữ); mọi cụm lĩnh vực
+giữ đủ âm tiết; mọi dấu ngắt câu kiểm **từng ký tự một**; cận độ dài và đầu vào 6 triệu ký
+tự chạy < 1 giây; 400 chuỗi ngẫu nhiên (hạt giống cố định) cho tính chất cấu trúc; công thức
+IDF/TF/cosine đối chiếu với **oracle độc lập** (cosine trên véc-tơ chưa chuẩn hoá); `topTerms`
+đối chiếu với oracle tự tính trên hồ sơ 30 thẻ; và một ca chạy trên dữ liệu mô phỏng
+(top-1 ≥ 85%, P@5 ≥ 70%, 4 hạt giống) kèm một ca chứng minh phép đo **tự nó rơi về mức
+ngẫu nhiên** khi chuỗi xử lý bị hỏng.
+
+**Cài lỗi: 58/58 bị bắt** (bộ tách từ 29, hồ sơ 18, TF-IDF 11), mã nguồn khôi phục nguyên
+vẹn từng byte. Trước khi chạy tôi rà các phép sẽ **lọt** và bổ sung test cho chúng: nhánh
+"chỉ xét `STOP_PLAIN` khi chữ không có dấu", từng dấu ngắt câu, hằng số theo **giá trị**
+(kiểm qua chính hằng số thì tự khớp với mình), và véc-tơ hồ sơ của thẻ **hai** thuật ngữ
+(chuẩn hoá triệt tiêu trọng số tiêu đề khi chỉ có một thuật ngữ).
+
+**Suite**: backend 54 tệp / 397 test xanh (trước bước này: 51 / 375). `tsc` và `eslint` sạch.
+
+**Chưa làm / để bước sau**: kho ngữ liệu và thẻ đang xét (bước 4/5), quét `H`, `TITLE_WEIGHT`
+và bi-gram (bước 7), hư từ chưa đánh giá trên văn bản thật.
+
+Bước tiếp theo: **bước 4 — bộ chấm cặp (việc, người)**: ba thành phần (kinh nghiệm chủ
+đề / tin cậy / khả dụng), co điểm khi ít dữ liệu, bằng chứng truy vết (§5.4–5.7). Hàm
+thuần, có test.
