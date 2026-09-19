@@ -1,4 +1,5 @@
-import rateLimit from 'express-rate-limit';
+import type { Request } from 'express';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 /**
  * Gioi han so lan goi cac endpoint "nhay cam" theo dia chi IP.
@@ -52,5 +53,48 @@ export const publicBoardLimiter = rateLimit({
   limit: 300,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
+  message: TOO_MANY,
+});
+
+/**
+ * Cac limiter cua module AI tinh theo NGUOI DUNG (khong theo IP nhu cac limiter
+ * o tren): chi dung sau requireAuth nen luon co req.user; ca lop hoc chung 1 IP
+ * van khong tranh nhau han muc. Neu vi ly do gi do khong co user thi roi ve IP.
+ * ipKeyGenerator nhan CHUOI ip (khong phai req) va chuan hoa IPv6 - bat buoc de
+ * express-rate-limit khong canh bao nguoi dung IPv6 lach han muc.
+ */
+const byUser = (req: Request): string =>
+  req.user?.id ?? ipKeyGenerator(req.ip ?? '');
+
+/**
+ * Doc tep .docx/.pdf (khoi chay tien trinh con, ton CPU/RAM, KHONG goi LLM): 10 lan / user /
+ * 10 phut. Dat TRUOC multer de yeu cau vuot han muc bi chan truoc khi nhan 5MB du lieu.
+ */
+export const aiExtractLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: byUser,
+  message: TOO_MANY,
+});
+
+/** Sinh ke hoach (goi LLM): 10 lan / user / 10 phut. */
+export const aiGenerateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: byUser,
+  message: TOO_MANY,
+});
+
+/** Ap dung ke hoach thanh bang that (khong goi LLM, nhe hon): 30 lan / user / 10 phut. */
+export const aiApplyLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: byUser,
   message: TOO_MANY,
 });

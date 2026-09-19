@@ -43,6 +43,28 @@ function getPort(key: string, defaultValue: number): number {
   return parsed;
 }
 
+/**
+ * Lay 1 bien moi truong dang so nguyen duong bat ky (khong gioi han tren 65535
+ * nhu getPort). Dung cho timeout (ms), gioi han ky tu...
+ */
+function getPositiveInt(key: string, defaultValue: number): number {
+  const raw = process.env[key];
+
+  if (raw === undefined || raw.trim() === '') {
+    return defaultValue;
+  }
+
+  const parsed = Number(raw);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(
+      `Bien moi truong ${key} phai la so nguyen duong, dang nhan duoc: "${raw}"`
+    );
+  }
+
+  return parsed;
+}
+
 const nodeEnv = getString('NODE_ENV', 'development');
 const allowedNodeEnv = ['development', 'production', 'test'];
 
@@ -91,4 +113,22 @@ export const env = {
    * Lay tu Google Cloud Console. De trong -> endpoint /auth/google tra ve 503.
    */
   googleClientId: getString('GOOGLE_CLIENT_ID', ''),
+  /**
+   * Module AI (xem AI_MODULE.md). Goi LLM qua chuan OpenAI-compatible
+   * (POST {baseUrl}/chat/completions) nen doi nha cung cap (Gemini, Groq,
+   * OpenRouter...) chi can doi baseUrl + model + apiKey trong .env.
+   * KHAC voi Unsplash/Google o tren: thieu cau hinh KHONG tra 503 - module van
+   * chay bang bo luat (rule-only), chi la khong co lop LLM. LLM chi duoc goi khi
+   * DU CA BA: baseUrl, apiKey, model.
+   */
+  ai: {
+    baseUrl: getString('AI_BASE_URL', '').replace(/\/+$/, ''),
+    apiKey: getString('AI_API_KEY', ''),
+    model: getString('AI_MODEL', ''),
+    /** Nhan hien thi/ghi vao AiRun.provider, vd "google-gemini". */
+    providerLabel: getString('AI_PROVIDER_LABEL', 'openai-compatible'),
+    timeoutMs: getPositiveInt('AI_TIMEOUT_MS', 30000),
+    /** Van ban dau vao dai hon muc nay se bi cat (kem canh bao). */
+    maxInputChars: getPositiveInt('AI_MAX_INPUT_CHARS', 6000),
+  },
 };

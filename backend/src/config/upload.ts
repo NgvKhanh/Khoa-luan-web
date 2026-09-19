@@ -250,6 +250,47 @@ export function removeCardAttachmentFile(publicPath: string | null): void {
   });
 }
 
+// ===================== TEP VAN BAN CHO MODULE AI =====================
+
+// Tep chi de TRICH CHU roi bo: memoryStorage (khong ghi xuong dia -> khong co file rac can don).
+// Noi dung that (magic bytes, zip bomb...) duoc kiem o modules/ai/ai.document.ts.
+export const AI_DOCUMENT_MAX_BYTES = 5 * 1024 * 1024; // 5MB
+const AI_DOCUMENT_EXT = new Set(['.pdf', '.docx']);
+
+const aiDocumentUploadMw = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: AI_DOCUMENT_MAX_BYTES, files: 1, fields: 5, parts: 8 },
+  fileFilter: (_req, file, cb) => {
+    // Loc som theo duoi de khong phai nhan 5MB cua tep chac chan bi tu choi
+    if (AI_DOCUMENT_EXT.has(path.extname(file.originalname).toLowerCase())) {
+      cb(null, true);
+    } else {
+      cb(new AppError('Chỉ hỗ trợ tệp .docx hoặc .pdf', 400));
+    }
+  },
+});
+
+/** Nhan 1 tep o field "file" vao req.file.buffer; loi cua Multer doi thanh AppError 400. */
+export function uploadAiDocument(req: Request, res: Response, next: NextFunction) {
+  aiDocumentUploadMw.single('file')(req, res, (err: unknown) => {
+    if (!err) {
+      next();
+      return;
+    }
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        next(new AppError('Tệp quá lớn (tối đa 5MB)', 400));
+        return;
+      }
+      if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+        next(new AppError('Sai tên trường tệp (cần "file")', 400));
+        return;
+      }
+    }
+    next(err instanceof AppError ? err : new AppError('Tải tệp lên thất bại', 400));
+  });
+}
+
 // Xoa file anh nen cu tren dia (bo qua neu khong con)
 export function removeBoardBackgroundFile(publicPath: string | null): void {
   if (!publicPath) return;

@@ -10,6 +10,7 @@ import { createWorkspace } from '../lib/api/workspace';
 import { getErrorMessage } from '../lib/errorMessage';
 import type { Board } from '../types/board';
 import Avatar from './Avatar';
+import AiGenerateBoardModal from './board/AiGenerateBoardModal';
 import CreateBoardDialog from './board/CreateBoardDialog';
 import Logo from './Logo';
 import NotificationBell from './NotificationBell';
@@ -427,10 +428,13 @@ function BoardSearch() {
 }
 
 // ------- Tao bang moi -------
-function CreateBoardMenu() {
+export function CreateBoardMenu() {
   const navigate = useNavigate();
   const { upsertBoard } = useBoards();
   const [open, setOpen] = useState(false);
+  // Modal AI: trang thai nam o CHA, khong nam trong popover. Bam "Tao bang bang AI" thi popover dong va
+  // modal mo ra nhu ANH EM: popover tu dong khi bam ra ngoai vung cua no, con modal (portal) nam ngoai vung do.
+  const [aiOpen, setAiOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -442,6 +446,7 @@ function CreateBoardMenu() {
   }, []);
 
   return (
+    <>
     <div ref={ref} className="relative shrink-0">
       <button
         type="button"
@@ -458,6 +463,10 @@ function CreateBoardMenu() {
         <CreateBoardDialog
           className="absolute right-0 top-11 z-40"
           onClose={() => setOpen(false)}
+          onOpenAi={() => {
+            setOpen(false);
+            setAiOpen(true);
+          }}
           onCreated={(board) => {
             upsertBoard(board);
             setOpen(false);
@@ -466,6 +475,17 @@ function CreateBoardMenu() {
         />
       )}
     </div>
+    {aiOpen && (
+      <AiGenerateBoardModal
+        onClose={() => setAiOpen(false)}
+        onCreated={(board) => {
+          upsertBoard(board);
+          setAiOpen(false);
+          navigate(`/boards/${board.id}`);
+        }}
+      />
+    )}
+    </>
   );
 }
 

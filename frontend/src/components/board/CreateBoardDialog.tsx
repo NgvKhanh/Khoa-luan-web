@@ -68,6 +68,9 @@ interface Props {
   className?: string;
   // Neu truyen: khoa bang vao dung khong gian nay (an o chon)
   workspaceId?: string;
+  // Neu truyen: hien dong "Tao bang bang AI". Component CHA giu trang thai va hien modal nhu
+  // ANH EM cua popover nay (popover tu dong khi bam ra ngoai, modal thi nam ngoai vung do).
+  onOpenAi?: () => void;
 }
 
 export default function CreateBoardDialog({
@@ -75,6 +78,7 @@ export default function CreateBoardDialog({
   onClose,
   className = '',
   workspaceId: forcedWorkspaceId,
+  onOpenAi,
 }: Props) {
   const { workspaces, currentWorkspaceId } = useWorkspaces();
   const [view, setView] = useState<'main' | 'photos'>('main');
@@ -266,6 +270,24 @@ export default function CreateBoardDialog({
           </svg>
         </button>
       </div>
+
+      {onOpenAi && (
+        <button
+          type="button"
+          onClick={onOpenAi}
+          className="mb-3 flex w-full items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-2 text-left text-sm font-medium text-violet-700 transition hover:bg-violet-100 dark:border-violet-800/60 dark:bg-violet-900/20 dark:text-violet-300 dark:hover:bg-violet-900/40"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="currentColor" aria-hidden="true">
+            <path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8L12 2zM19 14l.9 2.6L22.5 17.5l-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9L19 14z" />
+          </svg>
+          <span className="flex-1">
+            Tạo bằng AI
+            <span className="block text-[11px] font-normal text-violet-600/80 dark:text-violet-300/80">
+              Từ mô tả hoặc tệp báo cáo
+            </span>
+          </span>
+        </button>
+      )}
 
       <Preview bg={bg} />
 

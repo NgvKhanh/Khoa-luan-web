@@ -35,6 +35,8 @@ export function activityPhrase(a: {
       return `đã đính kèm tệp "${d.name ?? ''}"`;
     case 'comment.create':
       return `đã bình luận: ${d.text ?? ''}`;
+    case 'ai.board.create':
+      return `đã tạo bảng này bằng AI (${d.cardCount ?? '?'} thẻ)`;
     default:
       return a.type;
   }

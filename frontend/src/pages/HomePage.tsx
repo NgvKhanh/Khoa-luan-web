@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BoardCard from '../components/BoardCard';
+import AiGenerateBoardModal from '../components/board/AiGenerateBoardModal';
 import CreateBoardDialog from '../components/board/CreateBoardDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useBoards } from '../context/BoardsContext';
@@ -26,6 +27,8 @@ function CreateBoardTile({
   workspaceId?: string;
 }) {
   const [open, setOpen] = useState(false);
+  // Modal AI o CHA (khong nam trong popover): xem chu thich o CreateBoardMenu trong Header.tsx
+  const [aiOpen, setAiOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,6 +40,7 @@ function CreateBoardTile({
   }, []);
 
   return (
+    <>
     <div ref={ref} className="relative">
       <button
         type="button"
@@ -52,6 +56,10 @@ function CreateBoardTile({
           className="absolute left-0 top-[calc(100%+6px)] z-40"
           workspaceId={workspaceId}
           onClose={() => setOpen(false)}
+          onOpenAi={() => {
+            setOpen(false);
+            setAiOpen(true);
+          }}
           onCreated={(board) => {
             onCreated(board);
             setOpen(false);
@@ -59,6 +67,17 @@ function CreateBoardTile({
         />
       )}
     </div>
+    {aiOpen && (
+      <AiGenerateBoardModal
+        workspaceId={workspaceId}
+        onClose={() => setAiOpen(false)}
+        onCreated={(board) => {
+          onCreated(board);
+          setAiOpen(false);
+        }}
+      />
+    )}
+    </>
   );
 }
 

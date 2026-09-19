@@ -42,6 +42,76 @@ enum AuthTokenType {
   PASSWORD_RESET // Dat lai mat khau khi quen
 }
 
+// ===================== MODULE AI (xem AI_MODULE.md) =====================
+
+enum AiInputKind {
+  TEXT
+  DOCX
+  PDF
+}
+
+enum AiPlanMode {
+  STRUCTURED // Dau vao da co heading/bullet/ngay ro: rule dan dat
+  FREEFORM // Van xuoi ngan: LLM dan dat
+}
+
+// Nhat ky do dac cua module AI - day la DU LIEU THUC NGHIEM cua khoa luan.
+// QUAN TRONG: moi khoa ngoai o day deu la SetNull, KHONG BAO GIO Cascade.
+// Xoa user/khong gian/bang khong duoc keo theo mat so lieu do dac (day tung la
+// loi thiet ke o ban v1). actorKey la ban sao cua userId, KHONG co khoa ngoai,
+// de van gom nhom duoc cac lan chay theo tung nguoi ke ca sau khi user bi xoa.
+model AiRun {
+  id String @id @default(cuid())
+
+  userId      String?
+  workspaceId String?
+  boardId     String? // Bang da tao ra tu ke hoach nay; null = chua ap dung
+  actorKey    String  @default("")
+
+  // --- Dau vao ---
+  inputKind  AiInputKind @default(TEXT)
+  inputText  String
+  inputChars Int
+  inputLines Int
+
+  // --- Phan loai che do ---
+  modeAuto        AiPlanMode // Bo phan loai chon gi
+  mode            AiPlanMode // Thuc te chay che do nao (nguoi dung co the ghi de)
+  structuredRatio Float
+
+  // --- Lop LLM ---
+  llmUsed          Boolean @default(false)
+  provider         String  @default("")
+  model            String  @default("")
+  promptTokens     Int?
+  completionTokens Int?
+  latencyMs        Int?
+  llmFailReason    String? // DISABLED | TIMEOUT | HTTP_4XX | HTTP_5XX | BAD_JSON | INVALID_SHAPE
+  strictParseOk    Boolean @default(false) // LLM tra JSON hop le ngay lan dau?
+
+  // --- Ke hoach ---
+  plan         Json // BoardPlan AI de xuat - KHONG BAO GIO bi ghi de
+  appliedPlan  Json? // BoardPlan luc nguoi dung bam "Tao bang"
+  cardCount    Int   @default(0)
+  droppedCards Int   @default(0) // The bi loai vi khong truy vet duoc ve dong nguon
+  verdictLines Int   @default(0) // So dong dau vao duoc LLM cham verdict
+  warnings     Json  @default("[]")
+
+  // --- Nghiem thu (thu TU DONG tu hanh vi nguoi dung) ---
+  accepted  Boolean   @default(false)
+  editCount Int? // Server tu tinh bang diff plan vs appliedPlan
+  appliedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  board     Board?     @relation(fields: [boardId], references: [id], onDelete: SetNull)
+
+  @@index([actorKey])
+  @@index([createdAt])
+  @@index([accepted])
+}
+
 model User {
   id              String    @id @default(cuid())
   email           String    @unique
@@ -81,6 +151,7 @@ model User {
   recurringSchedules  RecurringCardSchedule[]
   automationRules     AutomationRule[]
   automationActions   AutomationAction[]
+  aiRuns              AiRun[]
 
   @@index([email])
 }
@@ -181,6 +252,7 @@ model Workspace {
   members   WorkspaceMember[]
   boards    Board[]
   templates BoardTemplate[]
+  aiRuns    AiRun[]
 
   @@index([ownerId])
 }
@@ -368,6 +440,7 @@ model Board {
   customFields CustomField[]
   cardTemplates CardTemplate[]
   automationRules AutomationRule[]
+  aiRuns       AiRun[]
 
   @@index([ownerId])
   @@index([workspaceId])

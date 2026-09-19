@@ -15,7 +15,8 @@ type ActivityType =
   | 'member.add'
   | 'member.remove'
   | 'checklist.add'
-  | 'attachment.add';
+  | 'attachment.add'
+  | 'ai.board.create';
 
 interface LogInput {
   boardId: string;

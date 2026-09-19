@@ -37,6 +37,7 @@ import {
   listRecurringScheduleRoutes,
   recurringScheduleRoutes,
 } from './modules/card/recurringSchedule.routes';
+import { aiRoutes } from './modules/ai/ai.routes';
 import notificationRoutes from './modules/notification/notification.routes';
 import searchRoutes from './modules/search/search.routes';
 import unsplashRoutes from './modules/unsplash/unsplash.routes';
@@ -115,6 +116,7 @@ export function createApp() {
   app.use('/api/card-templates', cardTemplateRoutes);
   app.use('/api/notifications', notificationRoutes);
   app.use('/api/unsplash', unsplashRoutes);
+  app.use('/api/ai', aiRoutes);
   app.use('/api/public', publicBoardRoutes);
 
   // Khong khop route nao -> tra ve 404 dang JSON

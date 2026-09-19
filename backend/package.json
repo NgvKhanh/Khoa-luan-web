@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "eval:ai": "tsx src/scripts/evaluateAi.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
@@ -27,8 +28,10 @@
     "express-rate-limit": "^8.7.0",
     "google-auth-library": "^10.9.1",
     "jsonwebtoken": "^9.0.3",
+    "mammoth": "^1.12.3",
     "multer": "^2.2.0",
     "nodemailer": "^10.0.1",
+    "pdf-parse": "^2.4.5",
     "pg": "^8.23.0",
     "socket.io": "^4.8.3",
     "zod": "^4.4.3"
@@ -46,6 +49,7 @@
     "@types/pg": "^8.23.1",
     "@types/supertest": "^6.0.3",
     "eslint": "^9.18.0",
+    "jszip": "^3.10.2",
     "prisma": "^7.10.0",
     "socket.io-client": "^4.8.3",
     "supertest": "^7.2.2",

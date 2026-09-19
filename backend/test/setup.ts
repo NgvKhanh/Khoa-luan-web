@@ -1,3 +1,5 @@
+// PHAI la import dau tien: chan khoa AI that trong backend/.env truoc khi env.ts duoc nap
+import './aiEnvIsolation';
 import { loadAndAssertTestDatabaseUrl } from './dbSafety';
 
 // Nap + kiem tra DATABASE_URL TRUOC khi bat ky module nao doc process.env

@@ -6,3 +6,7 @@ node_modules
 
 # File nguoi dung tai len (anh nen bang...)
 /uploads
+
+# Cache phan hoi tho cua LLM khi chay danh gia (npm run eval:ai) va file ket qua thu
+/.ai-eval-cache
+/eval-result*
