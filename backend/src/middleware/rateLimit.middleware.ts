@@ -89,6 +89,19 @@ export const aiGenerateLimiter = rateLimit({
   message: TOO_MANY,
 });
 
+/**
+ * Goi y phan cong: moi luot doc ca khong gian lam viec (the + lich su) va ghi 1 dong AssignRun:
+ * 60 lan / user / 10 phut. Chi dung sau requireAuth (tinh theo nguoi dung, khong theo IP).
+ */
+export const assignSuggestLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 60,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: byUser,
+  message: TOO_MANY,
+});
+
 /** Ap dung ke hoach thanh bang that (khong goi LLM, nhe hon): 30 lan / user / 10 phut. */
 export const aiApplyLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,

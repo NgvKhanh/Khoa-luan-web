@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/config/prisma';
+import { signToken } from '../src/utils/jwt';
 
 // 1 app dung chung cho moi test (khoi tao Express, khong lang nghe cong)
 export const app = createApp();
@@ -46,6 +47,40 @@ export async function makeUser(
     password,
     name,
     cookie: cookieOf(res),
+    personalWorkspaceId: ws.id,
+  };
+}
+
+/**
+ * Tao user THANG vao CSDL (kem khong gian ca nhan nhu luc dang ky that) va ky JWT, KHONG qua
+ * /api/auth/register. Dung khi mot file test can nhieu hon ~10 tai khoan: registerLimiter chi cho
+ * 10 lan dang ky / gio TINH THEO TUNG FILE. Cookie dung duoc voi moi route co requireAuth.
+ */
+export async function makeDirectUser(
+  name = 'User',
+  over: Partial<Pick<TestUser, 'email'>> = {}
+): Promise<TestUser> {
+  seq += 1;
+  const email = over.email ?? `d${seq}_${Date.now()}@test.local`;
+  const user = await prisma.user.create({
+    data: { email, name, emailVerifiedAt: new Date() },
+    select: { id: true, tokenVersion: true },
+  });
+  const ws = await prisma.workspace.create({
+    data: {
+      ownerId: user.id,
+      name: `Khong gian cua ${name}`,
+      isPersonal: true,
+      members: { create: { userId: user.id, role: 'OWNER' } },
+    },
+    select: { id: true },
+  });
+  return {
+    id: user.id,
+    email,
+    password: '',
+    name,
+    cookie: `token=${signToken({ userId: user.id, tokenVersion: user.tokenVersion })}`,
     personalWorkspaceId: ws.id,
   };
 }

@@ -38,6 +38,11 @@ import {
   recurringScheduleRoutes,
 } from './modules/card/recurringSchedule.routes';
 import { aiRoutes } from './modules/ai/ai.routes';
+import {
+  assignRunRoutes,
+  cardAssignRoutes,
+  workspaceAssignRoutes,
+} from './modules/assign/assign.routes';
 import notificationRoutes from './modules/notification/notification.routes';
 import searchRoutes from './modules/search/search.routes';
 import unsplashRoutes from './modules/unsplash/unsplash.routes';
@@ -90,6 +95,7 @@ export function createApp() {
   app.use('/uploads/boards', express.static(BOARD_BG_DIR));
 
   app.use('/api/auth', authRoutes);
+  app.use('/api/workspaces/:workspaceId/assignment-weights', workspaceAssignRoutes);
   app.use('/api/workspaces', workspaceRoutes);
   app.use('/api/activities', activityRoutes);
   app.use('/api/boards/:boardId/lists', boardListRoutes);
@@ -104,6 +110,8 @@ export function createApp() {
   app.use('/api/lists/:listId/recurring-schedules', listRecurringScheduleRoutes);
   app.use('/api/lists', listRoutes);
   app.use('/api/recurring-schedules', recurringScheduleRoutes);
+  app.use('/api/cards/:cardId/assignment-suggestions', cardAssignRoutes);
+  app.use('/api/assignment/runs', assignRunRoutes);
   app.use('/api/cards', cardRoutes);
   app.use('/api/search', searchRoutes);
   app.use('/api/checklists', checklistRoutes);

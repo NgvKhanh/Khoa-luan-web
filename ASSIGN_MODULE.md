@@ -1,11 +1,13 @@
 # Module Gợi ý phân công công việc (cá nhân hoá từ lịch sử)
 
-> **Trạng thái: xong bước 0–4 (kể cả 4b)** — thiết kế đã chốt; nền dữ liệu, bộ dữ
+> **Trạng thái: xong bước 0–5 (kể cả 4b)** — thiết kế đã chốt; nền dữ liệu, bộ dữ
 > liệu mô phỏng, bộ tách từ + TF-IDF + hồ sơ người, **bộ chấm cặp (việc, người)**
 > đã có, chạy được trên dữ liệu mô phỏng và **đã chuẩn hoá thành phần trong nhóm
-> ứng viên (phương án A)** để trọng số có nghĩa. Chưa có API/giao diện (bước 5–6),
-> chưa có đánh giá chính thức (bước 7). Còn treo: chính sách cho **người chưa có
-> lịch sử** (DROP hay NEUTRAL — nhật ký bước 4b).
+> ứng viên (phương án A)** để trọng số có nghĩa. **Bước 5: API** — xếp hạng ứng viên
+> cho một thẻ từ dữ liệu thật trong Postgres, ghi nhật ký `AssignRun`, ghi người được
+> chọn, xem/chỉnh/đặt lại trọng số của nhóm (§10). Chưa có giao diện và chưa học
+> trọng số (bước 6), chưa có đánh giá chính thức (bước 7). Còn treo: chính sách cho
+> **người chưa có lịch sử** (DROP hay NEUTRAL — nhật ký bước 4b).
 > Tài liệu này là hợp đồng thiết kế; mỗi bước xong sẽ thêm một mục
 > "Đã xong — Bước N" ở cuối file, giống cách `AI_MODULE.md` ghi nhật ký.
 >
@@ -382,15 +384,138 @@ chấp nhận) vừa là đầu vào cho mức 2. Một bảng làm ba việc.
 
 ## 10. Thiết kế API
 
-| Phương thức | Đường dẫn | Việc |
-|---|---|---|
-| GET | `/api/cards/:cardId/assignment-suggestions` | Lớp 1: xếp hạng ứng viên cho một thẻ, trả kèm bằng chứng và `runId` |
-| POST | `/api/assignment/runs/:runId/outcome` | Ghi người thực sự được chọn (nuôi mức 1 và mức 2) |
-| GET / PUT | `/api/workspaces/:id/assignment-weights` | Xem và chỉnh ba thanh trượt, kèm nút đặt lại |
-| POST | `/api/lists/:listId/assignment-plan` | Lớp 2 (bước 8): xếp việc cho cả danh sách, trả bản xem trước |
+| Phương thức | Đường dẫn | Việc | Trạng thái |
+|---|---|---|---|
+| GET | `/api/cards/:cardId/assignment-suggestions` | Lớp 1: xếp hạng ứng viên cho một thẻ, trả kèm bằng chứng và `runId` | **bước 5** |
+| POST | `/api/assignment/runs/:runId/outcome` | Ghi người thực sự được chọn (nuôi mức 1 và mức 2) | **bước 5** (chỉ ghi nhận) |
+| GET / PUT / DELETE | `/api/workspaces/:workspaceId/assignment-weights` | Xem, chỉnh ba thanh trượt, đặt lại mặc định | **bước 5** |
+| POST | `/api/lists/:listId/assignment-plan` | Lớp 2 (bước 8): xếp việc cho cả danh sách, trả bản xem trước | chưa làm |
 
-Phân quyền: chỉ thành viên của bảng mới gọi được; chỉ ADMIN/OWNER của không gian
-làm việc mới sửa được trọng số. Vai trò VIEWER không được gọi.
+Phân quyền: chỉ người **sửa được thẻ** mới gọi được gợi ý (đúng hàm `assertCardAccess` của thao
+tác sửa thẻ → VIEWER và người ngoài bảng bị chặn); chỉ OWNER/ADMIN của không gian làm việc mới sửa
+được trọng số (mọi thành viên không gian xem được). Lượt gợi ý chỉ chính người bấm mới ghi được kết
+quả.
+
+### 10.1 Cấu trúc mã (bước 5)
+
+```
+assign.repo.ts      chỉ đọc/ghi Prisma, không logic tính điểm
+assign.snapshot.ts  hàm thuần: dòng CSDL -> { idf, mu, ứng viên }  (cùng hình dạng snapshotAsOf của bộ mô phỏng)
+assign.score.ts     bộ chấm (bước 4/4b), KHÔNG sửa
+assign.service.ts   nối các tầng + quyền + che riêng tư + nhật ký AssignRun
+assign.weights.ts   hằng số + kiểm tra ba trọng số (hàm thuần; bước 6 dùng lại cho bộ học)
+assign.schema.ts / assign.controller.ts / assign.routes.ts   zod, Express
+```
+
+Vì sao có `assign.snapshot.ts` riêng: mọi quy tắc "thẻ nào là lịch sử, thẻ nào đang mở" nằm ở **một
+hàm thuần** thay vì rải trong truy vấn Prisma, nên test được không cần CSDL và **đối chiếu được tận
+từng con số** với đường bộ nhớ của bước 4b (`assign.equivalence.test.ts`).
+
+### 10.2 Luồng `GET .../assignment-suggestions`
+
+1. `assertCardAccess` → 404 (thẻ/bảng không có hoặc đã lưu trữ) hoặc 403 (VIEWER, người ngoài bảng).
+2. **Ứng viên** = chủ bảng + thành viên bảng không phải VIEWER + (bảng ở mức WORKSPACE) chủ và thành
+   viên không gian; bỏ người đã bị gỡ và tài khoản đã xoá. Khớp **đúng** `isBoardParticipant` (có
+   test đối chiếu) — nếu không, gợi ý ra người mà bấm "giao" lại bị `addCardMember` từ chối 400.
+3. Đọc dữ liệu của **không gian làm việc chứa thẻ** (không đọc chéo không gian): mọi thẻ chưa xoá,
+   các liên kết thẻ–người của ứng viên, các thẻ từng bị mở lại (`card.undone`), `MemberWorkProfile`,
+   `WorkspaceAssignWeights`, tập bảng mà **người hỏi** xem được.
+4. `buildSnapshot()` → `rankCandidates()` (chuẩn hoá `MINMAX`, thiếu dữ liệu `DROP` — hai lựa chọn
+   được ghi cứng trong `assign.service.ts` và nằm trong `algorithmVersion`, không dựa vào mặc định
+   của bộ chấm).
+5. Che tiêu đề bằng chứng (§10.4), ghi **một** dòng `AssignRun`, trả JSON. Không có ứng viên nào →
+   `runId = null`, không ghi nhật ký.
+
+**Quy tắc "tại thời điểm `now`"** (`assign.snapshot.ts`; `now` là tham số, mặc định bây giờ):
+
+| Đối tượng | Quy tắc |
+|---|---|
+| Kho ngữ liệu IDF | mọi thẻ **đã có** lúc `now` (`createdAt <= now`), kể cả thẻ đã xong, đã lưu trữ, không ai nhận |
+| Lịch sử của người | thẻ họ được gán (đã có lúc `now`), `isDone`, `completedAt <= now`; **kể cả bảng/danh sách/thẻ đã lưu trữ** (chính là "dự án cũ") |
+| Thẻ đang mở của người | chưa xong, **hoặc xong sau `now`**; thẻ/danh sách/bảng đã lưu trữ **không** chiếm tải |
+| Thẻ đang chấm | không bao giờ nằm trong lịch sử hay thẻ đang mở của ai |
+| Bị loại hẳn | thẻ, danh sách, bảng đã **xoá** (`deletedAt`); mọi thứ ở không gian khác |
+| Dòng hỏng | ngày không hợp lệ, sức chứa không phải số nguyên ≥ 1, `isDone` mà không có `completedAt` → bị bỏ, không ném lỗi |
+
+### 10.3 Dạng trả về
+
+```jsonc
+{ "success": true, "data": {
+  "runId": "…", "card": { "id", "title", "boardId", "workspaceId" },
+  "algorithmVersion": "knn-tfidf-v1/minmax/drop", "generatedAt": "…",
+  "weights": { "experience": 0.45, "reliability": 0.3, "availability": 0.25, "custom": false },
+  "groupOnTimeRate": 0.62,            // muy của nhóm, null nếu chưa thẻ nào có hạn
+  "candidateCount": 6,
+  "candidates": [{
+    "rank": 1, "user": { "id", "name", "avatarUrl" },            // KHÔNG có email
+    "score": 78.4,                    // TƯƠNG ĐỐI trong nhóm ứng viên của thẻ này, 0–100; null = không dữ liệu
+    "rawScore": 61.2,                 // điểm thô §5.7 nguyên văn
+    "confidence": 0.62, "confidenceLevel": "GOOD",
+    "components": { "experience": { "value", "weight", "scaled", "share" }, "reliability": {…}, "availability": {…} },
+    "fit": 0.71, "evidenceMass": 3.1, "load": 2, "capacity": 5, "flags": [],
+    "assigned": false,                // đã ở trong thẻ này rồi
+    "evidence": [{ "cardId", "title": "… hoặc null nếu bảng riêng tư", "sim", "weight", "outcome", "completedAt", "dueDate" }]
+  }] } }
+```
+
+Giao diện **phải** hiện các giá trị thô (`components.*.value`, `load/capacity`) cạnh điểm tương đối,
+vì `score` không so sánh được giữa hai thẻ (§5.9 mục 10).
+
+### 10.4 Riêng tư
+
+- **Che tiêu đề bằng chứng**: mỗi thẻ bằng chứng thuộc một bảng; nếu **người hỏi** không xem được bảng
+  đó (`readViewableBoardIds` — khớp `assertBoardView`, nhưng không loại bảng lưu trữ vì thành viên của
+  một dự án cũ vẫn có quyền xem nó) thì `title = null`. **Điểm và thứ hạng không đổi** — chỉ chữ bị che
+  (test: hai người hỏi khác nhau cho điểm y hệt, chỉ tiêu đề khác). Che theo hướng an toàn: không biết
+  thẻ thuộc bảng nào thì coi như không xem được.
+- **Nhật ký `AssignRun` không chép tiêu đề thẻ** (chỉ `cardId`, `sim`, `weight`, `outcome`): tránh nhân
+  bản nội dung có thể thuộc bảng riêng tư vào một bảng log.
+- Không trả email, mật khẩu, phiên bản token ở bất kỳ chỗ nào.
+- **Chưa đọc `MemberWorkProfile.allowCrossWorkspace`**: bật lên thì bằng chứng sẽ lộ tiêu đề thẻ của
+  không gian khác. Cột vẫn nằm đó cho bước sau; hiện mọi thứ đọc trong đúng một không gian.
+
+### 10.5 `POST .../runs/:runId/outcome`
+
+Body `{ "chosenUserId": "…" }`. Ghi **người thực sự được giao** sau một lượt gợi ý:
+
+- Luồng dự kiến của giao diện (bước 6): người dùng giao qua `POST /api/cards/:id/members` **rồi** gọi
+  outcome. Server **không tin lời khai**: người được chọn phải **đang có trong thẻ** (400 nếu không);
+  người gọi phải là người đã bấm gợi ý (lượt của người khác và lượt không tồn tại đều 404) và còn
+  quyền sửa thẻ (403 nếu bị hạ xuống VIEWER); thẻ đã bị xoá hẳn → 409.
+- **Ghi một lần**: gửi lại đúng người cũ → 200 với kết quả đã lưu; người khác → 409. Ghi bằng
+  `updateMany where decidedAt = null`, nên hai request cùng lúc không đè nhau.
+- `accepted = (chosenUserId === topUserId)`. Người được chọn **nằm ngoài danh sách ứng viên** (ví dụ
+  VIEWER được gán tay trước đó) vẫn ghi được nhưng `accepted = false`; bước 6 sẽ **không học** từ lượt
+  đó (chốt chặn 2 của §8).
+- **Bước 5 chỉ ghi nhận (mức 1)**: `learned` luôn `false`, không đụng tới trọng số.
+
+### 10.6 Trọng số của nhóm
+
+- `GET` → `{ workspaceId, weights, defaults, custom, feedbackCount, updatedAt }`; chưa từng chỉnh thì
+  trả mặc định và **không tạo dòng** nào (đọc không ghi).
+- `PUT` `{ experience, reliability, availability }`: mỗi số trong `[0,05; 0,70]`, tổng bằng 1 (sai số
+  1e-6); sai → **400 kèm lỗi từng trường, không tự sửa ngầm** (`assign.weights.ts` là nơi duy nhất
+  định nghĩa luật này; service kiểm lại một lần nữa làm rào chắn cuối). Đặt giống hệt giá trị hiện tại
+  → không ghi gì. Đổi thật → ghi trọng số **và một dòng `AssignWeightHistory`** (`runId = null`) trong
+  **cùng giao dịch**; `feedbackCount` giữ nguyên.
+- `DELETE` → về 0,45 / 0,30 / 0,25 **và đưa `feedbackCount` về 0** (quy tắc "đủ 10 lượt mới học" áp
+  dụng lại), ghi một dòng lịch sử. Không xoá dòng `WorkspaceAssignWeights` vì `AssignWeightHistory`
+  xoá theo (Cascade) và đường hội tụ sẽ mất.
+- Trọng số lưu hỏng trong CSDL (sửa tay) không làm hỏng gợi ý: lùi về mặc định, cảnh báo ở log; nhật
+  ký ghi trọng số **đã dùng thật**.
+
+### 10.7 Giới hạn tốc độ và nhật ký
+
+`GET` gợi ý **có ghi CSDL** (một dòng `AssignRun` mỗi lượt) và mỗi lượt đọc cả không gian, nên có giới
+hạn **60 lượt / người / 10 phút** (tính theo người dùng, sau `requireAuth`). `AssignRun` lưu: không
+gian, bảng, thẻ, người bấm (`actorKey`), `algorithmVersion`, bộ trọng số tại thời điểm chấm, ứng viên
+đã chấm (thành phần thô + chuẩn hoá + tỉ trọng, cờ, id bằng chứng), người xếp đầu (`null` nếu người
+đó không có điểm), và `latencyMs` (chỉ tính phần đọc + chấm, không tính lúc ghi nhật ký).
+
+### 10.8 Chưa làm (cố ý)
+
+Học trọng số (mức 2), giao diện, API sửa hồ sơ làm việc cá nhân (số thẻ song song, tạm nghỉ — để bước
+6 khi có chỗ để bấm), đọc chéo không gian, bộ nhớ đệm (đo độ trễ trước, xem nhật ký bước 5), lớp 2.
 
 ## 11. Module đánh giá (bước 7)
 
@@ -1070,3 +1195,96 @@ vào bắt được lỗi thứ tự phép cộng mà ca ví dụ không bao gi�
 Bước tiếp theo: **bước 5 — tầng đọc CSDL + API gợi ý cho một thẻ + ghi `AssignRun`** (§9–10). Đầu
 vào của API phải dựng đúng `ScoreContext` (IDF của không gian làm việc, `muy` từ `groupOnTimeRate`,
 trọng số của nhóm) và trả **cả giá trị thô lẫn điểm tương đối** cho giao diện.
+
+### Đã xong — Bước 5: API gợi ý phân công (20/09/2026)
+
+**Tệp mới** (`backend/src/modules/assign/`): `assign.repo.ts` (đọc/ghi Prisma, không logic) ·
+`assign.snapshot.ts` (**hàm thuần**: dòng CSDL → `{ idf, mu, ứng viên }`) · `assign.service.ts` ·
+`assign.weights.ts` (hằng số + luật ba trọng số, dùng chung với bước 6) · `assign.schema.ts` ·
+`assign.controller.ts` · `assign.routes.ts`. **Sửa**: `app.ts` (3 điểm gắn), `rateLimit.middleware.ts`
+(+`assignSuggestLimiter`), `test/helpers.ts` (+`makeDirectUser`). **Không đổi**: schema, migration,
+`assign.score.ts`, frontend, biến môi trường. Container backend bind-mount mã nguồn và chạy
+`tsx watch` nên **tự nạp lại**, không cần build lại.
+
+Đặc tả API, quy tắc "tại thời điểm `now`", che riêng tư, luật `outcome`/trọng số: **§10**.
+
+**Kiểm chứng — 4 tệp test mới, 76 ca:**
+
+| Tệp | Ca | Bảo đảm |
+|---|---|---|
+| `assign.weights.test.ts` | 10 | luật `[0,05; 0,70]`, tổng = 1 (biên, NaN/Infinity/chuỗi/thiếu, nhiều lỗi cùng lúc, 500 bộ ngẫu nhiên đối chiếu định nghĩa viết lại độc lập) |
+| `assign.snapshot.test.ts` | 25 | từng quy tắc lịch sử/đang mở/`now` (biên ±1ms), dòng hỏng, thẻ đang chấm, `muy`, kho IDF, **không phụ thuộc thứ tự** (25 lần xáo), không sửa đầu vào (đóng băng), và **đối chiếu với `snapshotAsOf`** trên bộ mô phỏng (~30 thẻ lúc giao + thẻ đang mở hôm nay) |
+| `assign.api.test.ts` | 39 | quyền (401/403/404), tập ứng viên **khớp `isBoardParticipant`** (ma trận 12 người × 2 mức hiển thị), điểm/cờ/tải/tạm nghỉ trên dữ liệu thật, không đọc chéo không gian, xoá vs lưu trữ, chống rò rỉ tương lai, riêng tư (che tiêu đề, không email, log không chứa tiêu đề, `readViewableBoardIds` khớp `assertBoardView`), `AssignRun`, trọng số (quyền, 400, lịch sử, đặt lại, gợi ý đổi theo trọng số), `outcome` (200/400/403/404/409, đua chạy), giới hạn tốc độ 429 |
+| `assign.equivalence.test.ts` | 2 | nạp bộ mô phỏng vào Postgres, chấm qua `suggestForCard`, so **từng điểm / thành phần / cờ / bằng chứng** với đường bộ nhớ của bước 4b: các thẻ đang mở hôm nay (12:00) và ~15 thẻ **phát lại quá khứ** — **khớp tuyệt đối** |
+
+**Cài lỗi: 103 phép, 101 bị bắt, 2 sót và cả hai là mutant tương đương** (mã nguyên vẹn từng byte
+sau mỗi nhóm). Lần chạy đầu 97/103 — **bốn lỗ hổng test thật** lộ ra và đã vá:
+- `R8/R9/R10`: bỏ điều kiện "chưa xoá" của thẻ / danh sách / bảng trong `readWorkspaceCards` **không
+  test nào thấy**. Lý do: lịch sử và tải đi qua `readMemberships` (cũng lọc "chưa xoá") nên hai tầng
+  cùng canh một việc; điều kiện ở `readWorkspaceCards` chỉ còn quyết định **kho IDF và `muy`** — thứ
+  mà không ca nào nhìn tới. Vá bằng ca "đã xoá là **vô hình**": thêm thẻ/danh sách/bảng đã xoá (kèm
+  thẻ đã xong trễ hạn) không được đổi **bất kỳ** con số nào của kết quả; và bỏ xoá thì kết quả phải
+  đổi (để phép so sánh không rỗng).
+- `C1`: bỏ giới hạn 100 ký tự của `chosenUserId` vẫn ra 400 (service từ chối "chưa ở trong thẻ") nên
+  ca cũ chỉ kiểm mã trạng thái. Vá: ca body sai phải có `errors[].field` (do **zod** từ chối), còn 100
+  ký tự thì phải lọt qua zod.
+- Hai mutant tương đương: `W14` (`> sai số` → `>= sai số` ở tổng trọng số: biên đúng bằng 1e-6 không
+  thể chạm trong số thực nhị phân vì `sum − 1` là bội của 2⁻⁵² còn 1e-6 thì không) và `V33` (service
+  truyền `targetCardId: null` vào ảnh chụp: bộ chấm tự loại thẻ đang xét khỏi lịch sử và tải theo
+  `card.id`, nên kết quả cuối không đổi; phía ảnh chụp đã có mutant `S8` bị bắt).
+
+**Độ trễ** (DB test, máy dev, 30 lượt; `latencyMs` ghi trong `AssignRun` khớp số đo ngoài 198 vs 203 ms):
+
+| Quy mô | p50 | p95 | Tách (trung vị) |
+|---|---|---|---|
+| 120 thẻ · 6 người · 5 bảng (mặc định) | 19 ms | 26 ms | đọc CSDL 6 · dựng ảnh chụp 3 · chấm 3 |
+| **3000 thẻ · 10 người · 20 bảng** (~258 KB chữ) | **203 ms** | 236 ms | đọc CSDL 38 · dựng ảnh chụp 79 · chấm 77 |
+
+Kết luận: ở quy mô "vài nghìn thẻ" của §2 **chưa cần bộ nhớ đệm** (giới hạn 60 lượt/10 phút/người
+còn chặn thêm). Nếu sau này cần, chỗ đắt là tách từ lại toàn bộ kho mỗi lượt (`countTerms` cho IDF +
+cho lịch sử từng ứng viên): đệm theo `(cardId, updatedAt)` là bước đầu tiên. Số này đo trên **dữ liệu
+mô phỏng** chứ không phải tải thật.
+
+**Quyết định đã báo trước (bạn duyệt "ok làm đi")**, kèm chỗ tôi chệch hoặc chưa nói rõ:
+1. Tải chỉ đếm thẻ **cùng không gian** (hệ quả: người ở nhiều nhóm trông rảnh hơn thực tế).
+2. Lịch sử gồm bảng/danh sách/thẻ **đã lưu trữ**; loại cái **đã xoá**.
+3. Che tiêu đề bằng chứng nếu người hỏi không xem được bảng gốc (điểm vẫn dùng).
+4. Chưa đọc `allowCrossWorkspace`.
+5. Người đã ở trong thẻ vẫn được chấm, `assigned: true`.
+6. `outcome` chỉ ghi nhận (mức 1); người được chọn phải đang ở trong thẻ.
+7. `PUT` kiểm tra chặt, không tự sửa; `DELETE` đặt lại và đưa `feedbackCount` về 0.
+8. Chưa có API sửa số thẻ song song / tạm nghỉ của cá nhân.
+9. Người mới vẫn `DROP`.
+- **Đính chính**: bản kế hoạch ghi "Express 5" — dự án dùng **Express 4.22** (`package.json`
+  `^4.21.2`). Không ảnh hưởng vì không dùng tính năng riêng nào của phiên bản 5.
+- **Chưa nói ở kế hoạch**: thẻ nằm trong **bảng đã lưu trữ** trả 404 khi xin gợi ý (đúng hành vi
+  `assertCardAccess` của mọi thao tác sửa thẻ), trong khi thẻ **cũ** ở bảng lưu trữ vẫn là bằng chứng;
+  trọng số lưu hỏng trong CSDL lùi về mặc định thay vì trả 500.
+
+**Giới hạn cần biết:**
+- `GET` gợi ý **có ghi CSDL** (mỗi lượt một dòng `AssignRun`, chỉ chặn bằng giới hạn tốc độ; bảng
+  không có chính sách dọn).
+- Thẻ có nhiều thành viên: **mỗi người** đều được ghi công vào lịch sử; một người được thêm vào thẻ
+  **sau khi xong** vẫn được ghi công (đơn giản hoá, chưa lọc theo `CardMember.createdAt <= completedAt`).
+- Nhánh `topUserId = null` (người xếp đầu không có điểm) chưa có ca tự nhiên để kiểm — mutant tương
+  ứng không được đưa vào bộ cài lỗi.
+- Đúng-hạn dựa trên `dueDate` thật: ô ngày trong `CardModal` từng **lệch múi giờ** (hiển thị UTC, lưu
+  giờ máy → lùi 7 giờ mỗi lần bấm Lưu; phiên riêng đang sửa). Hạn chót cũ trong dữ liệu thật có thể đã
+  lệch, làm sai thống kê "đúng hạn" cho tới khi được nhập lại.
+- Số đo độ trễ là trên dữ liệu mô phỏng, một máy.
+
+**Suite**: backend **60 tệp / 505 test xanh** (trước bước này: 56 / 429), chạy toàn bộ ~380 giây.
+`tsc` và `eslint src` sạch.
+
+**Bài học**: (1) **hai tầng cùng canh một việc thì mỗi tầng phải có một ca chỉ nó canh** — mutant
+R8–R10 sống sót vì ca "thẻ đã xoá không hiện trong bằng chứng" đúng nhưng chưa từng nhìn `muy` và IDF,
+hai thứ chỉ tầng đọc thẻ quyết định. (2) Phép **đối chiếu hai đường** (CSDL vs bộ nhớ) tốn ít mà có
+giá trị nhất: không cần đoán trước lỗi nào, chỉ cần hai nơi phải cho cùng con số. (3) `registerLimiter`
+chỉ cho 10 lần đăng ký/giờ **mỗi tệp test** nên tệp cần nhiều tài khoản phải tạo người dùng thẳng vào
+CSDL (`makeDirectUser`) — ghi vào helper để lần sau khỏi vấp. (4) Chạy cài lỗi dài phải chia theo nhóm
+và luôn kiểm nguyên vẹn mã bằng chạy khô (mọi regex phải khớp đúng một chỗ) sau khi xong.
+
+Bước tiếp theo: **bước 6 — giao diện lớp 1**: nút gợi ý trong thẻ (xếp hạng, lý do, cảnh báo khi gán
+tay), thanh trượt trọng số, gọi `outcome` sau khi giao, và **học trọng số mức 2** (bộ học dùng lại
+`assign.weights.ts`; điều kiện `learned`, ≥ 10 lượt, ứng viên đủ ba thành phần — §8). Cần quyết định
+trước: có làm API sửa hồ sơ làm việc cá nhân (số thẻ song song, tạm nghỉ) cùng lúc không.
