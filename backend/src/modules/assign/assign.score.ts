@@ -10,7 +10,10 @@
 //   reliability  "lam nhung viec giong the nay co dung han khong" - tinh tren DUNG cac the do,
 //                co ve trung binh nhom (lam tron kieu Bayes) de 1 the dung han khong thanh 100%.
 //   availability "co ranh khong" - so the dang mo chong lan khoang thoi gian cua the moi.
-// Diem tong chi cong cac thanh phan CO DU LIEU (chia lai theo tong trong so cua chung).
+// Diem tong chi cong cac thanh phan CO DU LIEU (chia lai theo tong trong so cua chung). Khi XEP HANG, moi
+// thanh phan duoc CHUAN HOA trong nhom ung vien cua the do truoc khi cong (phuong an A, ASSIGN_MODULE.md
+// nhat ky buoc 4b): ba thanh phan khong cung thang nen cong tho thi trong so danh nghia khong phai anh huong
+// thuc te.
 //
 // CAC CHO TAI LIEU §5.4-5.7 DE HO, DA CHOT (ghi o day de truy vet):
 //  1. The moi thieu ngay: khong co ca hai -> cua so [now, now+14 ngay]; chi co han -> [min(now,han), han];
@@ -179,6 +182,25 @@ export interface CandidateInput {
   pausedUntil?: Date | null;
 }
 
+/**
+ * Cach dua ba thanh phan ve CUNG THANG truoc khi cong (chi ap dung khi XEP HANG nhieu ung vien):
+ *  - 'MINMAX' (mac dinh, phuong an A): tren TUNG thanh phan, trong tap ung vien cua the nay, nguoi thap
+ *    nhat = 0, cao nhat = 1. Trong so tro thanh TAM QUAN TRONG TUONG DOI. Neu moi ung vien bang nhau
+ *    (khong phan biet duoc) thi ca nhom = 0,5.
+ *  - 'NONE': cong thang gia tri tho (§5.7 nguyen van). Khi do anh huong THUC TE cua mot thanh phan ~
+ *    trong so x do phan tan cua no giua cac ung vien - khong phai chi trong so (xem ASSIGN_MODULE.md).
+ */
+export type Normalization = 'MINMAX' | 'NONE';
+
+/**
+ * Thanh phan THIEU du lieu (vd nguoi chua co lich su khong co kinh nghiem / tin cay) tinh the nao:
+ *  - 'DROP' (mac dinh, nguyen tac 4): bo thanh phan do, chia lai theo trong so cac thanh phan con lai.
+ *  - 'NEUTRAL': thay bang TRUNG BINH cua nhung nguoi co du lieu ("chua biet = trung binh nhom").
+ * Tren du lieu mo phong hai cach cho do chinh xac nhu nhau; khac nhau o CHO NGUOI MOI: DROP van cho ho
+ * dung dau o ~3% so the (gap ~2 lan ti le ung vien), NEUTRAL gan nhu khong bao gio (~0,1%).
+ */
+export type MissingPolicy = 'DROP' | 'NEUTRAL';
+
 export interface ScoreContext {
   /** IDF cua kho ngu lieu (the cua khong gian lam viec) - dung CHUNG cho the moi va ho so. */
   idf: Idf;
@@ -187,6 +209,10 @@ export interface ScoreContext {
   groupOnTimeRate: number | null;
   weights?: Weights;
   params?: Partial<ScoreParams>;
+  /** Chi co tac dung o rankCandidates (scoreCandidate cham mot nguoi nen khong co "nhom" de chuan hoa). Mac dinh 'MINMAX'. */
+  normalize?: Normalization;
+  /** Chi co tac dung o rankCandidates. Mac dinh 'DROP'. */
+  missing?: MissingPolicy;
 }
 
 export interface EvidenceItem {
@@ -205,18 +231,28 @@ export type Flag = 'NO_HISTORY' | 'NO_SIMILAR' | 'OVERLOADED' | 'PAUSED' | 'NO_D
 export type ConfidenceLevel = 'THIN' | 'FAIR' | 'GOOD';
 
 export interface ComponentScore {
-  /** [0,1]; null = khong co du lieu. */
+  /** Gia tri THO trong [0,1] - cai nguoi dung thay ("kha dung 60%"); null = khong co du lieu. */
   value: number | null;
   /** Trong so cau hinh. */
   weight: number;
-  /** Ti trong THUC SU trong diem tong (weight / tong trong so cac thanh phan co du lieu); 0 neu khong co du lieu. */
+  /**
+   * Gia tri DUNG DE CONG vao diem tong: bang `value` khi khong chuan hoa (scoreCandidate, hoac 'NONE'),
+   * hoac da chuan hoa trong nhom (rankCandidates + 'MINMAX'). Voi 'NEUTRAL' co the co gia tri du `value` = null.
+   */
+  scaled: number | null;
+  /** Ti trong THUC SU trong diem tong (weight / tong trong so cac thanh phan co `scaled`); 0 neu khong co. */
   share: number;
 }
 
 export interface CandidateScore {
   userId: string;
-  /** 0..100, hoac null khi khong thanh phan nao co du lieu (co NO_DATA). */
+  /**
+   * 0..100, hoac null khi khong thanh phan nao co du lieu (co NO_DATA). Khi xep hang voi 'MINMAX' day la diem
+   * TUONG DOI trong nhom ("100 = tot nhat nhom o moi thanh phan co trong so"), khong phai diem tuyet doi.
+   */
   score: number | null;
+  /** Diem THO theo §5.7 nguyen van (cong gia tri tho, bo thanh phan thieu) - khong doi theo chuan hoa. */
+  rawScore: number | null;
   /** evidenceMass / (evidenceMass + confidenceScale), trong [0,1). */
   confidence: number;
   confidenceLevel: ConfidenceLevel;
@@ -298,6 +334,8 @@ interface Resolved {
   mu: number | null;
   weights: Weights;
   params: ScoreParams;
+  normalize: Normalization;
+  missing: MissingPolicy;
 }
 
 function resolveContext(ctx: ScoreContext): Resolved {
@@ -305,6 +343,10 @@ function resolveContext(ctx: ScoreContext): Resolved {
   if (ctx.groupOnTimeRate !== null && !(ctx.groupOnTimeRate >= 0 && ctx.groupOnTimeRate <= 1)) {
     throw new RangeError('groupOnTimeRate phai trong [0,1] hoac null');
   }
+  const normalize = ctx.normalize ?? 'MINMAX';
+  if (normalize !== 'MINMAX' && normalize !== 'NONE') throw new RangeError(`normalize khong hop le: ${String(normalize)}`);
+  const missing = ctx.missing ?? 'DROP';
+  if (missing !== 'DROP' && missing !== 'NEUTRAL') throw new RangeError(`missing khong hop le: ${String(missing)}`);
   return {
     now: ctx.now,
     nowMs: ctx.now.getTime(),
@@ -312,11 +354,36 @@ function resolveContext(ctx: ScoreContext): Resolved {
     mu: ctx.groupOnTimeRate,
     weights: resolveWeights(ctx.weights),
     params: resolveParams(ctx.params),
+    normalize,
+    missing,
   };
 }
 
 const cmpStr = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+
+const COMPONENT_KEYS = ['experience', 'reliability', 'availability'] as const;
+
+/**
+ * §5.7: 100 x tong(w.gia_tri) / tong(w) tren cac thanh phan CO gia tri. Tra ve diem (null neu tong trong so = 0)
+ * va ti trong thuc te cua tung thanh phan.
+ */
+function combine(
+  values: readonly (number | null)[],
+  weights: readonly number[]
+): { score: number | null; shares: number[] } {
+  let num = 0;
+  let den = 0;
+  values.forEach((v, i) => {
+    if (v === null) return;
+    num += weights[i]! * v;
+    den += weights[i]!;
+  });
+  return {
+    score: den > 0 ? Math.min(100, Math.max(0, (100 * num) / den)) : null,
+    shares: values.map((v, i) => (v !== null && den > 0 ? weights[i]! / den : 0)),
+  };
+}
 
 function scoreOne(card: ScoreCard, qvec: SparseVector, cand: CandidateInput, r: Resolved): CandidateScore {
   const { params: p, weights: w } = r;
@@ -388,23 +455,13 @@ function scoreOne(card: ScoreCard, qvec: SparseVector, cand: CandidateInput, r: 
   const availability = paused ? 0 : clamp01(1 - load / capacity);
 
   // ---- Tong hop (§5.7): chi cong thanh phan CO du lieu ----
-  const parts = [
-    { key: 'experience' as const, value: experience, weight: w.experience },
-    { key: 'reliability' as const, value: reliability, weight: w.reliability },
-    { key: 'availability' as const, value: availability, weight: w.availability },
-  ];
-  let num = 0;
-  let den = 0;
-  for (const c of parts) {
-    if (c.value === null) continue;
-    num += c.weight * c.value;
-    den += c.weight;
-  }
-  const score = den > 0 ? Math.min(100, Math.max(0, (100 * num) / den)) : null;
-  const component = (c: (typeof parts)[number]): ComponentScore => ({
-    value: c.value,
-    weight: c.weight,
-    share: c.value !== null && den > 0 ? c.weight / den : 0,
+  const values = [experience, reliability, availability];
+  const { score, shares } = combine(values, [w.experience, w.reliability, w.availability]);
+  const component = (i: number): ComponentScore => ({
+    value: values[i]!,
+    weight: [w.experience, w.reliability, w.availability][i]!,
+    scaled: values[i]!, // scoreCandidate khong chuan hoa; rankCandidates co the doi
+    share: shares[i]!,
   });
 
   const flags: Flag[] = [];
@@ -418,12 +475,13 @@ function scoreOne(card: ScoreCard, qvec: SparseVector, cand: CandidateInput, r: 
   return {
     userId: cand.userId,
     score,
+    rawScore: score,
     confidence,
     confidenceLevel: confidenceLevelOf(confidence),
     components: {
-      experience: component(parts[0]!),
-      reliability: component(parts[1]!),
-      availability: component(parts[2]!),
+      experience: component(0),
+      reliability: component(1),
+      availability: component(2),
     },
     evidence,
     evidenceMass,
@@ -434,16 +492,69 @@ function scoreOne(card: ScoreCard, qvec: SparseVector, cand: CandidateInput, r: 
   };
 }
 
-/** Cham MOT ung vien cho mot the. */
+/** Chuan hoa MOT cot (mot thanh phan, moi ung vien). null = khong co du lieu (giu nguyen tru khi 'NEUTRAL'). */
+function scaleColumn(
+  values: readonly (number | null)[],
+  mode: Normalization,
+  missing: MissingPolicy
+): (number | null)[] {
+  const present = values.filter((v): v is number => v !== null);
+  let scaled: (number | null)[] = [...values];
+  if (mode === 'MINMAX' && present.length > 0) {
+    const lo = Math.min(...present);
+    const hi = Math.max(...present);
+    // Moi nguoi bang nhau -> khong phan biet duoc -> trung tinh 0,5 (khong lam doi thu tu)
+    scaled = values.map((v) => (v === null ? null : hi > lo ? (v - lo) / (hi - lo) : 0.5));
+  }
+  if (missing === 'NEUTRAL' && present.length > 0) {
+    // Cong theo thu tu TANG DAN: phep cong so thuc khong giao hoan tuyet doi, cong theo thu tu ung vien dau vao
+    // se lam diem lech o chu so cuoi khi doi thu tu dau vao -> hai diem sat nhau co the doi hang.
+    const known = scaled.filter((v): v is number => v !== null).sort((a, b) => a - b);
+    const mean = known.reduce((a, b) => a + b, 0) / known.length;
+    scaled = scaled.map((v) => (v === null ? mean : v));
+  }
+  return scaled;
+}
+
+/** Tinh lai `scaled`, ti trong, diem va co NO_DATA cua ca nhom sau khi chuan hoa tung thanh phan. */
+function applyScaling(scored: CandidateScore[], r: Resolved): CandidateScore[] {
+  if (r.normalize === 'NONE' && r.missing === 'DROP') return scored; // = ket qua tho cua scoreOne
+  const weights = [r.weights.experience, r.weights.reliability, r.weights.availability];
+  const cols = COMPONENT_KEYS.map((k) => scaleColumn(scored.map((s) => s.components[k].value), r.normalize, r.missing));
+  return scored.map((s, i) => {
+    const vals = cols.map((c) => c[i]!);
+    const { score, shares } = combine(vals, weights);
+    const withScaled = (k: (typeof COMPONENT_KEYS)[number], j: number): ComponentScore => ({
+      ...s.components[k],
+      scaled: vals[j]!,
+      share: shares[j]!,
+    });
+    const flags: Flag[] = s.flags.filter((f) => f !== 'NO_DATA');
+    if (score === null) flags.push('NO_DATA');
+    return {
+      ...s,
+      score,
+      flags,
+      components: {
+        experience: withScaled('experience', 0),
+        reliability: withScaled('reliability', 1),
+        availability: withScaled('availability', 2),
+      },
+    };
+  });
+}
+
+/** Cham MOT ung vien cho mot the (khong chuan hoa: khong co "nhom" de so sanh). */
 export function scoreCandidate(card: ScoreCard, candidate: CandidateInput, ctx: ScoreContext): CandidateScore {
   const r = resolveContext(ctx);
   return scoreOne(card, vectorize(countTerms(card), r.idf), candidate, r);
 }
 
 /**
- * Xep hang cac ung vien cho mot the: diem giam dan; khong co diem (null) xuong cuoi; hoa thi do tin
- * cay cao hon truoc, roi userId (tat dinh, khong phu thuoc thu tu dau vao). Tra ve mang moi, khong
- * sua dau vao.
+ * Xep hang cac ung vien cho mot the. Truoc khi cong, tung thanh phan duoc chuan hoa TRONG NHOM ung vien nay
+ * (ctx.normalize, mac dinh 'MINMAX') de trong so la tam quan trong TUONG DOI chu khong bi do phan tan cua
+ * thanh phan quyet dinh. Diem giam dan; khong co diem (null) xuong cuoi; hoa thi do tin cay cao hon truoc,
+ * roi userId (tat dinh, khong phu thuoc thu tu dau vao). Tra ve mang moi, khong sua dau vao.
  */
 export function rankCandidates(
   card: ScoreCard,
@@ -457,7 +568,10 @@ export function rankCandidates(
     seen.add(c.userId);
   }
   const qvec = vectorize(countTerms(card), r.idf);
-  const scored = candidates.map((c) => scoreOne(card, qvec, c, r));
+  const scored = applyScaling(
+    candidates.map((c) => scoreOne(card, qvec, c, r)),
+    r
+  );
   scored.sort((a, b) => {
     if (a.score === null && b.score !== null) return 1;
     if (b.score === null && a.score !== null) return -1;

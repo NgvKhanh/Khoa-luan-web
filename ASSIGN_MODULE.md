@@ -1,10 +1,11 @@
 # Module Gợi ý phân công công việc (cá nhân hoá từ lịch sử)
 
-> **Trạng thái: xong bước 0–4** — thiết kế đã chốt; nền dữ liệu, bộ dữ liệu mô
-> phỏng, bộ tách từ + TF-IDF + hồ sơ người, **bộ chấm cặp (việc, người)** đã có
-> và chạy được trên dữ liệu mô phỏng. Chưa có API/giao diện (bước 5–6), chưa
-> có đánh giá chính thức (bước 7). **Đọc nhật ký bước 4 trước khi làm bước 5–7:
-> trọng số danh nghĩa không phải ảnh hưởng thực tế.**
+> **Trạng thái: xong bước 0–4 (kể cả 4b)** — thiết kế đã chốt; nền dữ liệu, bộ dữ
+> liệu mô phỏng, bộ tách từ + TF-IDF + hồ sơ người, **bộ chấm cặp (việc, người)**
+> đã có, chạy được trên dữ liệu mô phỏng và **đã chuẩn hoá thành phần trong nhóm
+> ứng viên (phương án A)** để trọng số có nghĩa. Chưa có API/giao diện (bước 5–6),
+> chưa có đánh giá chính thức (bước 7). Còn treo: chính sách cho **người chưa có
+> lịch sử** (DROP hay NEUTRAL — nhật ký bước 4b).
 > Tài liệu này là hợp đồng thiết kế; mỗi bước xong sẽ thêm một mục
 > "Đã xong — Bước N" ở cuối file, giống cách `AI_MODULE.md` ghi nhật ký.
 >
@@ -195,10 +196,14 @@ thành phần này báo **không có dữ liệu** (xem nguyên tắc 4).
 - `confidence = evidence / (evidence + 3)`, chia ba mức hiển thị:
   dưới 0.25 = "dữ liệu mỏng", dưới 0.6 = "vừa đủ", còn lại = "đủ".
 
-> **Cảnh báo (phát hiện ở bước 4, chưa xử lý):** ba thành phần **không cùng thang**.
-> Trên cùng một thẻ, khả dụng trải rộng gấp ~5 lần kinh nghiệm và ~9 lần tin cậy, nên
-> với trọng số 0,45 / 0,30 / 0,25 thì khả dụng quyết định ~2/3 thứ tự xếp hạng. Xem
-> "Phát hiện thiết kế" trong nhật ký bước 4.
+> **Xếp hạng có chuẩn hoá (đã xử lý ở bước 4b):** ba thành phần **không cùng thang** —
+> trên cùng một thẻ, khả dụng trải rộng gấp ~5 lần kinh nghiệm và ~9 lần tin cậy, nên
+> cộng thô thì trọng số 0,45 / 0,30 / 0,25 thực ra cho ảnh hưởng 23% / 9% / 67%. Vì vậy
+> khi **xếp hạng** (`rankCandidates`), mỗi thành phần được **chuẩn hoá min-max trong nhóm
+> ứng viên của thẻ đó** trước khi cộng (người thấp nhất nhóm = 0, cao nhất = 1; cả nhóm
+> bằng nhau = 0,5). Nhờ đó trọng số là tầm quan trọng *tương đối* (ảnh hưởng thực tế
+> 45% / 29% / 25%). Hệ quả: `score` của lúc xếp hạng là **điểm tương đối trong nhóm**;
+> điểm thô §5.7 nguyên văn vẫn có ở `rawScore`. Chi tiết và số đo: nhật ký bước 4b.
 
 ### 5.8 Bảng tham số (đều sẽ được quét ở bước 7, không chọn bừa)
 
@@ -216,6 +221,8 @@ thành phần này báo **không có dữ liệu** (xem nguyên tắc 4).
 | `MAX_TEXT_CHARS` / `MAX_TOKEN_CHARS` | Số ký tự đọc tối đa mỗi trường / độ dài token tối đa (tối thiểu 2) | 4000 / 30 |
 | `confidenceScale` | Mẫu số của `confidence = e / (e + c)` | 3 |
 | `defaultWindowDays` | Độ dài cửa sổ mặc định khi thẻ mới thiếu ngày | 14 ngày |
+| `normalize` | Cách đưa ba thành phần về cùng thang khi xếp hạng: `MINMAX` / `NONE` (cộng thô) | `MINMAX` |
+| `missing` | Thành phần thiếu dữ liệu: `DROP` (bỏ, nguyên tắc 4) / `NEUTRAL` (thay bằng trung bình nhóm) | `DROP` |
 
 ### 5.9 Các chỗ §5.4–5.7 để hở, đã chốt ở bước 4 (`assign.score.ts`)
 
@@ -239,6 +246,21 @@ thành phần này báo **không có dữ liệu** (xem nguyên tắc 4).
    phồng `evidence` mà không mang thông tin).
 7. **Hoà điểm khi xếp hạng**: điểm cao hơn trước; không có điểm (`null`) xuống cuối; hoà
    thì độ tin cậy cao hơn trước; rồi `userId`. Kết quả không phụ thuộc thứ tự đầu vào.
+8. **Chuẩn hoá (bước 4b)**: chỉ ở `rankCandidates` (cần "nhóm" để so). Tính riêng cho từng
+   thành phần, trên những ứng viên **có** thành phần đó: `(v − min) / (max − min)`; nếu
+   `max = min` (cả nhóm bằng nhau, hoặc chỉ một người có) → **0,5**. Giá trị thô `value`
+   không đổi; giá trị dùng để cộng là `scaled`; `rawScore` là điểm thô §5.7 nguyên văn.
+   `scoreCandidate` (chấm một người) không chuẩn hoá và bỏ qua hai tuỳ chọn.
+9. **Thiếu dữ liệu khi xếp hạng**: `DROP` (mặc định, nguyên tắc 4) bỏ thành phần thiếu và
+   chia lại theo trọng số còn lại; `NEUTRAL` thay bằng **trung bình** giá trị chuẩn hoá của
+   những người có dữ liệu (không ai có → vẫn bỏ). `value` luôn giữ `null` để giao diện hiện
+   "chưa có dữ liệu"; `share` phản ánh phần đóng góp thực sự.
+10. **Ý nghĩa của `score`**: là điểm **tương đối trong nhóm cho đúng thẻ này**. Không so sánh
+    được giữa hai thẻ hay hai nhóm; một nhóm chỉ có một người thì luôn 50. Giao diện phải hiện
+    các giá trị **thô** (kinh nghiệm/tin cậy/khả dụng) để người dùng hiểu ý nghĩa tuyệt đối.
+11. **Tất định tuyệt đối**: trung bình dùng cho `NEUTRAL` được cộng theo thứ tự tăng dần, vì
+    phép cộng số thực không giao hoán — cộng theo thứ tự ứng viên đầu vào làm điểm lệch ở chữ
+    số cuối khi đổi thứ tự, đủ để hai điểm sát nhau đổi hạng.
 
 ## 6. Cá nhân hoá nằm ở đâu — bốn chỗ
 
@@ -401,11 +423,16 @@ Bốn nhánh giữa vừa là nhánh nền vừa là **nghiên cứu cắt bỏ*
 | Hệ số Gini | Mức độ dồn việc vào một người |
 | (mức 2) Đường hội tụ | Khoảng cách từ trọng số học được tới thiên lệch thật của trưởng nhóm mô phỏng |
 
-> **Ghi chú từ bước 4:** Top-1 / MRR / độ hối tiếc chỉ tính **kỹ năng ẩn**, không tính tải,
-> trong khi bộ chấm cố ý cân bằng tải. Thành phần khả dụng vì thế **không thể thắng** trên
-> các chỉ số này (nó gần như không liên quan tới kỹ năng: tương quan −0,05), dù có thể có
-> ích cho kết quả (đúng hạn, Gini). Bước 7 phải đo cả **tỉ lệ đúng hạn mô phỏng** và Gini
-> cạnh Top-1, và báo cáo từng thành phần riêng thay vì chỉ điểm tổng.
+> **Ghi chú từ bước 4 / 4b:** Top-1 / MRR / độ hối tiếc chỉ tính **kỹ năng ẩn**, không tính tải,
+> trong khi bộ chấm cố ý cân bằng tải, nên thành phần khả dụng **không thể thắng** trên các
+> chỉ số này (tương quan với kỹ năng chỉ −0,05). Vì vậy đã có sẵn trong `replay()` (và
+> `npm run assign:suggest`) chỉ số **xác suất đúng hạn kỳ vọng** `pOnTime*`, tính bằng chính
+> mô hình kết quả của bộ sinh (`onTimeProbability`, có xét tải). Trên dữ liệu mô phỏng
+> khả dụng đứng một mình cho 0,418 (hơn ngẫu nhiên 0,387, thấp xa kinh nghiệm 0,472); thêm nó
+> (đã chuẩn hoá) vào kinh nghiệm + tin cậy thì giữ nguyên 0,484 — tức phạt tải trong mô phỏng quá
+> nhẹ (0,06/thẻ vượt nửa sức chứa) để khả dụng tạo khác biệt. Bước 7 phải đo cả **đúng hạn**
+> và **Gini** cạnh Top-1, quét mức phạt tải của bộ sinh, và báo cáo từng thành phần riêng
+> thay vì chỉ điểm tổng.
 
 ### Hai thứ module AI chưa làm được, lần này làm
 
@@ -965,5 +992,81 @@ ghi vào tài liệu — lần này nó đúng một phần ít và bỏ sót c�
 `sort` cần được thử với mọi hoán vị. (4) Đo thời gian trước khi tối ưu: nút thắt là một hàm
 tưởng rẻ (`Intl`), không phải thuật toán.
 
-Bước tiếp theo: **bước 5 — tầng đọc CSDL + API gợi ý cho một thẻ + ghi `AssignRun`** (§9–10).
-Cần chốt phương án A/B/C/D ở trên trước, vì kết quả API và thanh trượt trọng số phụ thuộc vào đó.
+*(Cập nhật: bạn đã chọn phương án A; hiện thực và số đo ở nhật ký bước 4b ngay dưới. Các
+con số 26,0% / 23-9-67% ở trên là của bản **cộng thô**, giữ nguyên làm hồ sơ chẩn đoán.)*
+
+### Đã xong — Bước 4b: chuẩn hoá trong nhóm ứng viên — phương án A (20/09/2026)
+
+**Quyết định**: bạn chọn phương án A (chuẩn hoá từng thành phần trong tập ứng viên của thẻ).
+Trước khi sửa mã tôi thử **ở ngoài sản phẩm** trên giá trị thô mà `rankCandidates` đã trả về (tệp
+tạm, không commit) để chọn biến thể bằng số đo: min-max 36,0% · z-score 35,8% · xếp hạng phần
+trăm 34,7% (top-1, 723 tình huống) → chọn **min-max** (đơn giản nhất, có cận [0,1], dễ giải
+thích). Ba cách ngang nhau nên không cần cách phức tạp hơn.
+
+**Tệp**: `assign.score.ts` (thêm `normalize`, `missing`, `ComponentScore.scaled`,
+`CandidateScore.rawScore`; tách hàm `combine`, `scaleColumn`, `applyScaling`) · `simGenerator.ts`
+(xuất `onTimeProbability`, dùng chung với phép phát lại) · `simReplay.ts` (tuỳ chọn chuẩn hoá,
+chỉ số `pOnTime*`, `scaledSd`) · `showSuggestions.ts` (bảng so sánh) · `test/assign.normalize.test.ts`
+(10 ca mới) · 1 ca mới ở `assign.sim.test.ts`. Quyết định thiết kế ghi ở §5.9 mục 8–11.
+
+**Kết quả (7 hạt giống, 723 tình huống, `npm run assign:suggest`) — vẫn KHÔNG phải đánh giá:**
+
+| Cách xếp hạng | top-1 | hối tiếc | người chưa có LS đứng đầu | P(đúng hạn) kỳ vọng |
+|---|---|---|---|---|
+| cộng thô (NONE / DROP) — bản trước | 26,0% | 0,237 | 8,0% | 0,444 |
+| **MINMAX / DROP — mặc định mới** | **35,9%** | **0,170** | 3,3% | **0,484** |
+| MINMAX / NEUTRAL | 36,2% | 0,169 | 0,1% | 0,485 |
+| *(tham chiếu)* phân công thật trong lịch sử | 45,4% | 0,131 | | 0,506 |
+| *(tham chiếu)* ngẫu nhiên | 19,5% | 0,301 | | 0,387 |
+| *(tham chiếu)* người có kỹ năng cao nhất / tối ưu | | | | 0,594 / 0,601 |
+
+- Top-1 từng hạt giống, thô → chuẩn hoá: 27→43 · 33→50 · 29→38 · 23→29 · 18→28 · 25→34 · 26→29
+  — **tăng ở cả 7/7**, kể cả hạt giống từng thấp hơn ngẫu nhiên. Người xếp đầu có độ tin cậy
+  "mỏng": 31,7% → 19,1%.
+- **Ảnh hưởng thực tế của ba thành phần: 23% / 9% / 67% → 45% / 29% / 25%** (độ lệch chuẩn của
+  giá trị dùng để cộng: 0,039 / 0,023 / 0,201 → 0,370 / 0,359 / 0,374) — khớp trọng số danh
+  nghĩa 45 / 30 / 25. Đúng điều phương án A nhằm tới.
+- Còn cách phân công thật 9,5 điểm và cách "kinh nghiệm + tin cậy, không khả dụng" 5,0 điểm
+  (40,9% khi cộng thô): phần khả dụng còn lại (25% trọng số) vẫn kéo top-1 theo kỹ năng xuống vì
+  nó gần như không liên quan tới kỹ năng — đó là cái giá có chủ đích của việc cân bằng tải.
+
+**Người chưa có lịch sử — quyết định còn treo.** Họ chỉ là ~1,5% số ứng viên. `DROP` (nguyên tắc
+4, mặc định) vẫn để họ đứng đầu 3,3% số thẻ (~2 lần phần chia đều) — giảm mạnh từ 8,0% nhưng chưa
+về 0. `NEUTRAL` đưa xuống 0,1% với cùng độ chính xác (36,2% so với 35,9%), tức họ **gần như không
+bao giờ** được gợi ý — trái với mối lo ở §6 ("người mới mãi không được giao việc"). Tôi giữ
+`DROP` làm mặc định vì nó nhất quán với nguyên tắc 4 đã duyệt và với §6, và để bước 7 đo cùng Gini
+và "phần thưởng cơ hội học nghề". Đổi mặc định chỉ là một hằng số nếu bạn muốn `NEUTRAL`.
+
+**Giới hạn cần biết** (đã ghi ở §5.9): `score` là điểm tương đối, nhóm một người luôn 50 và nhóm
+hai người thì mỗi thành phần chỉ là 0 / 1; min-max nhạy với ngoại lai (một người quá nổi bật ép
+những người còn lại về sát 0); con số cụ thể là của bộ dữ liệu mô phỏng này (cơ chế thì không).
+
+**Kiểm thử**: 10 ca ở `assign.normalize.test.ts` — số tính tay 3 ứng viên (`X 100 · Z 46,125 ·
+Y 16,667`, thứ tự **đổi** so với cộng thô `X · Y · Z`); suy biến (0,5); **bất biến theo thang**
+(đổi sức chứa 5 → 10 không đổi kết quả chuẩn hoá, cộng thô thì đổi); hai chính sách thiếu dữ liệu
+(người mới 100 với `DROP`, 65,375 với `NEUTRAL`); cờ `NO_DATA` theo **điểm cuối**; tuỳ chọn sai bị
+từ chối; **tính chất trên 150 tình huống × 4 tổ hợp** (giá trị thô và `rawScore` không đổi, min → 0
+và max → 1, `NEUTRAL` = trung bình, ti trọng cộng bằng 1, thứ tự và tính bất biến theo hoán vị);
+và hai chốt chặn trên dữ liệu mô phỏng (top-1 tăng ở mỗi hạt giống, ảnh hưởng thực tế gần trọng
+số danh nghĩa). Ca cũ chỉ phải đổi **một** dòng (so `rankCandidates` với `scoreCandidate` phải
+dùng `normalize: 'NONE'`). **Cài lỗi: 36/36 bị bắt** (16 + 20, viết mới cho phần vừa đổi vì hàm
+`combine` làm nhiều regex cũ không còn khớp) và 7/7 trên `onTimeProbability` (chạy riêng ca test
+của nó để phép đóng băng sha256 không "bắt hộ"); mã nguyên vẹn từng byte.
+
+**Test tìm ra một lỗi thật lúc viết**: điểm của `NEUTRAL` lệch nhau ở chữ số thập phân cuối khi
+đổi thứ tự ứng viên, vì trung bình được cộng theo thứ tự đầu vào (phép cộng số thực không giao
+hoán). Vô hại với người dùng nhưng phá cam kết "không phụ thuộc thứ tự đầu vào" (hai điểm sát nhau
+có thể đổi hạng). Sửa bằng cách cộng theo thứ tự tăng dần (§5.9 mục 11).
+
+**Suite**: backend 56 tệp / 429 test xanh (trước bước này: 55 / 418). `tsc` và `eslint` sạch.
+
+**Bài học**: (1) thử các phương án **bên ngoài** mã sản phẩm trước (ở đây `rankCandidates` đã trả
+giá trị thô nên chuẩn hoá thử được mà không sửa gì) — rẻ, và cho số liệu để chọn thay vì cảm
+giác. (2) Số trong tài liệu phải **tái hiện được từ kho mã**: chỉ số "xác suất đúng hạn" ban đầu đo
+bằng tệp tạm; đã đưa công thức ra hàm dùng chung (`onTimeProbability`) để bộ sinh và phép đánh giá
+không thể lệch nhau, mã băm đóng băng của bộ sinh không đổi. (3) Test tính chất có hoán vị đầu
+vào bắt được lỗi thứ tự phép cộng mà ca ví dụ không bao giờ thấy.
+
+Bước tiếp theo: **bước 5 — tầng đọc CSDL + API gợi ý cho một thẻ + ghi `AssignRun`** (§9–10). Đầu
+vào của API phải dựng đúng `ScoreContext` (IDF của không gian làm việc, `muy` từ `groupOnTimeRate`,
+trọng số của nhóm) và trả **cả giá trị thô lẫn điểm tương đối** cho giao diện.

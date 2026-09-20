@@ -12,11 +12,21 @@ import {
   type CandidateInput,
   type RankedCandidate,
   type OpenCard,
+  type MissingPolicy,
+  type Normalization,
   type ScoreParams,
   type Weights,
 } from '../modules/assign/assign.score';
 import type { HistoryCard } from '../modules/assign/assign.profile';
-import { assignablePool, bestCandidate, skillAt, type SimCard, type SimDataset, type SimPerson } from './simGenerator';
+import {
+  assignablePool,
+  bestCandidate,
+  onTimeProbability,
+  skillAt,
+  type SimCard,
+  type SimDataset,
+  type SimPerson,
+} from './simGenerator';
 import { simDayToDate, vnToday } from './simSeed';
 
 // Chup "hom nay" MOT LAN: vnToday() tao Intl.DateTimeFormat moi lan goi, ma phat lai goi hang nghin lan moi the.
@@ -90,9 +100,24 @@ export interface ReplayResult {
   topNoHistory: number;
   topThin: number;
   poolSize: number;
+  /**
+   * XAC SUAT DUNG HAN ky vong (mo hinh ket qua cua bo sinh, onTimeProbability) cua nguoi duoc chon, tinh voi tai
+   * TAI LUC GIAO. Khac top-1 (chi xet ky nang), chi so nay co xet tai nen "cong bang" voi thanh phan kha dung.
+   */
+  pOnTimeScorer: number;
+  pOnTimeActual: number;
+  pOnTimeRandom: number;
+  /** Nguoi co ky nang cao nhat (dap an cua top-1). */
+  pOnTimeBest: number;
+  /** TOI UU: nguoi co xac suat dung han cao nhat trong ho boi (can tren cua moi cach chon). */
+  pOnTimeOracle: number;
 }
 
 export interface ReplayOptions {
+  /** Cach chuan hoa thanh phan khi xep hang; mac dinh theo rankCandidates ('MINMAX'). */
+  normalize?: Normalization;
+  /** Cach xu ly thanh phan thieu; mac dinh theo rankCandidates ('DROP'). */
+  missing?: MissingPolicy;
   weights?: Weights;
   params?: Partial<ScoreParams>;
   /** Chi phat lai the giao tu ngay nay tro di (truoc do chua ai co lich su). */
@@ -128,7 +153,15 @@ export function* replayTargets(data: SimDataset, opts: ReplayOptions = {}): Gene
     const ranked = rankCandidates(
       { id: c.key, title: c.title, description: c.description, startDate: at(c.assignedDay), dueDate: at(c.dueDay, 23, 59) },
       snap.candidates,
-      { idf: snap.idf, now: snap.now, groupOnTimeRate: snap.mu, weights: opts.weights, params: opts.params }
+      {
+        idf: snap.idf,
+        now: snap.now,
+        groupOnTimeRate: snap.mu,
+        weights: opts.weights,
+        params: opts.params,
+        normalize: opts.normalize,
+        missing: opts.missing,
+      }
     );
     yield {
       card: c,
@@ -151,9 +184,23 @@ export function replay(data: SimDataset, opts: ReplayOptions = {}): ReplayResult
   let noHist = 0;
   let thin = 0;
   let pools = 0;
+  let pS = 0;
+  let pA = 0;
+  let pR = 0;
+  let pB = 0;
+  let pO = 0;
 
   for (const t of replayTargets(data, opts)) {
     const top = t.ranked[0]!;
+    // Xac suat dung han ky vong cua tung nguoi trong ho boi, voi tai luc giao (chinh cai bo cham nhin thay)
+    const info = new Map(t.ranked.map((r) => [r.userId, r]));
+    const pOn = (key: string) => onTimeProbability(t.skillOf(key), info.get(key)!.load, info.get(key)!.capacity);
+    const pOns = t.pool.map((p) => pOn(p.key));
+    pS += pOn(top.userId);
+    pA += pOn(t.card.assigneeKey);
+    pR += pOns.reduce((a, b) => a + b, 0) / pOns.length;
+    pB += pOn(t.best.key);
+    pO += Math.max(...pOns);
     n += 1;
     hitS += top.userId === t.best.key ? 1 : 0;
     hitA += t.card.assigneeKey === t.best.key ? 1 : 0;
@@ -176,6 +223,11 @@ export function replay(data: SimDataset, opts: ReplayOptions = {}): ReplayResult
     topNoHistory: noHist / n,
     topThin: thin / n,
     poolSize: pools / n,
+    pOnTimeScorer: pS / n,
+    pOnTimeActual: pA / n,
+    pOnTimeRandom: pR / n,
+    pOnTimeBest: pB / n,
+    pOnTimeOracle: pO / n,
   };
 }
 
@@ -188,6 +240,11 @@ export interface SpreadStat {
   sd: number;
   /** max - min giua cac ung vien cua cung mot the, trung binh tren cac the. */
   range: number;
+  /**
+   * Do lech chuan giua cac ung vien cua gia tri DUNG DE CONG (`scaled`): bang `sd` khi khong chuan hoa, con
+   * sau chuan hoa 'MINMAX' thi cac thanh phan co do phan tan gan nhau -> trong so moi la anh huong thuc te.
+   */
+  scaledSd: number;
   /** Tuong quan Pearson (ky nang an, thanh phan) trong ho boi, trung binh tren cac the. */
   corrWithSkill: number;
   /** So the co it nhat 2 ung vien co du lieu cho thanh phan nay. */
@@ -202,8 +259,11 @@ export interface SpreadStat {
 export function componentSpread(datasets: readonly SimDataset[], opts: ReplayOptions = {}): Record<ComponentName, SpreadStat> {
   const names: ComponentName[] = ['experience', 'reliability', 'availability'];
   const acc = Object.fromEntries(
-    names.map((k) => [k, { means: [] as number[], sds: [] as number[], ranges: [] as number[], corrs: [] as number[] }])
-  ) as Record<ComponentName, { means: number[]; sds: number[]; ranges: number[]; corrs: number[] }>;
+    names.map((k) => [
+      k,
+      { means: [] as number[], sds: [] as number[], scaledSds: [] as number[], ranges: [] as number[], corrs: [] as number[] },
+    ])
+  ) as Record<ComponentName, { means: number[]; sds: number[]; scaledSds: number[]; ranges: number[]; corrs: number[] }>;
   const avg = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
 
   for (const data of datasets) {
@@ -217,6 +277,9 @@ export function componentSpread(datasets: readonly SimDataset[], opts: ReplayOpt
         const m = avg(vs);
         acc[k].means.push(m);
         acc[k].sds.push(Math.sqrt(avg(vs.map((v) => (v - m) ** 2))));
+        const sc = t.ranked.map((r) => r.components[k].scaled).filter((x): x is number => x !== null);
+        const msc = avg(sc);
+        acc[k].scaledSds.push(Math.sqrt(avg(sc.map((v) => (v - msc) ** 2))));
         acc[k].ranges.push(Math.max(...vs) - Math.min(...vs));
         const ms = avg(rows.map((r) => r.skill));
         let sxy = 0;
@@ -234,7 +297,14 @@ export function componentSpread(datasets: readonly SimDataset[], opts: ReplayOpt
   return Object.fromEntries(
     names.map((k) => [
       k,
-      { mean: avg(acc[k].means), sd: avg(acc[k].sds), range: avg(acc[k].ranges), corrWithSkill: avg(acc[k].corrs), n: acc[k].sds.length },
+      {
+        mean: avg(acc[k].means),
+        sd: avg(acc[k].sds),
+        range: avg(acc[k].ranges),
+        scaledSd: avg(acc[k].scaledSds),
+        corrWithSkill: avg(acc[k].corrs),
+        n: acc[k].sds.length,
+      },
     ])
   ) as Record<ComponentName, SpreadStat>;
 }

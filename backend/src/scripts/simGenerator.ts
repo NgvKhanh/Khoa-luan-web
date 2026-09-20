@@ -170,6 +170,15 @@ export class Rng {
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 
+/**
+ * Xac suat dung han cua mot viec (nguon lech 6): tang theo ky nang, giam khi tai vuot nua suc chua, luon
+ * trong [0,05, 0,95]. Xuat ra de phep phat lai (simReplay) danh gia bang CUNG mo hinh ket qua - khong bao gio
+ * duoc dua vao bo cham (bo cham khong duoc thay ky nang an).
+ */
+export function onTimeProbability(skill: number, load: number, capacity: number): number {
+  return clamp(0.15 + 0.7 * skill - 0.06 * Math.max(0, load - capacity / 2), 0.05, 0.95);
+}
+
 // ---------- Ky nang an theo thoi gian ----------
 
 /**
@@ -466,11 +475,7 @@ function makeCards(
       let stillOpen = recent && rng.chance(0.55);
 
       // Nguon lech 6: dung han la XAC SUAT, phu thuoc ky nang va tai, co nhieu.
-      const pOnTime = clamp(
-        0.15 + 0.7 * skill - 0.06 * Math.max(0, load - assignee.capacity / 2),
-        0.05,
-        0.95
-      );
+      const pOnTime = onTimeProbability(skill, load, assignee.capacity);
 
       let onTime = false;
       let completedDay: number | null = null;

@@ -560,9 +560,10 @@ describe('Buoc 4 - xep hang', () => {
     const frozenCard = deepFreeze({ ...CARD });
     const frozenCtx = deepFreeze(ctx({ idf: idfFor(['alpha', 'beta']) }));
     expect(() => rankCandidates(frozenCard, frozenList, frozenCtx)).not.toThrow();
-    // rankCandidates cho ket qua GIONG het scoreCandidate tung nguoi
+    // Voi normalize: 'NONE' (duong tinh tho §5.7 nguyen van) rankCandidates cho ket qua GIONG het scoreCandidate tung
+    // nguoi. (Mac dinh la 'MINMAX' nen diem tuong doi trong nhom khac diem tho - xem assign.normalize.test.ts.)
     const single = scoreCandidate(CARD, list[0]!, ctx());
-    const fromRank = rankCandidates(CARD, list, ctx()).find((r) => r.userId === 'bob')!;
+    const fromRank = rankCandidates(CARD, list, ctx({ normalize: 'NONE' })).find((r) => r.userId === 'bob')!;
     const { rank: _rank, ...rest } = fromRank;
     void _rank;
     expect(rest).toEqual(single);

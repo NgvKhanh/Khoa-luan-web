@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SIM,
   MAX_LATE_DAYS,
+  onTimeProbability,
   Rng,
   assignablePool,
   bestCandidate,
@@ -349,6 +350,33 @@ describe('Buoc 2 - cau truc nhom: nguoi moi, nguoi nghi, tai hien tai', () => {
       expect([...themes].sort(), `seed=${s}`).toEqual(TOPICS.map((_, t) => t));
       // Moi bang co dung 3 chu de khac nhau
       for (const b of d.boards) expect(new Set(b.themes).size, `${b.key} seed=${s}`).toBe(3);
+    }
+  });
+
+  it('onTimeProbability: tang theo ky nang, khong phat tai <= nua suc chua, phat 0,06/the vuot nua, kep [0,05; 0,95]', () => {
+    // So tinh tay: 0,15 + 0,7 x ky nang - 0,06 x max(0, tai - suc chua/2)
+    expect(onTimeProbability(0.5, 0, 4)).toBeCloseTo(0.5, 12);
+    expect(onTimeProbability(0.5, 2, 4)).toBeCloseTo(0.5, 12); // tai = nua suc chua: chua phat
+    expect(onTimeProbability(0.5, 3, 4)).toBeCloseTo(0.44, 12);
+    expect(onTimeProbability(0.5, 6, 4)).toBeCloseTo(0.5 - 0.06 * 4, 12);
+    expect(onTimeProbability(1, 0, 4)).toBeCloseTo(0.85, 12);
+    expect(onTimeProbability(0, 0, 4)).toBeCloseTo(0.15, 12);
+    // Kep duoi: tai rat nang, ky nang 0
+    expect(onTimeProbability(0, 20, 4)).toBe(0.05);
+    expect(onTimeProbability(0.2, 30, 3)).toBe(0.05);
+    // Don dieu: tang theo ky nang, giam theo tai; luon trong [0,05; 0,95]
+    for (let cap = 1; cap <= 6; cap += 1) {
+      for (let load = 0; load <= 12; load += 1) {
+        let prev = -1;
+        for (let k = 0; k <= 10; k += 1) {
+          const p = onTimeProbability(k / 10, load, cap);
+          expect(p).toBeGreaterThanOrEqual(0.05);
+          expect(p).toBeLessThanOrEqual(0.95);
+          expect(p).toBeGreaterThanOrEqual(prev);
+          prev = p;
+        }
+        expect(onTimeProbability(0.6, load + 1, cap)).toBeLessThanOrEqual(onTimeProbability(0.6, load, cap));
+      }
     }
   });
 
