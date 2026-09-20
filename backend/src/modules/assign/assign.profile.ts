@@ -17,12 +17,20 @@ export interface HistoryCard extends CardText {
   cardId: string;
   /** Thoi diem danh dau xong (Card.completedAt). */
   completedAt: Date;
+  /** Han chot cua the (Card.dueDate). Khong co / null = the khong dat han (khong tinh vao do tin cay). */
+  dueDate?: Date | null;
+  /** The tung bi bo danh dau xong roi danh dau lai (Activity kieu card.undone): dau hieu lam chua dat. */
+  reopened?: boolean;
 }
 
 export interface ProfileEntry {
   cardId: string;
+  /** Tieu de the cu - de hien thi bang chung ("dua tren nhung the nay"). */
+  title: string;
   vec: SparseVector;
   completedAt: Date;
+  dueDate: Date | null;
+  reopened: boolean;
   /** So ngay tu luc xong den `now`, >= 0 (moc o tuong lai bi kep ve 0: lech dong ho khong duoc thanh trong so > 1). */
   ageDays: number;
   /** decay(ageDays), trong (0,1]. */
@@ -69,8 +77,11 @@ export function buildProfile(
     const ageDays = Math.max(0, (now.getTime() - card.completedAt.getTime()) / DAY_MS);
     entries.push({
       cardId: card.cardId,
+      title: card.title,
       vec: vectorize(countTerms(card), idf),
       completedAt: card.completedAt,
+      dueDate: card.dueDate ?? null,
+      reopened: card.reopened ?? false,
       ageDays,
       weight: decay(ageDays, halfLifeDays),
     });

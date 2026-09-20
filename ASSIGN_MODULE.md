@@ -1,8 +1,10 @@
 # Module Gợi ý phân công công việc (cá nhân hoá từ lịch sử)
 
-> **Trạng thái: xong bước 0–3** — thiết kế đã chốt; nền dữ liệu, bộ dữ liệu mô
-> phỏng, bộ tách từ + TF-IDF + hồ sơ người đã có; **chưa có điểm số nào** (bộ
-> chấm cặp bắt đầu ở bước 4).
+> **Trạng thái: xong bước 0–4** — thiết kế đã chốt; nền dữ liệu, bộ dữ liệu mô
+> phỏng, bộ tách từ + TF-IDF + hồ sơ người, **bộ chấm cặp (việc, người)** đã có
+> và chạy được trên dữ liệu mô phỏng. Chưa có API/giao diện (bước 5–6), chưa
+> có đánh giá chính thức (bước 7). **Đọc nhật ký bước 4 trước khi làm bước 5–7:
+> trọng số danh nghĩa không phải ảnh hưởng thực tế.**
 > Tài liệu này là hợp đồng thiết kế; mỗi bước xong sẽ thêm một mục
 > "Đã xong — Bước N" ở cuối file, giống cách `AI_MODULE.md` ghi nhật ký.
 >
@@ -193,6 +195,11 @@ thành phần này báo **không có dữ liệu** (xem nguyên tắc 4).
 - `confidence = evidence / (evidence + 3)`, chia ba mức hiển thị:
   dưới 0.25 = "dữ liệu mỏng", dưới 0.6 = "vừa đủ", còn lại = "đủ".
 
+> **Cảnh báo (phát hiện ở bước 4, chưa xử lý):** ba thành phần **không cùng thang**.
+> Trên cùng một thẻ, khả dụng trải rộng gấp ~5 lần kinh nghiệm và ~9 lần tin cậy, nên
+> với trọng số 0,45 / 0,30 / 0,25 thì khả dụng quyết định ~2/3 thứ tự xếp hạng. Xem
+> "Phát hiện thiết kế" trong nhật ký bước 4.
+
 ### 5.8 Bảng tham số (đều sẽ được quét ở bước 7, không chọn bừa)
 
 | Ký hiệu | Ý nghĩa | Mặc định |
@@ -207,6 +214,31 @@ thành phần này báo **không có dữ liệu** (xem nguyên tắc 4).
 | trọng số | kinh nghiệm / tin cậy / khả dụng | 0.45 / 0.30 / 0.25 |
 | `TITLE_WEIGHT` | Trọng số tiêu đề so với mô tả khi đếm thuật ngữ | 2 (**chưa có bằng chứng**: trên dữ liệu mô phỏng ×2 và ×1 cho kết quả ngang nhau — 3 hạt giống dương, 3 âm) |
 | `MAX_TEXT_CHARS` / `MAX_TOKEN_CHARS` | Số ký tự đọc tối đa mỗi trường / độ dài token tối đa (tối thiểu 2) | 4000 / 30 |
+| `confidenceScale` | Mẫu số của `confidence = e / (e + c)` | 3 |
+| `defaultWindowDays` | Độ dài cửa sổ mặc định khi thẻ mới thiếu ngày | 14 ngày |
+
+### 5.9 Các chỗ §5.4–5.7 để hở, đã chốt ở bước 4 (`assign.score.ts`)
+
+1. **Cửa sổ của thẻ mới thiếu ngày**: không có cả hai → `[now, now + 14 ngày]`; chỉ có
+   hạn → `[min(now, hạn), hạn]`; chỉ có bắt đầu → `[bắt đầu, bắt đầu + 14 ngày]`; ngày
+   đảo ngược được coi là đoạn giữa hai ngày; ngày không hợp lệ coi như không có.
+2. **Thẻ đang mở của ứng viên** chiếm khoảng `[bắt đầu, hạn]` nhưng **kéo dài ít nhất đến
+   `now`** (việc quá hạn vẫn chiếm chỗ); thiếu bắt đầu = đã bắt đầu từ lâu, thiếu hạn =
+   chưa có hạn (kéo dài vô hạn về sau); ngày đảo ngược = đoạn giữa hai ngày; thẻ đang được
+   chấm không tự tính vào tải của chính nó.
+3. **Người có `pausedUntil` ≥ lúc bắt đầu cửa sổ**: khả dụng = 0 và cờ `PAUSED` (số thẻ
+   đang mở vẫn được đếm).
+4. **Chống rò rỉ tương lai**: thẻ xong **sau `now`** không bao giờ được dùng (ở hồ sơ, ở
+   trung bình nhóm `muy`); chính thẻ đang xét bị loại khỏi lịch sử. Vô nghĩa khi chạy thật
+   (`now` = bây giờ) nhưng **bắt buộc khi phát lại lịch sử** ở bước 7.
+5. **Thiếu dữ liệu**: không có thẻ nào đã xong → `NO_HISTORY` (không chấm kinh nghiệm *và*
+   tin cậy, chỉ còn khả dụng); có lịch sử nhưng không thẻ nào giống → `NO_SIMILAR` (kinh
+   nghiệm = 0 — "đã tìm và không thấy" — còn tin cậy lùi về `muy`); `muy` không tồn tại →
+   thành phần tin cậy vắng cho mọi người.
+6. **Chỉ thẻ có `sim > 0` mới là bằng chứng**, kể cả khi `simMin = 0` (thẻ sim = 0 sẽ làm
+   phồng `evidence` mà không mang thông tin).
+7. **Hoà điểm khi xếp hạng**: điểm cao hơn trước; không có điểm (`null`) xuống cuối; hoà
+   thì độ tin cậy cao hơn trước; rồi `userId`. Kết quả không phụ thuộc thứ tự đầu vào.
 
 ## 6. Cá nhân hoá nằm ở đâu — bốn chỗ
 
@@ -368,6 +400,12 @@ Bốn nhánh giữa vừa là nhánh nền vừa là **nghiên cứu cắt bỏ*
 | Tỉ lệ đúng hạn mô phỏng | Nếu thực sự áp dụng gợi ý thì bao nhiêu phần trăm việc kịp hạn |
 | Hệ số Gini | Mức độ dồn việc vào một người |
 | (mức 2) Đường hội tụ | Khoảng cách từ trọng số học được tới thiên lệch thật của trưởng nhóm mô phỏng |
+
+> **Ghi chú từ bước 4:** Top-1 / MRR / độ hối tiếc chỉ tính **kỹ năng ẩn**, không tính tải,
+> trong khi bộ chấm cố ý cân bằng tải. Thành phần khả dụng vì thế **không thể thắng** trên
+> các chỉ số này (nó gần như không liên quan tới kỹ năng: tương quan −0,05), dù có thể có
+> ích cho kết quả (đúng hạn, Gini). Bước 7 phải đo cả **tỉ lệ đúng hạn mô phỏng** và Gini
+> cạnh Top-1, và báo cáo từng thành phần riêng thay vì chỉ điểm tổng.
 
 ### Hai thứ module AI chưa làm được, lần này làm
 
@@ -808,3 +846,124 @@ và bi-gram (bước 7), hư từ chưa đánh giá trên văn bản thật.
 Bước tiếp theo: **bước 4 — bộ chấm cặp (việc, người)**: ba thành phần (kinh nghiệm chủ
 đề / tin cậy / khả dụng), co điểm khi ít dữ liệu, bằng chứng truy vết (§5.4–5.7). Hàm
 thuần, có test.
+
+### Đã xong — Bước 4: bộ chấm cặp (việc, người) (20/09/2026)
+
+**Tệp**: `modules/assign/assign.score.ts` (mới, hàm thuần) · `assign.profile.ts` (thêm
+`title`, `dueDate`, `reopened` cho `HistoryCard`/`ProfileEntry`) · `scripts/simReplay.ts`
+(phát lại lịch sử: `snapshotAsOf`, `replayTargets`, `replay`, `componentSpread`) ·
+`scripts/showSuggestions.ts` (`npm run assign:suggest`) · `test/assign.score.test.ts` (21 ca).
+
+**Giao diện cho bước 5** (chỉ hàm thuần, chưa API): `scoreCandidate(card, candidate, ctx)`,
+`rankCandidates(card, candidates, ctx)`, `groupOnTimeRate(cards, now)` (tính `muy`),
+`outcomeKindOf`/`outcomeValue`, `confidenceLevelOf`. `ScoreContext = { idf, now,
+groupOnTimeRate, weights?, params? }`. Mỗi ứng viên trả `score` (0–100 hoặc `null`),
+`confidence` + mức `THIN/FAIR/GOOD`, `components.{experience,reliability,availability}`
+(`value`, `weight`, `share` = tỉ trọng thực trong điểm tổng), `evidence` (≤ K thẻ cũ kèm
+`sim`, `weight`, kết quả, ngày), `evidenceMass`, `fit`, `load`, `capacity`, `flags`. Các chỗ
+tài liệu để hở đã chốt ở §5.9.
+
+**Kết quả thử trên dữ liệu mô phỏng — KHÔNG phải đánh giá** (`npm run assign:suggest`; phát
+lại lịch sử: mỗi thẻ chỉ dùng thông tin biết được lúc nó được giao; ~103 thẻ/hạt giống, 7 hạt
+giống; chưa có nhánh nền, chưa quét tham số, chưa có khoảng tin cậy). Đích đo = "người có kỹ
+năng ẩn cao nhất trong họ bốc":
+
+| Cấu hình | top-1 | độ hối tiếc |
+|---|---|---|
+| ngẫu nhiên (kỳ vọng) | 19,5% | 0,301 |
+| **phân công thật trong lịch sử** | **45,4%** | 0,131 |
+| chỉ kinh nghiệm (1 / 0 / 0) | 37,5% | 0,177 |
+| chỉ tin cậy (0 / 1 / 0) | 34,4% | 0,191 |
+| chỉ khả dụng (0 / 0 / 1) | 20,5% (≈ ngẫu nhiên) | 0,273 |
+| **kinh nghiệm + tin cậy (0,6 / 0,4 / 0)** | **40,9%** | 0,161 |
+| **mặc định 0,45 / 0,30 / 0,25** | **26,0%** | 0,237 |
+
+Cấu hình kinh nghiệm + tin cậy hơn ngẫu nhiên ở **cả 7/7 hạt giống** (top-1 26,0–55,6%; hối
+tiếc 0,138–0,197 so với 0,26–0,35). Cấu hình **mặc định** thì top-1 từng hạt giống là 27,2 /
+33,3 / 29,4 / 23,3 / **17,6** / 25,3 / 26,0 — hạt giống số 4 còn *thấp hơn* ngẫu nhiên (19,4%),
+dù độ hối tiếc vẫn tốt hơn ngẫu nhiên ở mọi hạt giống. Người xếp đầu là người chưa có lịch
+sử ở 8,0% số thẻ; có độ tin cậy "mỏng" ở 31,7%.
+
+**Phát hiện thiết kế: trọng số danh nghĩa ≠ ảnh hưởng thực tế.** Thêm khả dụng (trọng số 0,25)
+làm top-1 tụt từ 40,9% xuống 26,0%. Tôi đã giải thích sai lần đầu ("người giỏi bị giao nhiều
+việc hơn nên bận hơn") — đo lại thì tương quan (kỹ năng, khả dụng) trong họ bốc chỉ **−0,052**
+(người giỏi nhất có khả dụng 0,706 so với trung bình 0,740). Cơ chế thật là **chênh lệch độ
+phân tán** giữa các ứng viên của cùng một thẻ (723 thẻ):
+
+| Thành phần | trung bình | độ lệch chuẩn | khoảng | tương quan với kỹ năng | trọng số | ảnh hưởng thực tế |
+|---|---|---|---|---|---|---|
+| kinh nghiệm | 0,056 | **0,039** | 0,106 | +0,388 | 0,45 | **23%** |
+| tin cậy | 0,488 | **0,023** | 0,066 | +0,133 | 0,30 | **9%** |
+| khả dụng | 0,740 | **0,201** | 0,533 | −0,052 | 0,25 | **67%** |
+
+("Ảnh hưởng thực tế" ≈ trọng số × độ lệch chuẩn, chuẩn hoá — một xấp xỉ dễ hiểu, không phải
+đại lượng chính xác.) Kinh nghiệm thấp và hẹp vì lịch sử mỏng (đo trên 3 731 cặp thẻ–ứng viên: trung
+bình 2,5 thẻ giống mỗi ứng viên, "số thẻ hiệu dụng" sau suy giảm chỉ 1,5; 16% không có thẻ giống
+nào, 52% có ≤ 2) và hệ số bão hoà `e/(e+2)`; tin cậy bị `m = 3` ép sát `muy`;
+còn khả dụng đi từ 0 đến 1 theo số thẻ đang mở. Tổng có trọng số để thành phần **trải rộng
+nhất** quyết định thứ tự, bất kể trọng số danh nghĩa. Chú ý tin cậy đứng một mình vẫn cho
+34,4% — **tín hiệu tốt nhưng bị lấn át**, không phải tín hiệu yếu.
+
+**Hệ quả kèm theo — người mới bị thổi phồng điểm.** Người chưa có lịch sử (`NO_HISTORY`) chỉ
+chiếm **1,6%** số ứng viên nhưng đứng đầu ở **8,0%** số thẻ — gấp 5 lần phần chia đều. Nguyên
+nhân là chính nguyên tắc 4 (§3: thành phần thiếu dữ liệu không được kéo điểm xuống): điểm của
+họ chỉ còn thành phần khả dụng, nên không bị phạt vì thiếu dữ liệu và thắng cả người có dữ
+liệu. Nguyên tắc 4 và mục tiêu "không thổi phồng người mới" **mâu thuẫn** ở điểm này; mọi
+phương án bên dưới cần xử lý cả nó (ví dụ co điểm tổng về trung bình theo độ tin cậy, hoặc chỉ
+xếp hạng người có độ tin cậy tối thiểu).
+
+Phạm vi của phát hiện: con số cụ thể (23/9/67%) là của bộ dữ liệu mô phỏng này; **cơ chế**
+(ba thành phần chưa chuẩn hoá về cùng thang) là thuộc tính của thiết kế §5.7. Mức 2 (§8) cập
+nhật trên chính các thành phần này nên sẽ gặp cùng vấn đề thang.
+
+**Phương án (chưa làm — cần bạn chọn trước bước 5–6, vì thanh trượt trọng số ở bước 6 phải có
+nghĩa):**
+- **A. Chuẩn hoá trong tập ứng viên của từng thẻ** (min-max hoặc z-score) trước khi cộng →
+  trọng số thành *tầm quan trọng tương đối*. Ít thay đổi nhất; khuyến nghị.
+- **B. Biến khả dụng thành ràng buộc**: chỉ phạt khi gần quá tải (ví dụ hinge quanh `cap`),
+  bình thường bằng 1 → không lấn thứ tự theo kỹ năng, vẫn chặn được việc dồn cho người đã kín
+  việc.
+- **C. Hạ trọng số mặc định của khả dụng** (chỉ chữa triệu chứng, dễ vỡ khi dữ liệu đổi).
+- **D. Giữ nguyên, để mức 2 học** — cần ≥ 10 lượt phản hồi và vẫn bị lệch thang.
+Bước 7 nên đo cả bốn như các nhánh cắt bỏ, cùng chỉ số **kết quả** (đúng hạn, Gini), vì
+top-1 theo kỹ năng không thể ghi công cho khả dụng.
+
+Đổi K, nửa đời, hệ số co, hệ số bão hoà chỉ dịch top-1 của cấu hình mặc định trong khoảng
+24,4–28,1% (thăm dò một lần bằng script tạm, không nằm trong kho mã) — trọng số quan trọng
+hơn tham số nhiều.
+
+**Kiểm thử** (`assign.score.test.ts`, 21 ca): công thức §5.4–5.7 đối chiếu bằng **số tính tay**
+(thẻ giống hệt nên `sim = 1`: 1/3, 0,2, 5/7, 0,625, 0,375, 53,75…) và bằng **oracle** tính từ
+`cosine`/`decay` (27 tổ hợp kết quả × tuổi × sim cho độ tin cậy); từng quy tắc ở §5.9; ranh
+giới 0,25 / 0,6 của độ tin cậy; **mọi hoán vị** của 5 ứng viên (120) cho cùng thứ tự; 300 tình
+huống ngẫu nhiên (hạt giống cố định) kiểm bất biến (điểm ∈ [0,100], thành phần ∈ [0,1], tỉ
+trọng cộng bằng 1, bằng chứng hợp lệ và không thuộc tương lai, không NaN, tất định); tham số
+/ trọng số / `now` / `muy` sai bị từ chối; **chốt chặn kiến trúc** (4 tệp lõi chỉ được import
+lẫn nhau và `ai.rules` — không Prisma, không cấu hình, không `simGenerator`); và một chốt
+chặn "bộ chấm không vô nghĩa" (kinh nghiệm + tin cậy hơn ngẫu nhiên ở mọi hạt giống).
+
+**Cài lỗi: 69/69 bị bắt** (65 phép trên `assign.score.ts`, 3 trên phần mở rộng hồ sơ, 1 phép
+đối xứng), mã nguyên vẹn từng byte. **Hai phép lúc đầu lọt, đã siết test rồi bắt lại:**
+- *Ngày đảo ngược của thẻ đang mở* (xoá dòng đổi chỗ): ca cũ dùng đoạn `[bắt đầu 9, hạn 7]`
+  mà cả hai cách hiểu đều chồng lấn cửa sổ → không phân biệt được. Thêm ca `[20, 8]`.
+- *Đảo nhánh "điểm rỗng xuống cuối" của bộ so sánh*: bộ so sánh thành **không nhất quán**
+  nên kết quả `sort` phụ thuộc thứ tự V8 gọi nó; test một thứ tự đầu vào tình cờ ra đúng. Chỉ
+  bắt chắc được bằng cách thử **mọi hoán vị** (ca 120 hoán vị ở trên).
+Trước khi chạy, việc rà "chỗ nào sẽ lọt" đã bổ sung 5 ca (điển hình: tin cậy chỉ được kiểm với
+thẻ `sim = 1`, tuổi 0 nên phép bỏ `sim` hoặc bỏ `v` khỏi tử số sẽ lọt — nay đã bị bắt).
+
+**Hiệu năng**: một lần phát lại 1 hạt giống giảm từ ~3,5 s xuống **394 ms** sau khi đưa
+`vnToday()` ra khỏi vòng nóng (nó tạo `Intl.DateTimeFormat` mới mỗi lần gọi, bị gọi hàng
+nghìn lần mỗi thẻ). `buildProfile` vẫn vector hoá lại lịch sử mỗi lần chấm — bước 7 (20 hạt
+giống × nhiều nhánh × quét tham số) có thể cần đệm kết quả `countTerms`.
+
+**Suite**: backend 55 tệp / 418 test xanh (trước bước này: 54 / 397). `tsc` và `eslint` sạch.
+
+**Bài học**: (1) một lời giải thích "hợp lý" cho kết quả xấu vẫn phải được **đo** trước khi
+ghi vào tài liệu — lần này nó đúng một phần ít và bỏ sót cơ chế chính. (2) Xem chỗ bộ chấm kém
+ở mức từng thành phần (cắt bỏ) và mức phân tán, không chỉ điểm tổng. (3) Bộ so sánh của
+`sort` cần được thử với mọi hoán vị. (4) Đo thời gian trước khi tối ưu: nút thắt là một hàm
+tưởng rẻ (`Intl`), không phải thuật toán.
+
+Bước tiếp theo: **bước 5 — tầng đọc CSDL + API gợi ý cho một thẻ + ghi `AssignRun`** (§9–10).
+Cần chốt phương án A/B/C/D ở trên trước, vì kết quả API và thanh trượt trọng số phụ thuộc vào đó.

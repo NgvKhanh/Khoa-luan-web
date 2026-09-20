@@ -15,6 +15,7 @@
     "eval:ai": "tsx src/scripts/evaluateAi.ts",
     "seed:sim": "tsx src/scripts/seedSimulation.ts",
     "assign:keywords": "tsx src/scripts/showKeywords.ts",
+    "assign:suggest": "tsx src/scripts/showSuggestions.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
