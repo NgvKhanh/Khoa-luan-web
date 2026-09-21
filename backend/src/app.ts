@@ -41,6 +41,7 @@ import { aiRoutes } from './modules/ai/ai.routes';
 import {
   assignRunRoutes,
   cardAssignRoutes,
+  listAssignRoutes,
   workspaceAssignRoutes,
   workspaceProfileRoutes,
 } from './modules/assign/assign.routes';
@@ -110,6 +111,7 @@ export function createApp() {
   app.use('/api/automation-rules', automationRoutes);
   app.use('/api/lists/:listId/cards', listCardRoutes);
   app.use('/api/lists/:listId/recurring-schedules', listRecurringScheduleRoutes);
+  app.use('/api/lists/:listId/assignment-plan', listAssignRoutes);
   app.use('/api/lists', listRoutes);
   app.use('/api/recurring-schedules', recurringScheduleRoutes);
   app.use('/api/cards/:cardId/assignment-suggestions', cardAssignRoutes);

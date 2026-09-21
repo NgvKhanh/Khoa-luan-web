@@ -5,6 +5,7 @@ import type { OutcomeInput, WeightsInput, WorkProfileInput } from './assign.sche
 import {
   getMyWorkProfile,
   getWorkspaceWeights,
+  planForList,
   recordOutcome,
   resetWorkspaceWeights,
   setMyWorkProfile,
@@ -22,6 +23,13 @@ function requireUserId(req: Request): string {
 // GET nhung CO GHI 1 dong AssignRun (nhat ky) - vi the route co gioi han toc do.
 export const suggestHandler = asyncHandler(async (req: Request, res: Response) => {
   const data = await suggestForCard(requireUserId(req), req.params.cardId as string);
+  res.json({ success: true, data });
+});
+
+// POST nhung KHONG ghi CSDL: chi tinh ban xem truoc chia viec cho ca danh sach (lop 2). Dung POST vi ton tai nguyen
+// (doc ca khong gian, cham tung the) - route co gioi han toc do rieng.
+export const planHandler = asyncHandler(async (req: Request, res: Response) => {
+  const data = await planForList(requireUserId(req), req.params.listId as string);
   res.json({ success: true, data });
 });
 

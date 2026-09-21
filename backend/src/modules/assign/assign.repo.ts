@@ -10,6 +10,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import type { BoardVisibility } from '../../generated/prisma/enums';
 import { workspaceRoleOf } from '../workspace/workspace.service';
 import { learningDecision, parseRunCandidates, type LearnReason } from './assign.learn';
+import type { PlanCard } from './assign.plan';
 import type { Weights } from './assign.score';
 import type { SnapshotCard, SnapshotMembership, SnapshotProfile } from './assign.snapshot';
 
@@ -102,6 +103,18 @@ export async function readWorkspaceCards(workspaceId: string): Promise<Workspace
     completedAt: r.completedAt,
     archived: r.archivedAt !== null || r.list.archivedAt !== null || r.list.board.archivedAt !== null,
   }));
+}
+
+/**
+ * Cac the CHUA CO NGUOI NHAN cua mot danh sach - dau vao cua lop 2 (chia viec): chua xong, chua luu tru, chua xoa, khong co
+ * thanh vien nao. Thu tu tra ve chi de on dinh; thu tu xu ly la urgencyOrder() (assign.plan.ts).
+ */
+export async function readPlanCards(listId: string): Promise<PlanCard[]> {
+  return prisma.card.findMany({
+    where: { listId, deletedAt: null, archivedAt: null, isDone: false, members: { none: {} } },
+    select: { id: true, title: true, description: true, startDate: true, dueDate: true, position: true },
+    orderBy: [{ position: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+  });
 }
 
 /** Lien ket the-nguoi cua cac ung vien, trong cac the cua khong gian. */

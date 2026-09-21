@@ -4,6 +4,7 @@
 
 import { AppError } from '../../utils/AppError';
 import { assertCardAccess } from '../card/card.service';
+import { assertListAccess } from '../list/list.service';
 import { assertWorkspaceAccess, assertWorkspaceManage } from '../workspace/workspace.service';
 import {
   createRun,
@@ -14,6 +15,7 @@ import {
   readCandidates,
   readFeedbackStats,
   readMemberships,
+  readPlanCards,
   readProfiles,
   readReopenedCardIds,
   readViewableBoardIds,
@@ -28,6 +30,7 @@ import {
   type StoredWeights,
 } from './assign.repo';
 import { LEARN_ETA, LEARN_MIN_FEEDBACK, type LearnReason } from './assign.learn';
+import { PLAN_MAX_CARDS, PLAN_VERSION, planAssignments, urgencyOrder } from './assign.plan';
 import { MAX_PARALLEL_LIMIT } from './assign.schema';
 import {
   DEFAULT_MAX_PARALLEL,
@@ -47,6 +50,27 @@ import { isDefaultWeights, sameWeights, weightIssues } from './assign.weights';
 const NORMALIZE = 'MINMAX' as const;
 const MISSING = 'DROP' as const;
 export const ALGORITHM_VERSION = `knn-tfidf-v1/${NORMALIZE.toLowerCase()}/${MISSING.toLowerCase()}`;
+
+/**
+ * Moi thu bo cham can doc cua mot khong gian (dung chung cho goi y mot the va chia ca danh sach): the, lien ket the-nguoi,
+ * the tung mo lai, ho so, va bo trong so DANG DUNG. Trong so luu hong (sua tay trong CSDL) khong duoc lam mat goi y cua ca
+ * nhom: lui ve mac dinh.
+ */
+async function readScoringInputs(workspaceId: string, candidateIds: readonly string[]) {
+  const [cards, memberships, reopened, profiles, stored] = await Promise.all([
+    readWorkspaceCards(workspaceId),
+    readMemberships(workspaceId, candidateIds),
+    readReopenedCardIds(workspaceId),
+    readProfiles(workspaceId, candidateIds),
+    readWeights(workspaceId),
+  ]);
+  let weights: Weights = { ...DEFAULT_WEIGHTS };
+  if (stored) {
+    if (weightIssues(stored.weights).length === 0) weights = stored.weights;
+    else console.warn(`[assign] trong so cua khong gian ${workspaceId} khong hop le, dung mac dinh`);
+  }
+  return { cards, memberships, reopened, profiles, weights };
+}
 
 // ===================== Goi y cho mot the =====================
 
@@ -110,21 +134,10 @@ export async function suggestForCard(userId: string, cardId: string, now: Date =
   const candidateUsers = await readCandidates(board);
   const candidateIds = candidateUsers.map((u) => u.id);
 
-  const [cards, memberships, reopened, profiles, stored, viewable] = await Promise.all([
-    readWorkspaceCards(board.workspaceId),
-    readMemberships(board.workspaceId, candidateIds),
-    readReopenedCardIds(board.workspaceId),
-    readProfiles(board.workspaceId, candidateIds),
-    readWeights(board.workspaceId),
+  const [{ cards, memberships, reopened, profiles, weights }, viewable] = await Promise.all([
+    readScoringInputs(board.workspaceId, candidateIds),
     readViewableBoardIds(userId, board.workspaceId),
   ]);
-
-  // Trong so luu hong (sua tay trong CSDL) khong duoc lam mat goi y cua ca nhom: lui ve mac dinh
-  let weights: Weights = { ...DEFAULT_WEIGHTS };
-  if (stored) {
-    if (weightIssues(stored.weights).length === 0) weights = stored.weights;
-    else console.warn(`[assign] trong so cua khong gian ${board.workspaceId} khong hop le, dung mac dinh`);
-  }
 
   const snapshot = buildSnapshot({
     cards,
@@ -221,6 +234,136 @@ export async function suggestForCard(userId: string, cardId: string, now: Date =
     groupOnTimeRate: snapshot.mu,
     candidateCount: ranked.length,
     candidates,
+  };
+}
+
+// ===================== Chia viec cho ca danh sach (lop 2) =====================
+
+export interface PlanPick {
+  user: { id: string; name: string; avatarUrl: string | null };
+  /** Diem TUONG DOI trong nhom ung vien cua the nay TAI BUOC nay (da tinh cac the chia truoc). */
+  score: number | null;
+  rawScore: number | null;
+  confidence: number;
+  confidenceLevel: ConfidenceLevel;
+  components: CandidateScore['components'];
+  load: number;
+  capacity: number;
+  flags: Flag[];
+}
+
+export interface PlanRowView {
+  /** 1 = xu ly truoc (han gap nhat). */
+  order: number;
+  card: { id: string; title: string; startDate: Date | null; dueDate: Date | null };
+  /** null = khong ai du dieu kien (moi nguoi dang tam nghi): de trong, khong bia. */
+  assignee: PlanPick | null;
+  /** Xep hang cua MOI ung vien cho the nay tai buoc nay - de doi nguoi nhan trong ban xem truoc. Khong co bang chung (§10.10). */
+  ranking: { userId: string; rank: number; score: number | null; load: number; capacity: number; flags: Flag[] }[];
+}
+
+export interface PlanPerson {
+  user: { id: string; name: string; avatarUrl: string | null };
+  capacity: number;
+  /** So the dang mo cua nguoi nay TRUOC khi chia. */
+  openCards: number;
+  paused: boolean;
+}
+
+export interface PlanResult {
+  list: { id: string; name: string; boardId: string; workspaceId: string };
+  algorithmVersion: string;
+  planVersion: string;
+  generatedAt: Date;
+  weights: Weights & { custom: boolean };
+  groupOnTimeRate: number | null;
+  people: PlanPerson[];
+  /** Tong so the chua co nguoi nhan trong danh sach (co the nhieu hon so dong: xem `truncated`). */
+  totalUnassigned: number;
+  /** Chi chia PLAN_MAX_CARDS the dau (han gap nhat); phan con lai de lan sau. */
+  truncated: boolean;
+  rows: PlanRowView[];
+}
+
+/**
+ * Chia cac the CHUA CO NGUOI NHAN cua danh sach `listId` cho nhung nguoi co the nhan (assign.plan.ts). CHI DE XEM TRUOC:
+ * khong ghi gi vao CSDL (khong AssignRun, khong CardMember) - nguoi dung ap dung bang API giao the co san. Khong tra bang
+ * chung (tieu de the cu) nen khong co gi de che theo quyen xem bang (§10.4). `now` mac dinh la bay gio; test truyen vao.
+ */
+export async function planForList(userId: string, listId: string, now: Date = new Date()): Promise<PlanResult> {
+  // Quyen: nhu goi y cho mot the - phai SUA duoc bang (VIEWER va nguoi ngoai bi chan)
+  const list = await assertListAccess(userId, listId);
+  const board = await readBoardRef(list.boardId);
+  if (!board) throw new AppError('Khong tim thay bang', 404);
+
+  const candidateUsers = await readCandidates(board);
+  const candidateIds = candidateUsers.map((u) => u.id);
+  const [planCards, { cards, memberships, reopened, profiles, weights }] = await Promise.all([
+    readPlanCards(list.id),
+    readScoringInputs(board.workspaceId, candidateIds),
+  ]);
+
+  const snapshot = buildSnapshot({ cards, memberships, reopened, profiles, candidateIds, targetCardId: null, now });
+  const plan = planAssignments({
+    cards: urgencyOrder(planCards).slice(0, PLAN_MAX_CARDS),
+    candidates: snapshot.candidates,
+    ctx: { idf: snapshot.idf, now, groupOnTimeRate: snapshot.mu, weights, normalize: NORMALIZE, missing: MISSING },
+  });
+
+  const userById = new Map(candidateUsers.map((u) => [u.id, u]));
+  // Co y khong co email: ket qua nay hien cho moi nguoi sua duoc bang
+  const publicUser = (id: string) => {
+    const u = userById.get(id)!;
+    return { id: u.id, name: u.name, avatarUrl: u.avatarUrl };
+  };
+
+  const rows: PlanRowView[] = plan.map((row, i) => {
+    const pick = row.ranked.find((r) => r.userId === row.assigneeId);
+    return {
+      order: i + 1,
+      card: { id: row.card.id, title: row.card.title, startDate: row.card.startDate, dueDate: row.card.dueDate },
+      assignee: pick
+        ? {
+            user: publicUser(pick.userId),
+            score: pick.score,
+            rawScore: pick.rawScore,
+            confidence: pick.confidence,
+            confidenceLevel: pick.confidenceLevel,
+            components: pick.components,
+            load: pick.load,
+            capacity: pick.capacity,
+            flags: pick.flags,
+          }
+        : null,
+      ranking: row.ranked.map((r) => ({
+        userId: r.userId,
+        rank: r.rank,
+        score: r.score,
+        load: r.load,
+        capacity: r.capacity,
+        flags: r.flags,
+      })),
+    };
+  });
+
+  const people: PlanPerson[] = snapshot.candidates.map((c) => ({
+    user: publicUser(c.userId),
+    capacity: c.maxParallelCards ?? DEFAULT_MAX_PARALLEL,
+    openCards: c.openCards.length,
+    paused: c.pausedUntil instanceof Date && c.pausedUntil.getTime() >= now.getTime(),
+  }));
+
+  return {
+    list: { id: list.id, name: list.name, boardId: board.id, workspaceId: board.workspaceId },
+    algorithmVersion: ALGORITHM_VERSION,
+    planVersion: PLAN_VERSION,
+    generatedAt: now,
+    weights: { ...weights, custom: !isDefaultWeights(weights) },
+    groupOnTimeRate: snapshot.mu,
+    people,
+    totalUnassigned: planCards.length,
+    truncated: planCards.length > PLAN_MAX_CARDS,
+    rows,
   };
 }
 

@@ -102,6 +102,19 @@ export const assignSuggestLimiter = rateLimit({
   message: TOO_MANY,
 });
 
+/**
+ * Chia viec cho ca danh sach (lop 2): moi luot doc ca khong gian va cham toi PLAN_MAX_CARDS the (do: ~3 ms / the o nhom 120
+ * the, ~74 ms / the o nhom 3000 the) nhung KHONG ghi CSDL: 10 lan / user / 10 phut. Chi dung sau requireAuth.
+ */
+export const assignPlanLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: byUser,
+  message: TOO_MANY,
+});
+
 /** Ap dung ke hoach thanh bang that (khong goi LLM, nhe hon): 30 lan / user / 10 phut. */
 export const aiApplyLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,

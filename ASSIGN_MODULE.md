@@ -1,15 +1,16 @@
 # Module Gợi ý phân công công việc (cá nhân hoá từ lịch sử)
 
-> **Trạng thái: xong bước 0–7 (kể cả 4b, 6a, 6b, 7a, 7b)** — 6a: **học trọng số mức 2** + hồ sơ làm việc cá nhân
+> **Trạng thái: xong bước 0–7 (kể cả 4b, 6a, 6b, 7a, 7b) và 8a** — 6a: **học trọng số mức 2** + hồ sơ làm việc cá nhân
 > (backend); 6b: **giao diện** (ô Thành viên có gợi ý, mục trọng số ở trang cài đặt không gian); 7: **bộ đánh giá
 > offline** (`npm run eval:assign`: 8 nhánh × 20 hạt giống, khoảng tin cậy bootstrap, quét tham số, học trọng số,
-> độ bền vững; kết quả ở nhật ký 7a / 7b).
+> độ bền vững; kết quả ở nhật ký 7a / 7b); 8a: **lớp 2 — chia việc cho cả danh sách** (backend: `assign.plan.ts` +
+> `POST /api/lists/:listId/assignment-plan`, §10.10; màn xem trước là bước 8b).
 > Thiết kế đã chốt; nền dữ
 > liệu mô phỏng, bộ tách từ + TF-IDF + hồ sơ người, **bộ chấm cặp (việc, người)**
 > đã có, chạy được trên dữ liệu mô phỏng và **đã chuẩn hoá thành phần trong nhóm
 > ứng viên (phương án A)** để trọng số có nghĩa. **Bước 5: API** — xếp hạng ứng viên
 > cho một thẻ từ dữ liệu thật trong Postgres, ghi nhật ký `AssignRun`, ghi người được
-> chọn, xem/chỉnh/đặt lại trọng số của nhóm (§10). Chưa có lớp 2 (bước 8–9). Còn treo: chính sách cho
+> chọn, xem/chỉnh/đặt lại trọng số của nhóm (§10). Chưa có màn xem trước lớp 2 (8b) và đánh giá lớp 2 (bước 9). Còn treo: chính sách cho
 > **người chưa có lịch sử** (DROP hay NEUTRAL — nhật ký bước 4b và 7b).
 > Tài liệu này là hợp đồng thiết kế; mỗi bước xong sẽ thêm một mục
 > "Đã xong — Bước N" ở cuối file, giống cách `AI_MODULE.md` ghi nhật ký.
@@ -107,7 +108,7 @@ tải. Tách ra còn giữ được lớp 1 là hàm thuần, dễ kiểm thử 
 
 **Vì sao lớp 2 phải tối giản**: engine v1 (`assign/engine.ts`, 144 dòng) dựng sổ
 tải theo từng ngày, đặt chỗ ngược từ cuối, theo dõi "nợ giờ" — chính chỗ này làm
-v1 phình to rồi bị xoá. Lớp 2 bản này chỉ là vòng lặp tham lam khoảng 50 dòng.
+v1 phình to rồi bị xoá. Lớp 2 bản này chỉ là vòng lặp tham lam khoảng 50 dòng (đã cài ở bước 8: `assign.plan.ts`, §10.10).
 
 ## 5. Công thức và tham số mặc định
 
@@ -425,7 +426,7 @@ chấp nhận) vừa là đầu vào cho mức 2. Một bảng làm ba việc.
 | POST | `/api/assignment/runs/:runId/outcome` | Ghi người thực sự được chọn (nuôi mức 1 và mức 2) | **bước 5** (ghi nhận) + **6a** (học) |
 | GET / PUT / DELETE | `/api/workspaces/:workspaceId/assignment-weights` | Xem (kèm lịch sử, số phản hồi, trạng thái học), chỉnh ba thanh trượt, đặt lại mặc định | **bước 5** + **6a** (trường mới) |
 | GET / PUT | `/api/workspaces/:workspaceId/assignment-profile` | Hồ sơ làm việc của **chính người gọi**: số thẻ chồng lấn tối đa, tạm nghỉ đến ngày | **bước 6a** |
-| POST | `/api/lists/:listId/assignment-plan` | Lớp 2 (bước 8): xếp việc cho cả danh sách, trả bản xem trước | chưa làm |
+| POST | `/api/lists/:listId/assignment-plan` | Lớp 2: chia các thẻ **chưa có người nhận** của danh sách, trả bản **xem trước** (không ghi gì) | **bước 8a** |
 
 Phân quyền: chỉ người **sửa được thẻ** mới gọi được gợi ý (đúng hàm `assertCardAccess` của thao
 tác sửa thẻ → VIEWER và người ngoài bảng bị chặn); chỉ OWNER/ADMIN của không gian làm việc mới sửa
@@ -576,7 +577,76 @@ thành viên không gian gọi được (không ai sửa hồ sơ người khác
 ### 10.9 Chưa làm (cố ý)
 
 Nút **tắt** học (cần thêm cột, tức migration), admin sửa hồ sơ người khác, đọc chéo không gian, bộ nhớ đệm
-(đo độ trễ trước, xem nhật ký bước 5), lớp 2. (Biểu đồ hội tụ đã có ở bước 7b, dạng CSV + SVG ngoài ứng dụng.)
+(đo độ trễ trước, xem nhật ký bước 5), **học từ chỉnh sửa trên bản xem trước chia việc** (đặc trưng có tải ảo nên cần thiết kế
+riêng), API giao hàng loạt (chia việc giao từng thẻ bằng API có sẵn), dùng chung hồ sơ người giữa các thẻ của một lượt chia (tăng
+tốc, chưa cần). (Biểu đồ hội tụ đã có ở bước 7b, dạng CSV + SVG ngoài ứng dụng.)
+
+### 10.10 Chia việc cho cả danh sách (lớp 2, bước 8)
+
+`POST /api/lists/:listId/assignment-plan` (không có thân yêu cầu). **Chỉ xem trước, không ghi gì**: không `AssignRun`, không
+`CardMember`, không nhật ký hoạt động, không học trọng số (test đếm sáu bảng trước và sau). Người dùng áp dụng bằng API giao thẻ có
+sẵn (`POST /api/cards/:cardId/members`), từng thẻ một, từ màn xem trước (bước 8b).
+
+**Thuật toán** (`assign.plan.ts`, hàm thuần — dùng chung cho máy chủ và cho bước 9 đánh giá lớp 2 trên bộ mô phỏng):
+
+1. Lấy các thẻ **chưa có người nhận** của danh sách (chưa xong, chưa lưu trữ, chưa xoá, không có thành viên nào) và xếp **hạn gấp
+   trước** (không có hạn xuống cuối; cùng hạn thì theo `position` trong danh sách, rồi `id` — tất định).
+2. Với từng thẻ gọi `rankCandidates` của lớp 1 (đúng cấu hình sản phẩm: `MINMAX` / `DROP`, trọng số của nhóm), chọn người xếp đầu
+   **có điểm và không đang tạm nghỉ** (cờ `PAUSED` tính theo cửa sổ của chính thẻ đó).
+3. Cộng thẻ vừa chia vào "thẻ đang mở" của người đó, giữ nguyên khoảng [bắt đầu, hạn] của thẻ (thẻ không ngày thì "thẻ đang mở"
+   không ngày, đúng như sau khi giao thật: chồng lấn mọi khoảng, §5.6), rồi sang thẻ sau.
+
+"Người vừa nhận việc bị trừ điểm dần" (§4) xảy ra **qua thành phần khả dụng của lớp 1** (`1 − tải / sức chứa`): không có tham số
+mới, không có sổ tải theo ngày. Vì vậy kết quả **đúng bằng lần lượt bấm gợi ý số 1 cho từng thẻ rồi giao thật** (khác duy nhất: bỏ
+qua người tạm nghỉ). Test tích hợp làm đúng việc đó trên CSDL thật và đối chiếu từng người, điểm, tải, cờ, xếp hạng — với trọng số
+mặc định và với trọng số của nhóm thiên về khả dụng.
+
+**Phân quyền và giới hạn**: như lớp 1 (phải **sửa được bảng**: VIEWER và người ngoài 403; danh sách hoặc bảng đã xoá / lưu trữ 404);
+**10 lượt / người / 10 phút** (ít hơn lớp 1 vì mỗi lượt chấm tới 30 thẻ); tối đa `PLAN_MAX_CARDS = 30` thẻ mỗi lượt, lấy các thẻ
+gấp nhất — phần còn lại báo bằng `truncated` và `totalUnassigned`.
+
+**Dạng trả về** (không có `runId`, không có bằng chứng, không email):
+
+```jsonc
+{ "success": true, "data": {
+  "list": { "id", "name", "boardId", "workspaceId" },
+  "algorithmVersion": "knn-tfidf-v1/minmax/drop", "planVersion": "greedy-v1", "generatedAt": "…",
+  "weights": { "experience", "reliability", "availability", "custom" }, "groupOnTimeRate": 0.62,
+  "people": [{ "user": { "id", "name", "avatarUrl" }, "capacity": 5, "openCards": 3, "paused": false }],
+  "totalUnassigned": 41, "truncated": true,
+  "rows": [{
+    "order": 1, "card": { "id", "title", "startDate", "dueDate" },
+    "assignee": { "user", "score", "rawScore", "confidence", "confidenceLevel", "components", "load", "capacity", "flags" } | null,
+    "ranking": [{ "userId", "rank", "score", "load", "capacity", "flags" }]   // MỌI ứng viên, tại bước này (đã tính các thẻ chia trước)
+  }] } }
+```
+
+`assignee = null` khi không ai đủ điều kiện (mọi ứng viên đang tạm nghỉ): dòng để trống, không bịa. `ranking` cho phép màn xem trước
+đổi người nhận từng dòng mà không gọi lại máy chủ. **Riêng tư**: vì không trả bằng chứng nên không lộ tiêu đề thẻ cũ (kể cả ở bảng
+riêng tư mà người hỏi không xem được, §10.4); test kiểm chuỗi tiêu đề lịch sử không xuất hiện ở bất kỳ chỗ nào của phản hồi.
+
+**Giới hạn đã đo, không giấu** — đo thăm dò 36 đợt chia 12 thẻ cùng lúc (12 hạt giống dev 9301–9312 × 3 ngày; mô hình kết quả của
+bộ sinh; **không phải số chính thức**, bước 9 đo lại trên hạt giống mới với so sánh đăng ký trước):
+
+| Cách chia | Người nhiều nhất | Gini | P(đúng hạn) |
+|---|---|---|---|
+| Chấm riêng từng thẻ, không cộng tải | 49,1% | 0,469 | 0,459 |
+| **Cộng thẻ vừa giao vào tải (cách đã cài)** | 35,4% | 0,298 | **0,485** |
+| Cách trên + trần ⌈n/m⌉ thẻ mỗi người | 22,0% | 0,102 | 0,470 |
+| Cách trên + phạt 10 điểm mỗi thẻ đã nhận | 29,6% | 0,210 | 0,485 |
+| Cách trên + phạt 20 điểm mỗi thẻ đã nhận | 26,6% | 0,157 | 0,477 |
+| Chia vòng tròn | 22,0% | 0,064 | 0,379 |
+| Tối ưu (biết kỹ năng ẩn) | 34,5% | 0,328 | 0,613 |
+
+Cách đơn giản nhất giảm dồn tải rõ và có P(đúng hạn) cao nhất trong các cách thực tế; ép cân bằng thêm (trần, phạt) làm đều hơn
+nhưng không làm đúng hạn tốt hơn — nên **không thêm tham số**. Nhưng nó **chỉ giảm chứ không chia đều** (người nhiều nhất vẫn 35%
+so với phần chia đều ~17–20%): chuẩn hoá min-max biến mọi chênh lệch thành 0..1 nên một thành phần (khả dụng, trọng số 0,25) không
+thắng nổi hai thành phần còn lại (0,75). Người vượt trội cả về kinh nghiệm lẫn độ tin cậy **vẫn nhận mọi thẻ** — có test ghi lại
+điều này — và bản xem trước bù lại bằng cách hiện `OVERLOADED` để người dùng đổi người. Cân bằng mạnh hơn là câu hỏi của bước 9.
+
+**Độ trễ đo** (chỉ phần chấm, 40 thẻ, không kể đọc CSDL): 3 ms / thẻ (nhóm 120 thẻ, 5 ứng viên), 22 ms / thẻ (1000 thẻ, 9 ứng viên),
+74 ms / thẻ (3000 thẻ) — tức 30 thẻ mất ≈ 2,2 s ở không gian 3000 thẻ. Chưa tối ưu (dùng chung hồ sơ người giữa các thẻ) vì chưa cần;
+máy chủ Node chỉ có một luồng nên đây là lý do của hạn mức 10 lượt / 10 phút.
 
 ## 11. Module đánh giá (bước 7)
 
@@ -1726,3 +1796,47 @@ chỉ sáu phép chính là đăng ký trước; (4) thế giới chỉ 6 ngư�
 **học trên người chọn giả** và dừng ở ~105 quyết định — nhóm thật có thể có nhiều hoặc ít phản hồi hơn.
 
 Bước tiếp theo: **bước 8 — lớp 2 tối giản** (chia việc cả danh sách, vòng lặp tham lam ~50 dòng + màn xem trước), rồi bước 9 (đánh giá lớp 2 + viết chương). Trước đó nên chốt hai quyết định treo ở trên.
+
+### Đã xong — Bước 8a: lớp 2, chia việc cho cả danh sách — phần backend (22/09/2026)
+
+**Tệp mới**: `backend/src/modules/assign/assign.plan.ts` (hàm thuần: `urgencyOrder`, `planAssignments`, `PLAN_MAX_CARDS = 30`, `PLAN_VERSION`;
+khoảng 50 dòng thuật toán) · `test/assign.plan.test.ts` (21 test) · `test/assign.planapi.test.ts` (16 test, CSDL thật). **Sửa**: `assign.repo.ts`
+(`readPlanCards`), `assign.service.ts` (`planForList`, và tách `readScoringInputs` dùng chung với gợi ý một thẻ), `assign.controller.ts`,
+`assign.routes.ts` (`listAssignRoutes`), `rateLimit.middleware.ts` (`assignPlanLimiter`: 10 lượt / 10 phút), `app.ts` (gắn `/api/lists/:listId/assignment-plan`
+trước `/api/lists`). Không đổi schema, không migration, không sửa bộ chấm. Đặc tả đầy đủ ở §10.10.
+
+**Năm quyết định đã duyệt trước khi làm**: (1) chỉ chia thẻ **chưa có người nhận**; (2) bỏ qua người đang tạm nghỉ, người quá tải vẫn được xét nhưng có cờ;
+(3) **không ghi** `AssignRun`, không học từ chỉnh sửa trên bản xem trước; (4) áp dụng bằng API giao thẻ có sẵn, không làm API giao hàng loạt;
+(5) không đổi gì ở phần đã duyệt (`DROP`, trọng số, tham số).
+
+**Vì sao chọn "cộng thẻ vừa giao vào tải"** (đo trước khi chọn; bảng ở §10.10): thiết kế ghi "trừ điểm dần" mà không nói cách. Đo thăm dò 36 đợt × 12 thẻ (hạt giống
+dev 9301–9312) cho thấy cách đơn giản nhất — cộng thẻ vừa giao vào "thẻ đang mở" của người đó — giảm phần của người nhận nhiều nhất từ 49,1% xuống 35,4% và có
+P(đúng hạn) cao nhất trong các cách thực tế (0,485 so với 0,459 của chấm riêng từng thẻ); trần ⌈n/m⌉ và phạt điểm làm đều hơn nhưng **không** làm đúng hạn tốt hơn
+(0,470; 0,485; 0,477). Vì vậy không thêm tham số nào. Đây là số thăm dò (36 đợt, không kiểm định), **không phải** kết quả chính thức: bước 9 đo lại trên hạt giống mới.
+
+**Điều cần biết, không giấu**:
+- Cách này **chỉ giảm chứ không chia đều**: người nhiều nhất vẫn 35% (chia đều ~17–20%). Nguyên nhân là cơ chế, không phải lỗi: min-max biến mọi chênh lệch thành 0..1 nên khả dụng
+  (trọng số 0,25) không thắng nổi kinh nghiệm + tin cậy (0,75) khi một người vượt trội cả hai. Có test ghi lại: người vượt trội vẫn nhận mọi thẻ, khả dụng của người đó giảm
+  1 → 0,8 → 0,6 → 0,4, và cờ `OVERLOADED` bật đúng lúc đủ sức chứa (bản xem trước dựa vào cờ này để người dùng đổi người).
+- Kế hoạch **kế thừa nguyên** điểm yếu của lớp 1: với `DROP`, người chưa có lịch sử được điểm 100 khi rảnh nên có thể nhận những thẻ đầu của đợt (cờ `NO_HISTORY` cảnh báo).
+- Kế hoạch **đúng bằng lần lượt bấm gợi ý số 1 cho từng thẻ rồi giao thật** (khác duy nhất: bỏ qua người tạm nghỉ). Test tích hợp làm đúng vậy trên CSDL thật và đối chiếu từng người, điểm
+  tương đối, điểm thô, độ tin cậy, ba thành phần, tải, sức chứa, cờ và toàn bộ xếp hạng — với trọng số mặc định và với trọng số nhóm thiên về khả dụng (0,05 / 0,25 / 0,70).
+- Độ trễ đo: 3 / 22 / 74 ms mỗi thẻ ở nhóm 120 / 1000 / 3000 thẻ; 30 thẻ ở 3000 thẻ mất ≈ 2,2 s trên một luồng Node — lý do của hạn mức 10 lượt / 10 phút và trần 30 thẻ.
+
+**Kiểm thử**: 37 test mới (hàm thuần 21 · API 16); toàn bộ suite backend 71 tệp / 795 test xanh, `tsc` và `eslint` sạch. Hàm thuần đối chiếu số tính tay (luân phiên A, B, A, B với tải 0/1/1/2 và 0/0/1/1;
+thẻ không ngày chồng lấn mọi khoảng; thẻ chỉ có ngày bắt đầu; người đang có sẵn thẻ chồng lấn), tính tất định qua 20 lần xáo trộn đầu vào, không sửa đầu vào (đóng băng toàn bộ), và một test trên
+bộ mô phỏng (người nhận nhiều nhất và Gini thấp hơn rõ so với chấm riêng từng thẻ). Test API: quyền (401 / 403 / 404), thẻ nào được chia, cắt 30 thẻ, riêng tư (không bằng chứng, không email, chuỗi tiêu đề lịch sử
+không xuất hiện ở đâu trong phản hồi), **không ghi gì** (đếm sáu bảng trước và sau), người tạm nghỉ (kể cả biên `>=`), sức chứa và số thẻ đang mở, tất định, trọng số lưu hỏng lùi về mặc định, giới hạn tốc độ.
+
+**Cài lỗi tự động: 89 phép, 87 bị bắt, 2 tương đương** (hàm thuần 29 · dịch vụ 39 · kho dữ liệu 12 · route và giới hạn 9; mã nguyên vẹn từng byte sau mỗi nhóm). Lần chạy đầu để lọt 5 chỗ thật, mỗi chỗ chỉ ra một lỗ của test:
+- `P15` / `P16` / `P20` (thẻ ảo lấy ngày bắt đầu bằng hạn; lấy hạn bằng ngày bắt đầu; bỏ các thẻ đang mở thật của người đó): dữ liệu mẫu chỉ có cửa sổ trùng nhau hoàn toàn nên cách nào cũng ra cùng kết quả.
+  Thêm ba ca: thẻ sau chỉ chồng lấn đoạn cuối của thẻ trước; thẻ chỉ có ngày bắt đầu (không hạn) chiếm mọi thời điểm từ ngày đó; người đang có sẵn 2 thẻ chồng lấn.
+- `S19` / `S26` (sức chứa trong kết quả bị thay bằng hằng số 5): mọi người trong dữ liệu mẫu đều sức chứa mặc định 5 nên hằng số nào cũng "đúng" — đặt sức chứa 3 và 4 cho hai người.
+- Hai phép đầu của nhóm dịch vụ (`S1`, `S2`: trọng số hỏng) ban đầu **được báo là bị bắt vì lỗi cú pháp** (tôi xoá dòng `if` mà để lại `else`) — bắt vì lý do sai; viết lại cho đúng, thêm ca "trọng số lưu hỏng lùi về mặc định" cho kế hoạch và một
+  phép đảo điều kiện; cả ba đều bị bắt.
+- **Hai phép tương đương**: `P18` (thẻ ảo mang `cardId` rỗng: id đó chỉ dùng để bỏ chính thẻ đang chấm, mà thẻ đang chấm không bao giờ nằm trong tải ảo) và `R12` (đổi thứ tự đọc thẻ trong kho dữ liệu: tầng dịch vụ luôn sắp lại theo `urgencyOrder`).
+
+**Sai sót / ngoặt của chính tôi ở bước này**: (1) 18 test hàm thuần và 14 test API viết đầu tiên đều xanh ngay lần chạy đầu — điều đó **không** chứng tỏ chúng đủ mạnh, cài lỗi mới lộ ra 5 lỗ; (2) viết sai hai phép cài lỗi (lỗi cú pháp) và chỉ phát hiện vì
+chúng bị bắt ngay ở tầng đầu trong khi không test nào của tầng đó nói về trọng số hỏng — cùng bài học của bước 7: một phép bị bắt phải bị bắt vì đúng lý do.
+
+**Chưa làm / để 8b**: màn xem trước (nút "Chia việc gợi ý…" ở menu danh sách, sửa từng dòng, áp dụng từng thẻ); đánh giá lớp 2 chính thức ở bước 9 (cân tải, việc trễ hạn, hạt giống mới, so sánh đăng ký trước).
