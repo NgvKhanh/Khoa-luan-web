@@ -1,6 +1,7 @@
 # Module Gợi ý phân công công việc (cá nhân hoá từ lịch sử)
 
-> **Trạng thái: xong bước 0–5 (kể cả 4b)** — thiết kế đã chốt; nền dữ liệu, bộ dữ
+> **Trạng thái: xong bước 0–6a (kể cả 4b)** — bước 6a: **học trọng số mức 2** + hồ sơ làm việc cá nhân
+> (backend); 6b (giao diện) xem nhật ký. Thiết kế đã chốt; nền dữ
 > liệu mô phỏng, bộ tách từ + TF-IDF + hồ sơ người, **bộ chấm cặp (việc, người)**
 > đã có, chạy được trên dữ liệu mô phỏng và **đã chuẩn hoá thành phần trong nhóm
 > ứng viên (phương án A)** để trọng số có nghĩa. **Bước 5: API** — xếp hạng ứng viên
@@ -334,7 +335,9 @@ Khi module xếp `a` đứng đầu mà người dùng chọn `b` (khác `a`):
 
 - Gọi `x_a`, `x_b` là véc-tơ ba thành phần của hai người.
 - Nếu `score(a) > score(b)`: `trọng số <- trọng số + eta * (x_b - x_a)`, `eta = 0.05`.
-- Kẹp mỗi trọng số vào `[0.05, 0.70]`, rồi chuẩn hoá cho tổng bằng 1.
+- Đưa về tập hợp lệ: mỗi trọng số trong `[0.05, 0.70]`, tổng bằng 1. **Cài đặt dùng phép chiếu
+  vuông góc** (điểm hợp lệ gần nhất) thay cho "kẹp rồi chia cho tổng" — xem "Cài đặt (bước 6a)" bên
+  dưới vì sao.
 
 **Bốn chốt chặn để không loạn**:
 
@@ -347,6 +350,36 @@ Khi module xếp `a` đứng đầu mà người dùng chọn `b` (khác `a`):
    văn. Biểu đồ đó chính là bằng chứng nhìn thấy được rằng cá nhân hoá có xảy ra.
 
 Có nút đặt lại về mặc định. Trọng số hiện tại luôn xem được, không giấu.
+
+### Cài đặt (bước 6a — `assign.learn.ts`, `assign.repo.ts › decideAndLearn`)
+
+- **Đặc trưng `x` là giá trị đã chuẩn hoá `scaled`** (thứ thực sự tạo ra điểm, bước 4b), không phải
+  giá trị thô: bước cập nhật phải đi đúng hướng với cái đã xếp sai. Đọc lại từ `AssignRun.candidates`.
+- **Phép chiếu thay cho "kẹp rồi chuẩn hoá"**: kẹp từng số rồi chia cho tổng **có thể phá chính bất
+  biến §14** — `(0,70; 0,05; 0,05)` chuẩn hoá thành `(0,875; 0,0625; 0,0625)`, vượt trần 0,70. Phép chiếu
+  tìm điểm hợp lệ **gần nhất**: `w_i = kẹp(v_i − τ)` với `τ` chọn (chia đôi, tất định) sao cho tổng = 1;
+  luôn có nghiệm vì tổng chạy từ `3 × 0,70 = 2,1` xuống `3 × 0,05 = 0,15`. Cùng ý đồ, chính xác hơn.
+- **Quyết định "có học không" là hàm thuần** (`learningDecision`), kiểm theo thứ tự cố định và trả **lý
+  do**: `NO_TOP` → `ACCEPTED` (giao đúng người xếp đầu: không có lỗi để sửa) → `TOO_EARLY` (chưa đủ 10
+  lượt) → `NOT_CANDIDATE` → `MISSING_COMPONENT` → `TIE` (điểm không lớn hơn hẳn: người xếp đầu chỉ
+  hơn nhờ tie-break) → `NO_CHANGE` (chiếu xong vẫn không đổi) → `LEARNED`.
+- **Mỗi lượt ghi được đều tính vào `feedbackCount`** (kể cả giao đúng người xếp đầu hay không học được);
+  học chỉ xảy ra từ lượt thứ 10 trở đi (`feedbackCount` **sau khi cộng** ≥ 10) và chỉ khi giao người
+  KHÁC người xếp đầu — đúng bản chất perceptron: không có lỗi thì không cập nhật.
+- **Một giao dịch, khoá dòng**: ghi người được chọn (`updateMany where decidedAt = null`) → `SELECT … FOR
+  UPDATE` dòng trọng số của nhóm → cộng số lượt, quyết định, (nếu học) ghi trọng số mới + một dòng
+  `AssignWeightHistory` kèm `runId` + `AssignRun.learned = true`. Khoá dòng để hai lượt phản hồi (hoặc
+  một lượt và một lần chỉnh tay) của cùng nhóm **nối đuôi nhau**, không ai ghi đè mất cập nhật của
+  người kia. Cả bước chỉnh tay `saveWeights` cũng khoá cùng dòng.
+- **Đo trước khi viết expect** (trưởng nhóm mô phỏng có thiên lệch cố định, 8 hạt giống, 300 vòng,
+  4 ứng viên/vòng, đặc trưng ngẫu nhiên trong [0,1]; `assign.learn.test.ts`): khoảng cách L1 giữa trọng
+  số học được và thiên lệch **0,50 → 0,03 · 0,90 → 0,02 · 0,80 → 0,03** (8/8 hạt giống), đồng ý top-1
+  với trưởng nhóm 76–88% → 98–99%, chỉ ~25/300 vòng thực sự cập nhật. Trưởng nhóm **không nhất quán**
+  (nhiễu ±0,15): L1 → 0,10–0,16, đồng ý 66–78% → 76–78%. **Đối chứng**: trưởng nhóm chọn đúng theo trọng
+  số mặc định thì **không học gì** (trọng số nguyên vẹn). **Lưu ý trung thực**: với trưởng nhóm nhiễu mà
+  thiên lệch trùng mặc định, trọng số **trôi** ~0,11 (L1) khỏi mặc định — perceptron với nhãn nhiễu và
+  `eta` cố định không có cơ chế giữ chỗ; bước 7 cần quét `eta` (và cân nhắc biên độ/giảm dần) trước khi
+  tuyên bố học "ổn định". Đây là số trên **người chọn giả**, chưa phải người thật.
 
 **Cách đo mức 2 trên dữ liệu mô phỏng**: cho "trưởng nhóm mô phỏng" một thiên
 lệch cố định (ví dụ luôn ưu ái tốc độ hơn kinh nghiệm), rồi đo sau bao nhiêu
@@ -387,8 +420,9 @@ chấp nhận) vừa là đầu vào cho mức 2. Một bảng làm ba việc.
 | Phương thức | Đường dẫn | Việc | Trạng thái |
 |---|---|---|---|
 | GET | `/api/cards/:cardId/assignment-suggestions` | Lớp 1: xếp hạng ứng viên cho một thẻ, trả kèm bằng chứng và `runId` | **bước 5** |
-| POST | `/api/assignment/runs/:runId/outcome` | Ghi người thực sự được chọn (nuôi mức 1 và mức 2) | **bước 5** (chỉ ghi nhận) |
-| GET / PUT / DELETE | `/api/workspaces/:workspaceId/assignment-weights` | Xem, chỉnh ba thanh trượt, đặt lại mặc định | **bước 5** |
+| POST | `/api/assignment/runs/:runId/outcome` | Ghi người thực sự được chọn (nuôi mức 1 và mức 2) | **bước 5** (ghi nhận) + **6a** (học) |
+| GET / PUT / DELETE | `/api/workspaces/:workspaceId/assignment-weights` | Xem (kèm lịch sử, số phản hồi, trạng thái học), chỉnh ba thanh trượt, đặt lại mặc định | **bước 5** + **6a** (trường mới) |
+| GET / PUT | `/api/workspaces/:workspaceId/assignment-profile` | Hồ sơ làm việc của **chính người gọi**: số thẻ chồng lấn tối đa, tạm nghỉ đến ngày | **bước 6a** |
 | POST | `/api/lists/:listId/assignment-plan` | Lớp 2 (bước 8): xếp việc cho cả danh sách, trả bản xem trước | chưa làm |
 
 Phân quyền: chỉ người **sửa được thẻ** mới gọi được gợi ý (đúng hàm `assertCardAccess` của thao
@@ -403,7 +437,8 @@ assign.repo.ts      chỉ đọc/ghi Prisma, không logic tính điểm
 assign.snapshot.ts  hàm thuần: dòng CSDL -> { idf, mu, ứng viên }  (cùng hình dạng snapshotAsOf của bộ mô phỏng)
 assign.score.ts     bộ chấm (bước 4/4b), KHÔNG sửa
 assign.service.ts   nối các tầng + quyền + che riêng tư + nhật ký AssignRun
-assign.weights.ts   hằng số + kiểm tra ba trọng số (hàm thuần; bước 6 dùng lại cho bộ học)
+assign.weights.ts   hằng số + kiểm tra ba trọng số (hàm thuần)
+assign.learn.ts     học trọng số mức 2 (hàm thuần: phép chiếu, bước cập nhật, quyết định "có học không")  [6a]
 assign.schema.ts / assign.controller.ts / assign.routes.ts   zod, Express
 ```
 
@@ -485,14 +520,23 @@ Body `{ "chosenUserId": "…" }`. Ghi **người thực sự được giao** sau
 - **Ghi một lần**: gửi lại đúng người cũ → 200 với kết quả đã lưu; người khác → 409. Ghi bằng
   `updateMany where decidedAt = null`, nên hai request cùng lúc không đè nhau.
 - `accepted = (chosenUserId === topUserId)`. Người được chọn **nằm ngoài danh sách ứng viên** (ví dụ
-  VIEWER được gán tay trước đó) vẫn ghi được nhưng `accepted = false`; bước 6 sẽ **không học** từ lượt
-  đó (chốt chặn 2 của §8).
-- **Bước 5 chỉ ghi nhận (mức 1)**: `learned` luôn `false`, không đụng tới trọng số.
+  VIEWER được gán tay trước đó) vẫn ghi được nhưng `accepted = false` và **không học** từ lượt đó
+  (chốt chặn 2 của §8, lý do `NOT_CANDIDATE`).
+- **Học (bước 6a)**: mỗi lượt ghi được cộng vào `feedbackCount` của nhóm; từ lượt thứ 10 trở đi, giao
+  KHÁC người xếp đầu thì trọng số nhích (§8, "Cài đặt"). Lần ghi **đầu tiên** trả thêm
+  `learning: { learned, reason }`, `feedbackCount`, `weights` (sau lượt này); **gửi lại** chỉ trả phần cũ
+  (không có cột lưu lý do, và số lượt/trọng số lúc đó có thể đã đổi vì lượt khác) và **không** cộng thêm
+  lượt phản hồi. `AssignRun.learned` = có làm đổi trọng số.
 
 ### 10.6 Trọng số của nhóm
 
-- `GET` → `{ workspaceId, weights, defaults, custom, feedbackCount, updatedAt }`; chưa từng chỉnh thì
-  trả mặc định và **không tạo dòng** nào (đọc không ghi).
+- `GET` → `{ workspaceId, weights, defaults, custom, feedbackCount, updatedAt, learning, feedback,
+  history }`; chưa từng chỉnh thì trả mặc định và **không tạo dòng** nào (đọc không ghi). `learning` =
+  `{ minFeedback: 10, eta: 0.05, active }` (hằng số lấy từ máy chủ để giao diện không phải chép lại);
+  `feedback` = `{ decided, accepted }` (số lượt đã có kết quả / trong đó giao đúng người xếp đầu — chỉ
+  số đánh giá trực tuyến mức 1); `history` = **20 lần đổi gần nhất, mới nhất trước**, mỗi dòng
+  `{ id, at, weights, feedbackCount, source: 'LEARNED' | 'MANUAL', runId }`. `PUT` và `DELETE` trả **cùng
+  dạng đầy đủ** đó.
 - `PUT` `{ experience, reliability, availability }`: mỗi số trong `[0,05; 0,70]`, tổng bằng 1 (sai số
   1e-6); sai → **400 kèm lỗi từng trường, không tự sửa ngầm** (`assign.weights.ts` là nơi duy nhất
   định nghĩa luật này; service kiểm lại một lần nữa làm rào chắn cuối). Đặt giống hệt giá trị hiện tại
@@ -512,10 +556,25 @@ gian, bảng, thẻ, người bấm (`actorKey`), `algorithmVersion`, bộ trọ
 đã chấm (thành phần thô + chuẩn hoá + tỉ trọng, cờ, id bằng chứng), người xếp đầu (`null` nếu người
 đó không có điểm), và `latencyMs` (chỉ tính phần đọc + chấm, không tính lúc ghi nhật ký).
 
-### 10.8 Chưa làm (cố ý)
+### 10.8 Hồ sơ làm việc cá nhân (bước 6a)
 
-Học trọng số (mức 2), giao diện, API sửa hồ sơ làm việc cá nhân (số thẻ song song, tạm nghỉ — để bước
-6 khi có chỗ để bấm), đọc chéo không gian, bộ nhớ đệm (đo độ trễ trước, xem nhật ký bước 5), lớp 2.
+`GET/PUT /api/workspaces/:workspaceId/assignment-profile` — **chỉ hồ sơ của chính người gọi**, mọi
+thành viên không gian gọi được (không ai sửa hồ sơ người khác):
+
+- `GET` → `{ workspaceId, maxParallelCards, defaultMaxParallelCards: 5, pausedUntil, isDefault,
+  updatedAt }`; chưa có dòng thì trả mặc định, **không tạo dòng**.
+- `PUT { maxParallelCards, pausedUntil }`: số nguyên **1–30**; `pausedUntil` là chuỗi ISO **có `Z`** hoặc
+  `null` (bỏ tạm nghỉ). Sai → 400 kèm lỗi từng trường; service kiểm lại làm rào chắn cuối. Hai giá trị này
+  đi thẳng vào thành phần khả dụng: đủ `maxParallelCards` thẻ chồng lấn → cờ `OVERLOADED`; `pausedUntil` ≥
+  lúc bắt đầu cửa sổ của thẻ → cờ `PAUSED`, khả dụng = 0 (§5.6). Thời điểm tạm nghỉ đã qua thì không còn tác
+  dụng nhưng vẫn lưu.
+- Ghi bằng **upsert** trên khoá `(userId, workspaceId)` (Prisma sinh `INSERT … ON CONFLICT DO UPDATE`), nên
+  bấm Lưu hai lần liền không tranh nhau. `allowCrossWorkspace` vẫn **không** đụng tới.
+
+### 10.9 Chưa làm (cố ý)
+
+Nút **tắt** học (cần thêm cột, tức migration), admin sửa hồ sơ người khác, đọc chéo không gian, bộ nhớ đệm
+(đo độ trễ trước, xem nhật ký bước 5), biểu đồ hội tụ (bước 7), lớp 2.
 
 ## 11. Module đánh giá (bước 7)
 
@@ -1288,3 +1347,63 @@ Bước tiếp theo: **bước 6 — giao diện lớp 1**: nút gợi ý trong 
 tay), thanh trượt trọng số, gọi `outcome` sau khi giao, và **học trọng số mức 2** (bộ học dùng lại
 `assign.weights.ts`; điều kiện `learned`, ≥ 10 lượt, ứng viên đủ ba thành phần — §8). Cần quyết định
 trước: có làm API sửa hồ sơ làm việc cá nhân (số thẻ song song, tạm nghỉ) cùng lúc không.
+
+### Đã xong — Bước 6a: học trọng số (mức 2) + hồ sơ làm việc cá nhân, phần backend (20/09/2026)
+
+**Tệp mới** (`backend/src/modules/assign/`): `assign.learn.ts` (**hàm thuần**: `projectWeights`,
+`learnStep`, `learningDecision`, `parseRunCandidates`). **Sửa**: `assign.repo.ts` (`decideAndLearn` — một
+giao dịch có khoá dòng; `saveWeights` khoá cùng dòng; đọc lịch sử/số liệu phản hồi; hồ sơ cá nhân),
+`assign.service.ts` (`recordOutcome` học; các trường mới của GET trọng số; hồ sơ cá nhân),
+`assign.schema.ts` / `assign.controller.ts` / `assign.routes.ts` / `app.ts` (2 endpoint hồ sơ). **Không
+đổi**: schema/migration, `assign.score.ts`, biến môi trường. Test: tách hàm dựng "thế giới" ra
+`test/assignFixtures.ts` để hai tệp test dùng chung.
+
+Đặc tả: §8 "Cài đặt (bước 6a)" (thuật toán, phép chiếu, đo thử) và §10.5–10.8 (API). Ba quyết định bạn duyệt
+("ok làm đi"): phép chiếu thay cho "kẹp rồi chuẩn hoá"; đặc trưng học là giá trị `scaled`; làm API hồ sơ
+cá nhân (tự sửa của mình).
+
+**Kiểm chứng — 2 tệp test mới, 41 ca (`assign.learn.test.ts` thuần 24; `assign.learning.test.ts` CSDL 17):**
+- *Phép chiếu*: ca tính tay; **luôn hợp lệ** trên 3000 đầu vào ngẫu nhiên rộng [−2; 3]; **là điểm hợp lệ gần nhất**
+  (đối chiếu vét cạn lưới bước 0,005 trên 300 đầu vào — không chỉ "hợp lệ"); luỹ đẳng; bất biến theo hoán vị;
+  và một ca ghi lại **vì sao không "kẹp rồi chuẩn hoá"** (cách đó ra 0,875, vượt trần).
+- *Quyết định học*: từng lý do không học + **thứ tự kiểm tra**; biên 9 → `TOO_EARLY`, 10 → học.
+- *Người chọn giả có thiên lệch cố định*: số đo ở §8 (bám theo 8/8 hạt giống; đối chứng không học gì).
+- *CSDL thật*: 9 lượt đầu chỉ ghi nhận rồi lượt 10 học đúng `(0,40; 0,30; 0,30)` và lượt 11 tiếp `(0,35; 0,30; 0,35)`;
+  `ACCEPTED`, `NO_TOP`, `NOT_CANDIDATE`, `MISSING_COMPONENT`, `TIE`, `NO_CHANGE` đều cộng lượt nhưng không đổi
+  trọng số; phép chiếu qua CSDL `(0,70; 0,25; 0,05) + 0,05·(+1; 0; +1) → (0,70; 0,225; 0,075)`; đặt lại đưa số lượt
+  về 0; nhóm khác không bị đụng tới; luồng thật gợi ý → giao → ghi kết quả; lịch sử tối đa 20 dòng, mới nhất trước;
+  hồ sơ (mặc định, lưu, riêng từng người, 12 kiểu body sai, hai lần lưu cùng lúc, và **hồ sơ thực sự đổi gợi ý**:
+  cờ `OVERLOADED` / `PAUSED` / hết tạm nghỉ).
+
+**Cài lỗi: 60 phép, 57 bị bắt ngay; 3 lọt và cả ba đều đã xử lý:**
+- `L24` (bỏ kiểm tra hữu hạn ở `learnStep`): phía sau `projectWeights` cũng chặn nên vẫn ném `RangeError` — chỉ khác
+  thông điệp. Siết test kiểm **thông điệp của chính `learnStep`** → bị bắt.
+- `Q1` (**bỏ `FOR UPDATE`**): ca "hai lượt phản hồi cùng lúc" **vẫn xanh** — hai yêu cầu HTTP hầu như không chồng
+  lên nhau ở tầng CSDL nên không thể hiện lỗi, dù đây là lỗi thật (mất cập nhật). Vá bằng ca **tất định**: test tự
+  mở một giao dịch giữ khoá dòng, gửi yêu cầu, chờ, để giao dịch đó đổi trọng số rồi commit; có khoá thì lượt phản
+  hồi **chờ và đọc giá trị mới** (đếm 14, `(0,50; 0,25; 0,25)`), không khoá thì đọc cũ rồi ghi đè (13, `(0,40; 0,30;
+  0,30)`) → bị bắt. Giữ ca cũ làm kiểm khói.
+- `Q17` (bỏ vòng "thử lại khi trùng khoá P2002" ở lưu hồ sơ): **không bị bắt kể cả bằng ca tranh chấp tất định**
+  (một giao dịch khác vừa tạo dòng nhưng chưa commit) — vì upsert của Prisma trên khoá này là `INSERT … ON CONFLICT DO
+  UPDATE`, mã thử lại **không bao giờ chạy tới**. Đã **xoá mã chết**; ca tranh chấp giữ lại làm chốt chặn nếu ai đó
+  đổi sang "tìm rồi tạo".
+
+**Suite**: backend **62 tệp / 546 test xanh** (trước bước này: 60 / 505; +24 +17 = +41). `tsc` và `eslint src` sạch.
+
+**Giới hạn cần biết:**
+- Mọi số về học đều trên **người chọn giả** (trưởng nhóm mô phỏng), chưa phải người thật; bước 7 mới đo có hệ thống.
+- **Nhãn nhiễu làm trọng số trôi**: trưởng nhóm không nhất quán mà thiên lệch trùng mặc định thì trọng số vẫn trôi
+  ~0,11 khỏi mặc định (perceptron, `eta` cố định, không có cơ chế giữ chỗ). Bước 7 cần quét `eta` / thêm biên độ trước
+  khi nói "học ổn định".
+- Không có nút **tắt** học: nhóm chỉ có "Đặt lại" (đưa số lượt về 0 nên phải gom lại 10 phản hồi). Muốn tắt hẳn cần
+  thêm cột (migration) — chưa làm.
+- Chỉnh tay (`PUT`) giữ nguyên `feedbackCount`, nên nếu nhóm đã ≥ 10 lượt thì lượt giao tiếp theo có thể nhích lại
+  trọng số vừa chỉnh (đúng thiết kế: chỉnh tay chỉ là điểm xuất phát).
+- Một lượt gợi ý chỉ ghi được **một** người được chọn; người thêm sau trong cùng lượt không tạo thêm phản hồi.
+
+**Bài học**: (1) **một ca "chạy song song rồi kiểm kết quả" không chứng minh có khoá** — nó xanh cả khi không có khoá vì
+tính thời gian không chồng nhau; muốn bắt lỗi tranh chấp phải **tự dựng thứ tự** (giữ khoá ở một giao dịch, xem yêu cầu
+kia chờ). Cài lỗi lộ ra điều này ngay lần đầu; đọc code hay chạy thử vài lần đều không thấy. (2) Cài lỗi cũng **tìm ra
+mã chết** (Q17) — nhánh phòng thủ mà mình tin là cần nhưng nền tảng đã lo rồi; xoá đi đơn giản hơn là giữ một nhánh
+không thể kiểm. (3) Đo trước rồi mới viết `expect` (bám theo thiên lệch 0,50→0,03…) cho ngưỡng có căn cứ và lộ luôn
+điểm yếu (trôi vì nhiễu) mà nếu chỉ viết theo kỳ vọng thì không bao giờ thấy.

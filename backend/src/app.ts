@@ -42,6 +42,7 @@ import {
   assignRunRoutes,
   cardAssignRoutes,
   workspaceAssignRoutes,
+  workspaceProfileRoutes,
 } from './modules/assign/assign.routes';
 import notificationRoutes from './modules/notification/notification.routes';
 import searchRoutes from './modules/search/search.routes';
@@ -96,6 +97,7 @@ export function createApp() {
 
   app.use('/api/auth', authRoutes);
   app.use('/api/workspaces/:workspaceId/assignment-weights', workspaceAssignRoutes);
+  app.use('/api/workspaces/:workspaceId/assignment-profile', workspaceProfileRoutes);
   app.use('/api/workspaces', workspaceRoutes);
   app.use('/api/activities', activityRoutes);
   app.use('/api/boards/:boardId/lists', boardListRoutes);

@@ -1,11 +1,13 @@
 import type { Request, Response } from 'express';
 import { AppError } from '../../utils/AppError';
 import { asyncHandler } from '../../utils/asyncHandler';
-import type { OutcomeInput, WeightsInput } from './assign.schema';
+import type { OutcomeInput, WeightsInput, WorkProfileInput } from './assign.schema';
 import {
+  getMyWorkProfile,
   getWorkspaceWeights,
   recordOutcome,
   resetWorkspaceWeights,
+  setMyWorkProfile,
   setWorkspaceWeights,
   suggestForCard,
 } from './assign.service';
@@ -49,4 +51,19 @@ export const putWeightsHandler = asyncHandler(async (req: Request, res: Response
 export const resetWeightsHandler = asyncHandler(async (req: Request, res: Response) => {
   const data = await resetWorkspaceWeights(requireUserId(req), req.params.workspaceId as string);
   res.json({ success: true, message: 'Da dat lai trong so mac dinh', data });
+});
+
+// Ho so lam viec cua CHINH nguoi goi (so the song song toi da, tam nghi)
+export const getProfileHandler = asyncHandler(async (req: Request, res: Response) => {
+  const data = await getMyWorkProfile(requireUserId(req), req.params.workspaceId as string);
+  res.json({ success: true, data });
+});
+
+export const putProfileHandler = asyncHandler(async (req: Request, res: Response) => {
+  const body = req.body as WorkProfileInput;
+  const data = await setMyWorkProfile(requireUserId(req), req.params.workspaceId as string, {
+    maxParallelCards: body.maxParallelCards,
+    pausedUntil: body.pausedUntil === null ? null : new Date(body.pausedUntil),
+  });
+  res.json({ success: true, message: 'Da luu ho so lam viec', data });
 });

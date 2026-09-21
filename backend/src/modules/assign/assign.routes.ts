@@ -3,13 +3,15 @@ import { requireAuth } from '../../middleware/auth.middleware';
 import { assignSuggestLimiter } from '../../middleware/rateLimit.middleware';
 import { validateBody } from '../../middleware/validate.middleware';
 import {
+  getProfileHandler,
   getWeightsHandler,
   outcomeHandler,
+  putProfileHandler,
   putWeightsHandler,
   resetWeightsHandler,
   suggestHandler,
 } from './assign.controller';
-import { outcomeSchema, weightsSchema } from './assign.schema';
+import { outcomeSchema, weightsSchema, workProfileSchema } from './assign.schema';
 
 // Gan vao /api/cards/:cardId/assignment-suggestions
 export const cardAssignRoutes = Router({ mergeParams: true });
@@ -28,3 +30,9 @@ workspaceAssignRoutes.use(requireAuth);
 workspaceAssignRoutes.get('/', getWeightsHandler);
 workspaceAssignRoutes.put('/', validateBody(weightsSchema), putWeightsHandler);
 workspaceAssignRoutes.delete('/', resetWeightsHandler);
+
+// Gan vao /api/workspaces/:workspaceId/assignment-profile (ho so lam viec cua CHINH nguoi goi)
+export const workspaceProfileRoutes = Router({ mergeParams: true });
+workspaceProfileRoutes.use(requireAuth);
+workspaceProfileRoutes.get('/', getProfileHandler);
+workspaceProfileRoutes.put('/', validateBody(workProfileSchema), putProfileHandler);

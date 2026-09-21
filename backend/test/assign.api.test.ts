@@ -7,7 +7,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { prisma } from '../src/config/prisma';
 import { assertBoardView, isBoardParticipant } from '../src/modules/board/board.service';
-import { decideRun, readBoardRef, readCandidates, readViewableBoardIds } from '../src/modules/assign/assign.repo';
+import {
+  decideAndLearn,
+  findRun,
+  readBoardRef,
+  readCandidates,
+  readViewableBoardIds,
+} from '../src/modules/assign/assign.repo';
 import {
   ALGORITHM_VERSION,
   getWorkspaceWeights,
@@ -16,155 +22,31 @@ import {
   suggestForCard,
 } from '../src/modules/assign/assign.service';
 import { agent, makeDirectUser, type TestUser } from './helpers';
-
-const DAY = 86_400_000;
-const daysAgo = (n: number) => new Date(Date.now() - n * DAY);
-const daysAhead = (n: number) => new Date(Date.now() + n * DAY);
-
-// ---------- Dung the gioi ----------
-
-interface World {
-  owner: TestUser;
-  alice: TestUser;
-  bob: TestUser;
-  viewer: TestUser;
-  outsider: TestUser;
-  wsId: string;
-  boardId: string;
-  listId: string;
-}
-
-/** Khong gian + 1 bang: owner (chu bang), alice/bob (MEMBER), viewer (VIEWER); outsider khong lien quan. */
-async function world(visibility: 'PRIVATE' | 'WORKSPACE' = 'PRIVATE'): Promise<World> {
-  const owner = await makeDirectUser('Owner');
-  const alice = await makeDirectUser('Alice');
-  const bob = await makeDirectUser('Bob');
-  const viewer = await makeDirectUser('Viewer');
-  const outsider = await makeDirectUser('Outsider');
-  const ws = await prisma.workspace.create({
-    data: { ownerId: owner.id, name: 'Nhom', members: { create: { userId: owner.id, role: 'OWNER' } } },
-    select: { id: true },
-  });
-  const board = await prisma.board.create({
-    data: {
-      ownerId: owner.id,
-      workspaceId: ws.id,
-      name: 'Bang 1',
-      visibility,
-      lists: { create: { name: 'To do' } },
-      members: {
-        create: [
-          { userId: owner.id, role: 'OWNER' },
-          { userId: alice.id, role: 'MEMBER' },
-          { userId: bob.id, role: 'MEMBER' },
-          { userId: viewer.id, role: 'VIEWER' },
-        ],
-      },
-    },
-    include: { lists: { select: { id: true } } },
-  });
-  return { owner, alice, bob, viewer, outsider, wsId: ws.id, boardId: board.id, listId: board.lists[0]!.id };
-}
-
-/** Them mot bang nua vao khong gian (chi owner + cac thanh vien chi dinh la thanh vien bang). */
-async function extraBoard(
-  w: World,
-  o: { name: string; visibility?: 'PRIVATE' | 'WORKSPACE' | 'PUBLIC'; members?: string[]; archived?: boolean; deleted?: boolean; workspaceId?: string }
-) {
-  const board = await prisma.board.create({
-    data: {
-      ownerId: w.owner.id,
-      workspaceId: o.workspaceId ?? w.wsId,
-      name: o.name,
-      visibility: o.visibility ?? 'PRIVATE',
-      archivedAt: o.archived ? new Date() : null,
-      deletedAt: o.deleted ? new Date() : null,
-      lists: { create: { name: 'To do' } },
-      members: { create: [w.owner.id, ...(o.members ?? [])].map((userId, i) => ({ userId, role: i === 0 ? ('OWNER' as const) : ('MEMBER' as const) })) },
-    },
-    include: { lists: { select: { id: true } } },
-  });
-  return { id: board.id, listId: board.lists[0]!.id };
-}
-
-interface CardSpec {
-  title: string;
-  description?: string | null;
-  done?: boolean;
-  completedAt?: Date;
-  dueDate?: Date | null;
-  startDate?: Date | null;
-  members?: string[];
-  assignedAt?: Date;
-  archivedAt?: Date | null;
-  deletedAt?: Date | null;
-  createdAt?: Date;
-}
-
-async function mkCard(listId: string, o: CardSpec): Promise<{ id: string }> {
-  const done = o.done ?? false;
-  return prisma.card.create({
-    data: {
-      listId,
-      title: o.title,
-      description: o.description ?? null,
-      isDone: done,
-      completedAt: done ? (o.completedAt ?? daysAgo(10)) : null,
-      dueDate: o.dueDate ?? null,
-      startDate: o.startDate ?? null,
-      archivedAt: o.archivedAt ?? null,
-      deletedAt: o.deletedAt ?? null,
-      createdAt: o.createdAt ?? daysAgo(60),
-      members: { create: (o.members ?? []).map((userId) => ({ userId, createdAt: o.assignedAt ?? daysAgo(40) })) },
-    },
-    select: { id: true },
-  });
-}
-
-const TITLE_TARGET = 'Thiet ke giao dien quen mat khau';
-const SIMILAR = ['Thiet ke giao dien dang nhap', 'Thiet ke giao dien dang ky', 'Thiet ke giao dien trang chu'];
-
-/** Cho `userId` lam xong cac the giong the moi, dung han. */
-async function giveHistory(listId: string, userId: string, titles: string[] = SIMILAR) {
-  const made: string[] = [];
-  for (const [i, title] of titles.entries()) {
-    const c = await mkCard(listId, { title, done: true, completedAt: daysAgo(30 + i), dueDate: daysAgo(25 + i), members: [userId] });
-    made.push(c.id);
-  }
-  return made;
-}
-
-const newTarget = (listId: string, over: Partial<CardSpec> = {}) =>
-  mkCard(listId, { title: TITLE_TARGET, dueDate: daysAhead(5), startDate: daysAgo(1), ...over });
-
-// ---------- Goi API ----------
-
-interface Cand {
-  rank: number;
-  user: { id: string; name: string; avatarUrl: string | null };
-  score: number | null;
-  rawScore: number | null;
-  confidence: number;
-  confidenceLevel: string;
-  components: Record<'experience' | 'reliability' | 'availability', { value: number | null; weight: number; scaled: number | null; share: number }>;
-  load: number;
-  capacity: number;
-  flags: string[];
-  assigned: boolean;
-  evidence: { cardId: string; title: string | null; sim: number; weight: number; outcome: string; completedAt: string; dueDate: string | null }[];
-}
-
-const suggest = (u: TestUser | null, cardId: string) => {
-  const r = agent().get(`/api/cards/${cardId}/assignment-suggestions`);
-  return u ? r.set('Cookie', u.cookie) : r;
-};
-const candOf = (body: { data: { candidates: Cand[] } }, u: TestUser): Cand => {
-  const c = body.data.candidates.find((x) => x.user.id === u.id);
-  if (!c) throw new Error(`Khong co ung vien ${u.name}`);
-  return c;
-};
-const idsOf = (body: { data: { candidates: Cand[] } }) => body.data.candidates.map((c) => c.user.id).sort();
-const sorted = (xs: string[]) => [...xs].sort();
+import {
+  SIMILAR,
+  TITLE_TARGET,
+  W,
+  assign,
+  candOf,
+  daysAgo,
+  daysAhead,
+  delW,
+  extraBoard,
+  getW,
+  giveHistory,
+  idsOf,
+  mkCard,
+  newTarget,
+  postOutcome,
+  putW,
+  sorted,
+  suggest,
+  withRun,
+  world,
+  wsWorld,
+  type Cand,
+  type CardSpec,
+} from './assignFixtures';
 
 // ===================== Quyen va tap ung vien =====================
 
@@ -543,14 +425,22 @@ describe('GET assignment-suggestions - rieng tu', () => {
     expect(text).not.toMatch(/title|email/i);
   });
 
-  it('decideRun ghi MOT lan o tang CSDL: lan thu hai tra false va KHONG de len (bao ve dua chay, khong dua vao thoi diem cua HTTP)', async () => {
+  it('decideAndLearn ghi MOT lan o tang CSDL: lan thu hai tra null, KHONG de len va KHONG cong them luot phan hoi (bao ve dua chay, khong dua vao thoi diem cua HTTP)', async () => {
     const { w, runId } = await withRun();
+    const run = (await findRun(runId))!;
+    const learnable = { ...run, workspaceId: run.workspaceId! };
     const first = new Date('2026-09-20T05:00:00Z');
-    expect(await decideRun(runId, { chosenUserId: w.alice.id, accepted: true, decidedAt: first })).toBe(true);
-    expect(await decideRun(runId, { chosenUserId: w.bob.id, accepted: false, decidedAt: new Date() })).toBe(false);
-    const run = await prisma.assignRun.findUniqueOrThrow({ where: { id: runId } });
-    expect([run.chosenUserId, run.accepted, run.decidedAt]).toEqual([w.alice.id, true, first]);
-    expect(await decideRun('khong-co', { chosenUserId: w.alice.id, accepted: true, decidedAt: first })).toBe(false);
+    const a = await decideAndLearn(learnable, w.alice.id, first);
+    expect(a).not.toBeNull();
+    expect(a!.feedbackCount).toBe(1);
+    expect(await decideAndLearn(learnable, w.bob.id, new Date())).toBeNull();
+    const after = await prisma.assignRun.findUniqueOrThrow({ where: { id: runId } });
+    expect([after.chosenUserId, after.accepted, after.decidedAt]).toEqual([w.alice.id, true, first]);
+    const row = await prisma.workspaceAssignWeights.findUniqueOrThrow({ where: { workspaceId: w.wsId } });
+    expect(row.feedbackCount).toBe(1);
+    // Luot khong ton tai: khong ghi gi, khong nem loi
+    expect(await decideAndLearn({ ...learnable, id: 'khong-co' }, w.alice.id, first)).toBeNull();
+    expect((await prisma.workspaceAssignWeights.findUniqueOrThrow({ where: { workspaceId: w.wsId } })).feedbackCount).toBe(1);
   });
 
   it('readViewableBoardIds KHOP assertBoardView voi ma tran (5 nguoi x 4 bang); bang luu tru: thanh vien van xem duoc, nguoi ngoai khong', async () => {
@@ -651,49 +541,6 @@ describe('GET assignment-suggestions - ghi AssignRun', () => {
 
 // ===================== Trong so =====================
 
-interface WsWorld {
-  owner: TestUser;
-  admin: TestUser;
-  member: TestUser;
-  outsider: TestUser;
-  wsId: string;
-}
-async function wsWorld(): Promise<WsWorld> {
-  const owner = await makeDirectUser('Owner');
-  const admin = await makeDirectUser('Admin');
-  const member = await makeDirectUser('Member');
-  const outsider = await makeDirectUser('Outsider');
-  const ws = await prisma.workspace.create({
-    data: {
-      ownerId: owner.id,
-      name: 'Nhom trong so',
-      members: {
-        create: [
-          { userId: owner.id, role: 'OWNER' },
-          { userId: admin.id, role: 'ADMIN' },
-          { userId: member.id, role: 'MEMBER' },
-        ],
-      },
-    },
-    select: { id: true },
-  });
-  return { owner, admin, member, outsider, wsId: ws.id };
-}
-const wUrl = (id: string) => `/api/workspaces/${id}/assignment-weights`;
-const getW = (u: TestUser | null, id: string) => {
-  const r = agent().get(wUrl(id));
-  return u ? r.set('Cookie', u.cookie) : r;
-};
-const putW = (u: TestUser | null, id: string, body: unknown) => {
-  const r = agent().put(wUrl(id));
-  return (u ? r.set('Cookie', u.cookie) : r).send(body as object);
-};
-const delW = (u: TestUser | null, id: string) => {
-  const r = agent().delete(wUrl(id));
-  return u ? r.set('Cookie', u.cookie) : r;
-};
-const W = (experience: unknown, reliability: unknown, availability: unknown) => ({ experience, reliability, availability });
-
 describe('GET/PUT/DELETE /api/workspaces/:id/assignment-weights', () => {
   it('GET: mac dinh 0,45/0,30/0,25 khi chua chinh (khong tao dong); moi thanh vien xem duoc; nguoi ngoai 403; khong ton tai 404; chua dang nhap 401', async () => {
     const w = await wsWorld();
@@ -707,6 +554,9 @@ describe('GET/PUT/DELETE /api/workspaces/:id/assignment-weights', () => {
         custom: false,
         feedbackCount: 0,
         updatedAt: null,
+        learning: { minFeedback: 10, eta: 0.05, active: false },
+        feedback: { decided: 0, accepted: 0 },
+        history: [],
       });
     }
     expect((await getW(w.outsider, w.wsId)).status).toBe(403);
@@ -907,37 +757,31 @@ describe('GET/PUT/DELETE /api/workspaces/:id/assignment-weights', () => {
 
 // ===================== Ghi nguoi duoc chon =====================
 
-const postOutcome = (u: TestUser | null, runId: string, body: unknown) => {
-  const r = agent().post(`/api/assignment/runs/${runId}/outcome`);
-  return (u ? r.set('Cookie', u.cookie) : r).send(body as object);
-};
-const assign = (u: TestUser, cardId: string, userId: string) =>
-  agent().post(`/api/cards/${cardId}/members`).set('Cookie', u.cookie).send({ userId });
-
-async function withRun() {
-  const w = await world();
-  const target = await newTarget(w.listId);
-  await giveHistory(w.listId, w.alice.id); // alice se la nguoi xep dau
-  const res = await suggest(w.owner, target.id);
-  expect(res.status).toBe(200);
-  expect(res.body.data.candidates[0].user.id).toBe(w.alice.id);
-  return { w, target, runId: res.body.data.runId as string };
-}
-
 describe('POST /api/assignment/runs/:runId/outcome', () => {
-  it('giao dung nguoi xep dau: accepted = true, ghi dung vao AssignRun; muc 1 chi ghi nhan (learned = false, trong so khong doi)', async () => {
+  it('giao dung nguoi xep dau: accepted = true, ghi dung vao AssignRun; cong 1 luot phan hoi nhung KHONG hoc (learned = false, trong so khong doi)', async () => {
     const { w, target, runId } = await withRun();
     expect((await assign(w.owner, target.id, w.alice.id)).status).toBeLessThan(300);
 
     const res = await postOutcome(w.owner, runId, { chosenUserId: w.alice.id });
     expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ runId, chosenUserId: w.alice.id, topUserId: w.alice.id, accepted: true, learned: false });
+    expect(res.body.data).toMatchObject({
+      runId,
+      chosenUserId: w.alice.id,
+      topUserId: w.alice.id,
+      accepted: true,
+      learned: false,
+      learning: { learned: false, reason: 'ACCEPTED' },
+      feedbackCount: 1,
+      weights: { experience: 0.45, reliability: 0.3, availability: 0.25 },
+    });
     expect(new Date(res.body.data.decidedAt).getTime()).toBeGreaterThan(Date.now() - 10_000);
 
     const run = await prisma.assignRun.findUniqueOrThrow({ where: { id: runId } });
     expect(run).toMatchObject({ chosenUserId: w.alice.id, accepted: true, learned: false });
     expect(run.decidedAt).not.toBeNull();
-    expect(await prisma.workspaceAssignWeights.count()).toBe(0);
+    // Luot dau tien tao dong trong so (mac dinh) voi feedbackCount = 1; khong co dong lich su nao (chua doi gi)
+    const row = await prisma.workspaceAssignWeights.findUniqueOrThrow({ where: { workspaceId: w.wsId } });
+    expect([row.wExperience, row.wReliability, row.wAvailability, row.feedbackCount]).toEqual([0.45, 0.3, 0.25, 1]);
     expect(await prisma.assignWeightHistory.count()).toBe(0);
   });
 
@@ -975,13 +819,26 @@ describe('POST /api/assignment/runs/:runId/outcome', () => {
     const first = await postOutcome(w.owner, runId, { chosenUserId: w.alice.id });
     const same = await postOutcome(w.owner, runId, { chosenUserId: w.alice.id });
     expect(same.status).toBe(200);
-    expect(same.body.data).toEqual(first.body.data);
+    // Gui lai chi tra phan da luu (khong co learning / feedbackCount / weights) va KHONG cong them luot phan hoi
+    const core = (d: Record<string, unknown>) => ({
+      runId: d.runId,
+      chosenUserId: d.chosenUserId,
+      topUserId: d.topUserId,
+      accepted: d.accepted,
+      decidedAt: d.decidedAt,
+      learned: d.learned,
+    });
+    expect(core(same.body.data)).toEqual(core(first.body.data));
+    expect(first.body.data.learning).toBeDefined();
+    expect(same.body.data.learning).toBeUndefined();
+    expect((await prisma.workspaceAssignWeights.findUniqueOrThrow({ where: { workspaceId: w.wsId } })).feedbackCount).toBe(1);
 
     const other = await postOutcome(w.owner, runId, { chosenUserId: w.bob.id });
     expect(other.status).toBe(409);
     const run = await prisma.assignRun.findUniqueOrThrow({ where: { id: runId } });
     expect(run.chosenUserId).toBe(w.alice.id);
     expect(run.accepted).toBe(true);
+    expect((await prisma.workspaceAssignWeights.findUniqueOrThrow({ where: { workspaceId: w.wsId } })).feedbackCount).toBe(1);
   });
 
   it('hai request CUNG LUC chon hai nguoi khac nhau: dung MOT request thang (200), request kia 409; CSDL khop nguoi thang', async () => {

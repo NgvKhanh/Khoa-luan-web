@@ -9,6 +9,7 @@ import { prisma } from '../../config/prisma';
 import type { Prisma } from '../../generated/prisma/client';
 import type { BoardVisibility } from '../../generated/prisma/enums';
 import { workspaceRoleOf } from '../workspace/workspace.service';
+import { learningDecision, parseRunCandidates, type LearnReason } from './assign.learn';
 import type { Weights } from './assign.score';
 import type { SnapshotCard, SnapshotMembership, SnapshotProfile } from './assign.snapshot';
 
@@ -182,32 +183,75 @@ export async function readWeights(workspaceId: string): Promise<StoredWeights | 
   return row ? toStored(row) : null;
 }
 
+type Tx = Prisma.TransactionClient;
+
 /**
- * Ghi bo trong so va MOT dong lich su (cung giao dich - de duong hoi tu khong bao gio thieu mot buoc).
- * `resetCount` dua so luot phan hoi ve 0. `runId` = luot goi y gay ra thay doi (null = chinh tay / dat lai).
+ * Bao dam dong trong so cua nhom TON TAI roi KHOA no den het giao dich (SELECT ... FOR UPDATE): hai luot phan hoi,
+ * hoac mot luot phan hoi va mot lan chinh tay, cung nhom se noi duoi nhau - khong ai doc gia tri cu roi ghi de mat cap
+ * nhat cua nguoi kia. createMany + skipDuplicates = INSERT ... ON CONFLICT DO NOTHING nen hai giao dich cung tao dong
+ * lan dau khong nem loi trung khoa.
+ */
+async function lockedWeightsRow(tx: Tx, workspaceId: string) {
+  await tx.workspaceAssignWeights.createMany({ data: [{ workspaceId }], skipDuplicates: true });
+  await tx.$queryRaw`SELECT "workspaceId" FROM "WorkspaceAssignWeights" WHERE "workspaceId" = ${workspaceId} FOR UPDATE`;
+  return tx.workspaceAssignWeights.findUniqueOrThrow({ where: { workspaceId } });
+}
+
+/**
+ * Ghi bo trong so CHINH TAY (hoac dat lai) va MOT dong lich su (`runId` = null) trong cung giao dich - de duong hoi tu
+ * khong bao gio thieu mot buoc. `resetCount` dua so luot phan hoi ve 0. Trong so do HOC ghi o decideAndLearn.
  */
 export async function saveWeights(
   workspaceId: string,
   weights: Weights,
-  opts: { resetCount?: boolean; runId?: string | null } = {}
+  opts: { resetCount?: boolean } = {}
 ): Promise<StoredWeights> {
   return prisma.$transaction(async (tx) => {
-    const existing = await tx.workspaceAssignWeights.findUnique({ where: { workspaceId } });
-    const feedbackCount = opts.resetCount ? 0 : (existing?.feedbackCount ?? 0);
+    const existing = await lockedWeightsRow(tx, workspaceId);
     const values = {
       wExperience: weights.experience,
       wReliability: weights.reliability,
       wAvailability: weights.availability,
-      feedbackCount,
+      feedbackCount: opts.resetCount ? 0 : existing.feedbackCount,
     };
-    const row = await tx.workspaceAssignWeights.upsert({
-      where: { workspaceId },
-      create: { workspaceId, ...values },
-      update: values,
-    });
-    await tx.assignWeightHistory.create({ data: { workspaceId, ...values, runId: opts.runId ?? null } });
+    const row = await tx.workspaceAssignWeights.update({ where: { workspaceId }, data: values });
+    await tx.assignWeightHistory.create({ data: { workspaceId, ...values, runId: null } });
     return toStored(row);
   });
+}
+
+export interface WeightHistoryRow {
+  id: string;
+  createdAt: Date;
+  weights: Weights;
+  feedbackCount: number;
+  /** Luot goi y gay ra thay doi; null = chinh tay hoac dat lai. */
+  runId: string | null;
+}
+
+/** Cac lan doi trong so gan nhat (moi nhat truoc) - dung ve duong hoi tu va cho nhom xem "vi sao no doi". */
+export async function readWeightHistory(workspaceId: string, limit: number): Promise<WeightHistoryRow[]> {
+  const rows = await prisma.assignWeightHistory.findMany({
+    where: { workspaceId },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: limit,
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    createdAt: r.createdAt,
+    weights: { experience: r.wExperience, reliability: r.wReliability, availability: r.wAvailability },
+    feedbackCount: r.feedbackCount,
+    runId: r.runId,
+  }));
+}
+
+/** Chi so danh gia truc tuyen (muc 1): so luot da co ket qua va so luot giao DUNG nguoi xep dau. */
+export async function readFeedbackStats(workspaceId: string): Promise<{ decided: number; accepted: number }> {
+  const [decided, accepted] = await Promise.all([
+    prisma.assignRun.count({ where: { workspaceId, decidedAt: { not: null } } }),
+    prisma.assignRun.count({ where: { workspaceId, decidedAt: { not: null }, accepted: true } }),
+  ]);
+  return { decided, accepted };
 }
 
 // ---------- Nhat ky luot goi y ----------
@@ -232,11 +276,92 @@ export async function isOnCard(cardId: string, userId: string): Promise<boolean>
   return m !== null;
 }
 
-/** Ghi nguoi duoc chon MOT LAN: chi thanh cong neu luot nay chua duoc quyet (2 request cung luc khong de len nhau). */
-export async function decideRun(
-  runId: string,
-  data: { chosenUserId: string; accepted: boolean; decidedAt: Date }
-): Promise<boolean> {
-  const res = await prisma.assignRun.updateMany({ where: { id: runId, decidedAt: null }, data });
-  return res.count === 1;
+export interface LearnOutcome {
+  /** So luot phan hoi cua nhom SAU luot nay. */
+  feedbackCount: number;
+  /** Trong so cua nhom SAU luot nay. */
+  weights: Weights;
+  learning: { learned: boolean; reason: LearnReason };
+}
+
+/**
+ * Ghi nguoi duoc chon MOT LAN va - trong CUNG giao dich - cong luot phan hoi, roi hoc neu du dieu kien (assign.learn.ts):
+ *  1. `updateMany where decidedAt = null`: chi mot request thang; thua thi tra null (nguoi goi doc lai ket qua that);
+ *  2. khoa dong trong so cua nhom, cong feedbackCount, quyet dinh hoc bang ham thuan;
+ *  3. neu hoc: ghi trong so moi + mot dong AssignWeightHistory (kem runId) + danh dau run.learned.
+ * Tat ca hoac khong gi: loi giua chung thi luot nay van chua duoc quyet (khong co tinh trang "da ghi ma chua tinh").
+ */
+export async function decideAndLearn(
+  run: RunRow & { workspaceId: string },
+  chosenUserId: string,
+  now: Date
+): Promise<LearnOutcome | null> {
+  return prisma.$transaction(async (tx) => {
+    const accepted = run.topUserId !== null && run.topUserId === chosenUserId;
+    const won = await tx.assignRun.updateMany({
+      where: { id: run.id, decidedAt: null },
+      data: { chosenUserId, accepted, decidedAt: now },
+    });
+    if (won.count !== 1) return null;
+
+    const current = await lockedWeightsRow(tx, run.workspaceId);
+    const currentWeights = toStored(current).weights;
+    const feedbackCount = current.feedbackCount + 1;
+    const decision = learningDecision({
+      weights: currentWeights,
+      feedbackCount,
+      topUserId: run.topUserId,
+      chosenUserId,
+      candidates: parseRunCandidates(run.candidates),
+    });
+    const next = decision.learn ? decision.next : currentWeights;
+    const values = {
+      wExperience: next.experience,
+      wReliability: next.reliability,
+      wAvailability: next.availability,
+      feedbackCount,
+    };
+    await tx.workspaceAssignWeights.update({ where: { workspaceId: run.workspaceId }, data: values });
+    if (decision.learn) {
+      await tx.assignWeightHistory.create({ data: { workspaceId: run.workspaceId, ...values, runId: run.id } });
+      await tx.assignRun.update({ where: { id: run.id }, data: { learned: true } });
+    }
+    return { feedbackCount, weights: next, learning: { learned: decision.learn, reason: decision.reason } };
+  });
+}
+
+// ---------- Ho so lam viec ca nhan (MemberWorkProfile) ----------
+
+export interface StoredProfile {
+  maxParallelCards: number;
+  pausedUntil: Date | null;
+  updatedAt: Date;
+}
+
+const PROFILE_SELECT = { maxParallelCards: true, pausedUntil: true, updatedAt: true } as const;
+
+export function readWorkProfile(userId: string, workspaceId: string): Promise<StoredProfile | null> {
+  return prisma.memberWorkProfile.findUnique({
+    where: { userId_workspaceId: { userId, workspaceId } },
+    select: PROFILE_SELECT,
+  });
+}
+
+/**
+ * Tao hoac cap nhat ho so cua CHINH nguoi dung trong khong gian. Upsert cua Prisma tren khoa (userId, workspaceId) la
+ * mot cau INSERT ... ON CONFLICT DO UPDATE, nen bam Luu hai lan lien tiep (hoac hai tab) khong tranh nhau va khong nem
+ * loi trung khoa - co test giu (mot giao dich khac vua tao dong nhung chua commit). Tung co vong "thu lai khi P2002" o
+ * day nhung cai loi tu dong chung minh no khong bao gio chay toi (loai bo di van xanh), nen da bo.
+ */
+export function saveWorkProfile(
+  userId: string,
+  workspaceId: string,
+  data: { maxParallelCards: number; pausedUntil: Date | null }
+): Promise<StoredProfile> {
+  return prisma.memberWorkProfile.upsert({
+    where: { userId_workspaceId: { userId, workspaceId } },
+    create: { userId, workspaceId, ...data },
+    update: data,
+    select: PROFILE_SELECT,
+  });
 }
