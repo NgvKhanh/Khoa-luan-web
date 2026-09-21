@@ -11,5 +11,6 @@ node_modules
 /.ai-eval-cache
 /eval-result*
 
-# Du lieu tho (tung hat giong) khi chay danh gia phan cong (npm run eval:assign); bao cao .md thi COMMIT
+# Bo nho ket qua tung thi nghiem va du lieu tho khi chay danh gia phan cong (npm run eval:assign); bao cao .md / .csv / .svg thi COMMIT
+/.eval-assign-cache
 /eval-assign-*.json

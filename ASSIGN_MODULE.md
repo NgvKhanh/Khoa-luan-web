@@ -1,16 +1,16 @@
 # Module Gợi ý phân công công việc (cá nhân hoá từ lịch sử)
 
-> **Trạng thái: xong bước 0–6 (kể cả 4b, 6a, 6b) và 7a** — 6a: **học trọng số mức 2** + hồ sơ làm việc cá nhân
-> (backend); 6b: **giao diện** (ô Thành viên có gợi ý, mục trọng số ở trang cài đặt không gian); 7a: **bộ chạy đánh
-> giá** (`npm run eval:assign -- --exp=arms`: các nhánh × 20 hạt giống, vòng kín, khoảng tin cậy bootstrap; kết quả ở
-> nhật ký 7a; quét tham số, học trọng số và độ bền vững là việc của 7b).
+> **Trạng thái: xong bước 0–7 (kể cả 4b, 6a, 6b, 7a, 7b)** — 6a: **học trọng số mức 2** + hồ sơ làm việc cá nhân
+> (backend); 6b: **giao diện** (ô Thành viên có gợi ý, mục trọng số ở trang cài đặt không gian); 7: **bộ đánh giá
+> offline** (`npm run eval:assign`: 8 nhánh × 20 hạt giống, khoảng tin cậy bootstrap, quét tham số, học trọng số,
+> độ bền vững; kết quả ở nhật ký 7a / 7b).
 > Thiết kế đã chốt; nền dữ
 > liệu mô phỏng, bộ tách từ + TF-IDF + hồ sơ người, **bộ chấm cặp (việc, người)**
 > đã có, chạy được trên dữ liệu mô phỏng và **đã chuẩn hoá thành phần trong nhóm
 > ứng viên (phương án A)** để trọng số có nghĩa. **Bước 5: API** — xếp hạng ứng viên
 > cho một thẻ từ dữ liệu thật trong Postgres, ghi nhật ký `AssignRun`, ghi người được
 > chọn, xem/chỉnh/đặt lại trọng số của nhóm (§10). Chưa có lớp 2 (bước 8–9). Còn treo: chính sách cho
-> **người chưa có lịch sử** (DROP hay NEUTRAL — nhật ký bước 4b).
+> **người chưa có lịch sử** (DROP hay NEUTRAL — nhật ký bước 4b và 7b).
 > Tài liệu này là hợp đồng thiết kế; mỗi bước xong sẽ thêm một mục
 > "Đã xong — Bước N" ở cuối file, giống cách `AI_MODULE.md` ghi nhật ký.
 >
@@ -576,7 +576,7 @@ thành viên không gian gọi được (không ai sửa hồ sơ người khác
 ### 10.9 Chưa làm (cố ý)
 
 Nút **tắt** học (cần thêm cột, tức migration), admin sửa hồ sơ người khác, đọc chéo không gian, bộ nhớ đệm
-(đo độ trễ trước, xem nhật ký bước 5), biểu đồ hội tụ (bước 7), lớp 2.
+(đo độ trễ trước, xem nhật ký bước 5), lớp 2. (Biểu đồ hội tụ đã có ở bước 7b, dạng CSV + SVG ngoài ứng dụng.)
 
 ## 11. Module đánh giá (bước 7)
 
@@ -662,17 +662,28 @@ Khung khác với dự kiến ban đầu ở ba điểm, đều có lý do đo �
 - **Nhánh** (`evalAssignArms.ts`, **không import bộ sinh** — có test đọc mã nguồn canh giữ; nhánh chỉ thấy chữ và kết quả hoàn thành):
   ngẫu nhiên · chia vòng tròn · người rảnh nhất (ít thẻ đang mở chồng lấn nhất, đếm thô) · người hay làm nhất (nhiều thẻ đã xong
   nhất) · chỉ kinh nghiệm (1/0/0) · chỉ tải (0/0/1) · đầy đủ trọng số cố định (0,45/0,30/0,25, `MINMAX`/`DROP` — đúng cấu hình
-  sản phẩm); nhánh thứ tám (có học trọng số) là việc của 7b; thêm bốn nhánh cắt bỏ (chỉ tin cậy, bỏ khả dụng / tin cậy / kinh nghiệm) và
+  sản phẩm) · đầy đủ có học (`evalAssignLeader.ts`); thêm bốn nhánh cắt bỏ (chỉ tin cậy, bỏ khả dụng / tin cậy / kinh nghiệm) và
   hai nhánh **tham chiếu** cần kỹ năng ẩn (người kỹ năng cao nhất; **tối ưu** = xác suất đúng hạn cao nhất) đặt ở bộ chạy.
 - **Chỉ số chính đăng ký trước**: **xác suất đúng hạn kỳ vọng** của người được giao (Top-1 theo kỹ năng không thể ghi công cho khả
   dụng, đã ghi ở bước 4). Phụ: độ hối tiếc, Top-1/Top-3/MRR, Gini + phần việc của người nhiều nhất, "người mới" (việc người vào
-  muộn nhận / phần chia đều kỳ vọng), đúng hạn thực của các thẻ đã xong. **Năm so sánh chính đăng ký trước**: nhánh đầy đủ với
-  ngẫu nhiên / người rảnh nhất / người hay làm nhất / chỉ kinh nghiệm / chỉ tải; so sánh thứ sáu (nhánh có học với cố định, tỉ lệ chấp nhận) là việc của 7b.
+  muộn nhận / phần chia đều kỳ vọng), đúng hạn thực của các thẻ đã xong. **Sáu so sánh chính đăng ký trước**: nhánh đầy đủ với
+  ngẫu nhiên / người rảnh nhất / người hay làm nhất / chỉ kinh nghiệm / chỉ tải, và nhánh có học với cố định (tỉ lệ chấp nhận).
 - **Thống kê** (`evalAssignStats.ts`): khoảng tin cậy **bootstrap phân vị 95%** (10 000 lần lấy lại, tất định) trên chênh lệch
   **cặp theo hạt giống** — mỗi hạt giống là một đơn vị độc lập (không tính trên từng thẻ). Kết luận trong bảng do máy gắn nhãn
   chỉ dựa vào việc khoảng có chứa 0 hay không. 20 hạt giống **2001–2020**, chưa dùng để chọn gì ở các bước trước; tham số giữ
   đúng mặc định đã duyệt, các bảng quét chỉ **mô tả**. Mã băm tổng của 20 bộ dữ liệu được đóng băng bằng test.
-- **Để 7b**: nhánh có học trọng số (cần trưởng nhóm giả), quét tham số, độ bền trước các nguồn lệch của bộ sinh, `DROP` hay `NEUTRAL`.
+- **Trưởng nhóm giả và nhánh có học** (`evalAssignLeader.ts`): tiện ích = Σ thiên_lệch_k · đặc_trưng_k + nhiễu · N(0,1) trên các giá
+  trị đã chuẩn hoá (hoặc giá trị thô — kiểm độ bền khi gu nằm ngoài không gian đặc trưng của bộ học). Ba gu có "lỗi" để học (ưu tiên
+  kinh nghiệm / đúng hạn / người rảnh, mỗi gu 0,70 ở một thành phần) và một đối chứng trùng mặc định. Nhánh có học gọi **đúng**
+  `learningDecision` / `parseRunCandidates` của sản phẩm (không viết lại luật học), tăng `feedbackCount` **trước** khi quyết định
+  như `decideAndLearn`. Trưởng nhóm nhìn xếp hạng **tham chiếu** (không phải xếp hạng của nhánh) nên ở chế độ `LEADER` mọi nhánh
+  thấy cùng một thế giới. **Gu là tuỳ ý và không biết kỹ năng ẩn**: kết quả chứng minh trọng số bám theo gu của nhóm, **không**
+  chứng minh học làm kết quả khách quan tốt hơn.
+- **Thí nghiệm** (`evalAssignExperiments.ts` khai báo điểm đo, `evalAssignReportSweeps.ts` dựng bảng + đường hội tụ CSV/SVG):
+  quét `H`, `K`, `m`, `m_e`, `simMin`, sức chứa bộ chấm tin; chuẩn hoá × xử lý thành phần thiếu (`DROP` / `NEUTRAL`; kèm chênh lệch
+  cặp của "người mới" và Gini vì hai trung bình của chỉ số "người mới" nhiễu quá để so bằng mắt); lưới trọng số
+  (33 điểm + mặc định); mức phạt tải và mật độ việc của thế giới; độ bền trước các nguồn lệch của bộ sinh; học trọng số (đường hội
+  tụ, tốc độ học `eta` × nhiễu, gu nằm ngoài không gian đặc trưng, ảnh hưởng khách quan); bi-gram và trọng số tiêu đề trên 20 hạt giống.
 - **Cố ý không làm** (đã thoả thuận trước khi làm): nhánh hồi quy logistic và nhánh embedding ("tuỳ chọn" ở trên), và mọi thứ của lớp 2 (bước 8–9).
 
 ## 12. Rủi ro lớn nhất
@@ -1616,3 +1627,102 @@ các phép đó; (3) đưa bằng heredoc Bash một script có dấu gạch ch�
 lại chính nó trước khi tin bất kỳ kết quả cài lỗi nào; một loạt phép bị bắt cùng ở một tầng ngoài dự đoán là dấu hiệu cần kiểm tra, không phải tin vui.
 
 **Chưa làm / để 7b**: nhánh thứ tám (có học trọng số) cần trưởng nhóm giả; quét tham số; độ bền trước các nguồn lệch; `DROP` hay `NEUTRAL`.
+
+### Đã xong — Bước 7b: học trọng số, quét tham số, độ bền vững (21/09/2026)
+
+**Tệp mới** (trong `backend/src/scripts/`): `evalAssignLeader.ts` (trưởng nhóm giả, nhánh có học, đường hội tụ) · `evalAssignExperiments.ts` (khai báo mọi điểm đo
+và vòng lặp chung) · `evalAssignReportSweeps.ts` (bảng, đường hội tụ CSV + SVG). **Sửa**: `evaluateAssign.ts` (thêm `--exp=params|norm|weights|world|robust|learn|text|all|report`,
+bộ nhớ kết quả từng thí nghiệm để chạy từng phần / song song; chạy hết 20 hạt giống mất khoảng một giờ tuần tự, chia 4 tiến trình song song còn ~20 phút trên máy 16 nhân), `.gitignore`.
+**Kết quả nằm ở** `backend/eval-assign-sweeps.md` (+ `eval-assign-sweeps-hoitu.csv`, `eval-assign-sweeps-hoitu.svg` — dán được vào Word); các tệp `.json` thô (5,5 MB)
+không commit, chạy lại là ra.
+
+**Tham số** (vòng kín, nhánh đầy đủ, mỗi lần đổi **một** tham số; Δ P(đúng hạn) so với mặc định, cặp theo hạt giống): `H` (30 / 60 / 180 / 365 ngày): −0,008 · +0,002 · +0,003 ·
++0,006; `K` (1 / 3 / 8 / 12): +0,006 · +0,007 · +0,002 · +0,002; `m` (0,5 / 1 / 6 / 12): +0,003 · +0,004 · −0,000 · −0,001; `m_e` (0,5 / 1 / 4 / 8): **+0,012** · +0,006 · −0,002 ·
+−0,005; `simMin` (0 / 0,1 / 0,2): **+0,011** · +0,005 · +0,002; sức chứa mà bộ chấm tin (2 / 3 / 5 / 8 thay vì sức chứa thật): +0,004 · +0,002 · +0,003 · +0,003. **Không tham số nào
+đổi P(đúng hạn) quá 0,012** (2,7% tương đối). Trong 23 phép so sánh có 5 khoảng không chứa 0: `H = 30` (âm) và `K = 1`, `K = 3`, `m_e = 0,5`, `simMin = 0` (dương). Năm khoảng nhiều hơn
+~1 phép mong đợi do may rủi, nhưng bốn phép dương **không độc lập** — cùng một hướng ("tin nhiều hơn vào vài thẻ giống nhất": `K` nhỏ, bão hoà nhanh, không ngưỡng giống) — nên đọc là "có thể
+có một cải thiện nhỏ ≤ 0,012 theo hướng đó", chưa đủ để đổi gì (D3). Tham số mặc định gần bằng phẳng, không có dấu hiệu sai. Điểm đáng ghi cho chương phương pháp: gán sức chứa mặc định 5
+cho mọi người khi họ chưa khai hồ sơ **không làm hại** (+0,003, chưa phân biệt được).
+
+**Lưới trọng số** (33 điểm bội của 0,1 trong [0,1; 0,7] + mặc định): mặc định đứng **hạng 6/34**; tốt nhất là 0,40 / 0,30 / 0,30 với 0,447 (Δ +0,006 [−0,002; +0,015], chưa phân biệt
+được) — **không cấu hình nào tốt hơn có ý nghĩa**. Trọng số 0,45 / 0,30 / 0,25 là điểm hợp lý trên một mặt bằng phẳng, không phải điểm tối ưu được chọn.
+
+**Người mới: `DROP` hay `NEUTRAL`** (chuẩn hoá × xử lý thành phần thiếu, vòng kín): min-max/`DROP` (mặc định) 0,441 · min-max/`NEUTRAL` **0,445** (Δ +0,004 [−0,004; +0,012], chưa phân biệt được) ·
+cộng thô/`DROP` 0,432 (−0,009, chưa phân biệt được) · cộng thô/`NEUTRAL` 0,428 (−0,013 [−0,027; +0,000]). Phần chia đều của người vào muộn (trung bình 20 hạt giống): 0,46 (`DROP`) · 0,37 (`NEUTRAL`) ·
+1,13 (cộng thô/`DROP`, đổi lại hối tiếc 0,278 và Top-1 25,9%). **Hai số 0,46 và 0,37 KHÔNG cho phép kết luận `NEUTRAL` chia đều hơn**: chênh lệch cặp `NEUTRAL` − `DROP` là **−0,091 [−0,274; +0,091]**
+(chưa phân biệt được: 6 hạt giống dương, 9 âm, 5 bằng; độ lệch chuẩn của chênh lệch giữa các hạt giống 0,43, hai hạt giống 2013 và 2020 lệch ngược chiều nhau khoảng ±1). Gini của `NEUTRAL` cao hơn `DROP` nhẹ
+(+0,019 [+0,001; +0,039]; không nằm trong sáu phép đăng ký trước). *Đính chính của chính tôi*: bản nháp đầu của nhật ký này viết "`NEUTRAL` cho người mới ít việc hơn" chỉ dựa vào hai số trung bình; khi tính
+khoảng tin cậy cặp thì câu đó không đứng vững, đã sửa, và bảng mục 2 của báo cáo nay in sẵn các chênh lệch cặp này (`newcomerDeltaLines`). **Kết quả không đủ để đổi mặc định**: `NEUTRAL` không cho kết quả tốt hơn
+và không cho thấy lợi ích chia đều nào. Nhưng thí nghiệm học (dưới) lộ một hệ quả thật của `DROP` cần biết.
+
+**Thế giới: phạt tải và mật độ việc** (Δ P(đúng hạn) của nhánh đầy đủ so với "bỏ khả dụng"; phạt tải 0 / 0,06 / 0,12 / 0,2 / 0,3): −0,002 [−0,015; +0,013] · **+0,028** [+0,014; +0,043] · **+0,040** ·
+**+0,050** · **+0,060**. Khi tải không tạo hậu quả (phạt 0) khả dụng không giúp cũng không hại; hễ có hậu quả (kể cả 0,06 mặc định) thì có ích, và có ích hơn khi hậu quả nặng. "Chỉ kinh nghiệm" so với
+ngẫu nhiên: +0,054 (phạt 0) → +0,007 (0,06) → **−0,027** [−0,053; −0,001] (0,2) → −0,033 (0,3) — dồn việc cho người giỏi nhất là *tự huỷ* khi tải nặng. Mật độ việc 24 / 48 / 72 thẻ mỗi bảng: "đầy
+đủ" hơn ngẫu nhiên +0,052 → +0,087 → +0,105 và hơn "bỏ khả dụng" +0,028 → +0,055 → +0,056: **việc càng dày, bộ chấm càng đáng giá**.
+
+**Độ bền trước sáu nguồn lệch của bộ sinh** (mỗi nguồn hạ thấp / nâng cao so với mặc định, 13 thế giới): "đầy đủ" **đứng đầu ở 13/13** và hơn ngẫu nhiên có ý nghĩa ở 13/13 (+0,026 đến +0,068); hơn "chỉ kinh
+nghiệm" ở 12/13 (chỉ mất ý nghĩa ở nhóm 10 người: +0,018 [−0,001; +0,039]). Thứ hạng của ba nhánh còn lại **đổi** giữa các thế giới (ví dụ "chỉ kinh nghiệm" xuống cuối khi thẻ mơ hồ nhiều hoặc
+người học nghề nhiều) — đúng như mong đợi và là lý do không nên trích thứ hạng của các nhánh yếu. Đây là bảng trả lời rủi ro "vòng tròn giữa bộ sinh và bộ chấm" (§12): kết luận chính không phụ
+thuộc riêng vào một giả định nào của bộ sinh, dù vẫn nằm trong thế giới do chính tác giả dựng.
+
+**Học trọng số** (trưởng nhóm giả có thiên lệch tuỳ ý 0,70 ở một thành phần; `eta` = 0,05 của sản phẩm; khoảng cách L1 tới thiên lệch, tại 0 / 10 / 20 / 40 / 80 / 100 quyết định; nhiễu 0):
+ưu tiên người rảnh **0,90 → 0,10** (13 lượt học) · ưu tiên kinh nghiệm 0,50 → 0,19 (4,4 lượt học) · ưu tiên đúng hạn 0,80 → 0,37 (7,8) · đối chứng (thiên lệch trùng mặc định) **0,00** (0 lượt học:
+không lỗi thì không học). Ba điều đo được:
+1. **Số lượt học rất ít** (4–13 trong ~105 quyết định) vì phần lớn bất đồng là với **người mới** — bộ học bỏ qua các ca thiếu thành phần (luật §8). Hội tụ bị giới hạn bởi số ca *học được*, không phải số phản hồi.
+2. **Hiện tượng "người mới bị gợi ý mãi"** (`DROP`): người chưa có lịch sử chỉ còn khả dụng nên điểm được chia lại thành chính giá trị đó (100 nếu hoàn toàn rảnh) và đứng đầu; trưởng nhóm không chọn họ
+   thì họ không bao giờ có lịch sử, khả dụng mãi cao, và **86,5% số quyết định ở ba cuối có người xếp đầu là người mới** (gu ưu tiên kinh nghiệm, nhiễu 0). Tỉ lệ chấp nhận trên *mọi* quyết định vì vậy
+   chỉ 10,9% ở ba cuối; tách riêng các quyết định mà **mọi ứng viên đủ dữ liệu** (mẫu số chung của hai nhánh) mới thấy tác dụng học thật: chấp nhận ba cuối **47,5% → 100%** (Δ +0,525 [+0,275; +0,850],
+   khoảng rộng vì số ca ít), ưu tiên người rảnh 54,1% → 93,7% (Δ +0,396 [+0,355; +0,435]), ưu tiên đúng hạn 66,3% → 88,8% (Δ +0,225 [+0,050; +0,425]). Đối chứng nhiễu 0: cả hai nhánh **100%** — phép đo không có
+   lỗi ẩn. Đây là hệ quả **thật** của `DROP` mà số liệu bảng người mới ở trên không thấy.
+3. **Nhiễu làm trọng số trôi, và `eta` lớn làm trôi nặng hơn**: đối chứng (gu trùng mặc định, chỉ nhiễu) trôi tới 0,10 (nhiễu 0,1) và **0,25** (nhiễu 0,25) khỏi mặc định; ở nhiễu 0,25 nhánh có học chấp
+   nhận **kém** cố định 0,034 (Δ −0,034 [−0,051; −0,019], đủ dữ liệu). Quét `eta` (0,01 → 0,2): với gu rõ (nhiễu 0) khoảng cách cuối giảm từ 0,32 xuống 0,15 rồi nhích lên 0,17; với nhiễu 0,25 cực tiểu nằm ở
+   `eta` 0,02–0,05 rồi tăng (0,35 → 0,43); đối chứng nhiễu 0,25: 0,11 → 0,30 khi `eta` tăng. **0,05 là một điểm thoả hiệp hợp lý, không tối ưu cho cả hai phía** — không có căn cứ đổi, nhưng nếu nhóm thật
+   có phản hồi nhiễu thì `eta` nhỏ hơn an toàn hơn.
+
+**Gu nằm ngoài không gian đặc trưng** (trưởng nhóm nhìn giá trị *thô* thay vì giá trị đã chuẩn hoá): "khoảng cách tới thiên lệch" không còn ý nghĩa (đích khác không gian) và tăng (0,50 → 0,74); nhưng tỉ lệ chấp nhận
+vẫn tăng khi gu gần khả dụng (ưu tiên người rảnh **+0,136** [+0,110; +0,162]) và **không tăng** với ưu tiên kinh nghiệm (−0,001 [−0,019; +0,018]). Hiểu đúng: bộ học chỉ bám được gu biểu diễn được trong không gian
+đặc trưng của nó.
+
+**Ảnh hưởng khách quan của việc học** (nhánh có học tự giao người xếp đầu theo trọng số đã học, nhiễu 0,1): so với nhánh cố định, Δ P(đúng hạn) = ưu tiên kinh nghiệm **−0,009** [−0,018; +0,001] · ưu tiên đúng hạn
+**−0,005** [−0,014; +0,004] · ưu tiên người rảnh **−0,012** [−0,022; −0,003] (hối tiếc +0,038). **Học theo gu của nhóm không làm kết quả khách quan tốt hơn** (thậm chí kém nhẹ với gu "người rảnh") —
+đúng như đã báo trước: gu của trưởng nhóm giả là tuỳ ý và không biết kỹ năng ẩn. Đây là cái giá *khách quan* (nhỏ) của việc gợi ý bám theo gu; lợi ích của cá nhân hoá là ở **chấp nhận và tin tưởng của người
+dùng**, không phải ở đúng hạn — và điều đó chỉ đo được với người thật.
+
+**Chuỗi xử lý văn bản** (láng giềng gần nhất có cùng chủ đề ẩn không, 20 hạt giống; hoàn tất việc bước 3 hẹn cho bước 7): mặc định (uni + bi-gram, tiêu đề ×2) Top-1 **96,1%**, P@5 **82,9%**. Chỉ uni-gram:
+Top-1 −0,19 điểm (chưa phân biệt được), P@5 **−0,63 điểm** [−1,13; −0,14] → **bi-gram giúp nhẹ nhưng có ý nghĩa ở P@5**. Trọng số tiêu đề ×1: −0,39 / +0,13 điểm (đều chưa phân biệt được — **×1 và ×2 ngang nhau**);
+×3: P@5 −1,02; ×5: P@5 −2,03 (đều có ý nghĩa); chỉ tiêu đề −5,35; chỉ mô tả −22,9 điểm. `TITLE_WEIGHT = 2` vẫn là giả định tiên nghiệm nhưng nằm ở rìa mặt bằng tốt (thêm nữa thì hại).
+
+**Kiểm thử**: 97 test mới, không cần CSDL (trưởng nhóm giả + nhánh có học 32 · thí nghiệm 28 · báo cáo và đường hội tụ 37). Ràng buộc chính: trưởng nhóm chọn đúng người có tiện ích lớn nhất
+(số tính tay), thiếu thành phần tính 0,5, hoà thì người đứng trước, nhiễu là Gauss chuẩn (tỉ lệ chọn khớp Φ(1) ≈ 0,84), tất định theo luồng; **nhánh có học đối chiếu với `learningDecision` / `learnStep`
+của sản phẩm** (không có bản sao luật học); các điểm quét **đúng bằng danh sách đã công bố** (đổi lưới phải là một quyết định có ý thức, không phải lỡ tay); `runLearning` được **dựng lại bằng tay**
+từ các hàm của module và phải trùng từng chữ số; bảng và SVG kiểm bằng số tính tay (toạ độ điểm, thoát ký tự XML, không NaN, đường toàn 0).
+
+**Cài lỗi tự động: 136 phép, 134 bị bắt, 2 tương đương** (trưởng nhóm + nhánh có học 40 · báo cáo và đường hội tụ 66 · thí nghiệm 30; mã nguyên vẹn từng byte sau mỗi nhóm). Lần chạy đầu (126 phép) để lọt **12** — mỗi phép chỉ ra một chỗ test còn hổng thật; tôi đọc từng chỗ, vá 10 chỗ rồi chạy lại đúng 10 phép đó (đều bị bắt), còn 2 là tương đương:
+- `L15` (tiện ích tốt nhất khởi đầu 0 thay vì −∞): chỉ lộ khi **mọi** tiện ích đều âm (nhiễu rất lớn) → test với bộ số ngẫu nhiên kịch bản, ba người đều âm, phải chọn người lớn nhất chứ không phải người đầu danh sách.
+- `W24b` (bảng quét `eta` lấy điểm **đầu** thay vì điểm cuối của đường) và `W26` (mũi tên ba đầu → ba cuối của nhánh cố định bị đảo): dữ liệu mẫu đối xứng (đầu = cuối) nên đảo gì cũng không lộ → dữ liệu mẫu bất đối xứng, mỗi cột một cặp số khác nhau.
+- `W34` (đường hội tụ bỏ mốc cuối): mốc cuối luôn chỉ còn **một** hạt giống nên bị loại dù sao; chỉ lộ khi mọi hạt giống cùng độ dài → test riêng. `W45` (sàn 0,2 của trục y): mọi giá trị > 0 đã làm trần ≥ 0,2 nhờ phép làm tròn lên,
+  nên sàn chỉ có tác dụng khi đường **toàn 0** — và đó chính là gu "đối chứng" nhiễu 0 (không có lỗi để học) → test đường toàn 0. `W53` (mục 4 chỉ in khi có phạt tải): thiếu ca chỉ có mật độ.
+- `X17` (mục tiêu hội tụ không qua phép chiếu): bốn gu đều hợp lệ nên phép chiếu chỉ đổi ở chữ số thứ 16 — không test ngữ nghĩa nào phân biệt được → test **tạm sửa** một gu ra ngoài tập hợp lệ (0,9 / 0,05 / 0,05) và kiểm mục tiêu là điểm hợp lệ gần nhất
+  (0,7 / 0,15 / 0,15), khôi phục trong `finally`. `X19` (nhánh cố định dùng chung giữa không gian `SCALED` và `RAW`): thêm ca hai không gian cùng gu / nhiễu (tỉ lệ chấp nhận đo được 57,7% so với 31,5%). `X20` (trưởng nhóm không nhận nhiễu của điểm) và
+  `X23` (nhánh có học ở thí nghiệm khách quan không có trưởng nhóm, tức không bao giờ học): test dựng lại bằng tay từng bước và kiểm trọng số cuối **tiến sát gu** (khoảng cách L1 từ 0,90 xuống ~0,03).
+- **Hai phép tương đương**: `L20` (người xếp đầu không có điểm vẫn truyền `topUserId`: `learningDecision` trả `learn: false` ở **mọi** nhánh khi người đó không có điểm — `NO_TOP` hay `MISSING_COMPONENT` — nên hành vi của nhánh không đổi;
+  giữ dòng này để khớp đúng `assign.service.ts`) và `X26` (biến thể "chỉ mô tả" đặt trọng số tiêu đề 0 → 1, nhưng tiêu đề là chuỗi rỗng).
+- Sau đó tôi **thêm** dòng chênh lệch cặp của "người mới" và Gini vào báo cáo (xem đính chính ở trên) và cài 10 phép cho phần mới: bị bắt cả 10 ở lần đầu.
+
+**Sai sót / ngoặt của chính tôi ở bước này**: (1) câu "`NEUTRAL` cho người mới ít việc hơn" — kết luận từ hai số trung bình mà chưa tính khoảng tin cậy; sai, đã sửa và bổ sung vào báo cáo (đọc kỹ ở mục `DROP` hay `NEUTRAL`); (2) khi thấy tỉ lệ chấp nhận thấp
+(10–76%) tôi nghi có **lỗi của bộ chạy**; đo từng bất đồng thì tất cả là người mới dưới `DROP` — không phải lỗi mà là một đặc tính thật (đã thêm phép đo "đủ dữ liệu" để tách ra, bằng bọc nhánh, không sửa bộ chạy); (3) lại một lần nữa gõ script
+qua heredoc Bash có dấu gạch chéo ngược (`'\n'` thành xuống dòng thật) và bắt được **trước khi chạy** nhờ kiểm bằng `grep` sau khi vá; (4) bản nháp nhật ký ghi "24 phép so sánh" trong khi đúng là 23 — đã sửa theo số đếm.
+
+**Quyết định còn treo / đề nghị** (không tự đổi gì — D3):
+- **`DROP` hay `NEUTRAL`**: số liệu không đủ để đổi (kết quả ngang nhau; chia đều cho người mới cũng chưa phân biệt được, xem đính chính ở trên). Nhưng hiện tượng "người mới bị gợi ý mãi" (86,5% ở gu ưu tiên kinh nghiệm) là một rủi ro trải nghiệm thật.
+  Hướng nhẹ nhất để cân nhắc, **chưa cài**: người `NO_HISTORY` không được xếp trên người có bằng chứng "đủ" chỉ nhờ khả dụng (ví dụ kẹp điểm của họ về mức tối đa của người có dữ liệu, hoặc hiện "chưa đủ dữ liệu" thay
+  cho điểm 100). Cần bạn quyết có làm không.
+- **`eta`**: giữ 0,05 (không có căn cứ đổi). Nếu muốn giảm rủi ro trôi khi phản hồi nhiễu: nút "tắt học" (cần migration, xem 10.9) hoặc `eta` nhỏ hơn.
+- Bốn điểm hơi tốt hơn (`K = 1`, `K = 3`, `m_e = 0,5`, `simMin = 0`; ba tham số) **chưa đủ căn cứ** vì 23 phép so sánh; nếu muốn xét, phải kiểm lại trên hạt giống **mới** (ví dụ 3001–3020) — không được dùng chính 2001–2020 để chọn rồi báo số.
+
+**Giới hạn cần biết** (ngoài các giới hạn chung của bước 7a): (1) **trưởng nhóm giả** là một mô hình gu tuỳ ý một người, không có người dùng thật; (2) hạt giống 2001–2003 đã được xem lúc kiểm tra đường ống
+(không chỉnh gì dựa vào chúng) và tôi cũng đo mức tải trên 1001–1010 lúc lập kế hoạch (chỉ mô tả thế giới, không chọn gì); (3) khoảng tin cậy cho từng phép so sánh mô tả **không** hiệu chỉnh đa so sánh —
+chỉ sáu phép chính là đăng ký trước; (4) thế giới chỉ 6 người / ~105 quyết định; nhóm 10 người và mật độ 72 thẻ được thử trong bảng độ bền / thế giới nhưng chưa phải cấu hình gốc của mọi phép đo; (5) số liệu học là
+**học trên người chọn giả** và dừng ở ~105 quyết định — nhóm thật có thể có nhiều hoặc ít phản hồi hơn.
+
+Bước tiếp theo: **bước 8 — lớp 2 tối giản** (chia việc cả danh sách, vòng lặp tham lam ~50 dòng + màn xem trước), rồi bước 9 (đánh giá lớp 2 + viết chương). Trước đó nên chốt hai quyết định treo ở trên.
