@@ -32,6 +32,13 @@ import { simDayToDate, vnToday } from './simSeed';
 // Chup "hom nay" MOT LAN: vnToday() tao Intl.DateTimeFormat moi lan goi, ma phat lai goi hang nghin lan moi the.
 const TODAY = vnToday();
 
+/**
+ * "Ngay so" cua bo mo phong -> thoi diem that, CUNG "hom nay" voi snapshotAsOf. Bo chay danh gia (buoc 7) dung ham nay
+ * thay vi tu goi vnToday(): hai lan chup "hom nay" co the roi vao hai ben nua dem va lech nhau mot ngay.
+ */
+export const simDate = (days: number, day: number, hour = 0, minute = 0): Date =>
+  simDayToDate(TODAY, days, day, hour, minute);
+
 export interface Snapshot {
   now: Date;
   idf: Idf;

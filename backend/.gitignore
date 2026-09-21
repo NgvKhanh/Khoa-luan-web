@@ -10,3 +10,6 @@ node_modules
 # Cache phan hoi tho cua LLM khi chay danh gia (npm run eval:ai) va file ket qua thu
 /.ai-eval-cache
 /eval-result*
+
+# Du lieu tho (tung hat giong) khi chay danh gia phan cong (npm run eval:assign); bao cao .md thi COMMIT
+/eval-assign-*.json

@@ -170,13 +170,83 @@ export class Rng {
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 
+/** He so phat tai cua mo hinh ket qua: moi the vuot NUA suc chua tru chung nay khoi xac suat dung han. */
+export const DEFAULT_LOAD_PENALTY = 0.06;
+
 /**
  * Xac suat dung han cua mot viec (nguon lech 6): tang theo ky nang, giam khi tai vuot nua suc chua, luon
  * trong [0,05, 0,95]. Xuat ra de phep phat lai (simReplay) danh gia bang CUNG mo hinh ket qua - khong bao gio
- * duoc dua vao bo cham (bo cham khong duoc thay ky nang an).
+ * duoc dua vao bo cham (bo cham khong duoc thay ky nang an). `loadPenalty` mac dinh la gia tri cua bo sinh; buoc 7
+ * quet no de xem khi tai that su quan trong thi thanh phan kha dung co ich khong (KHONG nam trong SimConfig: cau hinh
+ * la mot phan cua ma bam dong bang).
  */
-export function onTimeProbability(skill: number, load: number, capacity: number): number {
-  return clamp(0.15 + 0.7 * skill - 0.06 * Math.max(0, load - capacity / 2), 0.05, 0.95);
+export function onTimeProbability(
+  skill: number,
+  load: number,
+  capacity: number,
+  loadPenalty: number = DEFAULT_LOAD_PENALTY
+): number {
+  return clamp(0.15 + 0.7 * skill - loadPenalty * Math.max(0, load - capacity / 2), 0.05, 0.95);
+}
+
+export interface OutcomeInput {
+  skill: number;
+  /** So the chong lan luc giao (tai). */
+  load: number;
+  capacity: number;
+  assignedDay: number;
+  dueDay: number;
+  /** Do dai lich su (ngay); hoan thanh SAU ngay nay = the van con mo. */
+  days: number;
+  /** The tao gan day: co the con dang mo bat ke ky nang. */
+  recent: boolean;
+  loadPenalty?: number;
+}
+
+export interface Outcome {
+  stillOpen: boolean;
+  completedDay: number | null;
+  onTime: boolean;
+  reopened: boolean;
+}
+
+/**
+ * KET QUA cua mot viec da giao (nguon lech 6). Dung chung cho bo sinh (sinh lich su) va cho phep danh gia vong kin
+ * o buoc 7 (nhanh tu giao viec -> ket qua rut tu CUNG mo hinh), de hai ben khong the lech nhau. THU TU GOI `rng`
+ * la mot phan cua hop dong: no quyet dinh ma bam dong bang cua bo sinh (test canh).
+ *
+ * Luu y cho phep so sanh cap (buoc 7): `rng.chance(pOnTime)` dung CUNG mot so ngau nhien cho moi nguoi duoc chon, nen
+ * voi cung mot luong, nguoi co xac suat cao hon LUON dung han neu nguoi thap hon dung han (ghep don dieu).
+ */
+export function sampleOutcome(rng: Rng, o: OutcomeInput): Outcome {
+  // The tao gan day co the con dang mo -> tao ra "tai hien tai" de cham diem kha dung co y nghia.
+  let stillOpen = o.recent && rng.chance(0.55);
+
+  // Nguon lech 6: dung han la XAC SUAT, phu thuoc ky nang va tai, co nhieu.
+  const pOnTime = onTimeProbability(o.skill, o.load, o.capacity, o.loadPenalty);
+
+  let onTime = false;
+  let completedDay: number | null = null;
+  if (!stillOpen) {
+    const planned = Math.max(1, o.dueDay - o.assignedDay);
+    const finish = rng.chance(pOnTime)
+      ? o.assignedDay + Math.max(1, Math.ceil(planned * (1 - 0.5 * o.skill) * rng.range(0.5, 1)))
+      : o.dueDay + 1 + rng.int(1 + Math.round(8 * (1 - o.skill)));
+    if (finish > o.days) {
+      // Ngay hoan thanh du kien nam SAU hom nay -> the van con mo (co the
+      // da qua han). Khong duoc kep ve hom nay: kep se bien mot the tre
+      // han thanh dung han va lam du lieu tu mau thuan.
+      stillOpen = true;
+    } else {
+      completedDay = finish;
+      // DINH NGHIA duy nhat cua "dung han", trung voi cach module cham
+      // diem se do: ngay hoan thanh <= ngay het han.
+      onTime = finish <= o.dueDay;
+    }
+  }
+
+  const reopened = !stillOpen && rng.chance(0.02 + 0.18 * (1 - o.skill));
+  return { stillOpen, completedDay, onTime, reopened };
 }
 
 // ---------- Ky nang an theo thoi gian ----------
@@ -469,35 +539,17 @@ function makeCards(
       const load = overlapCount(mine, assignedDay, dueDay);
       mine.push({ from: assignedDay, to: dueDay });
 
-      // The tao gan day co the con dang mo -> tao ra "tai hien tai" de cham
-      // diem kha dung co y nghia.
+      // Nguon lech 6 + the tao gan day co the con dang mo (xem sampleOutcome)
       const recent = createdDay > cfg.days - cfg.openRecentDays;
-      let stillOpen = recent && rng.chance(0.55);
-
-      // Nguon lech 6: dung han la XAC SUAT, phu thuoc ky nang va tai, co nhieu.
-      const pOnTime = onTimeProbability(skill, load, assignee.capacity);
-
-      let onTime = false;
-      let completedDay: number | null = null;
-      if (!stillOpen) {
-        const planned = Math.max(1, dueDay - assignedDay);
-        const finish = rng.chance(pOnTime)
-          ? assignedDay + Math.max(1, Math.ceil(planned * (1 - 0.5 * skill) * rng.range(0.5, 1)))
-          : dueDay + 1 + rng.int(1 + Math.round(8 * (1 - skill)));
-        if (finish > cfg.days) {
-          // Ngay hoan thanh du kien nam SAU hom nay -> the van con mo (co the
-          // da qua han). Khong duoc kep ve hom nay: kep se bien mot the tre
-          // han thanh dung han va lam du lieu tu mau thuan.
-          stillOpen = true;
-        } else {
-          completedDay = finish;
-          // DINH NGHIA duy nhat cua "dung han", trung voi cach module cham
-          // diem se do: ngay hoan thanh <= ngay het han.
-          onTime = finish <= dueDay;
-        }
-      }
-
-      const reopened = !stillOpen && rng.chance(0.02 + 0.18 * (1 - skill));
+      const { stillOpen, completedDay, onTime, reopened } = sampleOutcome(rng, {
+        skill,
+        load,
+        capacity: assignee.capacity,
+        assignedDay,
+        dueDay,
+        days: cfg.days,
+        recent,
+      });
 
       cards.push({
         key: `c${n}`,

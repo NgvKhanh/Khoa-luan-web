@@ -1,14 +1,15 @@
 # Module Gợi ý phân công công việc (cá nhân hoá từ lịch sử)
 
-> **Trạng thái: xong bước 0–6 (kể cả 4b, 6a, 6b)** — 6a: **học trọng số mức 2** + hồ sơ làm việc cá nhân
-> (backend); 6b: **giao diện** (ô Thành viên có gợi ý, mục trọng số ở trang cài đặt không gian).
+> **Trạng thái: xong bước 0–6 (kể cả 4b, 6a, 6b) và 7a** — 6a: **học trọng số mức 2** + hồ sơ làm việc cá nhân
+> (backend); 6b: **giao diện** (ô Thành viên có gợi ý, mục trọng số ở trang cài đặt không gian); 7a: **bộ chạy đánh
+> giá** (`npm run eval:assign -- --exp=arms`: các nhánh × 20 hạt giống, vòng kín, khoảng tin cậy bootstrap; kết quả ở
+> nhật ký 7a; quét tham số, học trọng số và độ bền vững là việc của 7b).
 > Thiết kế đã chốt; nền dữ
 > liệu mô phỏng, bộ tách từ + TF-IDF + hồ sơ người, **bộ chấm cặp (việc, người)**
 > đã có, chạy được trên dữ liệu mô phỏng và **đã chuẩn hoá thành phần trong nhóm
 > ứng viên (phương án A)** để trọng số có nghĩa. **Bước 5: API** — xếp hạng ứng viên
 > cho một thẻ từ dữ liệu thật trong Postgres, ghi nhật ký `AssignRun`, ghi người được
-> chọn, xem/chỉnh/đặt lại trọng số của nhóm (§10). Chưa có giao diện và chưa học
-> trọng số (bước 6), chưa có đánh giá chính thức (bước 7). Còn treo: chính sách cho
+> chọn, xem/chỉnh/đặt lại trọng số của nhóm (§10). Chưa có lớp 2 (bước 8–9). Còn treo: chính sách cho
 > **người chưa có lịch sử** (DROP hay NEUTRAL — nhật ký bước 4b).
 > Tài liệu này là hợp đồng thiết kế; mỗi bước xong sẽ thêm một mục
 > "Đã xong — Bước N" ở cuối file, giống cách `AI_MODULE.md` ghi nhật ký.
@@ -635,6 +636,44 @@ Bốn nhánh giữa vừa là nhánh nền vừa là **nghiên cứu cắt bỏ*
   "huấn luyện mô hình" đúng nghĩa trong chương phương pháp — và nếu nó **thua**
   trọng số tay thì càng hay, vì chứng minh được mô hình đơn giản là đủ.
 - **Nhánh embedding** thay TF-IDF, dùng lại adapter LLM sẵn có.
+
+### Cài đặt (bước 7 — `backend/src/scripts/evalAssign*.ts`, chạy bằng `npm run eval:assign`)
+
+Khung khác với dự kiến ban đầu ở ba điểm, đều có lý do đo được (nhật ký bước 7a): không có `evalCache` (không có mạng
+để đệm; thay bằng bộ nhớ kết quả từng thí nghiệm để chạy từng phần / song song), có **vòng kín**, và so sánh **cặp**.
+
+- **Ba chế độ chạy** (`evalAssignRun.ts`): `HISTORY` — thế giới là lịch sử của bộ sinh, cố định; tái hiện `replay()` cũ **đến
+  từng chữ số** (test đối chiếu). `ARM` — **vòng kín**: nhánh tự giao người xếp đầu, kết quả rút từ chính mô hình kết quả của bộ
+  sinh (`sampleOutcome`, kỹ năng ẩn + tải thật), lịch sử tích luỹ theo lựa chọn của nhánh. `LEADER` — trưởng nhóm giả giao việc,
+  nhánh chỉ gợi ý và nhận phản hồi. **Vì sao cần vòng kín**: phát lại lịch sử cố định không đo được việc dồn về một người
+  (Gini), tải tự điều chỉnh khi thật sự làm theo gợi ý, và "bẫy người mới" (không được giao thì mãi không có lịch sử).
+- **Thế giới của nhánh**: 60 ngày đầu giữ lịch sử của bộ sinh (nhóm đã có việc trước khi dùng công cụ); từ ngày 60, thẻ nào do nhánh
+  quyết định bị "xoá trắng" (chưa ai nhận, chưa xong) cho tới lúc quyết định, để việc do bộ sinh giao không rò vào thế giới của
+  nhánh; cùng ngày thì theo thứ tự trong bộ. Phát lại cũ (`HISTORY`) **có** nhìn thấy các thẻ giao cùng ngày nhưng xử lý sau
+  (như tải đang mở) — rò rỉ nhẹ đã có từ bước 4 và nay có test đo; vòng kín thì không.
+- **So sánh cặp, may rủi chung**: mỗi thẻ có ba luồng ngẫu nhiên **riêng** (kết quả / nhánh ngẫu nhiên / trưởng nhóm) gieo bằng
+  `streamSeed(hạt giống, vị trí thẻ, mục đích)`. **Bắt buộc trộn bit**: gieo LCG bằng hai số nguyên kề nhau cho giá trị đầu tương
+  quan **0,998** (đo), sau khi trộn còn ~0,01. `sampleOutcome` cho **ghép đơn điệu** (cùng luồng: người có xác suất đúng hạn
+  cao hơn luôn đúng hạn nếu người thấp hơn đúng hạn), nên hai nhánh chỉ khác nhau ở **người được chọn**, không phải may rủi.
+- **Tải của thế giới** = số thẻ đang mở chồng lấn theo định nghĩa của bộ chấm (`load` của một xếp hạng tham chiếu tính riêng cho
+  mỗi quyết định), dùng chung cho cả các nhánh không dùng bộ chấm; phạt tải vào xác suất đúng hạn qua
+  `onTimeProbability(…, loadPenalty)` (mặc định 0,06; **không** nằm trong `SimConfig` vì cấu hình là một phần của mã băm đóng băng).
+  Xác suất đúng hạn tối đa của mô hình là 0,85 (kỹ năng 1, không phạt): trần kẹp 0,95 không bao giờ đạt với kỹ năng hợp lệ.
+- **Nhánh** (`evalAssignArms.ts`, **không import bộ sinh** — có test đọc mã nguồn canh giữ; nhánh chỉ thấy chữ và kết quả hoàn thành):
+  ngẫu nhiên · chia vòng tròn · người rảnh nhất (ít thẻ đang mở chồng lấn nhất, đếm thô) · người hay làm nhất (nhiều thẻ đã xong
+  nhất) · chỉ kinh nghiệm (1/0/0) · chỉ tải (0/0/1) · đầy đủ trọng số cố định (0,45/0,30/0,25, `MINMAX`/`DROP` — đúng cấu hình
+  sản phẩm); nhánh thứ tám (có học trọng số) là việc của 7b; thêm bốn nhánh cắt bỏ (chỉ tin cậy, bỏ khả dụng / tin cậy / kinh nghiệm) và
+  hai nhánh **tham chiếu** cần kỹ năng ẩn (người kỹ năng cao nhất; **tối ưu** = xác suất đúng hạn cao nhất) đặt ở bộ chạy.
+- **Chỉ số chính đăng ký trước**: **xác suất đúng hạn kỳ vọng** của người được giao (Top-1 theo kỹ năng không thể ghi công cho khả
+  dụng, đã ghi ở bước 4). Phụ: độ hối tiếc, Top-1/Top-3/MRR, Gini + phần việc của người nhiều nhất, "người mới" (việc người vào
+  muộn nhận / phần chia đều kỳ vọng), đúng hạn thực của các thẻ đã xong. **Năm so sánh chính đăng ký trước**: nhánh đầy đủ với
+  ngẫu nhiên / người rảnh nhất / người hay làm nhất / chỉ kinh nghiệm / chỉ tải; so sánh thứ sáu (nhánh có học với cố định, tỉ lệ chấp nhận) là việc của 7b.
+- **Thống kê** (`evalAssignStats.ts`): khoảng tin cậy **bootstrap phân vị 95%** (10 000 lần lấy lại, tất định) trên chênh lệch
+  **cặp theo hạt giống** — mỗi hạt giống là một đơn vị độc lập (không tính trên từng thẻ). Kết luận trong bảng do máy gắn nhãn
+  chỉ dựa vào việc khoảng có chứa 0 hay không. 20 hạt giống **2001–2020**, chưa dùng để chọn gì ở các bước trước; tham số giữ
+  đúng mặc định đã duyệt, các bảng quét chỉ **mô tả**. Mã băm tổng của 20 bộ dữ liệu được đóng băng bằng test.
+- **Để 7b**: nhánh có học trọng số (cần trưởng nhóm giả), quét tham số, độ bền trước các nguồn lệch của bộ sinh, `DROP` hay `NEUTRAL`.
+- **Cố ý không làm** (đã thoả thuận trước khi làm): nhánh hồi quy logistic và nhánh embedding ("tuỳ chọn" ở trên), và mọi thứ của lớp 2 (bước 8–9).
 
 ## 12. Rủi ro lớn nhất
 
@@ -1479,3 +1518,101 @@ mới (còn 1 lỗi có sẵn ở `TemplatesPage.tsx` và nhiều cảnh báo `s
 Bước tiếp theo: **bước 7 — bộ đánh giá offline** (§11): tám nhánh × 20 hạt giống, quét tham số (trong đó `eta` và mức phạt tải),
 khoảng tin cậy bootstrap, chỉ số đúng hạn + Gini, và **đường hội tụ** của học trọng số với trưởng nhóm mô phỏng; chốt luôn `DROP` hay
 `NEUTRAL` cho người mới (còn treo từ 4b).
+
+### Đã xong — Bước 7a: bộ chạy đánh giá và so sánh các nhánh (21/09/2026)
+
+**Tệp mới** (đều trong `backend/src/scripts/`, ngoài đường chạy của sản phẩm — `modules/assign/` không đổi một dòng):
+
+| Tệp | Việc |
+|---|---|
+| `evalAssignStats.ts` | Hàm thuần, tất định: trung bình / độ lệch chuẩn / phân vị, **Gini**, phần việc của người nhiều nhất, **bootstrap phân vị** cho trung bình và cho **chênh lệch cặp**, `streamSeed` (hạt giống cho luồng ngẫu nhiên riêng từng thẻ) |
+| `evalAssignArms.ts` | Bảy nhánh của bảng chính + bốn nhánh cắt bỏ. **Không import bộ sinh** (test đọc mã nguồn canh giữ): nhánh chỉ thấy chữ và kết quả hoàn thành |
+| `evalAssignRun.ts` | Bộ chạy ba chế độ `HISTORY` / `ARM` / `LEADER`, `planDecisions`, `summarizeDecisions`, hai nhánh **tham chiếu** cần kỹ năng ẩn (người giỏi nhất, tối ưu), `EVAL_SEEDS`, `STREAM_SALTS` |
+| `evalAssignReport.ts` | Dựng bảng markdown (bảng chính, so sánh cặp, cắt bỏ, đối chiếu phát lại), nhãn kết luận tự động theo khoảng tin cậy, mã băm dữ liệu |
+| `evaluateAssign.ts` | CLI `npm run eval:assign` (ở 7a chỉ có `--exp=arms`; 7b thêm các thí nghiệm khác) |
+
+**Sửa**: `simGenerator.ts` — gom công thức rút kết quả thành `sampleOutcome()` (giữ nguyên thứ tự gọi bộ số ngẫu nhiên; **mã băm
+đóng băng `e7ddf9ac…` không đổi**, test đang canh), thêm tham số `loadPenalty` cho `onTimeProbability` (không đưa vào `SimConfig`
+vì cấu hình nằm trong mã băm); `simReplay.ts` — xuất `simDate` (dùng chung một lần chụp "hôm nay" thay vì hai lần gọi `vnToday()` có
+thể rơi vào hai bên nửa đêm); `package.json` — script `eval:assign`.
+
+**Kết quả — 20 hạt giống 2001–2020, vòng kín** (`npm run eval:assign -- --exp=arms --out=eval-assign-result.md`; báo cáo đầy đủ ở
+`backend/eval-assign-result.md`). Mỗi nhánh tự giao người xếp đầu, kết quả rút từ mô hình của bộ sinh, tham số giữ đúng mặc định đã duyệt:
+
+| Nhánh | P(đúng hạn) [95% CI] | Hối tiếc | Top-1 | Gini | Người nhiều nhất | Người mới (1 = công bằng) |
+|---|---|---|---|---|---|---|
+| Ngẫu nhiên | 0,389 [0,379; 0,400] | 0,324 | 18,9% | 0,170 | 23,2% | 1,14 |
+| Chia vòng tròn | 0,404 [0,395; 0,414] | 0,315 | 19,6% | 0,131 | 19,9% | 1,02 |
+| Người rảnh nhất | 0,395 [0,385; 0,407] | 0,330 | 20,1% | 0,238 | 25,9% | 0,71 |
+| Người hay làm nhất | 0,221 [0,204; 0,238] | 0,332 | 18,9% | 0,825 | **97,6%** | 0,00 |
+| Chỉ kinh nghiệm | 0,397 [0,373; 0,419] | 0,247 | 33,0% | 0,547 | 51,7% | 0,00 |
+| Chỉ tải (khả dụng) | 0,400 [0,390; 0,410] | 0,325 | 18,4% | 0,202 | 24,5% | 0,78 |
+| **Đầy đủ, trọng số cố định** | **0,441** [0,427; 0,455] | 0,244 | 30,6% | 0,347 | 34,4% | 0,46 |
+| *(tham chiếu)* người kỹ năng cao nhất | 0,592 [0,572; 0,612] | 0,000 | 100% | 0,365 | 35,2% | 0,94 |
+| *(tham chiếu)* tối ưu | 0,611 [0,595; 0,626] | 0,009 | 90,7% | 0,292 | 29,9% | 1,04 |
+
+**Năm so sánh chính đã đăng ký trước** (Δ P(đúng hạn) của nhánh đầy đủ trừ nhánh kia, cùng thẻ, cùng may rủi, bootstrap 95% theo hạt
+giống): ngẫu nhiên **+0,052 [+0,039; +0,065]** (20 / 0 hạt giống dương / âm) · người rảnh nhất **+0,046 [+0,030; +0,062]** (18 / 2) ·
+người hay làm nhất **+0,220 [+0,205; +0,236]** (20 / 0) · chỉ kinh nghiệm **+0,044 [+0,026; +0,062]** (18 / 2) · chỉ tải
+**+0,041 [+0,028; +0,054]** (18 / 2). Cả năm khoảng đều nằm hẳn trên 0.
+
+**Cắt bỏ** (bỏ một thành phần khỏi cấu hình mặc định, chia lại trọng số): bỏ khả dụng **−0,028 [−0,043; −0,014]** (3 / 17 hạt giống);
+bỏ tin cậy −0,011 [−0,027; +0,005] (chưa phân biệt được); bỏ kinh nghiệm −0,013 [−0,026; −0,000] (hối tiếc +0,037, xấu hơn).
+
+**Đọc kết quả cho đúng — bảy điều, kể cả những điều không đẹp:**
+1. **Cách đánh giá đổi cả kết luận.** Phát lại lịch sử cố định (cách của bước 4) cho "chỉ kinh nghiệm" **0,490** — cao nhất trong các nhánh
+   thật, hơn cả "đầy đủ" (0,471). Vòng kín cho **0,397**, ngang ngẫu nhiên (0,389), thấp hơn "đầy đủ" 0,044. Nguyên nhân đo được: khi thật
+   sự làm theo gợi ý, "chỉ kinh nghiệm" dồn **51,7%** việc cho một người và người vào muộn nhận **0,00** phần chia đều — phát lại không thấy
+   vì gợi ý trước không ảnh hưởng thẻ sau. Đây là lý do có vòng kín; **chương đánh giá phải nêu cả hai cách** và không được trích số của
+   phát lại như "hiệu quả khi dùng".
+2. **Khả dụng có ích — trái với kết luận ngầm của bước 4/4b** ("phạt tải quá nhẹ để khả dụng tạo khác biệt": thêm khả dụng giữ nguyên 0,484), vì phương
+   pháp đo lúc đó (phát lại một bước). Vòng kín, với phạt tải mặc định 0,06, bỏ khả dụng làm P(đúng hạn) tụt 0,028 và dồn 45,9% việc cho một người.
+   Ghi chính xác: khả dụng không tương quan với **kỹ năng** (đúng), nhưng ngăn được dồn tải khi gợi ý được làm theo thật (điều Top-1 và phát lại không đo).
+3. **Khoảng cách tới tối ưu còn lớn.** Ngẫu nhiên 0,389 → tối ưu 0,611: "đầy đủ" (0,441) chỉ đi được khoảng **23%** quãng đường. Người giỏi
+   nhất luôn được chọn (0,592) cho thấy trần nằm ở việc biết kỹ năng ẩn, thứ bộ chấm không bao giờ thấy.
+4. **"Người hay làm nhất" tệ hơn ngẫu nhiên nhiều (0,221)**: vòng lặp "giàu càng giàu" — 97,6% việc vào một người, tải vượt xa nửa sức chứa
+   nên xác suất đúng hạn rơi xuống sàn. Ở phát lại nó chỉ 0,390 (ngang ngẫu nhiên) vì tải không tích luỹ.
+5. **Người mới bị thiệt ở nhánh đầy đủ (0,46 phần chia đều)**; ngẫu nhiên cho 1,14 và chia vòng tròn 1,02. Chưa chốt `DROP` hay `NEUTRAL` (số ở 7b).
+6. **Mô hình kết quả có trần 0,85**, không phải 0,95: xác suất đúng hạn = 0,15 + 0,7·kỹ năng − phạt tải với kỹ năng ≤ 1; trần kẹp 0,95 của
+   `onTimeProbability` không bao giờ đạt trong thế giới hợp lệ (test đã ghi lại).
+7. **Phát lại cũ có rò rỉ nhẹ**: nó nhìn thấy các thẻ giao **cùng ngày nhưng xử lý sau** (như tải đang mở). Đã có từ bước 4; vòng kín xử lý thẻ theo
+   thứ tự và không rò (test đo cả hai chiều: `HISTORY` có rò, `ARM`/`LEADER` không).
+
+**Ba phát hiện kỹ thuật lúc làm** (đều đo trước khi sửa):
+- **Gieo LCG bằng số nguyên kề nhau cho giá trị đầu tương quan 0,998** (`Rng(1000 + i)` và `Rng(1001 + i)`). Mỗi thẻ cần luồng ngẫu nhiên riêng
+  giống hệt ở mọi nhánh (để so cặp) — nên `streamSeed` trộn bit (còn 0,01); test đo cả tương quan lẫn **tiêu chí lan truyền** (lật một bit đầu vào →
+  ~16/32 bit đầu ra đổi). Bổ sung cho bước 2: phép đo "tương quan liền kề ≈ 0,001" là **trong một luồng** và vẫn đúng; còn **gieo nhiều luồng bằng số kề nhau** thì các luồng gần như trùng nhau.
+- `HISTORY` khớp `replay()` cũ **đến từng chữ số** trên ba bộ dữ liệu, kể cả các tuỳ chọn trọng số / chuẩn hoá / thiếu dữ liệu / tham số — mốc đối chiếu
+  đã qua cài lỗi ở bước 4 và 4b.
+- **Thế giới của nhánh không rò tương lai**: thẻ nhánh sắp quyết định bị "xoá trắng" tới lúc quyết định (chưa người nhận, chưa xong); một test chạy
+  chế độ `LEADER` với "trưởng nhóm" giao đúng người của bộ sinh và dùng đúng kết quả của bộ sinh, rồi kiểm **thế giới cuối cùng bằng đúng bộ dữ liệu gốc**.
+
+**Kiểm thử**: 115 test mới (thống kê 23 · nhánh 24 · bộ chạy 46 · báo cáo 22), không cần CSDL. Ràng buộc chính: Gini / bootstrap theo số tính tay và tính chất
+(hoán vị, đổi thang, Pigou–Dalton; độ phủ thực tế của khoảng 95% trên 300 mẫu); mỗi nhánh là hoán vị của họ bốc, tất định, không sửa đầu vào (đóng băng);
+`sampleOutcome` **ghép đơn điệu** (cùng luồng, người có xác suất cao hơn luôn đúng hạn nếu người thấp hơn đúng hạn); kết quả của thẻ / lựa chọn của nhánh /
+lựa chọn của trưởng nhóm đúng bằng luồng `(hạt giống, vị trí thẻ, mục đích)`; ở `LEADER` hai nhánh khác nhau thấy **cùng một thế giới**; mã băm tổng của 20 bộ
+dữ liệu đánh giá được đóng băng (`ff6c7cc6…`).
+
+**Cài lỗi tự động: 172 phép, 170 bị bắt, 2 tương đương** (thống kê 40 · nhánh 27 · bộ chạy 59 · báo cáo 32 · bộ sinh 14; mã nguyên vẹn từng byte sau mỗi nhóm; luôn kiểm
+`mutated !== original`). Lần chạy đầu để lọt **13** phép — mỗi phép chỉ ra một chỗ test còn hổng thật — và tôi đã vá từng chỗ rồi chạy lại:
+- `S19`/`S20` (bỏ **một** trong hai vòng trộn của `streamSeed`): test tương quan kề nhau vẫn qua vì vòng còn lại trộn đủ tốt (0,01); phải đo **tiêu chí lan truyền** —
+  bit hạt giống lệch tới 18,45 và 19,31 (so với 15,9–16,1 của bản đủ). `S29` (bootstrap không bao giờ chọn phần tử cuối): thêm ca có ngoại lai ở đầu / cuối dãy.
+- `A14` (`normalize` không chuyển xuống bộ chấm): ca đối chiếu cũ dùng trọng số 1/0/0 mà với **một** thành phần min-max chỉ là phép biến đổi đơn điệu nên không phân biệt
+  được `NONE` với `MINMAX`; thêm ca nhiều thành phần. `P15`/`P32`: dữ liệu mẫu của test báo cáo trùng giá trị giữa hai cột (đổi cột nào cũng không lộ) và thiếu ca kiểm bảng cắt bỏ.
+- `G14` (`Math.max(1, hạn − ngày giao)`): chỉ lộ khi việc dài 1 ngày mà bộ sinh không tạo ca đó → test trực tiếp `sampleOutcome`. `R4` (giờ quyết định 10:00 → 11:00): sai lệch
+  một giờ không đổi thứ hạng nên số đo không thấy → ghim giờ bằng test riêng.
+- `R7` (họ bốc 1 người bị giữ lại): cần nhóm 2 người. `R22`/`R23` (kết quả rút theo tải / sức chứa của người *xếp đầu* thay vì người *được giao*): chỉ lộ khi hai người khác nhau **và**
+  phạt tải làm xác suất đổi — phạt 1,0 đẩy cả hai xuống sàn 0,05 nên không phân biệt được, phải dùng thế giới dày việc và phạt 0,3. `R25` (biên của "thẻ gần đây"): test cũ chép lại
+  đúng công thức của mã nên không thể bắt; dùng hằng số viết tay (270 = 300 − 30) và tìm hạt giống có thẻ tạo đúng ngày biên. `R41` (người vào đúng ngày `minDay`); `R53` (thông báo lỗi
+  bị lỗi của bộ chấm che khuất).
+- **Hai phép còn lại là tương đương**: `R11` (`done: false` của thẻ xoá trắng — `completedDay: null` đã vô hiệu hoá nó) và `R19` (kiểm tra người được giao ∈ họ bốc, không thể chạm
+  tới vì đã có kiểm tra hoán vị trước đó — giữ làm mã phòng thủ). Ở bộ sinh, 5/14 phép (các hằng số của mô hình kết quả) chỉ bị **phép đóng băng** bắt — đúng thiết kế, nhưng nghĩa là
+  các hằng số đó không có test ngữ nghĩa riêng.
+
+**Sai sót của chính tôi ở bước này**: (1) hai kỳ vọng tính tay sai trong test (`onTimeProbability(0,99; 0; 4)` bằng 0,843 chứ không chạm trần 0,95; một số thứ tự
+của bảng độ hội tụ) — mã đúng, test sai, phát hiện nhờ chạy; (2) một bản vá test làm tệp **không biên dịch được** (lỗi thoát ký tự) và tôi không chạy lại test
+ngay, nên 10 phép cài lỗi lọt sang tầng 3 đều bị "bắt" giả — nhận ra vì **10/10 phép nào qua được tầng 1–2 đều bị bắt ở tầng 3**, điều vô lý; sửa rồi chạy lại đúng
+các phép đó; (3) đưa bằng heredoc Bash một script có dấu gạch chéo ngược thì bị nuốt (đã biết từ bước 3, vẫn mắc lại). Bài học: sau **mỗi** lần sửa tệp test phải chạy
+lại chính nó trước khi tin bất kỳ kết quả cài lỗi nào; một loạt phép bị bắt cùng ở một tầng ngoài dự đoán là dấu hiệu cần kiểm tra, không phải tin vui.
+
+**Chưa làm / để 7b**: nhánh thứ tám (có học trọng số) cần trưởng nhóm giả; quét tham số; độ bền trước các nguồn lệch; `DROP` hay `NEUTRAL`.
