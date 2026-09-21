@@ -124,3 +124,62 @@ export interface AssignProfileInput {
   /** ISO co Z, hoac null de bo tam nghi. */
   pausedUntil: string | null;
 }
+
+// ---------- Lop 2: chia viec cho ca danh sach (ASSIGN_MODULE.md §10.10) ----------
+
+/** Nguoi co the nhan viec trong mot lan chia. */
+export interface AssignPlanPerson {
+  user: { id: string; name: string; avatarUrl: string | null };
+  /** So the song song toi da (§5.6). */
+  capacity: number;
+  /** So the DANG MO cua nguoi nay truoc khi chia. */
+  openCards: number;
+  paused: boolean;
+}
+
+/** Nguoi duoc chon cho mot the: co ca ba gia tri tho, khong co bang chung (ban xem truoc khong lo tieu de the cu). */
+export interface AssignPlanPick {
+  user: { id: string; name: string; avatarUrl: string | null };
+  score: number | null;
+  rawScore: number | null;
+  confidence: number;
+  confidenceLevel: AssignConfidenceLevel;
+  components: Record<AssignWeightKey, AssignComponent>;
+  load: number;
+  capacity: number;
+  flags: AssignFlag[];
+}
+
+/** Xep hang gon cua MOI ung vien cho mot the, TAI BUOC do (da tinh cac the chia truoc). */
+export interface AssignPlanRanking {
+  userId: string;
+  rank: number;
+  score: number | null;
+  load: number;
+  capacity: number;
+  flags: AssignFlag[];
+}
+
+export interface AssignPlanRow {
+  /** 1 = xu ly truoc (han gap nhat). */
+  order: number;
+  card: { id: string; title: string; startDate: string | null; dueDate: string | null };
+  /** null = khong ai du dieu kien (moi nguoi dang tam nghi). */
+  assignee: AssignPlanPick | null;
+  ranking: AssignPlanRanking[];
+}
+
+export interface AssignPlanResult {
+  list: { id: string; name: string; boardId: string; workspaceId: string };
+  algorithmVersion: string;
+  planVersion: string;
+  generatedAt: string;
+  weights: AssignWeights & { custom: boolean };
+  groupOnTimeRate: number | null;
+  people: AssignPlanPerson[];
+  /** Tong so the chua co nguoi nhan trong danh sach (co the nhieu hon so dong: xem `truncated`). */
+  totalUnassigned: number;
+  /** Chi chia mot so the gap nhat moi lan; phan con lai de lan sau. */
+  truncated: boolean;
+  rows: AssignPlanRow[];
+}

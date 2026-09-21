@@ -1,6 +1,7 @@
 import { api } from '../axios';
 import type {
   AssignOutcomeResult,
+  AssignPlanResult,
   AssignProfile,
   AssignProfileInput,
   AssignSuggestionResult,
@@ -16,6 +17,14 @@ export async function fetchAssignSuggestions(cardId: string): Promise<AssignSugg
   const res = await api.get<{ data: AssignSuggestionResult }>(
     `/cards/${encodeURIComponent(cardId)}/assignment-suggestions`
   );
+  return res.data.data;
+}
+
+// POST /api/lists/:listId/assignment-plan - chia cac the CHUA CO NGUOI NHAN cua danh sach (lop 2), CHI XEM TRUOC.
+// Dung POST nhung KHONG ghi gi o server; ton tai nguyen nen co gioi han toc do (10 luot / 10 phut) -> chi goi khi nguoi dung
+// mo man hinh chia viec. Giao that dung addCardMember (lib/api/card.ts) tung the.
+export async function fetchAssignPlan(listId: string): Promise<AssignPlanResult> {
+  const res = await api.post<{ data: AssignPlanResult }>(`/lists/${encodeURIComponent(listId)}/assignment-plan`);
   return res.data.data;
 }
 

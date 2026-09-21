@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), del
 vi.mock('../axios', () => ({ api: mocks }));
 
 import {
+  fetchAssignPlan,
   fetchAssignProfile,
   fetchAssignSuggestions,
   fetchAssignWeights,
@@ -28,6 +29,16 @@ describe('lib/api/assign', () => {
     expect(mocks.get).toHaveBeenCalledWith('/cards/c1/assignment-suggestions');
     await fetchAssignSuggestions('a/b?c');
     expect(mocks.get).toHaveBeenLastCalledWith('/cards/a%2Fb%3Fc/assignment-suggestions');
+  });
+
+  it('fetchAssignPlan: POST /lists/:id/assignment-plan (id duoc ma hoa, khong than yeu cau), tra data.data', async () => {
+    const data = { rows: [], people: [] };
+    mocks.post.mockResolvedValue({ data: { data } });
+    await expect(fetchAssignPlan('l1')).resolves.toBe(data);
+    expect(mocks.post).toHaveBeenCalledTimes(1);
+    expect(mocks.post).toHaveBeenCalledWith('/lists/l1/assignment-plan');
+    await fetchAssignPlan('a/b?c');
+    expect(mocks.post).toHaveBeenLastCalledWith('/lists/a%2Fb%3Fc/assignment-plan');
   });
 
   it('recordAssignOutcome: POST /assignment/runs/:runId/outcome voi { chosenUserId }, tra data.data', async () => {

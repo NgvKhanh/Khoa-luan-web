@@ -13,6 +13,7 @@ import type { Card } from '../../types/card';
 import type { CardTemplate } from '../../types/cardTemplate';
 import type { BoardList } from '../../types/list';
 import AddCardForm from './AddCardForm';
+import AssignPlanModal from './AssignPlanModal';
 import CardItem from './CardItem';
 import RecurringScheduleModal from './RecurringScheduleModal';
 
@@ -32,6 +33,8 @@ interface Props {
   onMoveAllCards: (list: BoardList, targetListId: string) => void;
   onSortList: (list: BoardList, by: SortListBy) => void;
   onRequestDeleteAllCards: (list: BoardList) => void;
+  /** Sau khi man hinh chia viec da giao it nhat mot the (de bang tai lai). */
+  onAssignApplied?: () => void;
 }
 
 const SORT_OPTIONS: { key: SortListBy; label: string }[] = [
@@ -62,6 +65,7 @@ export default function ListColumn({
   onMoveAllCards,
   onSortList,
   onRequestDeleteAllCards,
+  onAssignApplied,
 }: Props) {
   const {
     attributes,
@@ -85,6 +89,7 @@ export default function ListColumn({
   >(null);
   const [addCardOpen, setAddCardOpen] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   const [watching, setWatching] = useState(false);
   const [cardTemplates, setCardTemplates] = useState<CardTemplate[]>([]);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
@@ -175,6 +180,8 @@ export default function ListColumn({
 
   const otherLists = allLists.filter((l) => l.id !== list.id);
   const hasCards = list.cards.length > 0;
+  // The chua xong va chua co nguoi nhan: dung nhung the ma "Chia viec goi y" se xet
+  const unassignedCount = list.cards.filter((c) => !c.isDone && (c.members ?? []).length === 0).length;
 
   return (
     <div
@@ -299,6 +306,19 @@ export default function ListColumn({
                     }}
                   >
                     Thẻ định kỳ...
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={unassignedCount === 0}
+                    title={unassignedCount === 0 ? 'Không có thẻ nào chưa giao người' : undefined}
+                    className={ITEM}
+                    onClick={() => {
+                      setPlanOpen(true);
+                      closeMenu();
+                    }}
+                  >
+                    Chia việc gợi ý...{unassignedCount > 0 ? ` (${unassignedCount} thẻ chưa giao)` : ''}
                   </button>
                   {submenu === 'cardTemplates' && (
                     <div className="mb-1 ml-2 max-h-40 overflow-y-auto border-l border-slate-200 pl-1.5 dark:border-slate-700">
@@ -525,6 +545,15 @@ export default function ListColumn({
           listId={list.id}
           boardId={list.boardId}
           onClose={() => setRecurringOpen(false)}
+        />
+      )}
+
+      {planOpen && (
+        <AssignPlanModal
+          listId={list.id}
+          listName={list.name}
+          onClose={() => setPlanOpen(false)}
+          onApplied={() => onAssignApplied?.()}
         />
       )}
     </div>

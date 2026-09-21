@@ -1083,6 +1083,7 @@ export default function BoardPage() {
                   onRequestDeleteAllCards={(l) =>
                     setDeleteTarget({ kind: 'cards-in-list', list: l })
                   }
+                  onAssignApplied={reloadLists}
                 />
               ))}
             </SortableContext>

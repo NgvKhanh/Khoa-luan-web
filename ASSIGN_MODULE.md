@@ -1,16 +1,17 @@
 # Module Gợi ý phân công công việc (cá nhân hoá từ lịch sử)
 
-> **Trạng thái: xong bước 0–7 (kể cả 4b, 6a, 6b, 7a, 7b) và 8a** — 6a: **học trọng số mức 2** + hồ sơ làm việc cá nhân
+> **Trạng thái: xong bước 0–8 (kể cả 4b, 6a, 6b, 7a, 7b, 8a, 8b)** — 6a: **học trọng số mức 2** + hồ sơ làm việc cá nhân
 > (backend); 6b: **giao diện** (ô Thành viên có gợi ý, mục trọng số ở trang cài đặt không gian); 7: **bộ đánh giá
 > offline** (`npm run eval:assign`: 8 nhánh × 20 hạt giống, khoảng tin cậy bootstrap, quét tham số, học trọng số,
-> độ bền vững; kết quả ở nhật ký 7a / 7b); 8a: **lớp 2 — chia việc cho cả danh sách** (backend: `assign.plan.ts` +
-> `POST /api/lists/:listId/assignment-plan`, §10.10; màn xem trước là bước 8b).
+> độ bền vững; kết quả ở nhật ký 7a / 7b); 8: **lớp 2 — chia việc cho cả danh sách** (8a backend: `assign.plan.ts` +
+> `POST /api/lists/:listId/assignment-plan`, §10.10; 8b giao diện: mục "Chia việc gợi ý…" ở menu danh sách + màn xem trước,
+> sửa từng dòng rồi mới áp dụng).
 > Thiết kế đã chốt; nền dữ
 > liệu mô phỏng, bộ tách từ + TF-IDF + hồ sơ người, **bộ chấm cặp (việc, người)**
 > đã có, chạy được trên dữ liệu mô phỏng và **đã chuẩn hoá thành phần trong nhóm
 > ứng viên (phương án A)** để trọng số có nghĩa. **Bước 5: API** — xếp hạng ứng viên
 > cho một thẻ từ dữ liệu thật trong Postgres, ghi nhật ký `AssignRun`, ghi người được
-> chọn, xem/chỉnh/đặt lại trọng số của nhóm (§10). Chưa có màn xem trước lớp 2 (8b) và đánh giá lớp 2 (bước 9). Còn treo: chính sách cho
+> chọn, xem/chỉnh/đặt lại trọng số của nhóm (§10). Chưa có đánh giá lớp 2 (bước 9). Còn treo: chính sách cho
 > **người chưa có lịch sử** (DROP hay NEUTRAL — nhật ký bước 4b và 7b).
 > Tài liệu này là hợp đồng thiết kế; mỗi bước xong sẽ thêm một mục
 > "Đã xong — Bước N" ở cuối file, giống cách `AI_MODULE.md` ghi nhật ký.
@@ -426,7 +427,7 @@ chấp nhận) vừa là đầu vào cho mức 2. Một bảng làm ba việc.
 | POST | `/api/assignment/runs/:runId/outcome` | Ghi người thực sự được chọn (nuôi mức 1 và mức 2) | **bước 5** (ghi nhận) + **6a** (học) |
 | GET / PUT / DELETE | `/api/workspaces/:workspaceId/assignment-weights` | Xem (kèm lịch sử, số phản hồi, trạng thái học), chỉnh ba thanh trượt, đặt lại mặc định | **bước 5** + **6a** (trường mới) |
 | GET / PUT | `/api/workspaces/:workspaceId/assignment-profile` | Hồ sơ làm việc của **chính người gọi**: số thẻ chồng lấn tối đa, tạm nghỉ đến ngày | **bước 6a** |
-| POST | `/api/lists/:listId/assignment-plan` | Lớp 2: chia các thẻ **chưa có người nhận** của danh sách, trả bản **xem trước** (không ghi gì) | **bước 8a** |
+| POST | `/api/lists/:listId/assignment-plan` | Lớp 2: chia các thẻ **chưa có người nhận** của danh sách, trả bản **xem trước** (không ghi gì) | **bước 8a** (giao diện: **8b**) |
 
 Phân quyền: chỉ người **sửa được thẻ** mới gọi được gợi ý (đúng hàm `assertCardAccess` của thao
 tác sửa thẻ → VIEWER và người ngoài bảng bị chặn); chỉ OWNER/ADMIN của không gian làm việc mới sửa
@@ -585,7 +586,7 @@ tốc, chưa cần). (Biểu đồ hội tụ đã có ở bước 7b, dạng CS
 
 `POST /api/lists/:listId/assignment-plan` (không có thân yêu cầu). **Chỉ xem trước, không ghi gì**: không `AssignRun`, không
 `CardMember`, không nhật ký hoạt động, không học trọng số (test đếm sáu bảng trước và sau). Người dùng áp dụng bằng API giao thẻ có
-sẵn (`POST /api/cards/:cardId/members`), từng thẻ một, từ màn xem trước (bước 8b).
+sẵn (`POST /api/cards/:cardId/members`), từng thẻ một, từ màn xem trước (bước 8b, xem cuối mục này).
 
 **Thuật toán** (`assign.plan.ts`, hàm thuần — dùng chung cho máy chủ và cho bước 9 đánh giá lớp 2 trên bộ mô phỏng):
 
@@ -647,6 +648,13 @@ thắng nổi hai thành phần còn lại (0,75). Người vượt trội cả 
 **Độ trễ đo** (chỉ phần chấm, 40 thẻ, không kể đọc CSDL): 3 ms / thẻ (nhóm 120 thẻ, 5 ứng viên), 22 ms / thẻ (1000 thẻ, 9 ứng viên),
 74 ms / thẻ (3000 thẻ) — tức 30 thẻ mất ≈ 2,2 s ở không gian 3000 thẻ. Chưa tối ưu (dùng chung hồ sơ người giữa các thẻ) vì chưa cần;
 máy chủ Node chỉ có một luồng nên đây là lý do của hạn mức 10 lượt / 10 phút.
+
+**Giao diện (bước 8b, `AssignPlanModal.tsx`)**: mục **"Chia việc gợi ý… (N thẻ chưa giao)"** ở menu "⋯" của danh sách (chỉ khi sửa được bảng; khoá khi
+không có thẻ nào chưa xong và chưa có người nhận). Màn xem trước: mỗi thẻ một dòng theo thứ tự xử lý, người được gợi ý chọn sẵn, điểm tương đối + tải + ba giá trị **thô**
+(chỉ của người được gợi ý — với người khác máy chủ chỉ gửi điểm, tải, cờ), huy hiệu cờ, cảnh báo khi người được chọn quá tải / tạm nghỉ; đổi người hoặc chọn "Không giao", bỏ tick từng thẻ; bảng
+"Sau khi áp dụng" (thẻ mới, đang mở / sức chứa, cờ) cập nhật ngay. **Áp dụng** giao **tuần tự** bằng `addCardMember` (mỗi lần ghi nhật ký và gửi thông báo nên không chạy song song); thẻ lỗi không chặn thẻ sau
+và được báo riêng kèm lý do; thẻ đã giao đánh dấu "Đã giao" và khoá; áp dụng lại chỉ giao phần còn lại. Kế hoạch không được lưu và không khoá thẻ: thẻ có thể bị người khác giao trong lúc bạn xem
+(khi đó thẻ có thêm một người; giao trùng người thì không lỗi).
 
 ## 11. Module đánh giá (bước 7)
 
@@ -1840,3 +1848,37 @@ không xuất hiện ở đâu trong phản hồi), **không ghi gì** (đếm s
 chúng bị bắt ngay ở tầng đầu trong khi không test nào của tầng đó nói về trọng số hỏng — cùng bài học của bước 7: một phép bị bắt phải bị bắt vì đúng lý do.
 
 **Chưa làm / để 8b**: màn xem trước (nút "Chia việc gợi ý…" ở menu danh sách, sửa từng dòng, áp dụng từng thẻ); đánh giá lớp 2 chính thức ở bước 9 (cân tải, việc trễ hạn, hạt giống mới, so sánh đăng ký trước).
+
+### Đã xong — Bước 8b: lớp 2, màn xem trước chia việc — phần giao diện (22/09/2026)
+
+**Tệp mới** (`frontend/src/`): `components/board/AssignPlanModal.tsx` (màn xem trước) + test (20) · `lib/assignPlan.ts` (phần tính toán thuần: lựa chọn ban đầu, thẻ sẽ giao, phân bố sau khi chia,
+cảnh báo, nhãn ô chọn, giao tuần tự) + test (11) · `components/board/ListColumn.plan.test.tsx` (5). **Sửa**: `ListColumn.tsx` (mục menu + mở màn xem trước; prop tuỳ chọn `onAssignApplied`),
+`pages/BoardPage.tsx` (truyền `reloadLists`), `lib/api/assign.ts` + test (`fetchAssignPlan`), `types/assign.ts` (kiểu của kế hoạch). Backend không đổi.
+
+**Hành vi** (đặc tả ở cuối §10.10): mục "Chia việc gợi ý… (N thẻ chưa giao)" ở menu "⋯" của danh sách, chỉ khi sửa được bảng, khoá và có giải thích khi không có thẻ nào chưa giao (đếm ở máy khách: chưa
+xong và chưa có thành viên); màn xem trước mỗi thẻ một dòng theo thứ tự xử lý, người được gợi ý chọn sẵn, điểm tương đối + tải + ba giá trị **thô**, huy hiệu cờ, cảnh báo quá tải / tạm nghỉ,
+đổi người hoặc "Không giao", bỏ tick từng thẻ, bảng "Sau khi áp dụng" cập nhật ngay; **Áp dụng** giao tuần tự bằng `addCardMember`, thẻ lỗi không chặn thẻ sau và được báo riêng kèm lý do, thẻ đã giao khoá lại,
+áp dụng lại chỉ giao phần còn lại; đóng khi còn thẻ lỗi vẫn báo bảng tải lại đúng một lần; `React.StrictMode` chỉ gọi máy chủ một lần (giới hạn 10 lượt / 10 phút).
+
+**Giới hạn cần biết**: (1) đổi sang người KHÔNG được gợi ý thì không có ba giá trị thô (máy chủ chỉ gửi ba giá trị của người được gợi ý; xếp hạng gọn chỉ có điểm, tải, cờ); (2) "đang mở" ở bảng phân bố là mọi thẻ chưa xong
+của người đó, kể cả thẻ không trùng thời gian — thô hơn tải mà bộ chấm dùng (chỉ đếm thẻ chồng lấn), nên có ghi chú ngay dưới bảng; (3) kế hoạch không được lưu và không khoá thẻ; (4) không học từ chỉnh sửa (§10.10);
+(5) với `DROP`, người chưa có lịch sử có thể đứng đầu một số thẻ (huy hiệu "Chưa có lịch sử" — thấy rõ trên dữ liệu giả lúc xem giao diện).
+
+**Kiểm thử**: 37 test mới (thuần 11 · màn hình 20 · menu 5 · API 1); toàn bộ suite frontend 23 tệp / 180 test xanh, `tsc -b` sạch, `oxlint` không có cảnh báo ở tệp mới (còn **một lỗi có sẵn** ở
+`pages/TemplatesPage.tsx:170` — hook gọi trong callback — không thuộc bước này, chưa sửa). Test kiểm hành vi nhìn thấy được: thứ tự dòng, gợi ý chọn sẵn, giá trị thô, cảnh báo, phân bố, đổi người / bỏ tick, giao tuần tự
+(chứng minh không bao giờ hai yêu cầu cùng lúc), thẻ lỗi, khoá nút khi đang giao, Escape / bấm nền, khoá cuộn trang nền, kết quả cũ về muộn khi đổi danh sách.
+
+**Cài lỗi tự động: 105 phép, 104 bị bắt, 1 tương đương** (màn hình 63 · tính toán thuần 25 · menu 13 · API 4; mã nguyên vẹn từng byte sau mỗi nhóm; chạy lại **toàn bộ** trên mã cuối cùng). Phép tương đương duy nhất: rào `applying ||` đầu hàm `apply()`, trùng với nút đã bị khoá trong lúc giao (không có đường nào trong giao diện để bấm hai lần). Lần chạy đầu (65 phép ở màn hình) để lọt 7, xem ở dưới.
+
+**Xem giao diện bằng mắt**: dùng trang xem thử tạm với dữ liệu giả (thay bộ chuyển của axios, không cần đăng nhập; đã xoá, không commit): sáng, tối, 375 px, trạng thái đang tính, và luồng áp dụng khi một thẻ lỗi
+(năm thẻ "Đã giao", một thẻ "Không giao được: …", chân trang "1 thẻ chưa giao được", nút "Áp dụng cho 1 thẻ"). Không có lỗi trong console. **Tôi chưa mở tính năng này trong ứng dụng thật** (không đăng nhập được vào tài khoản
+mô phỏng) — bạn nên tự bấm thử một lần với `sim1@sim.local`.
+
+**Sai sót / ngoặt của chính tôi ở bước này**: (1) lần chạy đầu 4/5 test của menu đỏ: bộ khung thử của tôi thiếu ràng buộc khoảng cách của `PointerSensor` nên dnd-kit nuốt cú bấm vào nút menu (dùng lại đúng bộ cảm biến của `BoardPage`
+như test cũ); (2) kiểm dấu xuống dòng bằng `grep -c $'\r'` báo 0 với các tệp CRLF — sai, nên bản vá đầu vào `ListColumn.tsx` hỏng ở phép kiểm chắc chắn (chưa ghi gì); đã kiểm bằng Python và sửa giữ nguyên CRLF;
+(3) viết lại một dòng biểu thức chính quy của tập lệnh cài lỗi bằng heredoc và bị nuốt dấu gạch chéo ngược lần nữa (đã biết từ bước 3, 7) — sửa bằng công cụ Edit; (4) khi xem giao diện phát hiện một lỗi **test không thấy**: sau khi giao xong
+một phần, bảng "Sau khi áp dụng" không tính các thẻ đã giao (chỉ đếm thẻ còn phải giao) nên số thẻ đang mở của người nhận bị báo thấp — sửa và thêm ca kiểm; (5) lần cài lỗi đầu để lọt 7 phép: 4 là mã thừa
+(hai dòng đặt lại trạng thái lúc tải, dòng đặt lại cờ trước khi đóng, biểu thức `isDone ||` ở ô tick) — xoá mã thừa thay vì giữ; 1 là rào phòng thủ trùng với nút đã khoá (`applying ||` trong `apply()`) — giữ, ghi là tương đương;
+2 là lỗ thật (kết quả cũ về muộn đè lên khi đổi danh sách; màu huy hiệu cờ) — thêm test.
+
+**Chưa làm**: đánh giá lớp 2 chính thức (bước 9: cân tải, việc trễ hạn, hạt giống mới, so sánh đăng ký trước; có thể cần đo thêm cân bằng mạnh hơn: trần hoặc phạt điểm, §10.10).
