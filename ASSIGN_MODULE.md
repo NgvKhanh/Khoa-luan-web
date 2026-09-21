@@ -1,7 +1,8 @@
 # Module Gợi ý phân công công việc (cá nhân hoá từ lịch sử)
 
-> **Trạng thái: xong bước 0–6a (kể cả 4b)** — bước 6a: **học trọng số mức 2** + hồ sơ làm việc cá nhân
-> (backend); 6b (giao diện) xem nhật ký. Thiết kế đã chốt; nền dữ
+> **Trạng thái: xong bước 0–6 (kể cả 4b, 6a, 6b)** — 6a: **học trọng số mức 2** + hồ sơ làm việc cá nhân
+> (backend); 6b: **giao diện** (ô Thành viên có gợi ý, mục trọng số ở trang cài đặt không gian).
+> Thiết kế đã chốt; nền dữ
 > liệu mô phỏng, bộ tách từ + TF-IDF + hồ sơ người, **bộ chấm cặp (việc, người)**
 > đã có, chạy được trên dữ liệu mô phỏng và **đã chuẩn hoá thành phần trong nhóm
 > ứng viên (phương án A)** để trọng số có nghĩa. **Bước 5: API** — xếp hạng ứng viên
@@ -1407,3 +1408,74 @@ kia chờ). Cài lỗi lộ ra điều này ngay lần đầu; đọc code hay c
 mã chết** (Q17) — nhánh phòng thủ mà mình tin là cần nhưng nền tảng đã lo rồi; xoá đi đơn giản hơn là giữ một nhánh
 không thể kiểm. (3) Đo trước rồi mới viết `expect` (bám theo thiên lệch 0,50→0,03…) cho ngưỡng có căn cứ và lộ luôn
 điểm yếu (trôi vì nhiễu) mà nếu chỉ viết theo kỳ vọng thì không bao giờ thấy.
+
+### Đã xong — Bước 6b: giao diện lớp 1 (21/09/2026)
+
+**Tệp mới** (`frontend/src/`): `types/assign.ts` · `lib/api/assign.ts` · `lib/assignWeights.ts` (phép cân bằng ba thanh
+trượt bằng **số nguyên phần trăm**) · `lib/assignDates.ts` (ô "tạm nghỉ": ngày thuần ↔ ISO cuối ngày theo giờ máy) ·
+`lib/assignLabels.ts` (nhãn tiếng Việt dùng chung) · `components/board/cardModal/AssignSuggestPanel.tsx` (ô
+**Thành viên có gợi ý**) · `components/AssignWeightsPanel.tsx` (mục **"Gợi ý phân công"** của trang cài đặt không gian) — kèm
+6 tệp test. **Sửa**: `CardModal.tsx` (`run` trả `boolean`; popover Thành viên dùng panel mới, rộng 22rem, cao tối đa 70vh,
+`key={card.id}`), `WorkspaceSettingsPage.tsx` (thêm mục). **Backend không đổi.**
+
+**Ô Thành viên của thẻ** — mở ra thì gọi gợi ý (một lần, kể cả trong `React.StrictMode` nhờ dùng chung yêu cầu đang bay):
+- mỗi dòng: hạng, tên, thanh **điểm tương đối** ("Phù hợp 92", chú thích là so trong danh sách của đúng thẻ này),
+  **ba giá trị thô** (KN 78% · TC 100% · KD 80% — tooltip giải thích từng cái), huy hiệu cờ (quá tải ghi `6/5 thẻ`, tạm nghỉ,
+  chưa có lịch sử, chưa làm việc tương tự, không đủ dữ liệu) và mức đủ dữ liệu (mỏng / vừa đủ / đủ); người không có điểm
+  ghi "Chưa đủ dữ liệu để chấm" chứ không hiện 0;
+- **"Vì sao?"** mở danh sách thẻ cũ làm bằng chứng (tiêu đề, % giống, đúng hạn/trễ, ngày); tiêu đề bị che hiện *Thẻ ở bảng
+  riêng tư*; rỗng thì nói lý do (chưa hoàn thành thẻ nào / chưa có thẻ giống);
+- bấm dòng vẫn **thêm / bỏ** thành viên như cũ. Giao cho người **quá tải hoặc tạm nghỉ** thì hỏi lại một lần
+  ("Bình Trần đang quá tải (6/5 thẻ chồng lấn). Vẫn giao thẻ này?"); các cờ khác chỉ là huy hiệu. Thêm xong thì gọi
+  `outcome` — **chỉ người được chọn đầu tiên của mỗi lượt gợi ý**, lỗi (vd 409) chỉ ghi log;
+- **giao tay không bao giờ bị chặn**: gợi ý lỗi / bị giới hạn tốc độ (429) thì hiện thông điệp + "Thử lại" và rơi về danh sách
+  thường (mọi thành viên bảng, kể cả VIEWER) — không ghi lựa chọn vì không có lượt gợi ý.
+
+**Mục "Gợi ý phân công" ở trang cài đặt không gian**: ba thanh trượt tự cân bằng (kéo một thanh thì hai thanh kia chia lại theo
+tỉ lệ, luôn tổng 100%, mỗi thanh 5–70%); Lưu / Hoàn tác / Đặt lại (có hộp xác nhận nói rõ số lượt về 0) chỉ cho OWNER/ADMIN,
+thành viên thường chỉ xem; số phản hồi + tỉ lệ giao đúng người xếp đầu; trạng thái tự học ("còn 7 lượt" hoặc "đang tự học");
+lịch sử đổi (Tự học / Chỉnh tay); **"Cấu hình làm việc của tôi"**: số thẻ chồng lấn tối đa (1–30) và tạm nghỉ đến hết ngày
+(ô ngày thuần, đổi sang 23:59:59.999 **giờ địa phương** rồi gửi ISO có Z — không dùng `datetime-local` nên không dính lỗi lệch múi
+giờ đang được sửa ở phiên riêng).
+
+**Kiểm chứng — 6 tệp test mới, 81 ca (frontend 20 tệp / 143 test xanh; trước bước này 14 / 62):**
+- `assignWeights` (15): vòng tròn chính xác cho **mọi** bộ hợp lệ (5..70, tổng 100 — 1.000+ bộ); 5.000 tình huống kéo ngẫu nhiên
+  luôn ra bộ hợp lệ; kéo về đúng giá trị hiện tại thì không đổi; thanh đang bằng 0 chia đều; NaN không sinh NaN.
+- `assignDates` (10, **không phụ thuộc múi giờ của máy chạy**: kỳ vọng dựng từ getter địa phương): 800 ngày liên tiếp vòng tròn,
+  ngày nhuận, chuỗi không phải ngày lịch thật bị từ chối.
+- `assignLabels` (5) · `lib/api/assign` (7: đường dẫn **mã hoá id**, thân yêu cầu, bóc `data.data`).
+- `AssignSuggestPanel` (22) và `AssignWeightsPanel` (22): tải/lỗi/thử lại, thứ tự, giá trị thô, cờ, bằng chứng, xác nhận, ghi lựa chọn
+  đúng một lần, rơi về danh sách thường, đổi thẻ/không gian với yêu cầu cũ về muộn (thành công lẫn lỗi), StrictMode, khoá khi
+  đang giao, trọng số lẻ đã học hiển thị làm tròn, kéo thanh + lưu gửi đúng số thực tổng 1, đặt lại, thành viên thường chỉ xem, lịch sử
+  đúng nhãn từng dòng, cấu hình cá nhân (12 kiểu số thẻ sai, ngày tạm nghỉ, lỗi lưu).
+
+**Cài lỗi (frontend): 96 phép, 91 bị bắt, 5 sót và cả năm là mutant tương đương.** Lượt đầu 87/96 — **bốn lỗ hổng test thật**, đã vá:
+đường dẫn API của *trọng số* chưa từng thử với id có ký tự đặc biệt (`A4`); bấm "Thử lại" có thật sự quay về trạng thái "đang tải"
+hay để nguyên thông báo lỗi cũ trong lúc chờ (`P31`); yêu cầu **lỗi** của không gian cũ về muộn có đè lên nội dung mới không (`W18`);
+và lịch sử có gắn **đúng nhãn cho đúng dòng** không — ca cũ chỉ kiểm "có cả hai nhãn đâu đó" nên đổi chỗ *Tự học ↔ Chỉnh tay*
+vẫn xanh (`W19`). Năm mutant tương đương: `F9` (chia đều `[30,30,30]` thay `[33,3…]`: phần dư lớn nhất bù lại ra đúng `34/33/33`),
+`D2/D3/D4` (bỏ riêng từng kiểm tra năm / tháng / ngày của ngày lịch: một ngày không tồn tại luôn lệch **ít nhất hai** trong ba thành
+phần nên mỗi kiểm tra riêng lẻ là thừa) và `D9` (`new Date(null)` là năm 1970 nên vẫn ra "không tạm nghỉ").
+Trước khi chạy cài lỗi tôi đã rà mutant bằng mắt và **vá trước** 6 chỗ yếu (thẻ khác thì không hiện gợi ý của thẻ cũ; đổi thẻ thì
+ghi lựa chọn lại được; không lặp dòng; thanh điểm bị kẹp; cờ nguy hiểm có màu; trạng thái đang tải khi đổi không gian).
+
+**Xem bằng mắt** (không đăng nhập được nên dùng **trang xem thử tạm với dữ liệu giả** — đã xoá, không commit): sáng, tối, khổ
+375 px, khung đang tải, gợi ý lỗi 429 (rơi về danh sách thường), thành viên thường (thanh trượt khoá); kéo thanh thật bằng chuột
+(45/30/25 → 60/22/18, nút Lưu bật, Hoàn tác hiện). Phát hiện và sửa một chỗ: ghi chú dưới thanh trượt bị bó hẹp trên điện thoại →
+chỉ thụt lề từ khổ `sm` trở lên. **Chưa ai xem trong ứng dụng thật** — bạn cần tự mở bằng `sim1@sim.local` (mục dưới).
+
+**Suite / kiểm tra**: frontend 20 tệp / 143 test; `tsc -b` sạch; `vite build` thành công; `oxlint` không thêm cảnh báo/lỗi nào từ tệp
+mới (còn 1 lỗi có sẵn ở `TemplatesPage.tsx` và nhiều cảnh báo `set-state-in-effect` có sẵn). Backend không đổi (62 / 546).
+
+**Giới hạn cần biết:**
+- Mới chỉ gắn vào **ô Thành viên của thẻ** trong `CardModal`; các nơi gán khác (người phụ trách của **mục checklist**, khi tạo thẻ,
+  kéo thả) chưa có gợi ý.
+- Mỗi lần mở ô Thành viên là **một lượt gợi ý** (một dòng `AssignRun`, giới hạn 60/10 phút/người): mở đóng liên tục sẽ chạm giới hạn
+  và panel rơi về danh sách thường. Chia sẻ yêu cầu đang bay chỉ chống gọi đôi của StrictMode, không phải bộ nhớ đệm.
+- Ô ngày "tạm nghỉ" hiển thị theo ngôn ngữ trình duyệt (ví dụ `mm/dd/yyyy` ở trình duyệt tiếng Anh) — giá trị gửi đi không phụ thuộc.
+- Chỉ ghi **một** lựa chọn cho mỗi lượt mở ô; giao thêm người thứ hai trong cùng lượt không tạo phản hồi mới.
+- Học chưa được đánh giá trên người thật (xem 6a) — bước 7.
+
+Bước tiếp theo: **bước 7 — bộ đánh giá offline** (§11): tám nhánh × 20 hạt giống, quét tham số (trong đó `eta` và mức phạt tải),
+khoảng tin cậy bootstrap, chỉ số đúng hạn + Gini, và **đường hội tụ** của học trọng số với trưởng nhóm mô phỏng; chốt luôn `DROP` hay
+`NEUTRAL` cho người mới (còn treo từ 4b).

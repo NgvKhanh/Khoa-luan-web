@@ -65,6 +65,7 @@ import type {
   Label,
 } from '../../types/card';
 import type { BoardList } from '../../types/list';
+import AssignSuggestPanel from './cardModal/AssignSuggestPanel';
 import { AddItemInput } from './cardModal/AddItemInput';
 import { SortableItem } from './cardModal/SortableItem';
 import { useCardRealtime } from './cardModal/useCardRealtime';
@@ -284,16 +285,21 @@ export default function CardModal({
   boardIdRef.current = card?.list.boardId ?? null;
   useCardRealtime({ reload, editingRef, boardIdRef });
 
-  async function run(fn: () => Promise<unknown>) {
-    if (readOnly) return;
+  // Tra ve true neu chinh thao tac `fn` thanh cong (ke ca khi tai lai the sau do loi) - noi goi dung de biet co nen lam buoc
+  // tiep theo khong (vd ghi lai lua chon o o Thanh vien co goi y phan cong).
+  async function run(fn: () => Promise<unknown>): Promise<boolean> {
+    if (readOnly) return false;
     setError(null);
+    let done = false;
     try {
       await fn();
+      done = true;
       await reload();
       onChanged();
     } catch (err) {
       setError(getErrorMessage(err, 'Thao tác thất bại.'));
     }
+    return done;
   }
 
   // Keo sap xep lai cac muc trong 1 checklist
@@ -1079,36 +1085,16 @@ export default function CardModal({
                   )}
 
                   {panel === 'members' && (
-                    <div className="absolute left-7 top-10 z-10 w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 shadow-xl">
-                      <p className="mb-1 text-xs font-semibold text-slate-600 dark:text-slate-400">Thành viên</p>
-                      <div className="flex flex-col gap-1">
-                        {boardMembers.map((m) => (
-                          <button
-                            key={m.userId}
-                            type="button"
-                            onClick={() =>
-                              void run(() =>
-                                cardMemberIds.has(m.userId)
-                                  ? removeCardMember(card.id, m.userId)
-                                  : addCardMember(card.id, m.userId)
-                              )
-                            }
-                            className="flex items-center gap-2 rounded px-1 py-1 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
-                          >
-                            <Avatar
-                              id={m.userId}
-                              name={m.user.name}
-                              avatarUrl={m.user.avatarUrl}
-                            />
-                            <span className="flex-1 truncate text-sm">{m.user.name}</span>
-                            {cardMemberIds.has(m.userId) && (
-                              <svg viewBox="0 0 24 24" className="h-4 w-4 text-slate-600 dark:text-slate-300" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </button>
-                        ))}
-                      </div>
+                    <div className="absolute left-7 top-10 z-10 max-h-[70vh] w-[22rem] max-w-[calc(100vw-3rem)] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 shadow-xl">
+                      {/* Gợi ý phân công dựa trên lịch sử (ASSIGN_MODULE.md); giao tay vẫn dùng được khi gợi ý lỗi */}
+                      <AssignSuggestPanel
+                        key={card.id}
+                        cardId={card.id}
+                        boardMembers={boardMembers}
+                        cardMemberIds={cardMemberIds}
+                        onAdd={(userId) => run(() => addCardMember(card.id, userId))}
+                        onRemove={(userId) => run(() => removeCardMember(card.id, userId))}
+                      />
                     </div>
                   )}
                 </div>

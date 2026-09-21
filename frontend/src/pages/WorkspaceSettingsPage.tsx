@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import AssignWeightsPanel from '../components/AssignWeightsPanel';
 import Avatar from '../components/Avatar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useAuth } from '../context/AuthContext';
@@ -567,6 +568,9 @@ export default function WorkspaceSettingsPage() {
           })}
         </ul>
       </section>
+
+      {/* Goi y phan cong: trong so cua nhom, tu hoc, cau hinh lam viec cua chinh minh */}
+      <AssignWeightsPanel workspaceId={ws.id} canManage={canManage} />
 
       {/* Bang trong khong gian */}
       <section className="flex flex-col gap-3">
