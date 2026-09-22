@@ -1,18 +1,21 @@
 # Module Gợi ý phân công công việc (cá nhân hoá từ lịch sử)
 
-> **Trạng thái: xong bước 0–8 (kể cả 4b, 6a, 6b, 7a, 7b, 8a, 8b)** — 6a: **học trọng số mức 2** + hồ sơ làm việc cá nhân
+> **Trạng thái: xong bước 0–9 (kể cả 4b, 6a, 6b, 7a, 7b, 8a, 8b, 9a, 9b)** — 6a: **học trọng số mức 2** + hồ sơ làm việc cá nhân
 > (backend); 6b: **giao diện** (ô Thành viên có gợi ý, mục trọng số ở trang cài đặt không gian); 7: **bộ đánh giá
 > offline** (`npm run eval:assign`: 8 nhánh × 20 hạt giống, khoảng tin cậy bootstrap, quét tham số, học trọng số,
 > độ bền vững; kết quả ở nhật ký 7a / 7b); 8: **lớp 2 — chia việc cho cả danh sách** (8a backend: `assign.plan.ts` +
 > `POST /api/lists/:listId/assignment-plan`, §10.10; 8b giao diện: mục "Chia việc gợi ý…" ở menu danh sách + màn xem trước,
-> sửa từng dòng rồi mới áp dụng).
+> sửa từng dòng rồi mới áp dụng); 9: **đánh giá lớp 2 chính thức** (`npm run eval:plan`: 7 cách chia × 20 hạt giống mới
+> 3001–3020, khoảng tin cậy bootstrap, năm so sánh đăng ký trước; kết quả ở nhật ký 9a / 9b, `backend/eval-plan-result.md`).
 > Thiết kế đã chốt; nền dữ
 > liệu mô phỏng, bộ tách từ + TF-IDF + hồ sơ người, **bộ chấm cặp (việc, người)**
 > đã có, chạy được trên dữ liệu mô phỏng và **đã chuẩn hoá thành phần trong nhóm
 > ứng viên (phương án A)** để trọng số có nghĩa. **Bước 5: API** — xếp hạng ứng viên
 > cho một thẻ từ dữ liệu thật trong Postgres, ghi nhật ký `AssignRun`, ghi người được
-> chọn, xem/chỉnh/đặt lại trọng số của nhóm (§10). Chưa có đánh giá lớp 2 (bước 9). Còn treo: chính sách cho
-> **người chưa có lịch sử** (DROP hay NEUTRAL — nhật ký bước 4b và 7b).
+> chọn, xem/chỉnh/đặt lại trọng số của nhóm (§10). Còn treo: chính sách cho
+> **người chưa có lịch sử** (DROP hay NEUTRAL — nhật ký bước 4b, 7b, 9b vẫn cho kết luận "không phân biệt được");
+> và liệu có nên đổi cơ chế cân tải mặc định của lớp 2 sang trần hoặc phạt điểm — bước 9b đo được rằng hai cách đó
+> cân bằng hơn hẳn mà gần như không (hoặc hoàn toàn không) tốn P(đúng hạn), khác với ấn tượng ban đầu ở bước 8 (§10.10, nhật ký 9b).
 > Tài liệu này là hợp đồng thiết kế; mỗi bước xong sẽ thêm một mục
 > "Đã xong — Bước N" ở cuối file, giống cách `AI_MODULE.md` ghi nhật ký.
 >
@@ -627,7 +630,7 @@ gấp nhất — phần còn lại báo bằng `truncated` và `totalUnassigned`
 riêng tư mà người hỏi không xem được, §10.4); test kiểm chuỗi tiêu đề lịch sử không xuất hiện ở bất kỳ chỗ nào của phản hồi.
 
 **Giới hạn đã đo, không giấu** — đo thăm dò 36 đợt chia 12 thẻ cùng lúc (12 hạt giống dev 9301–9312 × 3 ngày; mô hình kết quả của
-bộ sinh; **không phải số chính thức**, bước 9 đo lại trên hạt giống mới với so sánh đăng ký trước):
+bộ sinh; **không phải số chính thức** — bảng dưới đây giữ lại làm chứng cứ cho quyết định lúc đó):
 
 | Cách chia | Người nhiều nhất | Gini | P(đúng hạn) |
 |---|---|---|---|
@@ -640,10 +643,20 @@ bộ sinh; **không phải số chính thức**, bước 9 đo lại trên hạt
 | Tối ưu (biết kỹ năng ẩn) | 34,5% | 0,328 | 0,613 |
 
 Cách đơn giản nhất giảm dồn tải rõ và có P(đúng hạn) cao nhất trong các cách thực tế; ép cân bằng thêm (trần, phạt) làm đều hơn
-nhưng không làm đúng hạn tốt hơn — nên **không thêm tham số**. Nhưng nó **chỉ giảm chứ không chia đều** (người nhiều nhất vẫn 35%
+nhưng không làm đúng hạn tốt hơn — nên lúc đó **không thêm tham số**. Nhưng nó **chỉ giảm chứ không chia đều** (người nhiều nhất vẫn 35%
 so với phần chia đều ~17–20%): chuẩn hoá min-max biến mọi chênh lệch thành 0..1 nên một thành phần (khả dụng, trọng số 0,25) không
 thắng nổi hai thành phần còn lại (0,75). Người vượt trội cả về kinh nghiệm lẫn độ tin cậy **vẫn nhận mọi thẻ** — có test ghi lại
-điều này — và bản xem trước bù lại bằng cách hiện `OVERLOADED` để người dùng đổi người. Cân bằng mạnh hơn là câu hỏi của bước 9.
+điều này — và bản xem trước bù lại bằng cách hiện `OVERLOADED` để người dùng đổi người.
+
+**Số chính thức (bước 9b, 20 hạt giống 3001–3020, `backend/eval-plan-result.md`)** giữ nguyên **xu hướng** trên (người nhiều nhất
+35,3%, Gini 0,313, P(đúng hạn) 0,493 cho cách đã cài — rất khớp với số thăm dò) nhưng **làm rõ hơn một điều mà 36 đợt không đủ mạnh
+để thấy chắc**: trần và phạt 10 điểm **không hề tệ hơn** cách đã cài về P(đúng hạn) nhiều như số thăm dò gợi ý — trần chỉ thấp hơn
+0,014 [khoảng tin cậy 95%: +0,005; +0,023] và phạt 10 **không phân biệt được** với cách đã cài [-0,004; +0,012] — trong khi cả hai
+đều giảm người nhiều nhất **rất nhiều** (35,3% → 22,2% với trần, → 28,9% với phạt 10, cả hai chênh lệch đều chắc chắn theo khoảng
+tin cậy). Nói cách khác: đổi cái giá **rất nhỏ hoặc bằng không** về đúng hạn để lấy sự cân bằng **rất lớn** là một lựa chọn hợp lý hơn
+bước 8 tưởng — quyết định "không thêm tham số" **vẫn đứng vững cho bản đã lên sản phẩm** (giữ tối giản, đúng nguyên tắc thiết kế §3),
+nhưng đây là bằng chứng đáng cân nhắc nếu làm tiếp một bước cải tiến lớp 2. Chi tiết đầy đủ, khoảng tin cậy, quét cỡ đợt và
+đối chiếu DROP/NEUTRAL ở nhật ký bước 9b bên dưới và `backend/eval-plan-result.md`.
 
 **Độ trễ đo** (chỉ phần chấm, 40 thẻ, không kể đọc CSDL): 3 ms / thẻ (nhóm 120 thẻ, 5 ứng viên), 22 ms / thẻ (1000 thẻ, 9 ứng viên),
 74 ms / thẻ (3000 thẻ) — tức 30 thẻ mất ≈ 2,2 s ở không gian 3000 thẻ. Chưa tối ưu (dùng chung hồ sơ người giữa các thẻ) vì chưa cần;
@@ -1931,3 +1944,50 @@ không thay được việc dựng dữ liệu tự tay ép đúng vào ranh gi�
 **Chưa làm / để 9b**: chạy chính thức trên 20 hạt giống 3001–3020, năm so sánh đã đăng ký trước (`planned` so với `independent`/`roundRobin`/`plannedCap`/`plannedPenalty10`/
 `oracleGreedy`, hai chỉ số chính "người nhiều nhất" và "P(đúng hạn)"), quét cỡ đợt K, đối chiếu DROP/NEUTRAL ở góc nhìn cả đợt, viết số liệu chính thức vào tài liệu này và
 phần "chương đánh giá" cho luận văn.
+
+### Đã xong — Bước 9b: đánh giá lớp 2, chạy chính thức + số liệu (22/09/2026)
+
+**Chạy** `npm run eval:plan` trên đúng 20 hạt giống đăng ký trước `PLAN_EVAL_SEEDS = 3001–3020` (chưa dùng để chọn gì ở các bước 0–9a), cỡ đợt K = 12, ba ngày quyết định
+90/150/210 — đúng cấu hình đã chốt ở bước 9a, không chỉnh gì sau khi thấy số. Kết quả đầy đủ (bảy cách chia, năm so sánh đăng ký trước, quét K ∈ {6,12,24}, DROP/NEUTRAL,
+giới hạn) ở **`backend/eval-plan-result.md`** (đã commit) + `eval-plan-result.md.json` (số liệu thô từng hạt giống, không commit — xem `.gitignore`).
+
+**Kết quả chính** (đúng bằng năm so sánh đã đăng ký ở bước 9a, khoảng tin cậy bootstrap 95%):
+
+| So sánh (cách đã cài − …) | Δ người nhiều nhất | Δ P(đúng hạn) |
+|---|---|---|
+| − chấm riêng từng thẻ | **-0,144** [-0,176; -0,114] tốt hơn | **+0,038** [+0,024; +0,053] tốt hơn |
+| − chia vòng tròn | +0,131 [+0,113; +0,151] kém hơn | **+0,095** [+0,075; +0,116] tốt hơn |
+| − trần ⌈K/người⌉ | +0,131 [+0,113; +0,151] kém hơn | +0,014 [+0,005; +0,023] tốt hơn (nhỏ) |
+| − phạt 10 điểm/thẻ | +0,064 [+0,049; +0,081] kém hơn | +0,004 [-0,004; +0,012] **không phân biệt được** |
+| − tối ưu tham lam | -0,010 [-0,033; +0,014] không phân biệt được | **-0,114** [-0,130; -0,099] kém hơn |
+
+**Đọc kết quả**: cách đã cài rõ ràng hơn hẳn hai đối chứng "ngây thơ" (chấm riêng từng thẻ, chia vòng tròn) trên P(đúng hạn), và số liệu 20 hạt giống khớp rất sát với số
+thăm dò 36 đợt của bước 8 (35,3% so với 35,4% người nhiều nhất; 0,493 so với 0,485 P(đúng hạn)) — thăm dò lúc đó không sai. Nhưng khoảng tin cậy chặt hơn cho thấy một điều
+36 đợt không đủ mạnh để khẳng định: **trần và phạt 10 điểm giảm người nhiều nhất RẤT NHIỀU (35,3% xuống 22,2% / 28,9%) trong khi cái giá về đúng hạn RẤT NHỎ (trần) hoặc
+KHÔNG ĐO ĐƯỢC (phạt 10)**. Vẫn còn khoảng cách thật với tối ưu tham lam (0,114 P(đúng hạn), có ý nghĩa thống kê) nhưng khoảng cách với cách đã cài về mức tập trung thì
+không phân biệt được — tối ưu tham lam cũng dồn việc gần bằng cách đã cài (36,3% so với 35,3%), củng cố phát hiện cũ: **không cách thực tế nào chia đều thật sự**, chỉ giảm
+mức dồn.
+
+**Quét cỡ đợt K** (mô tả): K càng lớn thì cả người nhiều nhất lẫn P(đúng hạn) đều giảm ở cả hai cách (K=6: 40,3%/0,514 → K=24: 32,1%/0,441 cho cách đã cài) — hợp lý (đợt
+lớn hơn thì mỗi người nhận tỉ trọng nhỏ hơn, nhưng cạnh tranh sức chứa trong cùng một cửa sổ thời gian cũng tăng). Xu hướng "cách đã cài cân bằng hơn và đúng hạn cao hơn
+độc lập" giữ nguyên ở cả ba cỡ đợt — không phải hiện tượng riêng của K=12.
+
+**DROP so với NEUTRAL, góc nhìn cả đợt**: NEUTRAL nhỉnh hơn DROP ở cả ba chỉ số nhưng biên độ rất nhỏ và các khoảng tin cậy đều sát 0 (người nhiều nhất +0,007 [+0,001;
++0,014], Gini +0,009 [+0,000; +0,018], P(đúng hạn) +0,003 [+0,000; +0,006]) — **cùng chiều** với phát hiện Gini của bước 7b (NEUTRAL−DROP +0,019 [+0,001; +0,039] ở góc nhìn
+từng thẻ), nên đây là một tín hiệu nhất quán nhưng vẫn quá nhỏ để đổi quyết định. **DROP/NEUTRAL vẫn là quyết định còn treo** — hai bước đo độc lập (7b theo từng thẻ, 9b
+theo cả đợt) đều không tìm ra khác biệt đủ lớn để chọn hẳn một bên.
+
+**Quyết định cần bạn xem lại**: bước 8 chọn "không thêm tham số" dựa trên số thăm dò cho thấy trần/phạt "không làm đúng hạn tốt hơn". Số chính thức bước 9b cho thấy đúng
+hơn là "trần/phạt không làm đúng hạn **tệ đi đáng kể**, mà làm cân bằng tốt hơn RẤT NHIỀU" — một khung hình khác hẳn. Tôi **không tự ý đổi** cơ chế đã lên sản phẩm (giữ đúng
+ràng buộc "không đổi thiết kế đã duyệt"); đây là phát hiện để bạn cân nhắc cho một bước sau (ví dụ bước 10): có nên thêm trần ⌈K/người⌉ hoặc phạt 10 điểm/thẻ làm tham số
+tối ưu (hoặc mặc định mới) cho lớp 2 hay không, đổi lấy sự đánh đổi đã đo được ở trên.
+
+**Tài liệu cho chương luận văn**: bảng số liệu, so sánh cặp, quét tham số và giới hạn đã có sẵn dạng hoàn chỉnh ở `backend/eval-plan-result.md` (không cần một tệp riêng —
+đúng khuôn mẫu đã dùng ở bước 7a/7b: báo cáo `.md` chính là nguồn số liệu, mục này của `ASSIGN_MODULE.md` là phần diễn giải). **Không đụng đến `CHUONG_5_DANH_GIA_NHAP.docx`**
+— bạn tự chép số liệu và lý giải ở trên sang Word.
+
+**Kiểm thử / cài lỗi**: không đổi so với bước 9a (khung đo không sửa ở bước này, chỉ chạy); xem lại số liệu ở đó (86 phép, 85 bị bắt, 1 tương đương).
+
+**Sai sót của chính tôi ở bước này**: không có phát sinh mới — bước này chỉ chạy CLI đã kiểm ở 9a trên hạt giống chính thức và diễn giải số ra, không sửa mã.
+
+**Chưa làm**: chưa quyết định DROP/NEUTRAL; chưa quyết định có đổi cơ chế cân tải mặc định của lớp 2 hay không (để ngỏ cho bạn); câu hỏi Python cho GVHD vẫn treo từ trước.
