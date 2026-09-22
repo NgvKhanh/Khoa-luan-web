@@ -1882,3 +1882,52 @@ một phần, bảng "Sau khi áp dụng" không tính các thẻ đã giao (ch�
 2 là lỗ thật (kết quả cũ về muộn đè lên khi đổi danh sách; màu huy hiệu cờ) — thêm test.
 
 **Chưa làm**: đánh giá lớp 2 chính thức (bước 9: cân tải, việc trễ hạn, hạt giống mới, so sánh đăng ký trước; có thể cần đo thêm cân bằng mạnh hơn: trần hoặc phạt điểm, §10.10).
+
+### Đã xong — Bước 9a: đánh giá lớp 2, khung đo (hàm thuần, chưa có số chính thức) (22/09/2026)
+
+**Tệp mới** (`backend/src/scripts/`): `evalPlanArms.ts` (các "cách chia" đối chứng an toàn không biết kỹ năng ẩn — `pickIndependent`, `pickPlannedLikeProduct`, `pickCapped`,
+`pickPenalty`, `makeRoundRobin`, và vòng lặp tham lam dùng chung `runGreedyBatch`) · `evalPlanBatches.ts` (`cutBatch`/`cutBatches`: cắt một "đợt chia việc" — lát cắt K thẻ kế
+tiếp theo thời gian — ra khỏi bộ mô phỏng, dựng lại đúng ảnh chụp lịch sử/tải bằng `snapshotAsOf` có sẵn) · `evalPlanRun.ts` (nối các cách chia với một đợt: `planned` **gọi
+thẳng `planAssignments()` thật**, `oracleGreedy` là tham chiếu cần kỹ năng ẩn viết riêng; `scoreRows`, `summarizeBatch`, `meanSummaries`; `PLAN_EVAL_SEEDS = 3001–3020`) ·
+`evalPlanReport.ts` (bảng markdown, tái dùng nguyên `fmtMeanCI`/`fmtDiff`/`verdict`/`datasetFingerprint`/`mdTable` đã có từ bước 7, không viết lại) · `evalPlan.ts` (CLI
+`npm run eval:plan`, không cần bộ nhớ đệm vì một lượt chạy 20 hạt giống chỉ mất khoảng nửa phút). **Sửa**: `test/assign.plan.test.ts` (bài test "giới hạn ưu trội người mạnh"
+nay gọi `cutBatches` dùng chung thay vì lặp lại logic cắt lát cắt) · `package.json` (`eval:plan`) · `.gitignore` (`/eval-plan-*.json`). Không đổi `assign.plan.ts` /
+`assign.score.ts` / tham số nào đã duyệt — đúng lời hứa ghi sẵn trong `assign.plan.ts` ("dùng chung cho máy chủ và cho bước 9… cùng một hàm, không bản sao"): nhánh `planned`
+không viết lại thuật toán, và có test đối chiếu (bên dưới) chứng minh điều đó.
+
+**Bảy cách chia** (đúng thứ tự bảng thăm dò cũ ở §10.10): `independent` (chấm riêng từng thẻ, không cộng tải — mô phỏng tính năng gợi ý cũ trước khi có lớp 2), `planned`
+(cách đã cài), `plannedCap` (thêm trần ⌈K/người⌉), `plannedPenalty10`/`plannedPenalty20` (trừ điểm mỗi thẻ đã nhận), `roundRobin` (sàn dưới cùng), `oracleGreedy` (tham chiếu
+cần biết kỹ năng ẩn — **tham lam từng thẻ theo đúng thứ tự xử lý, không phải lời giải tối ưu toàn cục cho cả đợt**, ghi rõ trong mọi báo cáo để không phóng đại). Một đợt được
+mô phỏng bằng lát cắt K thẻ kế tiếp theo thời gian (không có khái niệm "danh sách" riêng trong mô phỏng — xem lý do trong chính `evalPlanBatches.ts` và trong giới hạn của báo
+cáo bước 9b).
+
+**Kiểm thử**: 71 test mới (`evalplanarms` 18 · `evalplanbatches` 17 · `evalplanrun` 27 · `evalplanreport` 9); toàn bộ suite backend 75 tệp / 864 test xanh, `tsc` và `eslint`
+sạch. Quan trọng nhất là **test đối chiếu**: nhánh `planned` phải **đúng bằng** (a) gọi thẳng `planAssignments()` và (b) gọi vòng lặp tham lam dùng chung với đúng luật của
+sản phẩm — kiểm trên 6 tổ hợp (2 hạt giống dev × 3 ngày quyết định) trên bộ mô phỏng thật. `oracleGreedy` có một phép đối chiếu độc lập (viết lại vòng lặp trong chính bài
+test, không dùng chung mã nguồn) và một phép "sinh đôi" (hai người giống hệt kỹ năng, sức chứa nhỏ) chứng minh đúng cả thứ tự chọn lẫn số tải báo cáo ra.
+
+**Cài lỗi tự động: 86 phép, 85 bị bắt, 1 tương đương** (nhánh 31 · cắt đợt 18 · bộ chạy 24 · báo cáo 13; mã nguyên vẹn từng byte sau mỗi nhóm). Phép tương đương: `C13`
+(bỏ điều kiện `assigneeId === null` trong `scoreRows` khi tính `pOnTime`) — vô hại vì `chosenSkill` được tính ở một dòng riêng, không bị mutant chạm tới, và **luôn** là `null`
+đúng lúc `assigneeId` là `null`; điều kiện `chosenSkill === null` còn lại trong biểu thức đã tự động cho ra cùng kết quả, chứng minh được chứ không chỉ đoán.
+
+**Sai sót / ngoặt của chính tôi ở bước này** — lần cài lỗi đầu để lọt 15 phép, tất cả đều vì test đầu tiên chỉ dùng dữ liệu "thực tế ngẫu nhiên" thay vì dữ liệu **cố tình ép**
+vào đúng trường hợp biên:
+- Nhóm nhánh (2 phép): `pickCapped`/`pickPenalty` từ chối tham số sai (`cap`/`lambda` âm) nhưng không có ca nào thử `NaN`, `Infinity`, hay biên `0` — thêm ca.
+- Nhóm cắt đợt (5 phép): bộ mô phỏng ngẫu nhiên không may tạo ra đúng trường hợp cần thử (hai thẻ **cùng ngày giao** để thấy hoà; thẻ có hạn **bằng** ngày giao để thấy phép
+  kẹp tối thiểu 1 ngày; danh sách người **không** theo thứ tự bảng chữ cái để thấy thiếu sắp xếp) — phải dựng một bộ dữ liệu mô phỏng **tự tay** (không qua `generateSimulation`)
+  để ép đúng các trường hợp đó, thay vì tiếp tục thử với dữ liệu ngẫu nhiên và hy vọng trúng.
+- Nhóm bộ chạy (5 phép, toàn bộ ở `oracleGreedy`): bài test "đối chiếu độc lập" ban đầu dùng bộ mô phỏng ngẫu nhiên rất nhỏ (3 người, 4 thẻ) nhưng **sức chứa mặc định quá
+  rộng** so với vài thẻ đó nên tải tích luỹ không bao giờ vượt nửa sức chứa — đúng ngưỡng mà công thức phạt tải bắt đầu có tác dụng (§7 "Ghi chú bước 4/4b") — nên hoà không
+  bao giờ xảy ra và việc cộng dồn tải không đổi kết quả chọn. Phải dựng cặp "sinh đôi" với sức chứa = 1 (kẹp ngưỡng phạt xuống rất thấp) để ép hoà ở thẻ đầu, ép đổi người ở
+  thẻ hai (tải vừa cộng dồn đủ gây phạt), và ép hoà lại ở thẻ ba — mới thấy được cả hướng phá hoà, dấu `>`/`>=`, và việc đọc tải từ đúng chỗ.
+- Nhóm báo cáo (2 phép): (a) `expect(text).toContain('40,0%')` tưởng chắc chắn nhưng giá trị 0,4 lại **trùng ngẫu nhiên** với giá trị mặc định của cột Top-1 trong chính dữ
+  liệu giả — bảng đọc nhầm cột "người nhiều nhất" thành cột khác vẫn qua được vì con số 40,0% vẫn xuất hiện ở đâu đó trong bảng; phải neo đúng vào một chuỗi ô cụ thể
+  (`'| Cách đã cài | 40,0% |'`) thay vì kiểm "có xuất hiện ở đâu đó"; (b) lặp lại đúng lỗi đã gặp ở nhóm nhánh trong chính bước này: `.toThrow()` không kèm nội dung để một
+  lỗi **khác** (đọc `undefined.perSeed`) vẫn coi là "bắt được" — phải kiểm đúng thông điệp.
+
+Bài học chung (nhắc lại từ các bước trước, lần này rõ hơn): **cài lỗi tự động chỉ lộ ra lỗ khi dữ liệu thử chạm đúng trường hợp biên** — dữ liệu mô phỏng ngẫu nhiên, dù thật,
+không thay được việc dựng dữ liệu tự tay ép đúng vào ranh giới cần kiểm (hoà điểm, sức chứa nhỏ, biên số, thứ tự không sắp sẵn).
+
+**Chưa làm / để 9b**: chạy chính thức trên 20 hạt giống 3001–3020, năm so sánh đã đăng ký trước (`planned` so với `independent`/`roundRobin`/`plannedCap`/`plannedPenalty10`/
+`oracleGreedy`, hai chỉ số chính "người nhiều nhất" và "P(đúng hạn)"), quét cỡ đợt K, đối chiếu DROP/NEUTRAL ở góc nhìn cả đợt, viết số liệu chính thức vào tài liệu này và
+phần "chương đánh giá" cho luận văn.

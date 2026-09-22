@@ -14,6 +14,7 @@
     "test:watch": "vitest",
     "eval:ai": "tsx src/scripts/evaluateAi.ts",
     "eval:assign": "tsx src/scripts/evaluateAssign.ts",
+    "eval:plan": "tsx src/scripts/evalPlan.ts",
     "seed:sim": "tsx src/scripts/seedSimulation.ts",
     "assign:keywords": "tsx src/scripts/showKeywords.ts",
     "assign:suggest": "tsx src/scripts/showSuggestions.ts",

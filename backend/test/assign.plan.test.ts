@@ -14,8 +14,8 @@ import {
 import { countTerms } from '../src/modules/assign/assign.text';
 import { buildIdf, type Idf } from '../src/modules/assign/assign.tfidf';
 import { gini, maxShare, mean } from '../src/scripts/evalAssignStats';
-import { DEFAULT_SIM, Rng, assignablePool, generateSimulation } from '../src/scripts/simGenerator';
-import { simDate, snapshotAsOf } from '../src/scripts/simReplay';
+import { cutBatches } from '../src/scripts/evalPlanBatches';
+import { DEFAULT_SIM, Rng, generateSimulation } from '../src/scripts/simGenerator';
 
 const DAY = 86_400_000;
 const NOW = new Date('2026-09-20T00:00:00.000Z');
@@ -344,45 +344,27 @@ describe('planAssignments - tren bo du lieu mo phong (hat giong dev 93xx, khong 
   const SEEDS = [9301, 9302, 9303, 9304, 9305, 9306, 9307, 9308, 9309, 9310, 9311, 9312];
   const DAYS = [90, 150, 210];
 
+  // Cat dot bang ham thuan dung chung voi bo danh gia lop 2 (buoc 9: evalPlanBatches.ts) - khong lap lai logic o day.
   function batches() {
     const out: { plannedCounts: number[]; independentCounts: number[] }[] = [];
     for (const seed of SEEDS) {
       const data = generateSimulation({ ...DEFAULT_SIM, seed });
-      for (const day of DAYS) {
-        // Dot chia: K the dau tien giao tu ngay `day`; cua so moi the bat dau tu `day` (giu nguyen do dai ke hoach)
-        const picked = data.cards
-          .filter((c) => c.assignedDay >= day)
-          .sort((a, b) => a.assignedDay - b.assignedDay || (a.key < b.key ? -1 : 1))
-          .slice(0, K);
-        if (picked.length < K) continue;
-        const keys = new Set(picked.map((c) => c.key));
-        const cards: PlanCard[] = picked.map((c, i) => ({
-          id: c.key,
-          title: c.title,
-          description: c.description,
-          startDate: simDate(data.config.days, day),
-          dueDate: simDate(data.config.days, day + Math.max(1, c.dueDay - c.assignedDay), 23, 59),
-          position: i,
-        }));
-        const maxDue = day + Math.max(...picked.map((c) => Math.max(1, c.dueDay - c.assignedDay)));
-        const pool = assignablePool(data.people, day, maxDue);
-        if (pool.length < 3) continue;
-        const snap = snapshotAsOf({ ...data, cards: data.cards.filter((c) => !keys.has(c.key)) }, day, 10, pool.map((p) => ({ key: p.key, capacity: p.capacity })), null);
-        const ctx: ScoreContext = { idf: snap.idf, now: snap.now, groupOnTimeRate: snap.mu };
-        const rows = planAssignments({ cards, candidates: snap.candidates, ctx });
+      for (const batch of cutBatches(data, DAYS, K)) {
+        const { cards, candidates, ctx, poolKeys } = batch;
+        const rows = planAssignments({ cards, candidates, ctx });
 
         // Bat bien: moi the dung mot lan, nguoi nhan nam trong ho boi, moi so huu han
         expect(rows).toHaveLength(K);
         expect(new Set(rows.map((r) => r.card.id)).size).toBe(K);
-        const poolKeys = new Set(pool.map((p) => p.key));
+        const poolKeySet = new Set(poolKeys);
         for (const r of rows) {
-          expect(r.assigneeId !== null && poolKeys.has(r.assigneeId)).toBe(true);
-          expect(r.ranked).toHaveLength(pool.length);
+          expect(r.assigneeId !== null && poolKeySet.has(r.assigneeId)).toBe(true);
+          expect(r.ranked).toHaveLength(poolKeys.length);
         }
         expect(numbersOf(rows.map((r) => r.ranked)).every((x) => Number.isFinite(x))).toBe(true);
 
-        const countsOf = (ids: (string | null)[]) => pool.map((p) => ids.filter((i) => i === p.key).length);
-        const independent = urgencyOrder(cards).map((c) => rankCandidates(c, snap.candidates, ctx).find((r) => r.score !== null)!.userId);
+        const countsOf = (ids: (string | null)[]) => poolKeys.map((k) => ids.filter((i) => i === k).length);
+        const independent = urgencyOrder(cards).map((c) => rankCandidates(c, candidates, ctx).find((r) => r.score !== null)!.userId);
         out.push({ plannedCounts: countsOf(idsOf(rows)), independentCounts: countsOf(independent) });
       }
     }
