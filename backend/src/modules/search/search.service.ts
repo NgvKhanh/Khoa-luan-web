@@ -36,6 +36,7 @@ export async function searchCardsAdvanced(
       archivedAt: null,
       board: {
         deletedAt: null,
+        archivedAt: null,
         OR: [
           { ownerId: userId },
           { members: { some: { userId, deletedAt: null } } },

@@ -516,24 +516,30 @@ describe('evalCache: cache phan hoi tho de chay lai tai lap', () => {
     for (const d of tmp) fs.rmSync(d, { recursive: true, force: true });
   });
   const M = { system: 'he thong', user: 'nguoi dung' };
-  const INFO = { arm: 'hybrid' as const, sampleId: 'S01', run: 1, model: 'm' };
+  const INFO = { arm: 'hybrid' as const, sampleId: 'S01', run: 1, baseUrl: 'https://a.test', model: 'm' };
 
   it('khoa: 32 ky tu hex, on dinh, doi khi doi BAT KY thanh phan nao; cong thuc giu nguyen (khong lam mat cache cu)', () => {
-    const k = cacheKey('hybrid', 'm', 1, M);
+    const k = cacheKey('hybrid', 'https://a.test', 'm', 1, M);
     expect(k).toMatch(/^[0-9a-f]{32}$/);
-    expect(cacheKey('hybrid', 'm', 1, { ...M })).toBe(k);
-    expect(k).toBe(createHash('sha256').update(JSON.stringify({ arm: 'hybrid', model: 'm', run: 1, system: 'he thong', user: 'nguoi dung' })).digest('hex').slice(0, 32));
+    expect(cacheKey('hybrid', 'https://a.test', 'm', 1, { ...M })).toBe(k);
+    expect(k).toBe(createHash('sha256').update(JSON.stringify({ arm: 'hybrid', baseUrl: 'https://a.test', model: 'm', run: 1, system: 'he thong', user: 'nguoi dung' })).digest('hex').slice(0, 32));
     const others = [
-      cacheKey('llm-only', 'm', 1, M),
-      cacheKey('hybrid', 'n', 1, M),
-      cacheKey('hybrid', 'm', 2, M),
-      cacheKey('hybrid', 'm', 1, { ...M, system: 'khac' }),
-      cacheKey('hybrid', 'm', 1, { ...M, user: 'khac' }),
+      cacheKey('llm-only', 'https://a.test', 'm', 1, M),
+      cacheKey('hybrid', 'https://a.test', 'n', 1, M),
+      cacheKey('hybrid', 'https://a.test', 'm', 2, M),
+      cacheKey('hybrid', 'https://a.test', 'm', 1, { ...M, system: 'khac' }),
+      cacheKey('hybrid', 'https://a.test', 'm', 1, { ...M, user: 'khac' }),
+      // CODE_REVIEW.md #14: doi endpoint (nha cung cap) nhung GIU NGUYEN ten model
+      // trung nhau giua 2 nha cung cap - truoc day se doc nham cache cua nha cung
+      // cap kia, gio phai ra khoa khac.
+      cacheKey('hybrid', 'https://b.test', 'm', 1, M),
     ];
     for (const o of others) expect(o).not.toBe(k);
-    expect(new Set(others).size).toBe(5);
+    expect(new Set(others).size).toBe(6);
     // B1 v1 va v2 co prompt khac nhau -> khoa khac (khong dung nham cache cua nhau)
-    expect(cacheKey('llm-only-v2', 'm', 1, llmOnlyMessages(byId('S09'), 'v2'))).not.toBe(cacheKey('llm-only', 'm', 1, llmOnlyMessages(byId('S09'), 'v1')));
+    expect(cacheKey('llm-only-v2', 'https://a.test', 'm', 1, llmOnlyMessages(byId('S09'), 'v2'))).not.toBe(
+      cacheKey('llm-only', 'https://a.test', 'm', 1, llmOnlyMessages(byId('S09'), 'v1'))
+    );
   });
 
   it('ghi roi doc lai (tao ca thu muc long nhau); thieu file / hong JSON / thieu res / raw khong phai doi tuong / thieu do tre -> null', () => {

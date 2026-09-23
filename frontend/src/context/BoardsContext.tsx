@@ -43,6 +43,20 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
     boardsRef.current = boards;
   }, [boards]);
 
+  // CODE_REVIEW.md #16: BoardsProvider unmount khi dang xuat (ProtectedRoute chi
+  // render no luc da dang nhap), nhung mot request setBoardStar dang bay + hang
+  // doi cua no (runStarRequest tu goi lai o .finally) van tiep tuc chay sau do -
+  // trinh duyet van gan cookie phien HIEN TAI (co the la nguoi khac vua dang nhap
+  // tren cung tab) vao request tiep theo. Co aliveRef nay de dung han hang doi
+  // ngay khi provider khong con "song" nua, khong doi ket qua request dang bay.
+  const aliveRef = useRef(true);
+  useEffect(
+    () => () => {
+      aliveRef.current = false;
+    },
+    []
+  );
+
   // Hang doi + "khoa" GHI SAO theo TUNG BANG: dam bao chi co TOI DA 1 request
   // setBoardStar dang bay cho 1 bang tai 1 thoi diem. Neu ban truoc chi chan
   // rollback cua request cu (khong ngan 2 request cung bay), server van co
@@ -169,6 +183,7 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
   // (starPendingRef) thi tu goi lai chinh no de gui tiep - vong lap tu ket
   // thuc khi khong con gia tri nao dang cho.
   const runStarRequest = useCallback((boardId: string) => {
+    if (!aliveRef.current) return; // provider da unmount (vd dang xuat) - dung hang doi
     if (starInFlightRef.current[boardId]) return; // da co request dang bay
     const desired = starPendingRef.current[boardId];
     if (desired === undefined) return; // khong con gi de gui
@@ -177,6 +192,7 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
 
     setBoardStar(boardId, desired)
       .catch(() => {
+        if (!aliveRef.current) return;
         // Chi dong bo lai tu server neu KHONG con gia tri moi hon dang cho -
         // neu co, request tiep theo (o finally ben duoi) se tu thiet lap
         // dung trang thai, khong can dong bo them o day.
@@ -184,6 +200,7 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
         const snapshotAtFetchStart = snapshotStarActivity();
         return fetchMyBoards()
           .then((fresh) => {
+            if (!aliveRef.current) return;
             if (starPendingRef.current[boardId] !== undefined) return;
             // excludeBoardId = boardId: lay gia tri MOI NHAT cho CHINH bang
             // nay (dang duoc dong bo - an toan vi khoa starInFlightRef cua no
@@ -203,7 +220,7 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
       })
       .finally(() => {
         starInFlightRef.current[boardId] = false;
-        if (starPendingRef.current[boardId] !== undefined) {
+        if (aliveRef.current && starPendingRef.current[boardId] !== undefined) {
           runStarRequest(boardId);
         }
       });

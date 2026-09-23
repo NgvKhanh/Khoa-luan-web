@@ -17,12 +17,18 @@ export interface CacheInfo {
   arm: Arm;
   sampleId: string;
   run: number;
+  baseUrl: string;
   model: string;
 }
 
-/** Khoa = nhanh + model + lan chay + noi dung prompt: doi bat ky thu nao thi goi lai. */
-export function cacheKey(arm: Arm, model: string, run: number, m: LlmMessages): string {
-  return createHash('sha256').update(JSON.stringify({ arm, model, run, system: m.system, user: m.user })).digest('hex').slice(0, 32);
+// CODE_REVIEW.md #14: khoa TRUOC DAY thieu dinh danh endpoint/nha cung cap - doi
+// AI_BASE_URL nhung giu nguyen ten model (vd cung goi "llama-3.3-70b-versatile"
+// o Groq lan OpenRouter) va cung thu muc cache se vo tinh doc nham phan hoi cua
+// nha cung cap CU. Them baseUrl vao khoa: doi endpoint -> khoa khac -> tu goi
+// lai, khong con doc nham cache cheo nha cung cap.
+/** Khoa = nhanh + endpoint + model + lan chay + noi dung prompt: doi bat ky thu nao thi goi lai. */
+export function cacheKey(arm: Arm, baseUrl: string, model: string, run: number, m: LlmMessages): string {
+  return createHash('sha256').update(JSON.stringify({ arm, baseUrl, model, run, system: m.system, user: m.user })).digest('hex').slice(0, 32);
 }
 
 const CONTENT_FAILURES: ReadonlySet<string> = new Set(['BAD_JSON', 'EMPTY']);

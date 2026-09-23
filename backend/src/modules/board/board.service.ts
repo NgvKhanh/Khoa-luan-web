@@ -168,12 +168,16 @@ export async function isBoardParticipant(
   });
   if (!board) return false;
   if (board.ownerId === userId) return true;
-  // VIEWER chi xem - khong duoc gan lam thanh vien the / nguoi phu trach
-  const bm = await prisma.boardMember.findFirst({
-    where: { boardId, userId, deletedAt: null, role: { not: 'VIEWER' } },
-    select: { id: true },
+  const membership = await prisma.boardMember.findFirst({
+    where: { boardId, userId, deletedAt: null },
+    select: { role: true },
   });
-  if (bm) return true;
+  // CODE_REVIEW.md #9: co membership TRUC TIEP tren bang -> quyet dinh THEO VAI TRO DO,
+  // KHONG xet tiep quyen ke thua tu khong gian nua. Truoc day thieu membership (role
+  // VIEWER) bi loai o dieu kien tren roi "roi" xuong nhanh WORKSPACE, vo tinh cho phep
+  // VIEWER duoc gan lam thanh vien the neu ho cung la thanh vien khong gian - trai voi
+  // chinh sach VIEWER chi xem.
+  if (membership) return membership.role !== 'VIEWER';
   if (board.visibility === 'WORKSPACE') {
     return (await workspaceRoleOf(userId, board.workspaceId)) !== null;
   }

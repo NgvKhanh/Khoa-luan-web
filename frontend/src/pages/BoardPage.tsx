@@ -270,12 +270,20 @@ export default function BoardPage() {
     pendingReloadRef,
   });
 
+  // Cung mot loi voi effect danh sach o duoi (CODE_REVIEW.md #6): tranh phan hoi
+  // thanh vien CU cua bang truoc ghi de thanh vien bang dang xem.
   useEffect(() => {
     if (!boardId) return;
+    let alive = true;
     setMembers([]);
     fetchBoardMembers(boardId)
-      .then(setMembers)
+      .then((data) => {
+        if (alive) setMembers(data);
+      })
       .catch(logError('BoardPage: tai thanh vien'));
+    return () => {
+      alive = false;
+    };
   }, [boardId]);
 
   async function handleAddMember(
@@ -353,17 +361,28 @@ export default function BoardPage() {
     }
   }
 
+  // CODE_REVIEW.md #6: cho "alive" nhu effect fetchBoard o tren - tranh phan hoi CU
+  // (bang A, request con cho) ghi de len danh sach cua bang MOI (B) khi chuyen bang
+  // nhanh va A tra ve SAU B.
   useEffect(() => {
     if (!boardId) return;
+    let alive = true;
     setLists([]);
     setListsLoading(true);
     setListsError(null);
     fetchBoardLists(boardId)
-      .then(setLists)
-      .catch((err) =>
-        setListsError(getErrorMessage(err, 'Không tải được danh sách.'))
-      )
-      .finally(() => setListsLoading(false));
+      .then((data) => {
+        if (alive) setLists(data);
+      })
+      .catch((err) => {
+        if (alive) setListsError(getErrorMessage(err, 'Không tải được danh sách.'));
+      })
+      .finally(() => {
+        if (alive) setListsLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
   }, [boardId]);
 
   // ---------- Realtime: đồng bộ khi người khác thay đổi bảng ----------

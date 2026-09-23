@@ -100,8 +100,14 @@ interface RawList {
   cards: RawCard[];
 }
 
+// CODE_REVIEW.md #11: khong duoc cat doi 1 cap ky tu thay the (emoji) - chuoi con lai
+// se chua nua surrogate le, Zod van nhan nhung Postgres tu choi luu JSONB -> 500.
 function cut(s: string, max: number): string {
-  return s.length <= max ? s : s.slice(0, max).trimEnd();
+  if (s.length <= max) return s;
+  let cutAt = max;
+  const last = s.charCodeAt(cutAt - 1);
+  if (last >= 0xd800 && last <= 0xdbff) cutAt -= 1; // nua dau cua cap thay the
+  return s.slice(0, cutAt).trimEnd();
 }
 
 /**

@@ -333,6 +333,16 @@ describe('ai.rules: chuan hoa va tach dong', () => {
     ]);
   });
 
+  // CODE_REVIEW.md #12: \d{1,2} truoc day lam muc "100." tro len bi coi la TEXT (STRUCTURED
+  // bo qua dong TEXT khi dung ke hoach) - mat cong viec ma khong canh bao rieng nao.
+  it('muc danh so 3 chu so (toi 100 tro len) van la BULLET, khong bi coi la TEXT', () => {
+    expect(view('99. Việc chín mươi chín\n100. Việc một trăm\n999. Việc chín trăm chín mươi chín')).toEqual([
+      'BULLET:0:Việc chín mươi chín',
+      'BULLET:0:Việc một trăm',
+      'BULLET:0:Việc chín trăm chín mươi chín',
+    ]);
+  });
+
   it('danh so bat dau tu 1, bo dong trong va dong chi toan ky hieu', () => {
     const lines = splitLines('Tiêu đề\n\n---\n***\n-\n...\n- Việc A\n\n#hashtag không phải heading\n==========\nKết');
     expect(lines.map((l) => [l.no, l.kind, l.text])).toEqual([

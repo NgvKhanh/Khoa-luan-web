@@ -324,6 +324,19 @@ describe('buildPlan: gioi han so luong va do dai', () => {
     expect(plan.lists[0]!.cards[0]!.title).toHaveLength(500);
     expect(boardPlanSchema.safeParse(plan).success).toBe(true);
   });
+
+  // CODE_REVIEW.md #11: emoji dung ngay bien 500 ky tu truoc day bi cat DOI (nua
+  // surrogate le) - Zod van nhan nhung Postgres tu choi luu JSONB (500 cho ca request).
+  it('tieu de the co emoji dung tai bien 500 ky tu: bo ca emoji, KHONG cat doi thanh surrogate le', () => {
+    const { plan } = build(`- ${'x'.repeat(499)}😀`);
+    const title = plan.lists[0]!.cards[0]!.title;
+    expect(title).toBe('x'.repeat(499));
+    expect(title.length).toBeLessThanOrEqual(500);
+    // Khong con surrogate mo coi (nua dau khong co nua sau di kem, hoac nguoc lai)
+    const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    expect(loneSurrogate.test(title)).toBe(false);
+    expect(boardPlanSchema.safeParse(plan).success).toBe(true);
+  });
 });
 
 // ===================== Fuzz: 500 van ban ngau nhien =====================

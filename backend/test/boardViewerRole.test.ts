@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addMember, agent, makeBoard, makeCard, makeList, makeUser } from './helpers';
+import { addMember, addWorkspaceMember, agent, makeBoard, makeCard, makeList, makeUser, makeWorkspace } from './helpers';
 
 describe('Vai tro VIEWER (nguoi xem) tren bang', () => {
   it('them thanh vien voi vai tro VIEWER -> luu dung, board tra ve canEdit=false cho ho', async () => {
@@ -44,6 +44,31 @@ describe('Vai tro VIEWER (nguoi xem) tren bang', () => {
     const card = await makeCard(owner, list.id);
     const viewer = await makeUser();
     await addMember(owner, board.id, viewer.email, 'VIEWER');
+
+    const res = await agent()
+      .post(`/api/cards/${card.id}/members`)
+      .set('Cookie', owner.cookie)
+      .send({ userId: viewer.id });
+    expect(res.status).toBe(400);
+  });
+
+  // CODE_REVIEW.md #9: bang o muc hien thi WORKSPACE + VIEWER cung la thanh vien khong
+  // gian - truoc day isBoardParticipant() "roi" xuong nhanh workspace va cho gan duoc.
+  it('VIEWER tren bang WORKSPACE + cung la thanh vien khong gian - VAN khong gan duoc lam thanh vien the', async () => {
+    const owner = await makeUser();
+    const ws = await makeWorkspace(owner);
+    const board = await makeBoard(owner, { workspaceId: ws.id });
+    await agent()
+      .patch(`/api/boards/${board.id}`)
+      .set('Cookie', owner.cookie)
+      .send({ visibility: 'WORKSPACE' })
+      .expect(200);
+    const viewer = await makeUser();
+    await addWorkspaceMember(owner, ws.id, viewer.email, 'MEMBER');
+    await addMember(owner, board.id, viewer.email, 'VIEWER');
+
+    const list = await makeList(owner, board.id);
+    const card = await makeCard(owner, list.id);
 
     const res = await agent()
       .post(`/api/cards/${card.id}/members`)

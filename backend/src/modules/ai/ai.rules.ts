@@ -124,7 +124,10 @@ export function foldText(s: string): string {
 
 const HEADING_RE = /^(#{1,6})\s+(\S[^\n]*)$/;
 const BOLD_HEADING_RE = /^\*\*([^*\n]{1,80})\*\*:?$/;
-const BULLET_RE = /^( *)(?:[-*•+–—]|\d{1,2}[.)])\s+(?:\[[ xX]\]\s+)?(\S[^\n]*)$/;
+// CODE_REVIEW.md #12: \d{1,2} lam muc so 100 tro len bi coi la TEXT (bo qua o
+// STRUCTURED) ma khong canh bao rieng nao - noi rong len 3 chu so (toi da 999,
+// du cho moi tai lieu that) van giu duoc gioi han tren de tranh vet lam.
+const BULLET_RE = /^( *)(?:[-*•+–—]|\d{1,3}[.)])\s+(?:\[[ xX]\]\s+)?(\S[^\n]*)$/;
 
 // Dong chi toan ky hieu ("---", "***", "-", "...") khong mang noi dung -> bo.
 const HAS_LETTER_OR_DIGIT_RE = /[\p{L}\p{N}]/u;

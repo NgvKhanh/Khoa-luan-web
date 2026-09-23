@@ -44,6 +44,7 @@ import {
   type ReminderOffset,
 } from '../../lib/api/card';
 import { assetUrl } from '../../lib/assets';
+import { toDatetimeLocalValue } from '../../lib/datetimeLocal';
 import Avatar from '../Avatar';
 import LabelPanel from './LabelPanel';
 import { useBoards } from '../../context/BoardsContext';
@@ -1011,11 +1012,7 @@ export default function CardModal({
                       <input
                         ref={startRef}
                         type="datetime-local"
-                        defaultValue={
-                          card.startDate
-                            ? new Date(card.startDate).toISOString().slice(0, 16)
-                            : ''
-                        }
+                        defaultValue={toDatetimeLocalValue(card.startDate)}
                         className="mb-3 w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm"
                       />
                       <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">
@@ -1024,11 +1021,7 @@ export default function CardModal({
                       <input
                         ref={dueRef}
                         type="datetime-local"
-                        defaultValue={
-                          card.dueDate
-                            ? new Date(card.dueDate).toISOString().slice(0, 16)
-                            : ''
-                        }
+                        defaultValue={toDatetimeLocalValue(card.dueDate)}
                         className="w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm"
                       />
                       <div className="mt-3 flex gap-2">
@@ -1548,11 +1541,7 @@ export default function CardModal({
                                   <input
                                     ref={itemDueRef}
                                     type="datetime-local"
-                                    defaultValue={
-                                      it.dueDate
-                                        ? new Date(it.dueDate).toISOString().slice(0, 16)
-                                        : ''
-                                    }
+                                    defaultValue={toDatetimeLocalValue(it.dueDate)}
                                     className="w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm"
                                   />
                                   <div className="mt-2 flex gap-2">

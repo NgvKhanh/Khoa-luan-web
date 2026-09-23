@@ -152,4 +152,34 @@ describe('Tu dong hoa - CARD_MOVED_TO_LIST', () => {
     const members = await prisma.cardMember.findMany({ where: { cardId: card.id } });
     expect(members).toHaveLength(0);
   });
+
+  // CODE_REVIEW.md #8: chuyen HANG LOAT (move-all-cards) truoc day khong chay
+  // CARD_MOVED_TO_LIST cho tung the, khac voi chuyen tung the mot.
+  it('chuyen HANG LOAT ca danh sach vao dung danh sach dich -> automation van chay cho tung the', async () => {
+    const owner = await makeUser();
+    const board = await makeBoard(owner);
+    const inbox = await makeList(owner, board.id, 'Inbox');
+    const target = await makeList(owner, board.id, 'Hoan thanh ngay');
+
+    await createRule(owner, board.id, {
+      name: 'Vao Hoan thanh ngay -> danh dau xong',
+      triggerType: 'CARD_MOVED_TO_LIST',
+      triggerListId: target.id,
+      actions: [{ type: 'SET_DONE', boolValue: true }],
+    });
+
+    const card1 = await makeCard(owner, inbox.id, 'The 1');
+    const card2 = await makeCard(owner, inbox.id, 'The 2');
+
+    await agent()
+      .post(`/api/lists/${inbox.id}/move-all-cards`)
+      .set('Cookie', owner.cookie)
+      .send({ targetListId: target.id })
+      .expect(200);
+
+    const row1 = await prisma.card.findUnique({ where: { id: card1.id } });
+    const row2 = await prisma.card.findUnique({ where: { id: card2.id } });
+    expect(row1?.isDone).toBe(true);
+    expect(row2?.isDone).toBe(true);
+  });
 });

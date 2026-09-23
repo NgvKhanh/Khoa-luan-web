@@ -160,6 +160,7 @@ export async function listMyCards(userId: string) {
         archivedAt: null,
         board: {
           deletedAt: null,
+          archivedAt: null,
           OR: [
             { ownerId: userId },
             { members: { some: { userId, deletedAt: null } } },
@@ -294,6 +295,7 @@ export async function searchCards(userId: string, query: string) {
         archivedAt: null,
         board: {
           deletedAt: null,
+          archivedAt: null,
           OR: [
             { ownerId: userId },
             { members: { some: { userId, deletedAt: null } } },
@@ -411,37 +413,50 @@ export async function updateCard(
   const card = await assertCardAccess(userId, cardId);
   const boardId = card.list.boardId;
 
-  const updated = await prisma.card.update({
-    where: { id: cardId },
-    data: {
-      ...(input.title !== undefined ? { title: input.title } : {}),
-      ...(input.description !== undefined
-        ? { description: input.description }
-        : {}),
-      ...(input.isDone !== undefined
-        ? {
-            isDone: input.isDone,
-            // Chi ghi completedAt khi trang thai THAY DOI, de cap nhat khong
-            // lien quan (doi ten...) khong lam troi moc hoan thanh. Bat bien:
-            // isDone <-> completedAt != null.
-            ...(input.isDone !== card.isDone
-              ? { completedAt: input.isDone ? new Date() : null }
-              : {}),
-          }
-        : {}),
-      ...(input.startDate !== undefined
-        ? { startDate: input.startDate ? new Date(input.startDate) : null }
-        : {}),
-      ...(input.dueDate !== undefined
-        ? { dueDate: input.dueDate ? new Date(input.dueDate) : null }
-        : {}),
-      ...(input.coverColor !== undefined
-        ? { coverColor: input.coverColor }
-        : {}),
-      ...(input.coverImageUrl !== undefined
-        ? { coverImageUrl: input.coverImageUrl || null }
-        : {}),
-    },
+  const updated = await prisma.$transaction(async (tx) => {
+    // CODE_REVIEW.md #13: khoa dong the (SELECT ... FOR UPDATE) roi doc lai isDone
+    // MOI NHAT truoc khi quyet dinh co ghi completedAt hay khong - snapshot `card`
+    // o tren doc TRUOC giao dich nay nen 2 request doi trang thai gan nhau co the
+    // cung doc isDone cu roi ghi de nhau sai bat bien isDone <-> completedAt != null.
+    let currentIsDone = card.isDone;
+    if (input.isDone !== undefined) {
+      await tx.$queryRaw`SELECT id FROM "Card" WHERE id = ${cardId} FOR UPDATE`;
+      currentIsDone = (
+        await tx.card.findUniqueOrThrow({ where: { id: cardId }, select: { isDone: true } })
+      ).isDone;
+    }
+    return tx.card.update({
+      where: { id: cardId },
+      data: {
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.description !== undefined
+          ? { description: input.description }
+          : {}),
+        ...(input.isDone !== undefined
+          ? {
+              isDone: input.isDone,
+              // Chi ghi completedAt khi trang thai THAY DOI so voi gia tri MOI NHAT
+              // (currentIsDone), khong lam troi moc hoan thanh khi gui lai dung gia
+              // tri hien tai (vd doi ten khong dinh gi den isDone).
+              ...(input.isDone !== currentIsDone
+                ? { completedAt: input.isDone ? new Date() : null }
+                : {}),
+            }
+          : {}),
+        ...(input.startDate !== undefined
+          ? { startDate: input.startDate ? new Date(input.startDate) : null }
+          : {}),
+        ...(input.dueDate !== undefined
+          ? { dueDate: input.dueDate ? new Date(input.dueDate) : null }
+          : {}),
+        ...(input.coverColor !== undefined
+          ? { coverColor: input.coverColor }
+          : {}),
+        ...(input.coverImageUrl !== undefined
+          ? { coverImageUrl: input.coverImageUrl || null }
+          : {}),
+      },
+    });
   });
 
   const recipients = () => cardMemberIds(cardId);

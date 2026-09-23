@@ -429,3 +429,48 @@ describe('#3 (vong 6) ket qua tai danh sach cu khong duoc de len thao tac da luu
     expect(screen.getByTestId('star-B').textContent).toBe('B:starred'); // KHONG bi de xuong
   });
 });
+
+// CODE_REVIEW.md #16: BoardsProvider unmount khi dang xuat (xem ProtectedRoute).
+// Truoc day, hang doi cua runStarRequest (tu goi lai o .finally khi con gia tri
+// cho) khong biet provider da "chet" - request tiep theo van duoc gui, mang theo
+// cookie phien HIEN TAI cua trinh duyet (co the la nguoi khac vua dang nhap tren
+// cung tab), lam sai sao ca nhan cua ho cho 1 bang ho khong he thao tac.
+describe('#16 hang doi ghi sao dung lai ngay khi BoardsProvider unmount (dang xuat)', () => {
+  it('bam sao 2 lan lien tiep (co gia tri dang cho) roi unmount TRUOC khi request dau xong -> KHONG gui tiep request thu hai', async () => {
+    seedBoards = [makeBoard('A', false)];
+    setBoardStarMock.mockClear();
+
+    const { unmount } = render(
+      <BoardsProvider>
+        <Probe />
+      </BoardsProvider>
+    );
+    await screen.findByTestId('star-A');
+
+    const call1 = deferred<void>();
+    setBoardStarMock.mockImplementationOnce(() => call1.promise);
+    await act(async () => {
+      screen.getByTestId('star-A').click(); // false -> true: goi setBoardStar lan 1 (dang bay)
+    });
+    // Bam them lan nua trong luc request 1 con bay -> ghi vao starPendingRef,
+    // se duoc runStarRequest tu goi lai gui tiep khi request 1 xong (neu con "song").
+    await act(async () => {
+      screen.getByTestId('star-A').click(); // true -> false: xep hang cho
+    });
+    expect(setBoardStarMock).toHaveBeenCalledTimes(1);
+
+    // Nguoi dung dang xuat NGAY LUC NAY (BoardsProvider unmount) - truoc khi
+    // request dau tra loi.
+    unmount();
+
+    // Request dau gio moi tra loi xong.
+    await act(async () => {
+      call1.resolve();
+      await call1.promise;
+    });
+
+    // KHONG duoc gui tiep request thu hai sau khi da unmount, du van con gia
+    // tri dang cho trong hang doi.
+    expect(setBoardStarMock).toHaveBeenCalledTimes(1);
+  });
+});

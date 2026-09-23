@@ -68,6 +68,12 @@ export function useBoardDnd({
   // Anh chup danh sach truoc khi keo the: handleDragOver da doi state giua cac
   // danh sach; neu huy keo / tha ra ngoai thi khoi phuc lai anh chup nay.
   const listsSnapshotRef = useRef<BoardList[] | null>(null);
+  // CODE_REVIEW.md #10: danh so THE HE cua lan keo the GAN NHAT. listsSnapshotRef
+  // la MOT ref dung chung nen luot keo A dang cho luu (await moveCard) co the bi
+  // luot keo B (bat dau trong luc do) ghi de mat snapshot; khi A xong lai xoa/khoi
+  // phuc nham snapshot cua B. Chi thao tac len listsSnapshotRef sau await neu
+  // dragGenerationRef van con dung THE HE da ghi nhan luc bat dau luot keo do.
+  const dragGenerationRef = useRef(0);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -111,6 +117,7 @@ export function useBoardDnd({
         ?.cards.find((c) => c.id === active.id);
       setActiveCard(card ?? null);
       // Giu nguyen trang thai truoc khi keo de con khoi phuc neu huy / tha hut
+      dragGenerationRef.current += 1;
       listsSnapshotRef.current = lists;
     }
   }
@@ -192,6 +199,7 @@ export function useBoardDnd({
 
     // ---- Keo tha the ----
     if (type === 'card') {
+      const myDragGeneration = dragGenerationRef.current;
       const activeId = active.id as string;
       const overId = over.id as string;
       const toListId =
@@ -231,11 +239,18 @@ export function useBoardDnd({
 
       try {
         await moveCard(activeId, { listId: toListId, position: finalIndex });
-        listsSnapshotRef.current = null; // da luu thanh cong
+        // Chi xoa snapshot neu CHUA co luot keo nao khac bat dau trong luc cho -
+        // neu co, listsSnapshotRef gio la cua luot keo MOI HON, khong duoc dung vao.
+        if (dragGenerationRef.current === myDragGeneration) {
+          listsSnapshotRef.current = null; // da luu thanh cong
+        }
       } catch (err) {
         setListsError(getErrorMessage(err, 'Không di chuyển được thẻ.'));
-        // Tra ngay ve trang thai truoc khi keo, sau do dong bo lai voi server
-        restoreDragSnapshot();
+        if (dragGenerationRef.current === myDragGeneration) {
+          // Tra ngay ve trang thai truoc khi keo, sau do dong bo lai voi server
+          restoreDragSnapshot();
+        }
+        // Luon dong bo lai server du co con la the he nay hay khong.
         reloadLists();
       }
     }

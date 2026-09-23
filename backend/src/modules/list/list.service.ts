@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
+import { runAutomationsForCard } from '../automation/automation.service';
 import { assertBoardAccess, assertBoardView } from '../board/board.service';
 import type {
   CreateListInput,
@@ -260,7 +261,7 @@ export async function moveAllCards(
   const movingCards = await prisma.card.findMany({
     where: { listId, deletedAt: null, archivedAt: null },
     orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
-    select: { id: true },
+    select: { id: true, title: true },
   });
 
   const orderedIds = [
@@ -276,6 +277,12 @@ export async function moveAllCards(
     )
   );
   emitToBoard(src.boardId, 'board:lists-changed');
+
+  // CODE_REVIEW.md #8: nhu chuyen 1 the, phai chay automation CARD_MOVED_TO_LIST cho
+  // TUNG the vua chuyen (runAutomationsForCard khong bao gio nem loi).
+  for (const card of movingCards) {
+    await runAutomationsForCard('CARD_MOVED_TO_LIST', card.id, card.title, src.boardId, target.id);
+  }
 }
 
 // Sap xep lai the trong danh sach theo tieu chi

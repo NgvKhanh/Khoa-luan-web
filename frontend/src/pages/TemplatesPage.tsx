@@ -69,7 +69,7 @@ export default function TemplatesPage() {
     }
   }
 
-  async function useUserTemplate(t: UserBoardTemplate) {
+  async function handleUseUserTemplate(t: UserBoardTemplate) {
     if (!wsId) {
       setError('Hãy chọn không gian làm việc.');
       return;
@@ -167,7 +167,7 @@ export default function TemplatesPage() {
                       <button
                         type="button"
                         disabled={creating !== null}
-                        onClick={() => useUserTemplate(t)}
+                        onClick={() => handleUseUserTemplate(t)}
                         className="rounded-lg bg-[#0c66e4] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4] disabled:opacity-50"
                       >
                         {creating === t.id ? 'Đang tạo...' : 'Dùng mẫu này'}

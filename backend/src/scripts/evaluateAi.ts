@@ -99,7 +99,7 @@ async function main(): Promise<void> {
   let aborted: string | null = null;
 
   const getLlm = async (arm: Arm, sample: DatasetSample, run: number, messages: LlmMessages): Promise<LlmResult> => {
-    const key = cacheKey(arm, cfg.model, run, messages);
+    const key = cacheKey(arm, cfg.baseUrl, cfg.model, run, messages);
     const cached = cacheRead(args.cacheDir, key);
     if (cached !== null) {
       cacheHits += 1;
@@ -114,7 +114,7 @@ async function main(): Promise<void> {
     console.error(
       `[${arm}] ${sample.id} lan ${run}: API ${res.ok ? 'ok' : `LOI ${res.reason} ${res.status ?? ''} ${res.detail.slice(0, 160)}`} ${res.latencyMs}ms`
     );
-    cacheWrite(args.cacheDir, key, { arm, sampleId: sample.id, run, model: cfg.model }, res); // chi ghi khi dang cache (ok hoac loi noi dung)
+    cacheWrite(args.cacheDir, key, { arm, sampleId: sample.id, run, baseUrl: cfg.baseUrl, model: cfg.model }, res); // chi ghi khi dang cache (ok hoac loi noi dung)
     return res;
   };
 
