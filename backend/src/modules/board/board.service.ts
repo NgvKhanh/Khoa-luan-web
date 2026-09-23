@@ -105,8 +105,11 @@ export async function getBoard(userId: string, boardId: string) {
     where: { id: board.workspaceId },
     select: { name: true, isPersonal: true },
   });
+  // inviteToken KHONG duoc lo qua duong doc nay: chi endpoint /invite-link (yeu cau
+  // quyen quan ly) moi duoc tra ma moi thuc su.
+  const { inviteToken: _inviteToken, ...safeBoard } = board;
   return {
-    ...board,
+    ...safeBoard,
     workspaceName: workspace?.name ?? '',
     workspaceIsPersonal: workspace?.isPersonal ?? false,
     isOwner: board.ownerId === userId,

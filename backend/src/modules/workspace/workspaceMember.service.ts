@@ -93,9 +93,11 @@ export async function addWorkspaceMember(
 
   const targetUser = await prisma.user.findFirst({
     where: { email: input.email, deletedAt: null },
-    select: { id: true },
+    select: { id: true, emailVerifiedAt: true },
   });
-  if (!targetUser) {
+  // Chua co tai khoan HOAC tai khoan chua xac minh email (co the la tai khoan chiem
+  // cho): gui email moi thay vi cap quyen ngay - xem boardMember.service.ts.
+  if (!targetUser || !targetUser.emailVerifiedAt) {
     return inviteByEmail(actorId, workspace.name, input.email);
   }
 

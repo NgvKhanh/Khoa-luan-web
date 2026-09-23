@@ -190,15 +190,25 @@ export async function loginWithGoogle(input: GoogleLoginInput) {
     });
 
     if (byEmail) {
+      // Email nay CHUA tung duoc xac minh (khong ai chung minh da so huu qua mail xac
+      // minh / dat lai mat khau) -> tai khoan co the do ke khac chiem cho bang dang ky
+      // truoc. Google vua chung minh AI THUC SU so huu email nay: vo hieu mat khau cu
+      // (chi con dang nhap duoc bang Google tu gio) va thu hoi moi JWT/phien da cap
+      // truoc do, tranh nguoi chiem cho tiep tuc dung mat khau/token cu de vao tai khoan.
+      const wasUnverified = byEmail.emailVerifiedAt === null;
       user = await prisma.user.update({
         where: { id: byEmail.id },
         data: {
           googleId,
           emailVerifiedAt: byEmail.emailVerifiedAt ?? new Date(),
           avatarUrl: byEmail.avatarUrl ?? picture,
+          ...(wasUnverified
+            ? { passwordHash: null, tokenVersion: { increment: 1 } }
+            : {}),
         },
         select: PUBLIC_USER_SELECT,
       });
+      if (wasUnverified) disconnectUserSockets(byEmail.id);
     }
   }
 

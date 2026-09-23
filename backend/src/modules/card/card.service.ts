@@ -6,7 +6,6 @@ import { logActivity } from '../activity/activity.service';
 import { runAutomationsForCard } from '../automation/automation.service';
 import {
   assertBoardAccess,
-  assertBoardView,
   isBoardParticipant,
 } from '../board/board.service';
 import { cardMemberIds, notify } from '../notification/notification.service';
@@ -327,12 +326,9 @@ export async function searchCards(userId: string, query: string) {
 }
 
 export async function getCardDetail(userId: string, cardId: string) {
-  const found = await prisma.card.findFirst({
-    where: { id: cardId, deletedAt: null, archivedAt: null },
-    include: { list: { select: { boardId: true } } },
-  });
-  if (!found) throw new AppError('Khong tim thay the', 404);
-  await assertBoardView(userId, found.list.boardId);
+  // assertCardView kiem tra CA danh sach cha con hoat dong (khong bi xoa/luu tru),
+  // khac voi kiem assertBoardView truc tiep o day truoc day (bo sot list da xoa).
+  await assertCardView(userId, cardId);
 
   const card = await prisma.card.findFirst({
     where: { id: cardId, deletedAt: null, archivedAt: null },

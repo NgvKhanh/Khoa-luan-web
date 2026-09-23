@@ -69,9 +69,13 @@ export async function listPublicBoardLists(boardId: string) {
 export async function getPublicCard(cardId: string) {
   const found = await prisma.card.findFirst({
     where: { id: cardId, deletedAt: null, archivedAt: null },
-    select: { list: { select: { boardId: true } } },
+    select: { list: { select: { boardId: true, deletedAt: true, archivedAt: true } } },
   });
-  if (!found) throw new AppError('Khong tim thay the', 404);
+  // Danh sach chua the da bi xoa/luu tru: coi nhu the khong con doc cong khai duoc
+  // nua, du ban than the van "hoat dong" trong DB.
+  if (!found || found.list.deletedAt !== null || found.list.archivedAt !== null) {
+    throw new AppError('Khong tim thay the', 404);
+  }
   await assertPublicBoard(found.list.boardId);
 
   const card = await prisma.card.findFirst({

@@ -39,31 +39,37 @@ export async function listBoardMembers(userId: string, boardId: string) {
 
   // Bang chia se theo khong gian -> hien ca thanh vien khong gian (co quyen xem/sua
   // nhung chua duoc them thang vao bang). Danh dau viaWorkspace de UI khong cho xoa.
-  if (board.visibility !== 'WORKSPACE') return members;
+  let all = members;
+  if (board.visibility === 'WORKSPACE') {
+    const known = new Set([board.ownerId, ...members.map((m) => m.userId)]);
+    const wsMembers = await prisma.workspaceMember.findMany({
+      where: { workspaceId: board.workspaceId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+      include: { user: { select: MEMBER_USER_SELECT } },
+    });
+    const extra = wsMembers
+      .filter((wm) => !known.has(wm.userId))
+      .map((wm) => ({
+        id: `ws-${wm.userId}`,
+        boardId,
+        userId: wm.userId,
+        role: 'MEMBER' as const,
+        starred: false,
+        joinedAt: wm.createdAt,
+        createdAt: wm.createdAt,
+        updatedAt: wm.updatedAt,
+        deletedAt: null as Date | null,
+        user: wm.user,
+        viaWorkspace: true,
+      }));
+    all = [...members, ...extra];
+  }
 
-  const known = new Set([board.ownerId, ...members.map((m) => m.userId)]);
-  const wsMembers = await prisma.workspaceMember.findMany({
-    where: { workspaceId: board.workspaceId, deletedAt: null },
-    orderBy: { createdAt: 'asc' },
-    include: { user: { select: MEMBER_USER_SELECT } },
-  });
-  const extra = wsMembers
-    .filter((wm) => !known.has(wm.userId))
-    .map((wm) => ({
-      id: `ws-${wm.userId}`,
-      boardId,
-      userId: wm.userId,
-      role: 'MEMBER' as const,
-      starred: false,
-      joinedAt: wm.createdAt,
-      createdAt: wm.createdAt,
-      updatedAt: wm.updatedAt,
-      deletedAt: null as Date | null,
-      user: wm.user,
-      viaWorkspace: true,
-    }));
-
-  return [...members, ...extra];
+  // Nguoi xem duoc bang chi vi no la PUBLIC (khong phai chu bang / thanh vien bang /
+  // thanh vien khong gian) khong duoc thay EMAIL that cua nguoi khac - ho chi co
+  // quyen XEM noi dung bang, khong phai "nguoi trong noi bo" bang.
+  const isInsider = board.ownerId === userId || all.some((m) => m.userId === userId);
+  return isInsider ? all : all.map((m) => ({ ...m, user: { ...m.user, email: '' } }));
 }
 
 // Ket qua them thanh vien: da them ngay (user co san) hoac da gui email moi.
@@ -123,9 +129,12 @@ export async function addBoardMember(
 
   const targetUser = await prisma.user.findFirst({
     where: { email: input.email, deletedAt: null },
-    select: { id: true },
+    select: { id: true, emailVerifiedAt: true },
   });
-  if (!targetUser) {
+  // Chua co tai khoan HOAC tai khoan chua xac minh email (chua ai chung minh so huu
+  // that dia chi nay - co the la tai khoan chiem cho): gui link moi qua email, KHONG
+  // cap quyen ngay. Chi email that su dang so huu hop thu moi bam vao link duoc.
+  if (!targetUser || !targetUser.emailVerifiedAt) {
     return inviteByEmail(actorId, boardId, board.name, input.email);
   }
 

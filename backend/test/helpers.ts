@@ -18,9 +18,17 @@ export interface TestUser {
   personalWorkspaceId: string;
 }
 
-/** Dang ky 1 user moi qua API that, tra ve kem cookie dang nhap. */
+/**
+ * Dang ky 1 user moi qua API that, tra ve kem cookie dang nhap.
+ * Mac dinh danh dau email DA XAC MINH ngay sau khi dang ky (hau het test dung ham
+ * nay de dai dien mot "dong nghiep that" da co san tai khoan, khong phai kich ban
+ * kiem tra rieng cho luong xac minh email) - truyen { verified: false } de giu
+ * trang thai chua xac minh that su cua /api/auth/register.
+ */
 export async function makeUser(
-  over: Partial<Pick<TestUser, 'email' | 'password' | 'name'>> = {}
+  over: Partial<Pick<TestUser, 'email' | 'password' | 'name'>> & {
+    verified?: boolean;
+  } = {}
 ): Promise<TestUser> {
   seq += 1;
   const email = over.email ?? `u${seq}_${Date.now()}@test.local`;
@@ -40,6 +48,13 @@ export async function makeUser(
     where: { ownerId: res.body.data.user.id, isPersonal: true },
     select: { id: true },
   });
+
+  if (over.verified !== false) {
+    await prisma.user.update({
+      where: { id: res.body.data.user.id },
+      data: { emailVerifiedAt: new Date() },
+    });
+  }
 
   return {
     id: res.body.data.user.id,
