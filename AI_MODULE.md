@@ -299,7 +299,7 @@ AI_API_KEY=                        # trống vẫn chạy được (đường ru
 AI_MODEL=gemini-3.8-flash          # lấy tên model đang có trong AI Studio của bạn
 AI_PROVIDER_LABEL=google-gemini
 AI_TIMEOUT_MS=30000
-AI_MAX_INPUT_CHARS=6000
+AI_MAX_INPUT_CHARS=20000
 ```
 `isLlmAvailable() = Boolean(baseUrl && apiKey && model)` — đủ cả ba.
 `.env.example` ghi sẵn cấu hình mẫu cho Groq / OpenRouter / Mistral / GitHub
@@ -749,7 +749,7 @@ sinh ra kế hoạch sai hợp đồng thì đó là lỗi của chính mình: l
 **API** (`requireAuth`, tất cả có `success/data`):
 - `POST /api/ai/board-plans`: `aiGenerateLimiter` (10/10 phút/user) **đặt trước** validate
   (yêu cầu sai định dạng cũng tốn hạn mức) → Zod → `assertWorkspaceAccess` (403/404). Body:
-  `workspaceId`, `text` (20-8000 ký tự), tuỳ chọn `mode`, `projectStart`, `projectEnd`,
+  `workspaceId`, `text` (20-20000 ký tự), tuỳ chọn `mode`, `projectStart`, `projectEnd`,
   `skipWeekend` (mặc định true), `today`. Trả 200 `{runId, llmUsed, modeAuto, plan, stats}`.
 - `GET /api/ai/status`: `{llmAvailable, provider, model}`; không lộ khoá; không bao giờ 503.
 
@@ -1003,7 +1003,7 @@ cung cấp lặp lại khoá trong thông báo 401 thì bị che thành `***`); 
 | `backend/src/config/upload.ts` | `uploadAiDocument` (multer `memoryStorage`, 5MB, 1 tệp, trường `file`) + hằng `AI_DOCUMENT_MAX_BYTES` (một nguồn duy nhất cho cả multer lẫn `ai.document.ts`) |
 | `backend/src/modules/ai/ai.routes.ts`, `ai.controller.ts` | `POST /api/ai/documents/extract` |
 | `backend/src/middleware/rateLimit.middleware.ts` | `aiExtractLimiter` 10 lần / 10 phút / user, đặt **trước** multer |
-| `backend/src/modules/ai/ai.schema.ts`, `ai.service.ts` | `POST /board-plans` nhận thêm `inputKind` (`TEXT`/`DOCX`/`PDF`, mặc định `TEXT`) và **từ chối ký tự NUL** (400 thay vì 500); hằng `MAX_INPUT_TEXT_CHARS = 8000` dùng chung |
+| `backend/src/modules/ai/ai.schema.ts`, `ai.service.ts` | `POST /board-plans` nhận thêm `inputKind` (`TEXT`/`DOCX`/`PDF`, mặc định `TEXT`) và **từ chối ký tự NUL** (400 thay vì 500); hằng `MAX_INPUT_TEXT_CHARS = 20000` dùng chung |
 | `backend/package.json`, `package-lock.json` | thêm `mammoth`, `pdf-parse` (dependencies), `jszip` (devDependencies, để test dựng `.docx`) — **lock chỉ thêm, không xoá dòng nào** |
 | `backend/src/modules/ai/ai.rules.ts` | chỉ đổi 2 ký tự vô hình thật trong regex `normalizeText` thành chuỗi thoát (hành vi giữ nguyên; xem "Lỗi" mục 3) |
 | `backend/test/ai.document.test.ts`, `test/ai.extract.api.test.ts`, `test/fixtures/ai/documents.ts`, `test/fixtures/ai/plan.vi.pdf` | 17 + 4 test; bộ dựng `.docx`/`.pdf` cho test; 1 PDF tiếng Việt thật do Edge xuất (54KB) |
@@ -1011,7 +1011,7 @@ cung cấp lặp lại khoá trong thông báo 401 thì bị che thành `***`); 
 **Hợp đồng API** (thay cho `POST /board-plans/from-file` trong thiết kế đầu — theo quyết định "trích chữ → người dùng sửa → mới sinh kế hoạch"):
 
 - `POST /api/ai/documents/extract` — đăng nhập, multipart, trường `file` (`.docx`/`.pdf` ≤ 5MB). Trả `{ success, data: { inputKind, text, chars, truncated, pages } }`. **Không gọi LLM, không ghi DB, không ghi đĩa.** Lỗi: 400 (thông điệp tiếng Việt cụ thể), 429 (quá 10 lần/10 phút, hoặc đang có 2 tiến trình đọc tệp khác).
-- `POST /api/ai/board-plans` nhận `text` (≤ 8000) + `inputKind` do client khai (chỉ để thống kê, không ảnh hưởng xử lý). `text` trích được luôn ≤ 8000 ký tự nên **luôn gửi lại được**.
+- `POST /api/ai/board-plans` nhận `text` (≤ 20000) + `inputKind` do client khai (chỉ để thống kê, không ảnh hưởng xử lý). `text` trích được luôn ≤ 20000 ký tự nên **luôn gửi lại được**.
 
 **Phòng thủ nhiều lớp** (tệp là dữ liệu không tin cậy: `.docx` thực chất là zip nên có thể là zip bomb, `.pdf` dựng sẵn có thể làm treo/ngốn RAM bộ đọc)
 
@@ -1032,9 +1032,9 @@ Bộ chuyển HTML → chữ: `h1..h6` → `#`…; `ul/ol/li` → `- ` / `1. ` t
 
 **PDF**: `pdf-parse` (đọc tối đa **50 trang đầu**, báo `truncated`, `pages` = tổng trang thật). PDF không lưu tiêu đề/gạch đầu dòng nên chữ ra dạng phẳng; ký tự đầu dòng thường gặp (`•◦▪●➢`… và vùng ký tự riêng của font Symbol mà Word dùng) được đổi thành `- `. Mật khẩu → 400 "Tệp PDF bị khóa mật khẩu".
 
-**Chuẩn hoá chữ**: NFC (PDF hay trả chữ Việt dạng tổ hợp), bỏ NUL và ký tự điều khiển (NUL làm Postgres từ chối lưu `AiRun.inputText`), bỏ ký tự độ rộng 0, đổi khoảng trắng đặc biệt/tab, `\r\n` là **một** xuống dòng, gộp dòng trống, giữ thụt lề (tối đa 10). Chữ trả về cắt ở ranh giới dòng, tối đa 8000 ký tự.
+**Chuẩn hoá chữ**: NFC (PDF hay trả chữ Việt dạng tổ hợp), bỏ NUL và ký tự điều khiển (NUL làm Postgres từ chối lưu `AiRun.inputText`), bỏ ký tự độ rộng 0, đổi khoảng trắng đặc biệt/tab, `\r\n` là **một** xuống dòng, gộp dòng trống, giữ thụt lề (tối đa 10). Chữ trả về cắt ở ranh giới dòng, tối đa 20000 ký tự.
 
-**Giới hạn**: 5MB tệp · 50MB dung lượng giải nén khai báo · 1000 thành phần zip · 50 trang · 8000 ký tự trả về · timeout 15 giây · heap 192MB · 2 tiến trình đồng thời · 10 lần/10 phút/user.
+**Giới hạn**: 5MB tệp · 50MB dung lượng giải nén khai báo · 1000 thành phần zip · 50 trang · 20000 ký tự trả về · timeout 15 giây · heap 192MB · 2 tiến trình đồng thời · 10 lần/10 phút/user.
 
 **Quyết định đã chốt với tác giả**: DOCX qua HTML rồi thành chữ có cấu trúc; chỉ `.docx`/`.pdf`; `inputKind` do client khai (chỉ thống kê); đọc tệp không tạo dòng `AiRun` (chỉ lượt sinh kế hoạch mới có).
 
@@ -1428,3 +1428,40 @@ Tác động của lỗi nhỏ (+0,4 điểm recall, 2 trong 75 ô) nhưng là m
 1. **Khóa API**: xóa khóa cũ (đã lộ) và tạo khóa mới trên AI Studio, chép vào `backend/.env`, `docker restart taskflow-backend`.
 2. **Viết chương đánh giá của luận văn** từ mục này: dùng ba bảng (so sánh nhánh, tách lỗi định dạng, trước/sau khi sửa), phần "Điều cần khai trung thực" và các hạn chế; ghi rõ model + ngày chạy.
 3. (Tuỳ chọn, nếu còn thời gian) duyệt lại nhãn trong `evalDataset.ts` (nếu sửa phải cập nhật sha256, chạy lại và khai rõ); chạy thêm một nhà cung cấp khác (chỉ đổi 3 biến `.env`) làm thí nghiệm B3; chia nhỏ hạn chế "ngày EXPLICIT thừa" của bộ luật (cách nói mơ hồ, thời lượng, ngày đã qua thiếu năm) thành hướng phát triển.
+
+### Đã sửa — giới hạn ký tự đầu vào bị lệch 8000 vs 6000 (23/09/2026)
+
+**Lỗi phát hiện được (do tác giả nêu, không phải rà soát trước đó)**: bước 7-8 có **hai** giới hạn
+độ dài khác nhau nhưng đều liên quan đến cùng một luồng: `MAX_INPUT_TEXT_CHARS = 8000`
+([ai.schema.ts](backend/src/modules/ai/ai.schema.ts)) — vừa là giới hạn trường `text` của API vừa
+là mức cắt chữ trích từ `.docx`/`.pdf` — và `AI_MAX_INPUT_CHARS` mặc định **6000**
+([env.ts](backend/src/config/env.ts)) — mức thật sự được `generatePlan()` phân tích. Hậu quả:
+- Tải một tệp báo cáo dài hơn 8000 ký tự: chỉ 8000 ký tự đầu được trích, rồi **bị cắt thêm lần
+  hai xuống 6000** trong `generatePlan()` — người dùng chỉ được báo "8000 ký tự" ở ô nhập, không
+  biết AI thực ra chỉ đọc 6000.
+- 8000 ký tự (~3-5 trang A4) vốn đã khá nhỏ so với một báo cáo/kế hoạch thật; hai lớp cắt lồng
+  nhau càng làm mất nhiều nội dung hơn mà không có cách nào khác ngoài gõ tay bổ sung — gần như
+  phủ định lý do có tính năng tải tệp.
+- Có cảnh báo (`INPUT_TRUNCATED` ở màn xem trước, khung xanh khi tải tệp) nên không mất dấu vết
+  hoàn toàn, nhưng con số hiển thị (8000 ở ô nhập) không khớp con số thật sự dùng (6000) — dễ
+  gây hiểu lầm.
+
+**Sửa**: gộp về **một giới hạn duy nhất, 20000 ký tự**, dùng cho cả ba chỗ (giới hạn trường
+`text` của API, mức cắt chữ trích từ tệp, và mức `generatePlan()` phân tích) bằng cách đặt cùng
+giá trị mặc định cho `MAX_INPUT_TEXT_CHARS` và `AI_MAX_INPUT_CHARS`. Đã kiểm tra không cần đổi
+schema Prisma (`AiRun.inputText` là `String`/`TEXT` không giới hạn độ dài), số thẻ tối đa của
+`buildPlan` (200 STRUCTURED / 25 FREEFORM) đã chặn sẵn nên không lo bảng phình dù văn bản dài
+hơn, và 25 mẫu của bộ dữ liệu đánh giá (chương 5) đều rất ngắn nên **không ảnh hưởng số liệu đã
+công bố**. `AI_MAX_INPUT_CHARS` vẫn giữ là biến môi trường riêng (để sau này có thể hạ xuống vì
+lý do chi phí LLM mà không cần đổi mã), chỉ khác là mặc định không còn lệch với giới hạn API.
+
+File đổi: `ai.schema.ts` (hằng số), `env.ts` + `.env.example` (mặc định `AI_MAX_INPUT_CHARS`),
+frontend `AiGenerateBoardModal.tsx` (bộ đếm ký tự). Test cập nhật theo hằng số mới: `ai.foundation.test.ts`,
+`ai.document.test.ts`, `ai.api.test.ts` (bỏ kịch bản cắt-hai-lần không còn xảy ra ở cấu hình mặc
+định, thay bằng kịch bản xác nhận văn bản gần giới hạn KHÔNG bị cắt thêm — đúng lỗi vừa sửa),
+`ai.extract.api.test.ts` (assert theo nội dung thông điệp thay vì mã cảnh báo, vì mã `INPUT_TRUNCATED`
+còn được dùng lại cho một cảnh báo khác không liên quan — "cắt bớt số thẻ" khi văn bản có quá nhiều
+dòng — đây là điểm trùng tên mã cảnh báo có sẵn từ trước, ngoài phạm vi lần sửa này).
+
+**Kiểm chứng**: backend `tsc --noEmit` sạch, **75 file / 864 test qua** (toàn bộ, không riêng
+module AI); frontend `tsc --noEmit` sạch, **23 file / 180 test qua**.

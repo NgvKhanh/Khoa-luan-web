@@ -256,11 +256,11 @@ describe('inspectZip: doc muc luc zip, khong giai nen', () => {
 // ===================== Doc tep THAT trong tien trinh con =====================
 
 describe('gioi han cua san pham', () => {
-  it('cac hang so gioi han khop voi tai lieu (8000 ky tu, 5MB, 50 trang, 2 tien trinh, 15 giay)', () => {
-    expect(MAX_INPUT_TEXT_CHARS).toBe(8000);
+  it('cac hang so gioi han khop voi tai lieu (20000 ky tu, 5MB, 50 trang, 2 tien trinh, 15 giay)', () => {
+    expect(MAX_INPUT_TEXT_CHARS).toBe(20000);
     expect(DOCUMENT_LIMITS).toMatchObject({
       maxBytes: 5 * MB,
-      maxChars: 8000,
+      maxChars: 20000,
       maxPages: 50,
       maxConcurrent: 2,
       timeoutMs: 15_000,
@@ -319,7 +319,7 @@ describe('extractDocument: PDF (pdf-parse that trong tien trinh con)', () => {
     expect(three).toMatchObject({ inputKind: 'PDF', text: 'Trang 1\nDong hai\n\nTrang 2\n\nTrang 3', truncated: false, pages: 3 });
   });
 
-  it('gioi han: chi doc 50 trang dau (bao truncated, pages = tong that); 20000 doan van cat dung ranh gioi dong <= 8000 ky tu', async () => {
+  it('gioi han: chi doc 50 trang dau (bao truncated, pages = tong that); nhieu doan van cat dung ranh gioi dong <= 20000 ky tu', async () => {
     const sixty = await extractDocument(buildPdf(Array.from({ length: 60 }, (_, i) => [`Trang so ${i + 1}`])), 'a.pdf');
     expect(sixty.pages).toBe(60);
     expect(sixty.truncated).toBe(true);

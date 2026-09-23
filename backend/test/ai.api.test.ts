@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { env } from '../src/config/env';
 import { prisma } from '../src/config/prisma';
 import { addDays } from '../src/modules/ai/ai.dates';
+import { MAX_INPUT_TEXT_CHARS } from '../src/modules/ai/ai.schema';
 import { getAiStatus, isLlmAvailable, todayInVietnam, truncateInput } from '../src/modules/ai/ai.service';
 import { boardPlanSchema } from '../src/modules/ai/boardPlan.schema';
 import { agent, makeUser, type TestUser } from './helpers';
@@ -112,7 +113,7 @@ describe('POST /api/ai/board-plans: xac thuc, phan quyen, kiem tra dau vao', () 
     const rows: Array<[string, Record<string, unknown>, string[]]> = [
       ['thieu ca hai truong bat buoc', {}, ['text', 'workspaceId']],
       ['van ban qua ngan', { text: 'ngan' }, ['text']],
-      ['van ban 8001 ky tu', { text: 'x'.repeat(8001) }, ['text']],
+      ['van ban 20001 ky tu', { text: 'x'.repeat(MAX_INPUT_TEXT_CHARS + 1) }, ['text']],
       ['projectEnd khong phai ngay that (2026-02-30)', { text: MARKETING, projectEnd: '2026-02-30' }, ['projectEnd']],
       ['projectStart sau projectEnd', { text: MARKETING, projectStart: '2026-11-30', projectEnd: '2026-11-01' }, ['projectEnd']],
       ['today sai dinh dang', { text: MARKETING, today: '14/09/2026' }, ['today']],
@@ -231,29 +232,29 @@ describe('POST /api/ai/board-plans: sinh ke hoach bang bo luat', () => {
     expect([t0, t1]).toContain(cardA!.dueDate);
     expect(cardB!.dueDate).toBe(addDays(cardA!.dueDate, 1));
 
-    // van ban dai hon AI_MAX_INPUT_CHARS: cat tai ranh gioi dong + canh bao; AiRun luu ban DA CAT
-    const max = env.ai.maxInputChars;
-    if (max + 300 <= 8000) {
-      // Dong DAI (~70 ky tu) de so dong con lai < 200: chi kiem tra viec cat theo ky tu,
-      // khong lan voi gioi han 200 the cua STRUCTURED (co test rieng o ai.build.test.ts).
+    // Gioi han schema (MAX_INPUT_TEXT_CHARS) va gioi han phan tich (AI_MAX_INPUT_CHARS) mac
+    // dinh BANG NHAU: van ban chua vuot gioi han khong con bi CAT LAN HAI nua (truoc day
+    // 8000 > 6000 nen van ban gan 8000 ky tu luon bi cat them va bao INPUT_TRUNCATED sai lech
+    // voi con so 8000 hien tren o nhap).
+    if (env.ai.maxInputChars >= 7000) {
+      // Dong DAI (~46 ky tu) de tong ~150 dong, khong cham gioi han 200 the cua STRUCTURED
+      // (co test rieng o ai.build.test.ts) - tranh lan voi canh bao INPUT_TRUNCATED do cat THE.
       const lines: string[] = [];
-      for (let i = 1, len = 0; len <= max + 300; i += 1) {
+      for (let i = 1, len = 0; len <= 7000; i += 1) {
         lines.push(`- Viec so ${i} can lam ${'x'.repeat(40)}`);
         len += lines[lines.length - 1]!.length + 1;
       }
       const long = lines.join('\n');
+      expect(long.length).toBeLessThan(MAX_INPUT_TEXT_CHARS);
       const res = await ok(a, { text: long, today: TODAY });
       expect(res.status).toBe(200);
-      const warn = res.body.data.plan.warnings.find((w: { code: string }) => w.code === 'INPUT_TRUNCATED');
-      expect(warn.message).toContain(String(max));
+      const codes = res.body.data.plan.warnings.map((w: { code: string }) => w.code);
+      expect(codes).not.toContain('INPUT_TRUNCATED');
       const row = await prisma.aiRun.findUniqueOrThrow({ where: { id: res.body.data.runId } });
-      expect(row.inputChars).toBeLessThanOrEqual(max);
-      expect(row.inputText.length).toBeLessThan(long.length);
-      const kept = row.inputText.split('\n');
-      expect(kept[kept.length - 1]).toMatch(/^- Viec so \d+ can lam x{40}$/); // khong cat doi 1 dong
-      expect(kept.length).toBeLessThan(200);
-      expect(row.inputLines).toBe(kept.length);
-      expect(res.body.data.stats.totalCards).toBe(kept.length);
+      expect(row.inputText).toBe(long); // khong bi cat: gioi han phan tich >= gioi han schema
+      expect(row.inputChars).toBe(long.length);
+      expect(row.inputLines).toBe(lines.length);
+      expect(res.body.data.stats.totalCards).toBe(lines.length);
     }
   });
 });

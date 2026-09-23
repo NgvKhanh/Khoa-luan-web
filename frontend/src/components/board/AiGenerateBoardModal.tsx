@@ -24,7 +24,7 @@ import AiPlanEditor from './AiPlanEditor';
 // ANH EM cua popover "Tao moi" (popover tu dong khi bam ra ngoai, con modal nam ngoai vung do).
 
 export const AI_MIN_CHARS = 20;
-export const AI_MAX_CHARS = 8000; // = gioi han cua backend (MAX_INPUT_TEXT_CHARS)
+export const AI_MAX_CHARS = 20000; // = gioi han cua backend (MAX_INPUT_TEXT_CHARS)
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 interface Props {

@@ -125,7 +125,7 @@ describe('env.ai: cau hinh module AI', () => {
     expect(ai.model).toBe('');
     expect(ai.providerLabel).toBe('openai-compatible');
     expect(ai.timeoutMs).toBe(30000);
-    expect(ai.maxInputChars).toBe(6000);
+    expect(ai.maxInputChars).toBe(20000);
   });
 
   it('doc dung gia tri va bo dau / cuoi cua baseUrl', async () => {

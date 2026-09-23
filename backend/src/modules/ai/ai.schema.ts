@@ -9,7 +9,7 @@ import { boardPlanSchema } from './boardPlan.schema';
  * Do dai toi da cua van ban dau vao. Dung chung voi ai.document.ts: chu trich tu tep duoc cat
  * dung bang muc nay de nguoi dung luon gui lai duoc ma khong bi 400 vi qua dai.
  */
-export const MAX_INPUT_TEXT_CHARS = 8000;
+export const MAX_INPUT_TEXT_CHARS = 20000;
 
 /** Ngay lich THAT dang YYYY-MM-DD ("2026-02-30" bi tu choi). */
 const isoDate = z.string().trim().refine(isValidIso, 'Ngay khong hop le (can dang YYYY-MM-DD)');

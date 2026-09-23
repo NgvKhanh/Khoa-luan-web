@@ -129,6 +129,6 @@ export const env = {
     providerLabel: getString('AI_PROVIDER_LABEL', 'openai-compatible'),
     timeoutMs: getPositiveInt('AI_TIMEOUT_MS', 30000),
     /** Van ban dau vao dai hon muc nay se bi cat (kem canh bao). */
-    maxInputChars: getPositiveInt('AI_MAX_INPUT_CHARS', 6000),
+    maxInputChars: getPositiveInt('AI_MAX_INPUT_CHARS', 20000),
   },
 };

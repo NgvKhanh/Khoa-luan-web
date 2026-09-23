@@ -164,10 +164,10 @@ describe('AiGenerateBoardModal - màn nhập', () => {
     await fillText(user, 'x'.repeat(19));
     expect(generateButton()).toBeDisabled();
     expect(screen.getByText('Cần ít nhất 20 ký tự')).toBeInTheDocument();
-    expect(screen.getByLabelText('Số ký tự')).toHaveTextContent('19/8000');
+    expect(screen.getByLabelText('Số ký tự')).toHaveTextContent('19/20000');
     await user.type(textbox(), 'y');
     expect(generateButton()).toBeEnabled();
-    expect(screen.getByLabelText('Số ký tự')).toHaveTextContent('20/8000');
+    expect(screen.getByLabelText('Số ký tự')).toHaveTextContent('20/20000');
     expect(screen.queryByText('Cần ít nhất 20 ký tự')).not.toBeInTheDocument();
 
     // khoảng trắng đầu/cuối không được tính: 20 khoảng trắng + 5 chữ vẫn thiếu
@@ -364,9 +364,9 @@ describe('AiGenerateBoardModal - tải tệp .docx / .pdf', () => {
     await user.click(screen.getByRole('button', { name: /Quay lại chỉnh mô tả/ }));
 
     // PDF bị cắt: có số trang + cảnh báo chỉ lấy phần đầu
-    mocks.extractDocument.mockResolvedValueOnce(docx({ inputKind: 'PDF', truncated: true, pages: 60, chars: 8000 }));
+    mocks.extractDocument.mockResolvedValueOnce(docx({ inputKind: 'PDF', truncated: true, pages: 60, chars: 20000 }));
     await user.upload(fileInput(), new File(['x'], 'bao-cao.pdf'));
-    expect(await screen.findByText(/Đã đọc “bao-cao.pdf” \(8000 ký tự, 60 trang\)\. Tệp dài hơn giới hạn nên chỉ lấy phần đầu/)).toBeInTheDocument();
+    expect(await screen.findByText(/Đã đọc “bao-cao.pdf” \(20000 ký tự, 60 trang\)\. Tệp dài hơn giới hạn nên chỉ lấy phần đầu/)).toBeInTheDocument();
   });
 
   it('tệp sai đuôi / quá 5MB bị chặn ngay ở trình duyệt (không gọi API); lỗi đọc tệp hiện thông điệp của server và KHÔNG mất chữ đang nhập', async () => {

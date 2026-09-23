@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { UPLOAD_ROOT } from '../src/config/upload';
 import { env } from '../src/config/env';
 import { prisma } from '../src/config/prisma';
+import { MAX_INPUT_TEXT_CHARS } from '../src/modules/ai/ai.schema';
 import { boardPlanSchema } from '../src/modules/ai/boardPlan.schema';
 import { agent, makeUser, type TestUser } from './helpers';
 import { buildDocx, buildPdf, para } from './fixtures/ai/documents';
@@ -140,7 +141,7 @@ describe('trich chu roi sinh ke hoach (luong tep cua module AI)', () => {
     expect(asPdf.status).toBe(200);
     expect((await prisma.aiRun.findUniqueOrThrow({ where: { id: asPdf.body.data.runId } })).inputKind).toBe('PDF');
 
-    // chu trich tu tep DAI luon du nho de gui lai: 20000 doan van -> bi cat <= 8000 ky tu va sinh ke hoach duoc
+    // chu trich tu tep DAI luon du nho de gui lai: nhieu doan van -> bi cat <= MAX_INPUT_TEXT_CHARS va sinh ke hoach duoc
     const many = await upload(
       u,
       await buildDocx({ body: Array.from({ length: 20_000 }, (_, i) => para(`Viec so ${i + 1} can lam`)).join('') }),
@@ -148,10 +149,16 @@ describe('trich chu roi sinh ke hoach (luong tep cua module AI)', () => {
     );
     expect(many.status).toBe(200);
     expect(many.body.data.truncated).toBe(true);
-    expect(many.body.data.chars).toBeLessThanOrEqual(8000);
+    expect(many.body.data.chars).toBeLessThanOrEqual(MAX_INPUT_TEXT_CHARS);
     const big = await generate(u, { text: many.body.data.text, inputKind: 'DOCX' });
     expect(big.status).toBe(200);
-    expect(big.body.data.plan.warnings.map((w: { code: string }) => w.code)).toContain('INPUT_TRUNCATED'); // 8000 > 6000 ky tu AI doc
+    // Gioi han trich tep va gioi han phan tich mac dinh BANG NHAU (deu MAX_INPUT_TEXT_CHARS):
+    // chu da cat o buoc trich tep KHONG bi cat THEO KY TU them lan hai o buoc sinh ke hoach nua.
+    // (Van con canh bao khac ma code cung la INPUT_TRUNCATED vi van ban qua nhieu dong bi cat
+    // BOT SO THE toi da cua FREEFORM - khong lien quan gioi han ky tu dang sua o day.)
+    expect(
+      big.body.data.plan.warnings.some((w: { message: string }) => w.message.includes('ký tự nên chỉ phần đầu'))
+    ).toBe(false);
 
     // ---- kiem tra dau vao cua endpoint sinh ke hoach (moi o buoc 7) ----
     const before = await prisma.aiRun.count();
