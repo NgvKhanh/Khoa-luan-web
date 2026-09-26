@@ -17,3 +17,20 @@ describe('activityPhrase', () => {
     expect(activityPhrase({ type: 'card.rename', data: {} })).toBe('đã đổi tên thẻ');
   });
 });
+
+describe('activityPhrase - trang thai the', () => {
+  it('card.status hien nhan tieng Viet cua 2 trang thai', () => {
+    expect(activityPhrase({ type: 'card.status', data: { from: 'TODO', to: 'IN_REVIEW' } })).toBe(
+      'đã chuyển trạng thái thẻ từ "Chưa làm" sang "Chờ duyệt"'
+    );
+  });
+
+  it('card.done / card.undone kem from-to van giu cum tu cu', () => {
+    expect(activityPhrase({ type: 'card.done', data: { from: 'IN_PROGRESS', to: 'DONE' } })).toBe(
+      'đã đánh dấu thẻ hoàn thành'
+    );
+    expect(activityPhrase({ type: 'card.undone', data: { from: 'DONE', to: 'TODO' } })).toBe(
+      'đã bỏ đánh dấu hoàn thành'
+    );
+  });
+});

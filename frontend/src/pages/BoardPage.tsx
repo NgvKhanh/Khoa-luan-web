@@ -71,6 +71,11 @@ import {
   type SortListBy,
 } from '../lib/api/list';
 import { assetUrl } from '../lib/assets';
+import {
+  STATUS_META,
+  reopenStatus,
+  targetListForStatus,
+} from '../lib/cardStatus';
 import { pushRecentBoard } from '../lib/recentBoards';
 import { getErrorMessage } from '../lib/errorMessage';
 import { logError } from '../lib/logError';
@@ -83,7 +88,7 @@ import {
 } from '../lib/boardFilter';
 import type { Board, BoardMember, BoardVisibility } from '../types/board';
 import BoardVisibilityMenu from '../components/board/BoardVisibilityMenu';
-import type { Card } from '../types/card';
+import type { Card, CardStatus } from '../types/card';
 import type { BoardList } from '../types/list';
 import { useBoardRealtime } from './boardPage/useBoardRealtime';
 import { useBoardShortcuts } from './boardPage/useBoardShortcuts';
@@ -214,6 +219,13 @@ export default function BoardPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [deleting, setDeleting] = useState(false);
+  // Doi trang thai cot dang cho xac nhan (vi se doi trang thai cac the ben trong)
+  const [statusTarget, setStatusTarget] = useState<{
+    list: BoardList;
+    status: CardStatus;
+    changing: number; // so the se doi trang thai
+    reopening: number; // trong do: so the dang hoan thanh se bi mo lai
+  } | null>(null);
   const [bgMenuOpen, setBgMenuOpen] = useState(false);
   const [visMenuOpen, setVisMenuOpen] = useState(false);
   const [publicLinkCopied, setPublicLinkCopied] = useState(false);
@@ -518,6 +530,50 @@ export default function BoardPage() {
     }
   }
 
+  // ---------- Trang thai cot ----------
+  // Gan trang thai khac null -> moi the trong cot doi theo (backend lam), nen hoi
+  // xac nhan truoc neu co the se bi doi; bo trang thai (null) thi the giu nguyen.
+  function handleSetListStatus(list: BoardList, status: CardStatus | null) {
+    if (status === null) {
+      if (list.status !== null) void applyListStatus(list.id, null);
+      return;
+    }
+    const changingCards = list.cards.filter((c) => c.status !== status);
+    if (changingCards.length > 0) {
+      setStatusTarget({
+        list,
+        status,
+        changing: changingCards.length,
+        reopening: changingCards.filter((c) => c.status === 'DONE').length,
+      });
+      return;
+    }
+    if (list.status !== status) void applyListStatus(list.id, status);
+  }
+
+  async function applyListStatus(listId: string, status: CardStatus | null) {
+    setLists((cur) =>
+      cur.map((l) =>
+        l.id !== listId
+          ? l
+          : {
+              ...l,
+              status,
+              cards:
+                status === null
+                  ? l.cards
+                  : l.cards.map((c) => ({ ...c, status, isDone: status === 'DONE' })),
+            }
+      )
+    );
+    try {
+      await updateList(listId, { status });
+    } catch (err) {
+      setListsError(getErrorMessage(err, 'Không đổi được trạng thái cột.'));
+      reloadLists();
+    }
+  }
+
   async function handleSortList(list: BoardList, by: SortListBy) {
     try {
       await sortListCards(list.id, by);
@@ -536,12 +592,34 @@ export default function BoardPage() {
     );
   }
 
+  // Tick / bo tick hoan thanh. Neu the dang o cot co trang thai va bang co cot
+  // mang trang thai moi (vd cot "Hoan thanh") thi backend chuyen the sang do ->
+  // o day chuyen truoc (lac quan) cho muot, roi tai lai theo ket qua that.
   async function handleToggleCardDone(card: Card) {
-    patchCard({ ...card, isDone: !card.isDone });
+    const listStatus = lists.find((l) => l.id === card.listId)?.status ?? null;
+    const nextStatus: CardStatus = card.isDone ? reopenStatus(listStatus) : 'DONE';
+    const optimistic = { ...card, status: nextStatus, isDone: !card.isDone };
+    const target = targetListForStatus(lists, card.listId, nextStatus);
+    if (target) {
+      setLists((cur) =>
+        cur.map((l) =>
+          l.id === card.listId
+            ? { ...l, cards: l.cards.filter((c) => c.id !== card.id) }
+            : l.id === target.id
+              ? { ...l, cards: [{ ...optimistic, listId: target.id }, ...l.cards] }
+              : l
+        )
+      );
+    } else {
+      patchCard(optimistic);
+    }
     try {
-      patchCard(await updateCard(card.id, { isDone: !card.isDone }));
+      const updated = await updateCard(card.id, { isDone: !card.isDone });
+      if (target || updated.listId !== card.listId) reloadLists();
+      else patchCard({ ...card, ...updated });
     } catch (err) {
-      patchCard(card); // hoan tac
+      if (target) reloadLists();
+      else patchCard(card); // hoan tac
       setListsError(getErrorMessage(err, 'Không cập nhật được thẻ.'));
     }
   }
@@ -1099,6 +1177,7 @@ export default function BoardPage() {
                   onMoveList={handleMoveList}
                   onMoveAllCards={handleMoveAllCards}
                   onSortList={handleSortList}
+                  onSetListStatus={handleSetListStatus}
                   onRequestDeleteAllCards={(l) =>
                     setDeleteTarget({ kind: 'cards-in-list', list: l })
                   }
@@ -1113,7 +1192,11 @@ export default function BoardPage() {
           <DragOverlay dropAnimation={dropAnimation}>
             {activeCard ? (
               <div className="w-64">
-                <CardItem card={activeCard} overlay />
+                <CardItem
+                  card={activeCard}
+                  listStatus={lists.find((l) => l.id === activeCard.listId)?.status ?? null}
+                  overlay
+                />
               </div>
             ) : activeList ? (
               <ListColumnOverlay list={activeList} />
@@ -1147,10 +1230,33 @@ export default function BoardPage() {
         onCancel={() => !deleting && setDeleteTarget(null)}
       />
 
+      <ConfirmDialog
+        open={statusTarget !== null}
+        title="Đổi trạng thái cột?"
+        message={
+          statusTarget
+            ? `${statusTarget.changing} thẻ trong cột "${statusTarget.list.name}" sẽ chuyển sang "${STATUS_META[statusTarget.status].label}"` +
+              (statusTarget.status === 'DONE'
+                ? ' và được đánh dấu hoàn thành.'
+                : statusTarget.reopening > 0
+                  ? ` (${statusTarget.reopening} thẻ đang hoàn thành sẽ bị mở lại).`
+                  : '.')
+            : undefined
+        }
+        confirmLabel="Đổi trạng thái"
+        onConfirm={() => {
+          if (!statusTarget) return;
+          const { list, status } = statusTarget;
+          setStatusTarget(null);
+          void applyListStatus(list.id, status);
+        }}
+        onCancel={() => setStatusTarget(null)}
+      />
+
       {openCardId && (
         <CardModal
           cardId={openCardId}
-          lists={lists.map((l) => ({ id: l.id, name: l.name }))}
+          lists={lists.map((l) => ({ id: l.id, name: l.name, status: l.status }))}
           boardMembers={members}
           currentUserId={user?.id}
           readOnly={readOnly}

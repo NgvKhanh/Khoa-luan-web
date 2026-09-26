@@ -23,6 +23,7 @@ function makeCard(id: string, listId: string, title: string): Card {
     listId,
     title,
     description: null,
+    status: 'TODO',
     isDone: false,
     position: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -36,6 +37,7 @@ function makeList(id: string, name: string, cards: Card[] = []): BoardList {
     boardId: 'board-1',
     name,
     position: 0,
+    status: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     cards,
@@ -78,6 +80,7 @@ function renderBoard(lists: BoardList[], handlers: {
               onMoveAllCards={noop}
               onSortList={noop}
               onRequestDeleteAllCards={noop}
+              onSetListStatus={noop}
             />
           ))}
         </SortableContext>

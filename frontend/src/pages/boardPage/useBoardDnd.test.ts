@@ -21,6 +21,7 @@ function card(id: string, listId: string): Card {
     listId,
     title: id,
     description: null,
+    status: 'TODO',
     isDone: false,
     position: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -80,8 +81,8 @@ describe('useBoardDnd: snapshot keo-tha khong bi luot keo MOI hon lam mat (#10)'
     moveCardMock.mockReturnValueOnce(moveA);
 
     const initial: BoardList[] = [
-      { id: 'L1', boardId: 'b1', name: 'L1', position: 0, createdAt: '', updatedAt: '', cards: [card('A', 'L1'), card('B', 'L1')] },
-      { id: 'L2', boardId: 'b1', name: 'L2', position: 1, createdAt: '', updatedAt: '', cards: [] },
+      { id: 'L1', boardId: 'b1', name: 'L1', position: 0, status: null, createdAt: '', updatedAt: '', cards: [card('A', 'L1'), card('B', 'L1')] },
+      { id: 'L2', boardId: 'b1', name: 'L2', position: 1, status: null, createdAt: '', updatedAt: '', cards: [] },
     ];
     const { result } = renderHook(() => useHarness(initial));
 
@@ -118,5 +119,31 @@ describe('useBoardDnd: snapshot keo-tha khong bi luot keo MOI hon lam mat (#10)'
     // (da luu thanh cong that su o server).
     expect(l1).toEqual(['B']);
     expect(l2).toEqual(['A']);
+  });
+});
+
+// Trang thai theo cot: trong luc keo, the doi trang thai TAM theo cot dang di qua
+// (giong ket qua backend se tra ve); ve lai cot cu / vao cot tu do thi giu trang thai ban dau.
+describe('useBoardDnd: trang thai tam cua the khi keo qua cac cot', () => {
+  it('keo qua cot DONE -> tam thanh DONE; di tiep sang cot tu do / ve cot cu -> lay lai trang thai ban dau', () => {
+    const blocked: Card = { ...card('A', 'L1'), status: 'BLOCKED' };
+    const initial: BoardList[] = [
+      { id: 'L1', boardId: 'b1', name: 'L1', position: 0, status: 'IN_PROGRESS', createdAt: '', updatedAt: '', cards: [blocked] },
+      { id: 'L2', boardId: 'b1', name: 'L2', position: 1, status: 'DONE', createdAt: '', updatedAt: '', cards: [] },
+      { id: 'L3', boardId: 'b1', name: 'L3', position: 2, status: null, createdAt: '', updatedAt: '', cards: [] },
+    ];
+    const { result } = renderHook(() => useHarness(initial));
+    const cardIn = (listId: string) => result.current.lists.find((l) => l.id === listId)!.cards[0]!;
+
+    act(() => result.current.handleDragStart(cardDrag('A')));
+    act(() => result.current.handleDragOver(overOnList('A', 'L2')));
+    expect(cardIn('L2')).toMatchObject({ status: 'DONE', isDone: true });
+
+    act(() => result.current.handleDragOver(overOnList('A', 'L3')));
+    expect(cardIn('L3')).toMatchObject({ status: 'BLOCKED', isDone: false });
+
+    act(() => result.current.handleDragOver(overOnList('A', 'L1')));
+    // Ve lai cot cu: giu trang thai da doi tay (BLOCKED), KHONG lay IN_PROGRESS cua cot
+    expect(cardIn('L1')).toMatchObject({ status: 'BLOCKED', isDone: false });
   });
 });

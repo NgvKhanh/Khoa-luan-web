@@ -7,15 +7,17 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { fetchListWatch, setListWatch, type SortListBy } from '../../lib/api/list';
 import { fetchCardTemplates } from '../../lib/api/cardTemplate';
+import { CARD_STATUS_ORDER, STATUS_META } from '../../lib/cardStatus';
 import { logError } from '../../lib/logError';
 import { getErrorMessage } from '../../lib/errorMessage';
-import type { Card } from '../../types/card';
+import type { Card, CardStatus } from '../../types/card';
 import type { CardTemplate } from '../../types/cardTemplate';
 import type { BoardList } from '../../types/list';
 import AddCardForm from './AddCardForm';
 import AssignPlanModal from './AssignPlanModal';
 import CardItem from './CardItem';
 import RecurringScheduleModal from './RecurringScheduleModal';
+import StatusBadge from './StatusBadge';
 
 interface Props {
   list: BoardList;
@@ -33,6 +35,8 @@ interface Props {
   onMoveAllCards: (list: BoardList, targetListId: string) => void;
   onSortList: (list: BoardList, by: SortListBy) => void;
   onRequestDeleteAllCards: (list: BoardList) => void;
+  /** Gan trang thai cho cot (null = cot tu do); cac the trong cot doi theo. */
+  onSetListStatus: (list: BoardList, status: CardStatus | null) => void;
   /** Sau khi man hinh chia viec da giao it nhat mot the (de bang tai lai). */
   onAssignApplied?: () => void;
 }
@@ -65,6 +69,7 @@ export default function ListColumn({
   onMoveAllCards,
   onSortList,
   onRequestDeleteAllCards,
+  onSetListStatus,
   onAssignApplied,
 }: Props) {
   const {
@@ -85,7 +90,7 @@ export default function ListColumn({
   const [draft, setDraft] = useState(list.name);
   const [menuOpen, setMenuOpen] = useState(false);
   const [submenu, setSubmenu] = useState<
-    'move' | 'moveCards' | 'sort' | 'cardTemplates' | null
+    'move' | 'moveCards' | 'sort' | 'cardTemplates' | 'status' | null
   >(null);
   const [addCardOpen, setAddCardOpen] = useState(false);
   const [recurringOpen, setRecurringOpen] = useState(false);
@@ -227,6 +232,12 @@ export default function ListColumn({
           >
             {list.name}
           </button>
+        )}
+
+        {list.status && (
+          <span title="Trạng thái cột: thẻ kéo vào cột sẽ tự chuyển sang trạng thái này">
+            <StatusBadge status={list.status} />
+          </span>
         )}
 
         <span className="shrink-0 px-1 text-xs text-slate-600 dark:text-slate-300">
@@ -449,6 +460,57 @@ export default function ListColumn({
                     </div>
                   )}
 
+                  {/* Trang thai cot */}
+                  <button
+                    type="button"
+                    className={ITEM}
+                    onClick={() =>
+                      setSubmenu((s) => (s === 'status' ? null : 'status'))
+                    }
+                  >
+                    Trạng thái cột
+                  </button>
+                  {submenu === 'status' && (
+                    <div className="mb-1 ml-2 border-l border-slate-200 dark:border-slate-700 pl-1.5">
+                      <p className="px-2 py-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        Thẻ kéo vào cột sẽ tự chuyển sang trạng thái này.
+                      </p>
+                      {CARD_STATUS_ORDER.map((st) => (
+                        <button
+                          key={st}
+                          type="button"
+                          aria-pressed={list.status === st}
+                          className={`${SUB_ITEM} flex items-center gap-2 ${
+                            list.status === st ? 'font-semibold' : ''
+                          }`}
+                          onClick={() => {
+                            onSetListStatus(list, st);
+                            closeMenu();
+                          }}
+                        >
+                          <span className={`h-2 w-2 rounded-full ${STATUS_META[st].dot}`} />
+                          {STATUS_META[st].label}
+                          {list.status === st && <span className="ml-auto">✓</span>}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        aria-pressed={list.status === null}
+                        className={`${SUB_ITEM} flex items-center gap-2 ${
+                          list.status === null ? 'font-semibold' : ''
+                        }`}
+                        onClick={() => {
+                          onSetListStatus(list, null);
+                          closeMenu();
+                        }}
+                      >
+                        <span className="h-2 w-2 rounded-full border border-slate-400" />
+                        Không gắn trạng thái
+                        {list.status === null && <span className="ml-auto">✓</span>}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Sap xep theo */}
                   <button
                     type="button"
@@ -521,6 +583,7 @@ export default function ListColumn({
             <CardItem
               key={card.id}
               card={card}
+              listStatus={list.status}
               readOnly={readOnly}
               onToggleDone={readOnly ? undefined : onToggleCardDone}
               onRequestDelete={readOnly ? undefined : onRequestDeleteCard}

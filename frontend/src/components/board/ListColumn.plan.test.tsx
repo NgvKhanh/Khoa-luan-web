@@ -41,6 +41,7 @@ function card(id: string, over: Partial<Card> = {}): Card {
     listId: 'l1',
     title: `Thẻ ${id}`,
     description: null,
+    status: 'TODO',
     isDone: false,
     position: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -55,6 +56,7 @@ function list(cards: Card[]): BoardList {
     boardId: 'b1',
     name: 'Việc tuần này',
     position: 0,
+    status: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     cards,
@@ -90,6 +92,7 @@ function renderColumn(l: BoardList, opts: { readOnly?: boolean; onAssignApplied?
             onMoveAllCards={noop}
             onSortList={noop}
             onRequestDeleteAllCards={noop}
+            onSetListStatus={noop}
             onAssignApplied={opts.onAssignApplied}
           />
         </SortableContext>

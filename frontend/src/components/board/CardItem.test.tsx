@@ -21,6 +21,7 @@ const card: Card = {
   listId: 'l1',
   title: 'The A',
   description: null,
+  status: 'TODO',
   isDone: false,
   position: 0,
   createdAt: '2026-01-01T00:00:00.000Z',

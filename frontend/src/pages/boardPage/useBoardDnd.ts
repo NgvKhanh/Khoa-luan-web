@@ -83,6 +83,21 @@ export function useBoardDnd({
   const findListIdByCard = (cardId: string): string | undefined =>
     lists.find((l) => l.cards.some((c) => c.id === cardId))?.id;
 
+  // Trang thai hien tam cua the dang keo khi no dang nam o cot `toList` - khop
+  // quy tac o backend (moveCard): sang cot KHAC co trang thai -> doi theo cot;
+  // ve lai cot ban dau hoac vao cot tu do -> giu trang thai ban dau (lay tu anh
+  // chup truoc khi keo, vi the co the vua di ngang qua cot khac).
+  const statusWhileOver = (card: Card, toList: BoardList) => {
+    const original =
+      listsSnapshotRef.current
+        ?.flatMap((l) => l.cards)
+        .find((c) => c.id === card.id) ?? card;
+    if (toList.id === original.listId || !toList.status) {
+      return { status: original.status, isDone: original.isDone };
+    }
+    return { status: toList.status, isDone: toList.status === 'DONE' };
+  };
+
   const endDragCursor = () => {
     document.body.style.cursor = '';
   };
@@ -155,7 +170,11 @@ export function useBoardDnd({
         }
         if (l.id === toListId) {
           const next = [...l.cards];
-          next.splice(insertAt, 0, { ...moving, listId: toListId });
+          next.splice(insertAt, 0, {
+            ...moving,
+            listId: toListId,
+            ...statusWhileOver(moving, toList),
+          });
           return { ...l, cards: next };
         }
         return l;

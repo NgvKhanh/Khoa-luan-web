@@ -1,11 +1,15 @@
 import type { CardFieldValue } from './customField';
 
+// Trang thai cong viec (khop enum CardStatus o backend). DONE <-> isDone = true.
+export type CardStatus = 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'DONE' | 'BLOCKED';
+
 // The nam trong 1 danh sach
 export interface Card {
   id: string;
   listId: string;
   title: string;
   description: string | null;
+  status: CardStatus;
   isDone: boolean;
   startDate?: string | null;
   dueDate?: string | null;
@@ -86,13 +90,14 @@ export interface CardDetail {
   listId: string;
   title: string;
   description: string | null;
+  status: CardStatus;
   isDone: boolean;
   startDate: string | null;
   dueDate: string | null;
   coverColor: string | null;
   coverImageUrl: string | null;
   createdAt: string;
-  list: { id: string; name: string; boardId: string };
+  list: { id: string; name: string; boardId: string; status: CardStatus | null };
   members: { userId: string; user: CardUserBrief }[];
   labels: { labelId: string; label: Label }[];
   checklists: Checklist[];

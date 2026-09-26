@@ -4,6 +4,7 @@ import type {
   CardAttachment,
   CardComment,
   CardDetail,
+  CardStatus,
   Checklist,
   ChecklistItem,
   Label,
@@ -114,6 +115,9 @@ export async function updateCard(
   input: {
     title?: string;
     description?: string | null;
+    // Doi trang thai: the o cot co trang thai se tu chuyen sang cot mang trang
+    // thai moi (neu bang co) - response tra ve listId moi
+    status?: CardStatus;
     isDone?: boolean;
     startDate?: string | null;
     dueDate?: string | null;

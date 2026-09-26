@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchMyActivity, type MyActivity } from '../lib/api/auth';
+import { statusLabel } from '../lib/cardStatus';
 import { getErrorMessage } from '../lib/errorMessage';
 
 function fmt(iso: string): string {
@@ -27,6 +28,8 @@ function text(a: MyActivity): string {
       return `Đánh dấu hoàn thành thẻ ${card}`;
     case 'card.undone':
       return `Bỏ đánh dấu hoàn thành thẻ ${card}`;
+    case 'card.status':
+      return `Chuyển trạng thái thẻ ${card} từ "${statusLabel(d.from)}" sang "${statusLabel(d.to)}"`;
     case 'card.due.set':
       return `Đặt ngày hết hạn cho thẻ ${card}`;
     case 'card.due.clear':

@@ -1,4 +1,5 @@
 import { api } from '../axios';
+import type { CardStatus } from '../../types/card';
 import type { BoardList } from '../../types/list';
 
 export async function fetchBoardLists(boardId: string): Promise<BoardList[]> {
@@ -21,7 +22,8 @@ export async function createList(
 
 export async function updateList(
   listId: string,
-  input: { name?: string; position?: number }
+  // status: gan trang thai cot (null = cot tu do) - cac the trong cot doi theo
+  input: { name?: string; position?: number; status?: CardStatus | null }
 ): Promise<BoardList> {
   const res = await api.patch<{ data: { list: BoardList } }>(
     `/lists/${listId}`,

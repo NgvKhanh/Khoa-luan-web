@@ -1,3 +1,5 @@
+import { statusLabel } from './cardStatus';
+
 // Cum tu mo ta 1 dong nhat ky hoat dong (dung chung cho CardModal va bang nhat ky bang)
 export function activityPhrase(a: {
   type: string;
@@ -17,6 +19,8 @@ export function activityPhrase(a: {
       return 'đã đánh dấu thẻ hoàn thành';
     case 'card.undone':
       return 'đã bỏ đánh dấu hoàn thành';
+    case 'card.status':
+      return `đã chuyển trạng thái thẻ từ "${statusLabel(d.from)}" sang "${statusLabel(d.to)}"`;
     case 'card.due.set':
       return 'đã đặt ngày hết hạn';
     case 'card.due.clear':

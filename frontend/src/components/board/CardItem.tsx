@@ -1,8 +1,10 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { assetUrl } from '../../lib/assets';
-import type { Card } from '../../types/card';
+import { shouldShowCardStatus } from '../../lib/cardStatus';
+import type { Card, CardStatus } from '../../types/card';
 import Avatar from '../Avatar';
+import StatusBadge from './StatusBadge';
 
 // Dai mau / anh o dinh the (giong Trello)
 function CardCover({ card }: { card: Card }) {
@@ -24,6 +26,8 @@ function CardCover({ card }: { card: Card }) {
 
 interface Props {
   card: Card;
+  // Trang thai cua cot chua the - chi hien huy hieu trang thai khi the "lech" cot
+  listStatus?: CardStatus | null;
   onToggleDone?: (card: Card) => void;
   onRequestDelete?: (card: Card) => void;
   onOpen?: (cardId: string) => void;
@@ -53,6 +57,7 @@ function DoneCircle({ done }: { done: boolean }) {
 
 export default function CardItem({
   card,
+  listStatus = null,
   onToggleDone,
   onRequestDelete,
   onOpen,
@@ -90,7 +95,9 @@ export default function CardItem({
   const clDone = checklistItems.filter((i) => i.isDone).length;
   const commentCount = card.comments?.length ?? 0;
   const attachmentCount = card.attachments?.length ?? 0;
+  const showStatus = shouldShowCardStatus(card.status, listStatus);
   const hasBadges =
+    showStatus ||
     (card.labels?.length ?? 0) > 0 ||
     !!card.dueDate ||
     checklistItems.length > 0 ||
@@ -140,6 +147,7 @@ export default function CardItem({
 
         {hasBadges && (
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+            {showStatus && <StatusBadge status={card.status} />}
             {card.description && (
               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-label="Có mô tả">
                 <path d="M4 6h16M4 12h16M4 18h10" />
