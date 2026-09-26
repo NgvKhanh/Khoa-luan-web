@@ -69,6 +69,9 @@ export async function searchCardsAdvanced(
   if (filters.status === 'active') where.isDone = false;
   if (filters.status === 'done') where.isDone = true;
 
+  // Trang thai cong viec: khop 1 trong cac trang thai da chon (AND voi cac dieu kien khac)
+  if (filters.statuses.length > 0) where.status = { in: filters.statuses };
+
   // "Qua han" ghi de status: mot the qua han luon la chua xong.
   if (filters.overdue) {
     where.isDone = false;
@@ -93,6 +96,7 @@ export async function searchCardsAdvanced(
       select: {
         id: true,
         title: true,
+        status: true,
         isDone: true,
         dueDate: true,
         coverColor: true,

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CardStatus } from '../../generated/prisma/enums';
 
 // "true"/"false" tu query string -> boolean that (khac z.coerce.boolean(),
 // vi chuoi "false" van la truthy nen se bi hieu nham thanh true).
@@ -7,11 +8,31 @@ const boolQueryParam = z
   .optional()
   .transform((v) => v === 'true');
 
+const cardStatusSchema = z.enum(CardStatus, { error: 'Trang thai khong hop le' });
+
+// Trang thai cong viec, tren URL dang "IN_PROGRESS,BLOCKED" (chon nhieu, khop
+// 1 trong so do). Bo trong -> mang rong = khong loc theo trang thai.
+const statusesQueryParam = z
+  .string()
+  .max(100)
+  .optional()
+  .transform((v) =>
+    v
+      ? v
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : []
+  )
+  .pipe(z.array(cardStatusSchema).max(5));
+
 export const searchCardsQuerySchema = z.object({
   q: z.string().trim().max(200).optional(),
   assignee: z.enum(['me', 'unassigned']).optional(),
   labelName: z.string().trim().max(100).optional(),
+  // Muc hoan thanh (co tu truoc khi co trang thai theo cot): chua xong / da xong
   status: z.enum(['all', 'active', 'done']).default('all'),
+  statuses: statusesQueryParam,
   overdue: boolQueryParam,
   dueFrom: z.string().datetime().optional(),
   dueTo: z.string().datetime().optional(),
@@ -26,6 +47,7 @@ export const savedFilterParamsSchema = z.object({
   assignee: z.enum(['me', 'unassigned']).optional(),
   labelName: z.string().trim().max(100).optional(),
   status: z.enum(['all', 'active', 'done']).optional(),
+  statuses: z.array(cardStatusSchema).max(5).optional(),
   overdue: z.boolean().optional(),
   dueFrom: z.string().datetime().optional(),
   dueTo: z.string().datetime().optional(),

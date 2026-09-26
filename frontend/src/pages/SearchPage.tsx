@@ -11,8 +11,10 @@ import {
   type SearchFilterParams,
   type StatusFilter,
 } from '../lib/api/search';
+import { CARD_STATUS_ORDER, STATUS_META } from '../lib/cardStatus';
 import { getErrorMessage } from '../lib/errorMessage';
 import { logError } from '../lib/logError';
+import StatusBadge from '../components/board/StatusBadge';
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('vi-VN', {
@@ -176,8 +178,8 @@ export default function SearchPage() {
             }
             className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-900"
           >
-            <option value="all">Mọi trạng thái</option>
-            <option value="active">Đang làm</option>
+            <option value="all">Hoàn thành: tất cả</option>
+            <option value="active">Chưa hoàn thành</option>
             <option value="done">Đã hoàn thành</option>
           </select>
 
@@ -197,6 +199,38 @@ export default function SearchPage() {
             />
             Quá hạn
           </label>
+        </div>
+
+        {/* Trang thai cong viec: bam de bat/tat, chon nhieu (the khop 1 trong so do) */}
+        <div
+          role="group"
+          aria-label="Lọc theo trạng thái"
+          className="flex flex-wrap items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300"
+        >
+          <span className="mr-1">Trạng thái</span>
+          {CARD_STATUS_ORDER.map((st) => {
+            const on = filters.statuses?.includes(st) ?? false;
+            return (
+              <button
+                key={st}
+                type="button"
+                aria-pressed={on}
+                onClick={() => {
+                  const cur = filters.statuses ?? [];
+                  const next = on ? cur.filter((s) => s !== st) : [...cur, st];
+                  updateFilter('statuses', next.length > 0 ? next : undefined);
+                }}
+                className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
+                  on
+                    ? 'border-[#0c66e4] bg-[#0c66e4]/10 text-[#0c66e4] dark:text-blue-300'
+                    : 'border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700'
+                }`}
+              >
+                <span className={`h-2 w-2 rounded-full ${STATUS_META[st].dot}`} />
+                {STATUS_META[st].label}
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
@@ -324,6 +358,9 @@ export default function SearchPage() {
                     >
                       {c.title}
                     </span>
+                    {c.status !== 'DONE' && (
+                      <StatusBadge status={c.status} className="mt-1" />
+                    )}
                     <span className="mt-0.5 block text-xs text-slate-400">
                       {c.list.board.name} · {c.list.name}
                       {c.dueDate && ` · hạn ${fmtDate(c.dueDate)}`}

@@ -1,4 +1,5 @@
 import { api } from '../axios';
+import type { CardStatus } from '../../types/card';
 import type { SearchCard } from './card';
 
 export type AssigneeFilter = 'me' | 'unassigned';
@@ -8,14 +9,20 @@ export interface SearchFilterParams {
   q?: string;
   assignee?: AssigneeFilter;
   labelName?: string;
+  // Muc hoan thanh (chua xong / da xong)
   status?: StatusFilter;
+  // Trang thai cong viec, chon nhieu (khop 1 trong so do)
+  statuses?: CardStatus[];
   overdue?: boolean;
   dueFrom?: string;
   dueTo?: string;
 }
 
+// Ket qua tim kiem nang cao co them trang thai cong viec
+export type AdvancedSearchCard = SearchCard & { status: CardStatus };
+
 export interface SearchCardsResult {
-  items: SearchCard[];
+  items: AdvancedSearchCard[];
   page: number;
   pageSize: number;
   total: number;
@@ -28,6 +35,7 @@ function buildQuery(params: SearchFilterParams, page: number): string {
   if (params.assignee) qs.set('assignee', params.assignee);
   if (params.labelName) qs.set('labelName', params.labelName);
   if (params.status && params.status !== 'all') qs.set('status', params.status);
+  if (params.statuses && params.statuses.length > 0) qs.set('statuses', params.statuses.join(','));
   if (params.overdue) qs.set('overdue', 'true');
   if (params.dueFrom) qs.set('dueFrom', params.dueFrom);
   if (params.dueTo) qs.set('dueTo', params.dueTo);
