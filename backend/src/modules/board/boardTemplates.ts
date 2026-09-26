@@ -1,11 +1,15 @@
 // Cac mau bang co san. Nguoi dung chon 1 mau -> tao ngay 1 bang day du list + the.
+// Moi cot ghi TUONG MINH trang thai cua no (null = cot tu do, vd "Y tuong",
+// "Hom nay") thay vi doan theo ten - de doc/sua truc tiep o day.
+
+import type { CardStatus } from '../../generated/prisma/enums';
 
 export interface BoardTemplate {
   id: string;
   name: string;
   description: string;
   color: string;
-  lists: { name: string; cards: string[] }[];
+  lists: { name: string; status: CardStatus | null; cards: string[] }[];
 }
 
 export const BOARD_TEMPLATES: BoardTemplate[] = [
@@ -17,10 +21,11 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     lists: [
       {
         name: 'Cần làm',
+        status: 'TODO',
         cards: ['Ví dụ: Lên kế hoạch tuần', 'Ví dụ: Trả lời email'],
       },
-      { name: 'Đang làm', cards: ['Ví dụ: Viết báo cáo'] },
-      { name: 'Hoàn thành', cards: [] },
+      { name: 'Đang làm', status: 'IN_PROGRESS', cards: ['Ví dụ: Viết báo cáo'] },
+      { name: 'Hoàn thành', status: 'DONE', cards: [] },
     ],
   },
   {
@@ -29,12 +34,12 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     description: 'Quy trình đầy đủ từ ý tưởng đến bàn giao, kèm cột tạm hoãn.',
     color: '#519839',
     lists: [
-      { name: 'Ý tưởng', cards: ['Thu thập yêu cầu', 'Nghiên cứu đối thủ'] },
-      { name: 'Việc cần làm', cards: ['Thiết kế giao diện', 'Lập lịch dự án'] },
-      { name: 'Đang thực hiện', cards: [] },
-      { name: 'Đang review', cards: [] },
-      { name: 'Hoàn thành', cards: [] },
-      { name: 'Tạm hoãn', cards: [] },
+      { name: 'Ý tưởng', status: null, cards: ['Thu thập yêu cầu', 'Nghiên cứu đối thủ'] },
+      { name: 'Việc cần làm', status: 'TODO', cards: ['Thiết kế giao diện', 'Lập lịch dự án'] },
+      { name: 'Đang thực hiện', status: 'IN_PROGRESS', cards: [] },
+      { name: 'Đang review', status: 'IN_REVIEW', cards: [] },
+      { name: 'Hoàn thành', status: 'DONE', cards: [] },
+      { name: 'Tạm hoãn', status: 'BLOCKED', cards: [] },
     ],
   },
   {
@@ -45,12 +50,13 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     lists: [
       {
         name: 'Product Backlog',
+        status: 'TODO',
         cards: ['Là người dùng, tôi muốn đăng nhập', 'Là người dùng, tôi muốn đổi mật khẩu'],
       },
-      { name: 'Sprint Backlog', cards: ['Thiết lập CI/CD'] },
-      { name: 'Đang làm', cards: [] },
-      { name: 'Kiểm thử', cards: [] },
-      { name: 'Hoàn thành', cards: [] },
+      { name: 'Sprint Backlog', status: 'TODO', cards: ['Thiết lập CI/CD'] },
+      { name: 'Đang làm', status: 'IN_PROGRESS', cards: [] },
+      { name: 'Kiểm thử', status: 'IN_REVIEW', cards: [] },
+      { name: 'Hoàn thành', status: 'DONE', cards: [] },
     ],
   },
   {
@@ -59,11 +65,11 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     description: 'Theo dõi bài viết / video từ lúc lên ý tưởng đến khi xuất bản.',
     color: '#B04632',
     lists: [
-      { name: 'Ý tưởng', cards: ['Chủ đề: Mẹo năng suất', 'Chủ đề: Review công cụ'] },
-      { name: 'Đang viết', cards: [] },
-      { name: 'Chờ duyệt', cards: [] },
-      { name: 'Đã lên lịch', cards: [] },
-      { name: 'Đã đăng', cards: [] },
+      { name: 'Ý tưởng', status: null, cards: ['Chủ đề: Mẹo năng suất', 'Chủ đề: Review công cụ'] },
+      { name: 'Đang viết', status: 'IN_PROGRESS', cards: [] },
+      { name: 'Chờ duyệt', status: 'IN_REVIEW', cards: [] },
+      { name: 'Đã lên lịch', status: null, cards: [] },
+      { name: 'Đã đăng', status: 'DONE', cards: [] },
     ],
   },
   {
@@ -72,11 +78,11 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     description: 'Sắp xếp việc riêng theo mức độ ưu tiên về thời gian.',
     color: '#00AECC',
     lists: [
-      { name: 'Hôm nay', cards: ['Tập thể dục 30 phút'] },
-      { name: 'Tuần này', cards: ['Đọc xong 1 cuốn sách'] },
-      { name: 'Sau này', cards: [] },
-      { name: 'Đang chờ', cards: [] },
-      { name: 'Xong', cards: [] },
+      { name: 'Hôm nay', status: null, cards: ['Tập thể dục 30 phút'] },
+      { name: 'Tuần này', status: null, cards: ['Đọc xong 1 cuốn sách'] },
+      { name: 'Sau này', status: null, cards: [] },
+      { name: 'Đang chờ', status: 'BLOCKED', cards: [] },
+      { name: 'Xong', status: 'DONE', cards: [] },
     ],
   },
   {
@@ -87,12 +93,13 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     lists: [
       {
         name: 'Tài liệu cần đọc',
+        status: 'TODO',
         cards: ['Tìm 5 bài báo liên quan', 'Đọc chương cơ sở lý thuyết'],
       },
-      { name: 'Đang nghiên cứu', cards: [] },
-      { name: 'Đang viết', cards: ['Viết chương 1: Giới thiệu'] },
-      { name: 'Chờ GVHD phản hồi', cards: [] },
-      { name: 'Đã chỉnh sửa xong', cards: [] },
+      { name: 'Đang nghiên cứu', status: 'IN_PROGRESS', cards: [] },
+      { name: 'Đang viết', status: 'IN_PROGRESS', cards: ['Viết chương 1: Giới thiệu'] },
+      { name: 'Chờ GVHD phản hồi', status: 'IN_REVIEW', cards: [] },
+      { name: 'Đã chỉnh sửa xong', status: 'DONE', cards: [] },
     ],
   },
 ];

@@ -2,6 +2,7 @@ import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
 import { assertBoardAccess } from './board.service';
 import { assertWorkspaceAccess } from '../workspace/workspace.service';
+import { initialStatusData } from '../card/cardStatus';
 
 // Mau bang do nguoi dung tu luu (khac BOARD_TEMPLATES tinh san trong code):
 // chup lai cau truc list + the (chi tieu de/mo ta, khong kem nhan/checklist/
@@ -51,6 +52,7 @@ export async function saveBoardAsTemplate(
         create: lists.map((l, li) => ({
           name: l.name,
           position: li,
+          status: l.status,
           cards: {
             create: l.cards.map((c, ci) => ({
               title: c.title,
@@ -104,11 +106,13 @@ export async function createBoardFromUserTemplate(
         create: tpl.lists.map((l, li) => ({
           name: l.name,
           position: li,
+          status: l.status,
           cards: {
             create: l.cards.map((c, ci) => ({
               title: c.title,
               description: c.description,
               position: ci,
+              ...initialStatusData(l.status),
             })),
           },
         })),

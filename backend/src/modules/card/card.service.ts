@@ -13,6 +13,7 @@ import { assertListAccess, assertListView } from '../list/list.service';
 import { memberWorkspaceIds } from '../workspace/workspace.service';
 import { resetCardRemindersOnDueDateChange } from './cardReminder.service';
 import { isWatchingCard } from '../watch/watch.service';
+import { initialStatusData, logStatusChange, statusWrite } from './cardStatus';
 import type {
   CreateCardInput,
   MoveCardInput,
@@ -44,13 +45,11 @@ export async function copyCard(
   const boardId = src.list.boardId;
   const targetListId = input.listId ?? src.listId;
 
-  if (targetListId !== src.listId) {
-    const tl = await prisma.list.findFirst({
-      where: { id: targetListId, deletedAt: null, archivedAt: null },
-    });
-    if (!tl || tl.boardId !== boardId) {
-      throw new AppError('Danh sach dich khong hop le', 400);
-    }
+  const tl = await prisma.list.findFirst({
+    where: { id: targetListId, deletedAt: null, archivedAt: null },
+  });
+  if (!tl || tl.boardId !== boardId) {
+    throw new AppError('Danh sach dich khong hop le', 400);
   }
 
   const full = await prisma.card.findUnique({
@@ -78,6 +77,8 @@ export async function copyCard(
       coverColor: src.coverColor,
       coverImageUrl: src.coverImageUrl,
       position: last ? last.position + 1 : 0,
+      // Ban sao la the moi: trang thai theo cot dich (cot tu do -> TODO)
+      ...initialStatusData(tl.status),
       ...(full && full.labels.length > 0
         ? { labels: { create: full.labels.map((l) => ({ labelId: l.labelId })) } }
         : {}),
@@ -121,7 +122,7 @@ export async function copyCard(
 export async function assertCardAccess(userId: string, cardId: string) {
   const card = await prisma.card.findFirst({
     where: { id: cardId, deletedAt: null, archivedAt: null },
-    include: { list: { select: { boardId: true, name: true } } },
+    include: { list: { select: { boardId: true, name: true, status: true } } },
   });
   if (!card) {
     throw new AppError('Khong tim thay the', 404);
@@ -335,7 +336,7 @@ export async function getCardDetail(userId: string, cardId: string) {
   const card = await prisma.card.findFirst({
     where: { id: cardId, deletedAt: null, archivedAt: null },
     include: {
-      list: { select: { id: true, name: true, boardId: true } },
+      list: { select: { id: true, name: true, boardId: true, status: true } },
       members: { include: { user: { select: CARD_USER_SELECT } } },
       labels: { include: { label: true } },
       checklists: {
@@ -387,7 +388,7 @@ export async function createCard(
   const position = last ? last.position + 1 : 0;
 
   const card = await prisma.card.create({
-    data: { listId, title: input.title, position },
+    data: { listId, title: input.title, position, ...initialStatusData(list.status) },
   });
 
   await logActivity({
@@ -541,7 +542,7 @@ export async function deleteCard(userId: string, cardId: string) {
 async function assertArchivedCard(userId: string, cardId: string) {
   const card = await prisma.card.findFirst({
     where: { id: cardId, deletedAt: null },
-    include: { list: { select: { boardId: true } } },
+    include: { list: { select: { boardId: true, status: true } } },
   });
   if (!card) throw new AppError('Khong tim thay the', 404);
   await assertBoardAccess(userId, card.list.boardId);
@@ -563,7 +564,8 @@ export async function archiveCard(userId: string, cardId: string) {
   });
 }
 
-// Khoi phuc the da luu tru -> dua ve cuoi danh sach
+// Khoi phuc the da luu tru -> dua ve cuoi danh sach. Cot co the da doi trang
+// thai trong luc the nam trong kho luu tru -> the doi theo cot khi quay lai.
 export async function restoreCard(userId: string, cardId: string) {
   const card = await assertArchivedCard(userId, cardId);
   const last = await prisma.card.findFirst({
@@ -571,16 +573,34 @@ export async function restoreCard(userId: string, cardId: string) {
     orderBy: { position: 'desc' },
     select: { position: true },
   });
-  await prisma.card.update({
-    where: { id: cardId },
-    data: { archivedAt: null, position: last ? last.position + 1 : 0 },
-  });
+  const listStatus = card.list.status;
+  const results = await prisma.$transaction([
+    prisma.card.update({
+      where: { id: cardId },
+      data: { archivedAt: null, position: last ? last.position + 1 : 0 },
+    }),
+    ...(listStatus ? [statusWrite(prisma, { id: cardId }, listStatus)] : []),
+  ]);
   await logActivity({
     boardId: card.list.boardId,
     cardId,
     userId,
     type: 'card.restore',
   });
+  // updateMany co dieu kien: count = 0 nghia la the von da o dung trang thai
+  const statusChanged =
+    listStatus !== null && (results[1] as { count: number }).count > 0;
+  if (listStatus && statusChanged) {
+    await logStatusChange({
+      boardId: card.list.boardId,
+      cardId,
+      cardTitle: card.title,
+      userId,
+      from: card.status,
+      to: listStatus,
+      notifyDone: false,
+    });
+  }
 }
 
 // Xoa han the da luu tru
@@ -640,6 +660,14 @@ export async function moveCard(
       data: { position: i, listId: input.listId },
     })
   );
+
+  // Sang cot KHAC co trang thai -> the doi theo cot. Keo doi cho trong cung
+  // cot thi khong dong toi trang thai (giu trang thai da doi tay neu co).
+  const targetStatus =
+    sourceListId !== input.listId ? targetList.status : null;
+  const statusWriteIndex = targetStatus
+    ? writes.push(statusWrite(prisma, { id: cardId }, targetStatus)) - 1
+    : -1;
 
   if (sourceListId !== input.listId) {
     const remaining = await prisma.card.findMany({
@@ -728,7 +756,11 @@ export async function moveCard(
     }
   }
 
-  await prisma.$transaction(writes);
+  const results = await prisma.$transaction(writes);
+  // updateMany co dieu kien: count = 0 nghia la the von da o dung trang thai
+  const statusChanged =
+    statusWriteIndex >= 0 &&
+    (results[statusWriteIndex] as { count: number }).count > 0;
 
   if (sourceListId !== input.listId) {
     await logActivity({
@@ -744,6 +776,17 @@ export async function moveCard(
           }
         : { fromList: sourceListName, toList: targetList.name },
     });
+    if (statusChanged && targetStatus) {
+      await logStatusChange({
+        boardId: targetList.boardId,
+        cardId,
+        cardTitle: card.title,
+        userId,
+        from: card.status,
+        to: targetStatus,
+        notifyDone: false, // da co thong bao "card.moved" ben duoi
+      });
+    }
     await notify({
       recipients: await cardMemberIds(cardId),
       actorId: userId,

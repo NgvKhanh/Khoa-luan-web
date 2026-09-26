@@ -6,6 +6,7 @@ import { runAutomationsForCard } from '../automation/automation.service';
 import { assertCardAccess } from './card.service';
 import { assertListAccess } from '../list/list.service';
 import { logActivity } from '../activity/activity.service';
+import { initialStatusData } from './cardStatus';
 
 interface ChecklistInput {
   title: string;
@@ -138,6 +139,7 @@ export async function applyCardTemplate(
       title: (title?.trim() || tpl.name).slice(0, 500),
       description: tpl.description,
       position: last ? last.position + 1 : 0,
+      ...initialStatusData(list.status),
       checklists: {
         create: tpl.checklists.map((cl, i) => ({
           title: cl.title,

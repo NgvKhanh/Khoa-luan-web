@@ -16,6 +16,7 @@ import {
 } from '../workspace/workspace.service';
 import type { CreateBoardInput, UpdateBoardInput } from './board.schema';
 import { getTemplate } from './boardTemplates';
+import { initialStatusData } from '../card/cardStatus';
 import { isWatchingBoard } from '../watch/watch.service';
 
 // Kiem tra nguoi dung la CHU bang. Dung cho: xoa bang, luu tru, chuyen chu bang.
@@ -261,8 +262,13 @@ export async function createBoardFromTemplate(
         create: tpl.lists.map((l, li) => ({
           name: l.name,
           position: li,
+          status: l.status,
           cards: {
-            create: l.cards.map((title, ci) => ({ title, position: ci })),
+            create: l.cards.map((title, ci) => ({
+              title,
+              position: ci,
+              ...initialStatusData(l.status),
+            })),
           },
         })),
       },

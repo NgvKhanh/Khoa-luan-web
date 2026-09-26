@@ -3,6 +3,12 @@ import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import { runAutomationsForCard } from '../automation/automation.service';
 import { assertBoardAccess, assertBoardView } from '../board/board.service';
+import {
+  guessListStatus,
+  logBulkStatusChange,
+  statusWrite,
+  type CardStatus,
+} from '../card/cardStatus';
 import type {
   CreateListInput,
   MoveAllCardsInput,
@@ -77,8 +83,12 @@ export async function createList(
   });
   const position = last ? last.position + 1 : 0;
 
+  // Khong chi dinh trang thai -> doan theo ten cot moi (doi lai duoc trong menu cot)
+  const status =
+    input.status !== undefined ? input.status : guessListStatus(input.name);
+
   const created = await prisma.list.create({
-    data: { boardId, name: input.name, position },
+    data: { boardId, name: input.name, position, status },
   });
   emitToBoard(boardId, 'board:lists-changed');
   return created;
@@ -90,6 +100,10 @@ export async function updateList(
   input: UpdateListInput
 ) {
   const list = await assertListAccess(userId, listId);
+
+  if (input.status !== undefined) {
+    await setListStatus(userId, list, input.status);
+  }
 
   // Keo sap xep lai: dua cot nay toi vi tri input.position roi danh so lai het
   if (input.position !== undefined) {
@@ -134,6 +148,35 @@ export async function updateList(
   });
   emitToBoard(list.boardId, 'board:lists-changed');
   return updated;
+}
+
+// Gan trang thai cho cot. Trang thai khac null -> moi the DANG HOAT DONG trong
+// cot doi theo (the luu tru se doi theo khi duoc khoi phuc). Gan lai dung trang
+// thai cu van dong bo lai cac the dang "lech" cot (the da doi tay trang thai).
+// null -> cot tro thanh cot tu do, the giu nguyen trang thai.
+async function setListStatus(
+  userId: string,
+  list: { id: string; boardId: string; status: CardStatus | null },
+  status: CardStatus | null
+) {
+  if (status === null) {
+    if (list.status !== null) {
+      await prisma.list.update({ where: { id: list.id }, data: { status: null } });
+    }
+    return;
+  }
+
+  const activeInList = { listId: list.id, deletedAt: null, archivedAt: null };
+  // Doc truoc de ghi nhat ky tung the (tu dau -> den dau)
+  const changing = await prisma.card.findMany({
+    where: { ...activeInList, status: { not: status } },
+    select: { id: true, title: true, status: true },
+  });
+  await prisma.$transaction([
+    prisma.list.update({ where: { id: list.id }, data: { status } }),
+    statusWrite(prisma, activeInList, status),
+  ]);
+  await logBulkStatusChange(list.boardId, userId, changing, status);
 }
 
 export async function deleteList(userId: string, listId: string) {
@@ -215,11 +258,16 @@ export async function copyList(userId: string, listId: string) {
       boardId: src.boardId,
       name: `${src.name} (bản sao)`.slice(0, 100),
       position: src.position + 1,
+      status: src.status,
       cards: {
+        // Giu nguyen trang thai tung the (ca 3 cot status/isDone/completedAt
+        // de khong pha bat bien isDone <-> completedAt != null)
         create: cards.map((c, i) => ({
           title: c.title,
           description: c.description,
+          status: c.status,
           isDone: c.isDone,
+          completedAt: c.completedAt,
           position: i,
         })),
       },
@@ -261,21 +309,28 @@ export async function moveAllCards(
   const movingCards = await prisma.card.findMany({
     where: { listId, deletedAt: null, archivedAt: null },
     orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
-    select: { id: true, title: true },
+    select: { id: true, title: true, status: true },
   });
 
   const orderedIds = [
     ...targetCards.map((c) => c.id),
     ...movingCards.map((c) => c.id),
   ];
-  await prisma.$transaction(
-    orderedIds.map((id, i) =>
+  await prisma.$transaction([
+    ...orderedIds.map((id, i) =>
       prisma.card.update({
         where: { id },
         data: { listId: target.id, position: i },
       })
-    )
-  );
+    ),
+    // Cot dich co trang thai -> cac the vua chuyen sang doi theo
+    ...(target.status
+      ? [statusWrite(prisma, { id: { in: movingCards.map((c) => c.id) } }, target.status)]
+      : []),
+  ]);
+  if (target.status) {
+    await logBulkStatusChange(src.boardId, userId, movingCards, target.status);
+  }
   emitToBoard(src.boardId, 'board:lists-changed');
 
   // CODE_REVIEW.md #8: nhu chuyen 1 the, phai chay automation CARD_MOVED_TO_LIST cho

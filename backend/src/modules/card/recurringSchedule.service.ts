@@ -4,6 +4,7 @@ import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity/activity.service';
 import { runAutomationsForCard } from '../automation/automation.service';
 import { assertListAccess, assertListView } from '../list/list.service';
+import { initialStatusData } from './cardStatus';
 import {
   nextOccurrenceAfter,
   nextOccurrenceOnOrAfter,
@@ -363,12 +364,18 @@ async function createCardFromSchedule(
     }
   }
 
+  const list = await db.list.findUnique({
+    where: { id: schedule.listId },
+    select: { status: true },
+  });
+
   return db.card.create({
     data: {
       listId: schedule.listId,
       title: schedule.title.slice(0, 500),
       description,
       position: last ? last.position + 1 : 0,
+      ...initialStatusData(list?.status),
       checklists: checklistsCreate ? { create: checklistsCreate } : undefined,
     },
     select: { id: true },

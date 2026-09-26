@@ -9,6 +9,7 @@ import { logActivity } from '../activity/activity.service';
 import { isBoardParticipant } from '../board/board.service';
 import { cardMemberIds, notify } from '../notification/notification.service';
 import { assertCardAccess } from './card.service';
+import { initialStatusData } from './cardStatus';
 
 const USER_SELECT = {
   id: true,
@@ -271,6 +272,7 @@ export async function convertItemToCard(userId: string, itemId: string) {
       listId: card.listId,
       title: item.content.slice(0, 500),
       position: last ? last.position + 1 : 0,
+      ...initialStatusData(card.list.status),
     },
   });
 

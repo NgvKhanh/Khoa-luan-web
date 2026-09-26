@@ -17,6 +17,7 @@ import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity/activity.service';
 import { assertWorkspaceAccess } from '../workspace/workspace.service';
+import { guessListStatus, initialStatusData } from '../card/cardStatus';
 import type { IsoDate } from './ai.dates';
 import { boardPlanSchema, type BoardPlan } from './boardPlan.schema';
 
@@ -164,11 +165,14 @@ export async function applyPlan(userId: string, runId: string, plan: BoardPlan) 
           color: plan.board.color,
           members: { create: { userId, role: 'OWNER' } },
           lists: {
+            // Cot do AI sinh ra la cot MOI -> doan trang thai theo ten nhu cot tao tay
             create: lists.map((l, li) => ({
               name: l.name,
               position: li,
+              status: guessListStatus(l.name),
               cards: {
                 create: l.cards.map((c, ci) => ({
+                  ...initialStatusData(guessListStatus(l.name)),
                   title: c.title,
                   description: c.description === '' ? null : c.description,
                   position: ci,
