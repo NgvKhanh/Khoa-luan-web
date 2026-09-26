@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { fetchBoardLabels } from '../../lib/api/card';
 import { logError } from '../../lib/logError';
 import { initialsOf } from '../../lib/avatar';
+import { CARD_STATUS_ORDER, STATUS_META } from '../../lib/cardStatus';
 import {
   EMPTY_FILTER,
   isFilterActive,
@@ -166,7 +167,21 @@ export default function BoardFilterPanel({
           </Check>
         ))}
 
-        <SectionTitle>Trạng thái thẻ</SectionTitle>
+        <SectionTitle>Trạng thái</SectionTitle>
+        {CARD_STATUS_ORDER.map((st) => (
+          <Check
+            key={st}
+            checked={filter.statuses.includes(st)}
+            onClick={() => set({ statuses: toggle(filter.statuses, st) })}
+          >
+            <span className="flex items-center gap-2">
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${STATUS_META[st].dot}`} />
+              {STATUS_META[st].label}
+            </span>
+          </Check>
+        ))}
+
+        <SectionTitle>Hoàn thành</SectionTitle>
         <Check
           checked={filter.complete}
           onClick={() => set({ complete: !filter.complete })}

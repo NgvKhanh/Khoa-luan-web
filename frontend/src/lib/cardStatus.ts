@@ -84,3 +84,10 @@ export function statusLabel(value: unknown): string {
     ? STATUS_META[value as CardStatus].label
     : '';
 }
+
+/** Dem so the theo tung trang thai (du 5 trang thai, trang thai khong co the = 0). */
+export function countByStatus(cards: { status: CardStatus }[]): Record<CardStatus, number> {
+  const counts = Object.fromEntries(CARD_STATUS_ORDER.map((s) => [s, 0])) as Record<CardStatus, number>;
+  for (const c of cards) counts[c.status] += 1;
+  return counts;
+}

@@ -1,4 +1,4 @@
-import type { Card } from '../types/card';
+import type { Card, CardStatus } from '../types/card';
 
 export interface BoardFilter {
   keyword: string;
@@ -7,6 +7,8 @@ export interface BoardFilter {
   assignedToMe: boolean;
   complete: boolean;
   incomplete: boolean;
+  // Trang thai cong viec (chon nhieu, the khop 1 trong so do la dat)
+  statuses: CardStatus[];
   dueNone: boolean;
   dueOverdue: boolean;
   dueTomorrow: boolean;
@@ -21,6 +23,7 @@ export const EMPTY_FILTER: BoardFilter = {
   assignedToMe: false,
   complete: false,
   incomplete: false,
+  statuses: [],
   dueNone: false,
   dueOverdue: false,
   dueTomorrow: false,
@@ -31,7 +34,7 @@ export const EMPTY_FILTER: BoardFilter = {
 export function filterActiveCount(f: BoardFilter): number {
   let n = 0;
   if (f.keyword.trim()) n += 1;
-  n += f.memberIds.length + f.labelIds.length;
+  n += f.memberIds.length + f.labelIds.length + f.statuses.length;
   for (const b of [
     f.noMembers,
     f.assignedToMe,
@@ -78,6 +81,8 @@ export function cardMatchesFilter(
     const ok = (f.complete && card.isDone) || (f.incomplete && !card.isDone);
     if (!ok) return false;
   }
+
+  if (f.statuses.length > 0 && !f.statuses.includes(card.status)) return false;
 
   const dueOn = f.dueNone || f.dueOverdue || f.dueTomorrow || f.dueWeek;
   if (dueOn) {

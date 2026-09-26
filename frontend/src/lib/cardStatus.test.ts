@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CardStatus } from '../types/card';
-import { reopenStatus, shouldShowCardStatus, targetListForStatus } from './cardStatus';
+import { countByStatus, reopenStatus, shouldShowCardStatus, targetListForStatus } from './cardStatus';
 
 describe('shouldShowCardStatus', () => {
   it('the khop trang thai cot -> an (header cot da noi)', () => {
@@ -53,5 +53,17 @@ describe('targetListForStatus', () => {
 
   it('bang khong co cot mang trang thai dich -> khong chuyen', () => {
     expect(targetListForStatus(lists, 'todo', 'BLOCKED')).toBeNull();
+  });
+});
+
+describe('countByStatus', () => {
+  it('du 5 trang thai, trang thai khong co the = 0', () => {
+    expect(countByStatus([{ status: 'DONE' }, { status: 'DONE' }, { status: 'BLOCKED' }])).toEqual({
+      TODO: 0,
+      IN_PROGRESS: 0,
+      IN_REVIEW: 0,
+      DONE: 2,
+      BLOCKED: 1,
+    });
   });
 });

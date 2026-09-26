@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Avatar from '../Avatar';
+import { CARD_STATUS_ORDER, STATUS_META, countByStatus } from '../../lib/cardStatus';
 import type { BoardList } from '../../types/list';
 
 interface Props {
@@ -47,6 +48,7 @@ export default function BoardStatsPanel({ lists, onClose }: Props) {
     let overdue = 0;
     const byList = lists.map((l) => ({
       name: l.name,
+      status: l.status,
       total: l.cards.length,
       done: l.cards.filter((c) => c.isDone).length,
     }));
@@ -74,7 +76,9 @@ export default function BoardStatsPanel({ lists, onClose }: Props) {
       .sort((a, b) => b[1].count - a[1].count)
       .slice(0, 8);
 
-    return { total, done, overdue, byList, topMembers };
+    const byStatus = countByStatus(lists.flatMap((l) => l.cards));
+
+    return { total, done, overdue, byList, byStatus, topMembers };
   }, [lists]);
 
   const donePct = stats.total > 0 ? (stats.done / stats.total) * 100 : 0;
@@ -111,13 +115,59 @@ export default function BoardStatsPanel({ lists, onClose }: Props) {
 
       <div className="mb-4">
         <p className="mb-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400">
+          Theo trạng thái
+        </p>
+        {/* Thanh phan bo: moi doan dai theo ti le so the cua trang thai do */}
+        <div
+          className="mb-2 flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700"
+          aria-hidden="true"
+        >
+          {stats.total > 0 &&
+            CARD_STATUS_ORDER.map((st) =>
+              stats.byStatus[st] > 0 ? (
+                <div
+                  key={st}
+                  className={STATUS_META[st].dot}
+                  style={{ width: `${(stats.byStatus[st] / stats.total) * 100}%` }}
+                />
+              ) : null
+            )}
+        </div>
+        <ul className="flex flex-col gap-1" aria-label="Số thẻ theo trạng thái">
+          {CARD_STATUS_ORDER.map((st) => (
+            <li key={st} className="flex items-center gap-2 text-xs">
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${STATUS_META[st].dot}`} />
+              <span className="flex-1 text-slate-700 dark:text-slate-200">
+                {STATUS_META[st].label}
+              </span>
+              <span className="font-semibold">{stats.byStatus[st]}</span>
+              <span className="w-10 text-right text-slate-400">
+                {stats.total > 0
+                  ? `${Math.round((stats.byStatus[st] / stats.total) * 100)}%`
+                  : '–'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="mb-4">
+        <p className="mb-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400">
           Theo danh sách
         </p>
         <div className="flex flex-col gap-2">
           {stats.byList.map((l) => (
             <div key={l.name}>
               <div className="mb-0.5 flex items-center justify-between text-xs">
-                <span className="truncate text-slate-700 dark:text-slate-200">{l.name}</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  {l.status && (
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${STATUS_META[l.status].dot}`}
+                      title={`Trạng thái cột: ${STATUS_META[l.status].label}`}
+                    />
+                  )}
+                  <span className="truncate text-slate-700 dark:text-slate-200">{l.name}</span>
+                </span>
                 <span className="shrink-0 text-slate-400">
                   {l.done}/{l.total}
                 </span>
