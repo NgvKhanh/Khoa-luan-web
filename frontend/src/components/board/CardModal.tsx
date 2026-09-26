@@ -63,8 +63,11 @@ import type {
   CardActivity,
   CardComment,
   CardDetail,
+  CardStatus,
   Label,
 } from '../../types/card';
+import { CARD_STATUS_ORDER, STATUS_META, targetListForStatus } from '../../lib/cardStatus';
+import StatusBadge from './StatusBadge';
 import type { BoardList } from '../../types/list';
 import AssignSuggestPanel from './cardModal/AssignSuggestPanel';
 import { AddItemInput } from './cardModal/AddItemInput';
@@ -79,7 +82,8 @@ import {
 
 interface Props {
   cardId: string;
-  lists: { id: string; name: string }[];
+  // Cac cot cua bang theo dung thu tu, kem trang thai (de biet the se nhay sang cot nao)
+  lists: { id: string; name: string; status: CardStatus | null }[];
   boardMembers: BoardMember[];
   currentUserId?: string;
   readOnly?: boolean;
@@ -166,6 +170,7 @@ export default function CardModal({
     | 'due'
     | 'members'
     | 'list'
+    | 'status'
     | 'move-board'
     | 'menu'
     | 'checklist'
@@ -518,6 +523,52 @@ export default function CardModal({
                   </div>
                 )}
               </div>
+
+              {/* Trang thai the. Doi trang thai khi the dang o cot CO trang thai -> the tu
+                  chuyen sang cot dau tien mang trang thai moi (neu bang co), ghi chu ngay trong lua chon. */}
+              <div className="relative">
+                <button
+                  type="button"
+                  disabled={readOnly}
+                  aria-label={`Trạng thái: ${STATUS_META[card.status].label}`}
+                  onClick={() => setPanel(panel === 'status' ? null : 'status')}
+                  className="flex items-center gap-1 rounded-lg px-1 py-1 enabled:hover:bg-slate-100 dark:enabled:hover:bg-slate-700"
+                >
+                  <StatusBadge status={card.status} className="text-xs" />
+                  {!readOnly && <span className="text-xs text-slate-500">▾</span>}
+                </button>
+                {panel === 'status' && !readOnly && (
+                  <div className="absolute left-0 top-9 z-10 w-60 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-xl">
+                    {CARD_STATUS_ORDER.map((st) => {
+                      const moveTo = targetListForStatus(lists, card.listId, st);
+                      return (
+                        <button
+                          key={st}
+                          type="button"
+                          aria-pressed={st === card.status}
+                          onClick={() => {
+                            setPanel(null);
+                            if (st !== card.status)
+                              void run(() => updateCard(card.id, { status: st }));
+                          }}
+                          className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 ${
+                            st === card.status ? 'font-semibold text-[#0c66e4]' : 'text-slate-700 dark:text-slate-200'
+                          }`}
+                        >
+                          <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_META[st].dot}`} />
+                          <span className="flex-1">{STATUS_META[st].label}</span>
+                          {st !== card.status && moveTo && (
+                            <span className="truncate text-[11px] font-normal text-slate-500 dark:text-slate-400">
+                              → cột {moveTo.name}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               <div className="relative ml-auto">
                 {!readOnly && (
                   <button
