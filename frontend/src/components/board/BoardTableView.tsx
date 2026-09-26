@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import Avatar from '../Avatar';
+import { CARD_STATUS_ORDER, STATUS_META } from '../../lib/cardStatus';
 import { fmt } from './cardModal/helpers';
+import StatusBadge from './StatusBadge';
 import type { BoardList } from '../../types/list';
 
 type SortKey = 'title' | 'list' | 'dueDate' | 'status';
@@ -20,7 +22,7 @@ export default function BoardTableView({ lists, onOpenCard }: Props) {
     const all = lists.flatMap((l) =>
       l.cards
         .filter((c) => !term || c.title.toLowerCase().includes(term))
-        .map((c) => ({ card: c, listName: l.name, listId: l.id }))
+        .map((c) => ({ card: c, listName: l.name, listId: l.id, listStatus: l.status }))
     );
     const dir = sortDir;
     return all.sort((a, b) => {
@@ -30,7 +32,11 @@ export default function BoardTableView({ lists, onOpenCard }: Props) {
         case 'list':
           return dir * a.listName.localeCompare(b.listName, 'vi');
         case 'status':
-          return dir * (Number(a.card.isDone) - Number(b.card.isDone));
+          // Theo thu tu quy trinh: Chua lam -> Dang lam -> Cho duyet -> Hoan thanh -> Bi chan
+          return (
+            dir *
+            (CARD_STATUS_ORDER.indexOf(a.card.status) - CARD_STATUS_ORDER.indexOf(b.card.status))
+          );
         case 'dueDate': {
           const av = a.card.dueDate ? new Date(a.card.dueDate).getTime() : Infinity;
           const bv = b.card.dueDate ? new Date(b.card.dueDate).getTime() : Infinity;
@@ -90,7 +96,7 @@ export default function BoardTableView({ lists, onOpenCard }: Props) {
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ card, listName }) => {
+            {rows.map(({ card, listName, listStatus }) => {
               const overdue =
                 card.dueDate && !card.isDone && new Date(card.dueDate).getTime() < now;
               return (
@@ -118,7 +124,15 @@ export default function BoardTableView({ lists, onOpenCard }: Props) {
                     {card.title}
                   </td>
                   <td className="px-3 py-2 text-sm text-slate-600 dark:text-slate-300">
-                    {listName}
+                    <span className="flex items-center gap-1.5">
+                      {listStatus && (
+                        <span
+                          className={`h-2 w-2 shrink-0 rounded-full ${STATUS_META[listStatus].dot}`}
+                          title={`Trạng thái cột: ${STATUS_META[listStatus].label}`}
+                        />
+                      )}
+                      {listName}
+                    </span>
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-1">
@@ -151,15 +165,14 @@ export default function BoardTableView({ lists, onOpenCard }: Props) {
                     }`}
                   >
                     {card.dueDate ? fmt(card.dueDate) : '—'}
+                    {overdue && (
+                      <span className="ml-1.5 rounded bg-red-100 px-1 py-px text-[11px] font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300">
+                        Quá hạn
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-sm">
-                    {card.isDone ? (
-                      <span className="text-emerald-600">Hoàn thành</span>
-                    ) : overdue ? (
-                      <span className="text-red-600">Quá hạn</span>
-                    ) : (
-                      <span className="text-slate-500 dark:text-slate-400">Đang làm</span>
-                    )}
+                    <StatusBadge status={card.status} />
                   </td>
                 </tr>
               );
