@@ -92,11 +92,16 @@ export function reopenStatus(listStatus: CardStatus | null | undefined): CardSta
 type CardWriter = { card: Pick<Prisma.TransactionClient['card'], 'updateMany'> };
 
 /**
- * Chuyen cac the khop `where` sang trang thai `to`. Chi dong vao the co
- * trang thai KHAC `to` (dieu kien nam trong cau UPDATE, Postgres kiem lai luc
- * ghi) -> 2 request dong thoi khong ghi de completedAt cua nhau, khong can
- * SELECT ... FOR UPDATE (CODE_REVIEW.md #13). Tra ve PrismaPromise nen dung
- * duoc ca trong $transaction([...]) dang mang lan transaction dang ham.
+ * Chuyen cac the khop `where` sang trang thai `to`, ghi CA 3 cot cung luc
+ * (status/isDone/completedAt) nen bat bien luon dung. Chi dong vao the co
+ * trang thai KHAC `to`: dong nao dang bi request khac sua se duoc Postgres
+ * kiem lai dieu kien sau khi request kia xong -> 2 request cung chuyen sang
+ * DONE khong ghi de completedAt cua nhau. Tra ve PrismaPromise nen dung duoc
+ * ca trong $transaction([...]) dang mang lan transaction dang ham.
+ *
+ * Luu y: dong ma luc cau lenh bat dau CHUA khop dieu kien (vd dang TODO, request
+ * khac dang doi sang DONE ma chua commit) se bi bo qua -> noi nao can quyet dinh
+ * theo trang thai MOI NHAT (updateCard) phai khoa dong truoc (FOR UPDATE).
  */
 export function statusWrite(db: CardWriter, where: Prisma.CardWhereInput, to: CardStatus) {
   return db.card.updateMany({

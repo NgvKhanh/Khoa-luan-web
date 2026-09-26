@@ -24,9 +24,11 @@ describe('PATCH /api/cards/:id - khong lech bat bien isDone <-> completedAt khi 
     // Giu khoa dong the (FOR UPDATE) va DA ghi isDone=true nhung CHUA commit.
     const otherTx = prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Card" WHERE id = ${card.id} FOR UPDATE`;
+      // Ghi DU 3 cot trang thai nhu moi duong ghi that (bat bien status = DONE <->
+      // isDone <-> completedAt, tu khi co trang thai theo cot).
       await tx.card.update({
         where: { id: card.id },
-        data: { isDone: true, completedAt: new Date() },
+        data: { status: 'DONE', isDone: true, completedAt: new Date() },
       });
       await locked; // giu giao dich mo toi khi test cho phep commit
     });

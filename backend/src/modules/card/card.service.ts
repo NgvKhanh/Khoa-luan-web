@@ -13,7 +13,14 @@ import { assertListAccess, assertListView } from '../list/list.service';
 import { memberWorkspaceIds } from '../workspace/workspace.service';
 import { resetCardRemindersOnDueDateChange } from './cardReminder.service';
 import { isWatchingCard } from '../watch/watch.service';
-import { initialStatusData, logStatusChange, statusWrite } from './cardStatus';
+import {
+  firstListWithStatus,
+  initialStatusData,
+  logStatusChange,
+  reopenStatus,
+  statusWrite,
+  type CardStatus,
+} from './cardStatus';
 import type {
   CreateCardInput,
   MoveCardInput,
@@ -414,35 +421,55 @@ export async function updateCard(
   const card = await assertCardAccess(userId, cardId);
   const boardId = card.list.boardId;
 
-  const updated = await prisma.$transaction(async (tx) => {
-    // CODE_REVIEW.md #13: khoa dong the (SELECT ... FOR UPDATE) roi doc lai isDone
-    // MOI NHAT truoc khi quyet dinh co ghi completedAt hay khong - snapshot `card`
-    // o tren doc TRUOC giao dich nay nen 2 request doi trang thai gan nhau co the
-    // cung doc isDone cu roi ghi de nhau sai bat bien isDone <-> completedAt != null.
-    let currentIsDone = card.isDone;
-    if (input.isDone !== undefined) {
+  // Quy yeu cau doi trang thai (status, hoac isDone = loi tat cua DONE) ve 1 lan ghi:
+  //  - status / isDone=true -> chuyen sang `to` neu the chua o `to`;
+  //  - isDone=false -> "mo lai": CHI khi the dang DONE.
+  const statusReq: { to: CardStatus; onlyIfDone: boolean } | null =
+    input.status !== undefined
+      ? { to: input.status, onlyIfDone: false }
+      : input.isDone === true
+        ? { to: 'DONE', onlyIfDone: false }
+        : input.isDone === false
+          ? { to: reopenStatus(card.list.status), onlyIfDone: true }
+          : null;
+  const wantsChange =
+    statusReq !== null &&
+    (statusReq.onlyIfDone ? card.status === 'DONE' : card.status !== statusReq.to);
+
+  // Lien ket 2 chieu: the dang o cot CO trang thai (khac trang thai moi) va bang
+  // co cot mang trang thai moi -> chuyen the sang dau cot do (qua moveCard, nen
+  // cung ghi nhat ky "chuyen the" va chay tu dong hoa nhu keo tha). The o cot tu
+  // do, hoac bang khong co cot phu hop -> chi doi trang thai, the dung yen.
+  const moveTo =
+    statusReq !== null &&
+    wantsChange &&
+    card.list.status !== null &&
+    card.list.status !== statusReq.to
+      ? await firstListWithStatus(boardId, statusReq.to)
+      : null;
+
+  const { row: updated, change } = await prisma.$transaction(async (tx) => {
+    let change: { from: CardStatus; to: CardStatus } | null = null;
+    if (statusReq && !moveTo) {
+      // CODE_REVIEW.md #13: khoa dong the (SELECT ... FOR UPDATE) roi doc trang thai
+      // MOI NHAT truoc khi quyet dinh - snapshot `card` o tren doc TRUOC giao dich
+      // nay, 1 request khac co the vua doi trang thai xen vao giua.
       await tx.$queryRaw`SELECT id FROM "Card" WHERE id = ${cardId} FOR UPDATE`;
-      currentIsDone = (
-        await tx.card.findUniqueOrThrow({ where: { id: cardId }, select: { isDone: true } })
-      ).isDone;
+      const current = (
+        await tx.card.findUniqueOrThrow({ where: { id: cardId }, select: { status: true } })
+      ).status;
+      const to = statusReq.onlyIfDone && current !== 'DONE' ? null : statusReq.to;
+      if (to && to !== current) {
+        await statusWrite(tx, { id: cardId }, to);
+        change = { from: current, to };
+      }
     }
-    return tx.card.update({
+    const row = await tx.card.update({
       where: { id: cardId },
       data: {
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.description !== undefined
           ? { description: input.description }
-          : {}),
-        ...(input.isDone !== undefined
-          ? {
-              isDone: input.isDone,
-              // Chi ghi completedAt khi trang thai THAY DOI so voi gia tri MOI NHAT
-              // (currentIsDone), khong lam troi moc hoan thanh khi gui lai dung gia
-              // tri hien tai (vd doi ten khong dinh gi den isDone).
-              ...(input.isDone !== currentIsDone
-                ? { completedAt: input.isDone ? new Date() : null }
-                : {}),
-            }
           : {}),
         ...(input.startDate !== undefined
           ? { startDate: input.startDate ? new Date(input.startDate) : null }
@@ -458,9 +485,33 @@ export async function updateCard(
           : {}),
       },
     });
+    return { row, change };
   });
 
   const recipients = () => cardMemberIds(cardId);
+
+  let finalCard = updated;
+  if (statusReq && moveTo) {
+    // moveCard tu doi trang thai theo cot dich + ghi nhat ky; day la thao tac
+    // doi tay nen gui them thong bao "da hoan thanh" nhu tick truc tiep.
+    finalCard =
+      (await moveCard(
+        userId,
+        cardId,
+        { listId: moveTo.id, position: 0 },
+        { notifyDone: true }
+      )) ?? updated;
+  } else if (change) {
+    await logStatusChange({
+      boardId,
+      cardId,
+      cardTitle: input.title ?? card.title,
+      userId,
+      from: change.from,
+      to: change.to,
+      notifyDone: true,
+    });
+  }
 
   if (input.title !== undefined && input.title !== card.title) {
     await logActivity({
@@ -478,24 +529,6 @@ export async function updateCard(
       cardId,
       data: { cardTitle: input.title },
     });
-  }
-  if (input.isDone !== undefined && input.isDone !== card.isDone) {
-    await logActivity({
-      boardId,
-      cardId,
-      userId,
-      type: input.isDone ? 'card.done' : 'card.undone',
-    });
-    if (input.isDone) {
-      await notify({
-        recipients: await recipients(),
-        actorId: userId,
-        type: 'card.marked.done',
-        boardId,
-        cardId,
-        data: { cardTitle: card.title },
-      });
-    }
   }
   if (input.dueDate !== undefined) {
     await resetCardRemindersOnDueDateChange(cardId, Boolean(input.dueDate));
@@ -519,7 +552,7 @@ export async function updateCard(
   }
 
   emitToBoard(boardId, 'board:lists-changed');
-  return updated;
+  return finalCard;
 }
 
 export async function deleteCard(userId: string, cardId: string) {
@@ -619,7 +652,9 @@ export async function purgeCard(userId: string, cardId: string) {
 export async function moveCard(
   userId: string,
   cardId: string,
-  input: MoveCardInput
+  input: MoveCardInput,
+  // notifyDone: goi tu updateCard (doi tay trang thai) -> gui "da hoan thanh"
+  opts: { notifyDone?: boolean } = {}
 ) {
   const card = await assertCardAccess(userId, cardId);
 
@@ -784,7 +819,8 @@ export async function moveCard(
         userId,
         from: card.status,
         to: targetStatus,
-        notifyDone: false, // da co thong bao "card.moved" ben duoi
+        // Keo tha: da co thong bao "card.moved" ben duoi, khong gui them
+        notifyDone: opts.notifyDone ?? false,
       });
     }
     await notify({

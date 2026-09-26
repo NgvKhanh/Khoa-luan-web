@@ -3,7 +3,8 @@ import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity/activity.service';
 import { assertBoardAccess, isBoardParticipant } from '../board/board.service';
-import { cardMemberIds, notify } from '../notification/notification.service';
+import { notify } from '../notification/notification.service';
+import { logStatusChange, reopenStatus, statusWrite } from '../card/cardStatus';
 import type {
   CreateAutomationRuleInput,
   UpdateAutomationRuleInput,
@@ -212,34 +213,33 @@ async function runAction(
   boardId: string
 ): Promise<void> {
   if (action.type === 'SET_DONE') {
+    // Danh dau xong = chuyen trang thai sang DONE; bo danh dau = "mo lai" (theo
+    // cot neu cot co trang thai khac DONE, khong thi TODO). KHONG di chuyen the
+    // (tu dong hoa khong bao gio di chuyen the - tranh vong lap giua cac luat).
     const isDone = action.boolValue ?? true;
     const card = await prisma.card.findUnique({
       where: { id: cardId },
-      select: { isDone: true },
+      select: { status: true, list: { select: { status: true } } },
     });
-    if (!card || card.isDone === isDone) return;
-    // Da chan truong hop khong doi o tren -> day luon la mot lan CHUYEN trang
-    // thai, nen ghi completedAt thang. Bat bien: isDone <-> completedAt != null.
-    await prisma.card.update({
-      where: { id: cardId },
-      data: { isDone, completedAt: isDone ? new Date() : null },
-    });
-    await logActivity({
+    if (!card || (card.status === 'DONE') === isDone) return;
+    const to = isDone ? 'DONE' : reopenStatus(card.list.status);
+    // Ghi co dieu kien (giu bat bien status/isDone/completedAt); count = 0 nghia
+    // la request khac vua doi xong truoc -> khong ghi nhat ky trung.
+    const res = await statusWrite(
+      prisma,
+      isDone ? { id: cardId } : { id: cardId, status: 'DONE' },
+      to
+    );
+    if (res.count === 0) return;
+    await logStatusChange({
       boardId,
       cardId,
+      cardTitle,
       userId: actorId,
-      type: isDone ? 'card.done' : 'card.undone',
+      from: card.status,
+      to,
+      notifyDone: true,
     });
-    if (isDone) {
-      await notify({
-        recipients: await cardMemberIds(cardId),
-        actorId,
-        type: 'card.marked.done',
-        boardId,
-        cardId,
-        data: { cardTitle },
-      });
-    }
     emitToBoard(boardId, 'board:lists-changed');
     return;
   }

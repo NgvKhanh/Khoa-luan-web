@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CardStatus } from '../../generated/prisma/enums';
 
 export const createCardSchema = z.object({
   title: z
@@ -19,6 +20,9 @@ export const updateCardSchema = z
     description: z
       .union([z.string().trim().max(5000, 'Mo ta qua dai'), z.null()])
       .optional(),
+    // Doi trang thai the. The dang o cot CO trang thai se tu chuyen sang cot dau
+    // tien mang trang thai moi (neu bang co) - xem updateCard().
+    status: z.enum(CardStatus, { error: 'Trang thai khong hop le' }).optional(),
     isDone: z.boolean().optional(),
     // ISO date string, hoac null de bo ngay bat dau / het han
     startDate: z.union([z.string().datetime(), z.null()]).optional(),
@@ -33,7 +37,18 @@ export const updateCardSchema = z
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Khong co du lieu nao de cap nhat',
-  });
+  })
+  // isDone la loi tat cua "status = DONE" -> gui ca hai thi phai khop nhau
+  .refine(
+    (data) =>
+      data.status === undefined ||
+      data.isDone === undefined ||
+      data.isDone === (data.status === 'DONE'),
+    {
+      message: 'Trang thai va danh dau hoan thanh mau thuan nhau',
+      path: ['isDone'],
+    }
+  );
 
 // Sao chep the
 export const copyCardSchema = z.object({
