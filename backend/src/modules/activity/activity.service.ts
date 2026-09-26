@@ -7,6 +7,7 @@ type ActivityType =
   | 'card.rename'
   | 'card.done'
   | 'card.undone'
+  | 'card.status' // doi trang thai giua cac trang thai KHAC DONE (vao/ra DONE dung card.done/undone)
   | 'card.due.set'
   | 'card.due.clear'
   | 'card.archive'

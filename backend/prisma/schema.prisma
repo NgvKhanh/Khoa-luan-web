@@ -37,6 +37,18 @@ enum WorkspaceRole {
   MEMBER
 }
 
+// Trang thai cong viec. Cot (List) co the gan 1 trang thai (hoac null = cot tu
+// do); the (Card) LUON co 1 trang thai. The di vao cot co trang thai S thi tu
+// doi sang S; doi tay trang thai the thi the tu chuyen sang cot mang trang thai
+// do (neu bang co). Xem backend/src/modules/card/cardStatus.ts.
+enum CardStatus {
+  TODO // Chua lam
+  IN_PROGRESS // Dang lam
+  IN_REVIEW // Cho duyet
+  DONE // Hoan thanh - dong bo voi Card.isDone/completedAt
+  BLOCKED // Bi chan
+}
+
 enum AuthTokenType {
   EMAIL_VERIFY // Xac minh dia chi email
   PASSWORD_RESET // Dat lai mat khau khi quen
@@ -282,10 +294,11 @@ model BoardTemplate {
 }
 
 model BoardTemplateList {
-  id         String @id @default(cuid())
+  id         String      @id @default(cuid())
   templateId String
   name       String
-  position   Int    @default(0)
+  position   Int         @default(0)
+  status     CardStatus? // Trang thai cua cot luc chup mau (null = cot tu do)
 
   template BoardTemplate       @relation(fields: [templateId], references: [id], onDelete: Cascade)
   cards    BoardTemplateCard[]
@@ -531,13 +544,16 @@ model BoardStar {
 
 // Cot trong bang. "position" quyet dinh thu tu tu trai sang phai (so nho nam truoc).
 model List {
-  id         String    @id @default(cuid())
+  id         String      @id @default(cuid())
   boardId    String
   name       String
-  position   Int       @default(0)
+  position   Int         @default(0)
+  // Trang thai gan cho cot: the di vao cot se doi sang trang thai nay.
+  // null = cot tu do (the giu nguyen trang thai, hoat dong nhu truoc day).
+  status     CardStatus?
   archivedAt DateTime? // Luu tru (co the khoi phuc); khac voi deletedAt (xoa han)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
   deletedAt  DateTime?
 
   board              Board                   @relation(fields: [boardId], references: [id], onDelete: Cascade)
@@ -597,11 +613,14 @@ model RecurringCardSchedule {
 
 // The nam trong 1 danh sach. "position" quyet dinh thu tu tu tren xuong.
 model Card {
-  id            String    @id @default(cuid())
+  id            String     @id @default(cuid())
   listId        String
   title         String
   description   String?
-  isDone        Boolean   @default(false) // Danh dau the da hoan thanh
+  // Trang thai cong viec. Bat bien: status = DONE <-> isDone <-> completedAt != null.
+  // Moi thay doi phai di qua cardStatus.ts de giu bat bien nay.
+  status        CardStatus @default(TODO)
+  isDone        Boolean    @default(false) // Danh dau the da hoan thanh
   // Thoi diem danh dau xong LAN GAN NHAT. Bat bien: isDone <-> completedAt != null.
   // Bo xong roi danh dau xong lai -> ghi de bang lan moi nhat (lich su mo lai
   // van con trong Activity kieu card.undone). Module goi y phan cong dua vao
@@ -612,9 +631,9 @@ model Card {
   coverColor    String? // Mau anh bia (hex) - null = khong co
   coverImageUrl String? // Anh bia (duong dan/URL) - uu tien hon coverColor
   archivedAt    DateTime? // Luu tru (co the khoi phuc); khac voi deletedAt (xoa han)
-  position      Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  position      Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
   deletedAt     DateTime?
 
   list        List             @relation(fields: [listId], references: [id], onDelete: Cascade)

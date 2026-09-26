@@ -235,6 +235,7 @@ export async function seedSimulation(
             listId,
             title: c.title,
             description: c.description,
+            status: c.done ? 'DONE' : 'TODO',
             isDone: c.done,
             completedAt,
             startDate: at(c.assignedDay, 0),
