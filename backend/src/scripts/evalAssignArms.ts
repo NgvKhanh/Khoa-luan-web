@@ -12,6 +12,7 @@ import {
   LEGACY_WEIGHTS_V1,
   rankCandidates,
   type CandidateInput,
+  type ComponentKey,
   type MissingPolicy,
   type Normalization,
   type RankedCandidate,
@@ -163,7 +164,8 @@ export interface ScorerArmOptions {
   params?: Partial<ScoreParams>;
   /** Mac dinh 'MINMAX' va 'DROP' - dung cau hinh SAN PHAM (assign.service.ts). */
   normalize?: Normalization;
-  missing?: MissingPolicy;
+  /** Mot gia tri (ca bon thanh phan) hoac ban ghi theo thanh phan (buoc 12); khong truyen = DEFAULT_MISSING cua bo cham. */
+  missing?: MissingPolicy | Partial<Record<ComponentKey, MissingPolicy>>;
 }
 
 /** Cac nhanh dung bo cham: chi khac nhau o trong so / tham so. */

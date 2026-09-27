@@ -857,7 +857,7 @@ Khung khác với dự kiến ban đầu ở ba điểm, đều có lý do đo �
 | **12** | Thành phần Hồ sơ trong bộ chấm (hàm thuần) | Không ai khai hồ sơ → xếp hạng y như cũ |
 | **13** | Luật học trên các thành phần chung | Học vẫn chạy khi nhiều người chưa khai |
 | **14** | Mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy | Mã băm đóng băng cũ giữ nguyên |
-| 15 | Quét trên hạt giống dev → chốt `d` → chạy xác nhận trên 4001–4020 | Bảng số liệu phần ba |
+| **15** | Quét trên hạt giống dev → chốt `d` → chạy xác nhận trên 4001–4020 | Bảng số liệu phần ba |
 | 16 | CSDL + kho dữ liệu + service | Gợi ý thật có thành phần Hồ sơ |
 | 17 | API hồ sơ + CV (lưu tệp riêng tư, trích chữ, quyền tải) | Tải/xoá/tải về CV qua API |
 | 18 | Giao diện: trang Hồ sơ, thanh trượt thứ 4, bằng chứng Hồ sơ | Dùng được trong sản phẩm |
@@ -1243,7 +1243,7 @@ băng đầu vào; mục chỉ gồm từ ngoài kho → `declared = 0`, không 
 | **12** | Thành phần Hồ sơ (thuần): mục khai, `vectorizeKnown`, max-cosine, `declaredEvidence`, `NO_PROFILE`, thiếu dữ liệu theo thành phần | `assign.score.ts`, `assign.tfidf.ts`, mới `assign.declared.ts` + test |
 | **13** | Luật học trên thành phần chung; JSON cũ vẫn đọc được | `assign.learn.ts` + test |
 | **14** | Mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy (W2, hồ sơ trong `snapshotAsOf`) | mới `scripts/simDeclared.ts`, `simReplay.ts`, `evalAssignRun.ts`, `evalAssignStats.ts` + test |
-| 15 | Quét 9801–9820 → chốt `d` (một commit hằng số) → chạy xác nhận 4001–4020 → báo cáo | mới `scripts/evalDeclared*.ts`, `backend/eval-declared-result.md` |
+| **15** | Quét 9801–9820 → chốt `d` (một commit hằng số) → chạy xác nhận 4001–4020 → báo cáo | mới `scripts/evalDeclared*.ts`, `backend/eval-declared-result.md` |
 | 16 | CSDL + kho dữ liệu + service: migration, nâng cấp trọng số khi đọc, `AssignRun` v2, nạp hồ sơ vào chấm | `schema.prisma`, migration mới, `assign.repo.ts`, `assign.service.ts` + test API |
 | 17 | API hồ sơ + CV: lưu tệp riêng tư, trích chữ, quyền tải, xoá, xoá theo tài khoản | `config/upload.ts`, route/controller/service mới, `app.ts` + test |
 | 18 | Giao diện | `ProfilePage.tsx`, `AssignWeightsPanel.tsx`, `lib/assignWeights.ts`, `lib/assignLabels.ts`, `AssignSuggestPanel.tsx`, `AssignPlanModal.tsx`, `types/assign.ts`, `lib/api/*` + test |
@@ -2517,3 +2517,54 @@ và giữ nguyên cụm cũ; overlap = 1 / 0 → cụm từ thẻ / từ bộ ri
 Cài lỗi **21/21** bị bắt lần đầu.
 
 **Tiếp theo**: bước 15 — quét `d` trên 9801–9820 theo luật đăng ký trước, chốt hằng số, chạy xác nhận một lần trên 4001–4020, báo cáo.
+
+### Đã xong — Bước 15: đánh giá thành phần Hồ sơ — chọn `d` (dev) + xác nhận một lần (27–28/09/2026)
+
+**Kế hoạch**: `evalDeclaredRun.ts` (lõi thuần), `evalDeclaredReport.ts` (bảng), `evalDeclared.ts` (CLI hai pha `dev` / `confirm`) + test;
+chạy dev 9801–9820 → chọn `d` theo luật §17.10 → (nếu khác 0,20 thì commit hằng số trước) → chạy xác nhận **một lần** 4001–4020.
+Không có lệnh `npm run` riêng (tránh đụng `package.json` đang có dòng dở của phiên khác): `npx tsx src/scripts/evalDeclared.ts
+--phase=dev|confirm --out=…`. Báo cáo: `backend/eval-declared-dev.md`, **`backend/eval-declared-result.md`** (JSON thô không commit).
+
+**Lỗ hổng trong luật đăng ký trước — phát hiện và chốt cách đọc TRƯỚC khi chạy dev 20 hạt giống**: luật ghi "`d` nhỏ nhất có W2 trong
+0,002 của giá trị tốt nhất **và** W1 không kém `d = 0` quá 0,005". Chạy thử 2 hạt giống lộ ra: nếu "tốt nhất" lấy trên mọi `d` thì hai
+điều kiện có thể **không có giao** (các `d` tốt nhất ở W2 đều kém ở W1, còn `d = 0` xa W2 tốt nhất) — tôi cũng đã viết sai chú thích "d = 0
+luôn thoả". Cách đọc chốt: (1) chỉ giữ các `d` qua điều kiện W1 (luôn có `d = 0`); (2) lấy W2 tốt nhất trong tập đó; (3) chọn `d` nhỏ
+nhất trong 0,002 của giá trị đó. Ở 20 hạt giống dev điều này **không ảnh hưởng**: 0,20 vừa là W2 tốt nhất trên mọi `d` vừa qua W1.
+
+**Pha dev (9801–9820)**: W2 cao nhất ở `d` = 0,20 (0,442 so với 0,417 của `d` = 0); mọi `d` ≤ 0,30 qua điều kiện W1; `d` = 0,40 kém W1
+0,009 → loại. **Chọn `d` = 0,20** — trùng giá trị tạm của bước 11, nên **không có commit đổi hằng số**.
+
+**Pha xác nhận (4001–4020, chạy một lần, không chỉnh gì sau khi thấy số)** — kết quả chính (bảng đầy đủ ở `eval-declared-result.md`):
+
+| # | So sánh | Chênh lệch [KTC 95%] | Tiêu chí | Kết quả |
+|---|---|---|---|---|
+| P1 | đầy đủ-4 − đầy đủ-3, W1 | +0,009 [−0,007; +0,023] | cận dưới > −0,005 | **KHÔNG ĐẠT** |
+| P2 | đầy đủ-4 − đầy đủ-3, W2 nhóm mới | +0,006 [−0,017; +0,028] | > 0 | **KHÔNG ĐẠT** |
+| P3 | đầy đủ-4 − đầy đủ-3, W3 quyết định lạnh | +0,012 [−0,022; +0,045] | > 0 | **KHÔNG ĐẠT** |
+| P4 | chỉ-Hồ-sơ − ngẫu nhiên, W2 | +0,020 [+0,001; +0,041] | > 0 | **ĐẠT** |
+
+**Đọc kết quả — trung thực, không tô vẽ**:
+- **1/4 đạt.** Hồ sơ tự khai **có mang tín hiệu** (P4: dùng riêng nó vẫn hơn ngẫu nhiên), nhưng ở mức trung thực mặc định (30% không khai,
+  15% khai quá / thiếu, một nửa cụm dùng từ không khớp thẻ) việc **thêm** nó vào bộ chấm **chưa đo được là có lợi** — ước lượng điểm đều
+  dương (+0,006 … +0,012) nhưng khoảng tin cậy chứa 0; và P1 "không kém hơn" cũng **không chứng minh được** (cận dưới −0,007 vượt biên
+  −0,005 đã đăng ký). Không được viết "Hồ sơ cải thiện phân công" trong luận văn; được viết "chưa phân biệt được; có xu hướng dương; chỉ có
+  lợi rõ khi mọi người đều khai".
+- **Đường cong**: lợi ích rõ **chỉ khi ai cũng khai** (`pNone` = 0: +0,016 [+0,006; +0,027] ở W1, **+0,035 [+0,017; +0,053]** ở W2);
+  khai quá làm lợi ích biến mất (hoà vốn ở `pOver` ≈ 0,5 cho W1, ≈ 0,3 cho W2); từ khai càng trùng từ thẻ càng tốt (overlap 0,1 ở W2:
+  −0,014, chưa phân biệt được).
+- **Một người cố tình khai mọi chủ đề** (người yếu nhất): nhận **thêm việc** (17% → 24% ở W1, 20% → 29% ở W2) và kéo P(đúng hạn) cả nhóm
+  xuống **−0,011 [−0,019; −0,003]** ở W1 (W2: −0,006, chưa phân biệt được) — rủi ro thật của tự khai, phải nêu trong chương.
+- **DROP / NEUTRAL / ZERO** cho người không khai: không phân biệt được ở cả hai thế giới (chênh ≤ 0,007, KTC chứa 0); giữ NEUTRAL (lý do
+  thiết kế §17.5, không phải số liệu).
+- Vì luật chọn `d` đã chốt trước và pha xác nhận không được dùng để chỉnh, **mặc định sản phẩm giữ `d` = 0,20**; nhóm có thể tự chỉnh / tự
+  học trọng số Hồ sơ. Đây là quyết định đáng nêu với GVHD: lựa chọn khác trung thực không kém là để Hồ sơ ở mức sàn 0,05 cho tới khi có số
+  liệu thật — **chưa tự đổi** (ngoài luật đã đăng ký).
+- **Chưa làm** (khác đăng ký): "max" so với "trung bình 2 mục cao nhất"; học trọng số với trưởng nhóm giả tin / không tin hồ sơ; Gini lớp 2
+  để bước 19.
+
+**Kiểm chứng**: suite backend 89 tệp / 1060 test xanh, `tsc` + `eslint` sạch; test mới `assign.evaldeclared.test.ts` (18 ca: hằng số đăng ký; `familyWeights`; `chooseD` tính tay — bình
+thường, W2 tốt nhất bị loại vì W1, chỉ `d = 0`, biên ± 1e−9 của cả hai ngưỡng, trung bình theo hạt giống, lỗi; `coldCards` biên 2/3;
+`primary`; chạy thật 2 hạt giống thử: đầy đủ-3 không phụ thuộc hồ sơ, 4 so sánh đúng cặp nhánh/thế giới, tối ưu không thua nhánh nào, W3 đo
+trên cùng thẻ; đường cong; người yếu nhất; DROP/NEUTRAL/ZERO; báo cáo neo đúng ô). Cài lỗi 25 phép: lần đầu **19/25** — 6 lỗ hổng test thật (hai ngưỡng của luật chọn `d` chưa có ca ĐÚNG BẰNG ngưỡng — ca ±1e−9 không thay được; tiêu chí "đạt" chưa có ca cận dưới đúng bằng ngưỡng; W3 mới kiểm phía đầy đủ-3; DROP / ZERO chưa kiểm; trọng số từng nhánh chưa kiểm) → vá, cả 6 bị bắt → **25/25**. Ca "W3 đo trên thẻ lạnh của chính nhánh" lúc đầu vẫn lọt vì ở hạt giống 9901 hai tập thẻ lạnh tình cờ cho cùng trung bình → kiểm cả hai hạt giống và đòi ít nhất một hạt giống phân biệt.
+
+**Tiếp theo**: bước 16 — CSDL (`wDeclared`, bảng `UserAssignProfile`) + nâng cấp trọng số cũ khi đọc + dịch vụ nạp hồ sơ vào bộ chấm.

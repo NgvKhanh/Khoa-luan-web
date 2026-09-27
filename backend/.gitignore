@@ -17,3 +17,6 @@ node_modules
 
 # Du lieu tho khi chay danh gia lop 2 (npm run eval:plan); bao cao .md thi COMMIT
 /eval-plan-*.json
+
+# Du lieu tho khi chay danh gia thanh phan Ho so (src/scripts/evalDeclared.ts); bao cao .md thi COMMIT
+/eval-declared-*.json
