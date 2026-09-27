@@ -30,7 +30,7 @@ import {
   type World,
 } from './assignFixtures';
 
-type Feat = [number, number, number] | null;
+type Feat = [number | null, number | null, number | null] | null;
 interface CraftCand {
   userId: string;
   score: number | null;
@@ -186,6 +186,22 @@ describe('POST outcome - hoc trong so (muc 2)', () => {
     expect(await prisma.assignRun.count({ where: { learned: true } })).toBe(0);
     // accepted chi dung khi nguoi duoc chon == nguoi xep dau (kem NO_TOP: top null -> false)
     expect((await prisma.assignRun.findMany({ where: { decidedAt: { not: null } } })).every((r) => r.accepted === false)).toBe(true);
+  });
+
+  it('buoc 13 (§17.7) o CSDL that: nguoi duoc chon THIEU tin cay -> van hoc tren kinh nghiem + kha dung; tin cay giu nguyen', async () => {
+    const { w, target } = await learnWorld();
+    await prisma.workspaceAssignWeights.create({ data: { workspaceId: w.wsId, feedbackCount: 12 } }); // mac dinh 0,45 / 0,30 / 0,25
+    const runId = await craftRun(w, target.id, w.alice.id, [
+      { userId: w.alice.id, score: 60, f: [1, 0.5, 0] },
+      { userId: w.bob.id, score: 40, f: [0, null, 1] },
+    ]);
+    const res = await postOutcome(w.owner, runId, { chosenUserId: w.bob.id });
+    expect(res.body.data.learning).toEqual({ learned: true, reason: 'LEARNED' });
+    // S = {kinh nghiem, kha dung}, khoi 1 - 0,30: (0,45 - 0,05; 0,25 + 0,05) = (0,40; 0,30) - tin cay 0,30 khong doi
+    expect(closeTo(wApi(res.body.data.weights), [0.4, 0.3, 0.3])).toBe(true);
+    const row = await rowOf(w.wsId);
+    expect(row.wReliability).toBe(0.3);
+    expect(closeTo(wOf(row), [0.4, 0.3, 0.3])).toBe(true);
   });
 
   it('PHEP CHIEU o CSDL that: (0,70; 0,25; 0,05) + 0,05 * (+1; 0; +1) -> (0,70; 0,225; 0,075) (kep-roi-chuan-hoa se ra (0,667; 0,238; 0,095), sai bat bien)', async () => {

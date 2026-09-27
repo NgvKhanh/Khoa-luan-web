@@ -260,10 +260,17 @@ describe('learningArm - dung luat hoc cua san pham', () => {
     feed(arm, 3, [tieTop, tieOther], 'OTHER');
     expect(arm.stats().learned).toBe(0); // TIE: nguoi xep dau chi hon nho tie-break
 
-    const missing = cand('OTHER', 40, c(null), c(0.3), c(0.9));
+    // Chi con MOT thanh phan chung (kha dung) -> MISSING_COMPONENT (§17.7: can it nhat 2)
+    const missing = cand('OTHER', 40, c(null), c(null), c(0.9));
     arm = learningArm({ minFeedback: 1 });
     feed(arm, 3, [TOP, missing], 'OTHER');
     expect(arm.stats().learned).toBe(0); // MISSING_COMPONENT
+    // Hai thanh phan chung (tin cay + kha dung) thi VAN hoc (buoc 13) - kinh nghiem giu nguyen
+    const twoShared = cand('OTHER', 40, c(null), c(0.3), c(0.9));
+    arm = learningArm({ minFeedback: 1 });
+    feed(arm, 1, [TOP, twoShared], 'OTHER');
+    expect(arm.stats().learned).toBe(1);
+    expect(arm.weights!().experience).toBe(LEGACY_WEIGHTS_V1.experience);
 
     const noScoreTop = cand('TOP', null, c(0.9), c(0.9), c(0.1));
     arm = learningArm({ minFeedback: 1 });

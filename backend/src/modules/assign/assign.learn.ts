@@ -1,9 +1,9 @@
-// Hoc trong so cua nhom (muc 2) - ASSIGN_MODULE.md §8. HAM THUAN: khong Prisma, khong doc dong ho.
+// Hoc trong so cua nhom (muc 2) - ASSIGN_MODULE.md §8, §17.7. HAM THUAN: khong Prisma, khong doc dong ho.
 //
 // Perceptron xep hang theo cap (cung ho voi RankNet), hoc truc tuyen tung luot phan hoi:
 // module xep `a` dung dau nhung nguoi dung giao cho `b` -> keo trong so ve phia cac thanh phan `b` hon `a`:
 //     w <- chieu( w + eta * (x_b - x_a) )
-// `x` la ba gia tri DUNG DE CONG (`scaled`, da chuan hoa trong nhom o buoc 4b) - chinh la thu tao ra diem, nen
+// `x` la cac gia tri DUNG DE CONG (`scaled`, da chuan hoa trong nhom o buoc 4b) - chinh la thu tao ra diem, nen
 // buoc cap nhat di dung huong voi cai da xep sai. Gia tri tho (`value`) khong dung: no khong quyet dinh hang.
 //
 // CHIEU thay vi "kep roi chuan hoa" (§8 ghi ban dau): kep tung so vao [0,05; 0,70] roi chia cho tong CO THE lam
@@ -11,40 +11,60 @@
 // DIEM HOP LE GAN NHAT (tong dung, moi so trong khoang) nen luon dung bat bien; cung y do, chinh xac hon. Phep chieu nam o
 // assign.weights.ts (projectOnto / projectWithin).
 //
-// BUOC 11 (§17.7): bo trong so co bon khoa nhung bo hoc CHI chinh ba thanh phan tu lich su, trong dung "khoi" cua chung
-// (1 - trong so Ho so); trong so Ho so giu nguyen. Voi Ho so = 0 (bo trong so dang luu, LEGACY_WEIGHTS_V1) ket qua trung tung bit
-// voi truoc buoc 11. Luat day du "hoc tren cac thanh phan ca hai nguoi deu co" la buoc 13.
+// HOC TREN THANH PHAN CHUNG (buoc 13, §17.7): S = cac thanh phan ma CA HAI nguoi (xep dau va duoc chon) deu co GIA TRI THAT
+// (`value` khac null - khong hoc tu gia tri duoc dien bang NEUTRAL). |S| < 2 -> MISSING_COMPONENT (mot chieu thi khong co ti le
+// nao de chinh). Chi cap nhat trong S roi chieu, giu nguyen TONG KHOI cua S; trong so ngoai S giu nguyen (chieu ca bo se keo ca
+// chung di mot luong tau ma khong co bang chung nao ve chung). S du bon = luat cu mo rong; chot chan cu "du ca ba thanh phan" voi
+// bon thanh phan se gan nhu tat viec hoc.
 
-import type { Weights } from './assign.score';
-import { LEGACY_KEYS, projectWithin, sameWeights, type LegacyKey } from './assign.weights';
+import { COMPONENT_KEYS, type ComponentKey, type Weights } from './assign.score';
+import { projectWithin, sameWeights } from './assign.weights';
 
 /** Toc do hoc (§5.8). */
 export const LEARN_ETA = 0.05;
 /** Chi bat dau HOC tu luot phan hoi thu nay tro di; truoc do chi ghi nhan (muc 1) - §8 chot chan 1. */
 export const LEARN_MIN_FEEDBACK = 10;
+/** So thanh phan CHUNG toi thieu de hoc (§17.7). */
+export const LEARN_MIN_SHARED = 2;
 
-/** Ba thanh phan tu lich su cua mot ung vien - cac thanh phan bo hoc chinh o buoc 11. */
-export type Features = Readonly<Record<LegacyKey, number>>;
+/** Cac thanh phan CO GIA TRI THAT cua mot ung vien (gia tri `scaled`); khoa vang = thieu du lieu. */
+export type Features = Readonly<Partial<Record<ComponentKey, number>>>;
+
+const isNum = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
+
+/** S (§17.7): cac thanh phan ca hai deu co, theo thu tu COMPONENT_KEYS. */
+export function sharedComponents(a: Features, b: Features): ComponentKey[] {
+  return COMPONENT_KEYS.filter((k) => isNum(a[k]) && isNum(b[k]));
+}
 
 /**
- * Mot buoc cap nhat: keo trong so ve phia thanh phan nguoi duoc chon (`chosen`) hon nguoi xep dau (`top`), chi tren ba thanh phan tu
- * lich su, roi chieu ba so do len {tong = 1 - Ho so, moi so trong khoang}. Ho so khong doi.
+ * Mot buoc cap nhat tren S = sharedComponents(top, chosen): keo trong so ve phia thanh phan nguoi duoc chon (`chosen`) hon nguoi xep
+ * dau (`top`), roi chieu cac so trong S len {tong = tong cu cua S, moi so trong khoang}. Ngoai S khong doi.
  */
 export function learnStep(w: Weights, top: Features, chosen: Features, eta: number = LEARN_ETA): Weights {
   if (!Number.isFinite(eta) || eta <= 0) throw new RangeError('eta phai la so huu han > 0');
-  const raw: Weights = { ...w };
-  for (const k of LEGACY_KEYS) {
-    const d = chosen[k] - top[k];
-    if (!Number.isFinite(w[k]) || !Number.isFinite(d)) throw new RangeError(`gia tri ${k} khong hop le`);
-    raw[k] = w[k] + eta * d;
+  // Khoa CO MAT ma khong phai so huu han la loi cua nguoi goi (khong am tham coi la thieu)
+  for (const k of COMPONENT_KEYS) {
+    if ((top[k] !== undefined && !isNum(top[k])) || (chosen[k] !== undefined && !isNum(chosen[k]))) {
+      throw new RangeError(`gia tri ${k} khong hop le`);
+    }
   }
-  return projectWithin(raw, LEGACY_KEYS);
+  const keys = sharedComponents(top, chosen);
+  if (keys.length < LEARN_MIN_SHARED) {
+    throw new RangeError(`can it nhat ${LEARN_MIN_SHARED} thanh phan chung de hoc (co ${keys.length})`);
+  }
+  const raw: Weights = { ...w };
+  for (const k of keys) {
+    if (!Number.isFinite(w[k])) throw new RangeError(`gia tri ${k} khong hop le`);
+    raw[k] = w[k] + eta * (chosen[k]! - top[k]!);
+  }
+  return projectWithin(raw, keys);
 }
 
 export interface LearnCandidate {
   userId: string;
   score: number | null;
-  /** null = thieu it nhat mot trong ba thanh phan (chua co du lieu that) -> khong hoc tu so sanh nay (§8 chot chan 3). */
+  /** Cac thanh phan co gia tri that; null = nhat ky hong (khong co thanh phan nao). Hoc tren phan CHUNG voi nguoi kia (§17.7). */
   features: Features | null;
 }
 
@@ -78,8 +98,8 @@ export interface LearnInput {
  * Luot phan hoi nay co duoc dung de hoc khong, va neu co thi trong so moi la gi. Thu tu kiem tra (co dinh, dung de
  * bao "vi sao khong hoc"):
  *  NO_TOP -> ACCEPTED (giao dung nguoi xep dau: khong co loi de sua) -> TOO_EARLY (chua du luot) ->
- *  NOT_CANDIDATE (nguoi duoc chon khong nam trong danh sach da cham) -> MISSING_COMPONENT (mot trong hai thieu
- *  thanh phan) -> TIE (diem khong lon hon han: nguoi xep dau chi hon nho tie-break) -> NO_CHANGE (chieu xong
+ *  NOT_CANDIDATE (nguoi duoc chon khong nam trong danh sach da cham) -> MISSING_COMPONENT (mot trong hai khong co diem,
+ *  hoac hai nguoi co CHUNG it hon 2 thanh phan) -> TIE (diem khong lon hon han: nguoi xep dau chi hon nho tie-break) -> NO_CHANGE (chieu xong
  *  van khong doi) -> LEARNED.
  */
 export function learningDecision(input: LearnInput): LearnDecision {
@@ -95,6 +115,9 @@ export function learningDecision(input: LearnInput): LearnDecision {
   if (!top.features || !chosen.features || top.score === null || chosen.score === null) {
     return { learn: false, reason: 'MISSING_COMPONENT' };
   }
+  if (sharedComponents(top.features, chosen.features).length < LEARN_MIN_SHARED) {
+    return { learn: false, reason: 'MISSING_COMPONENT' };
+  }
   if (!(top.score > chosen.score)) return { learn: false, reason: 'TIE' };
 
   const next = learnStep(weights, top.features, chosen.features, input.eta);
@@ -102,35 +125,40 @@ export function learningDecision(input: LearnInput): LearnDecision {
   return { learn: true, reason: 'LEARNED', next };
 }
 
-const isNum = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
+export interface ParseOptions {
+  /**
+   * CHI DE DO (§17.7 "nhanh do them"): lay ca gia tri da DIEN bang NEUTRAL (`value` null nhung `scaled` co). San pham khong bat:
+   * gia tri dien la "trung binh nhom", khong phai bang chung ve nguoi do.
+   */
+  includeFilled?: boolean;
+}
 
-function featuresOf(components: unknown): Features | null {
+/** Cac thanh phan co gia tri dung de cong (`scaled`) VA gia tri that (`value`, tru khi includeFilled). Thanh phan vang / hong: bo qua. */
+function featuresOf(components: unknown, includeFilled: boolean): Features | null {
   if (typeof components !== 'object' || components === null) return null;
   const record = components as Record<string, unknown>;
-  const out = {} as Record<LegacyKey, number>;
-  for (const k of LEGACY_KEYS) {
+  const out: Partial<Record<ComponentKey, number>> = {};
+  for (const k of COMPONENT_KEYS) {
     const c = record[k];
-    if (typeof c !== 'object' || c === null) return null;
+    if (typeof c !== 'object' || c === null) continue;
     const { value, scaled } = c as Record<string, unknown>;
-    // Du ca hai: co gia tri that (value) VA gia tri dung de cong (scaled)
-    if (!isNum(value) || !isNum(scaled)) return null;
-    out[k] = scaled;
+    if (isNum(scaled) && (includeFilled || isNum(value))) out[k] = scaled;
   }
   return out;
 }
 
 /**
  * Doc lai danh sach ung vien da luu trong AssignRun.candidates (JSON). Dong hong bi bo, khong nem loi: mot luot
- * nhat ky hong chi mat co hoi hoc cua rieng no.
+ * nhat ky hong chi mat co hoi hoc cua rieng no. JSON cu (ba thanh phan, truoc buoc 12) doc duoc: Ho so vang -> roi khoi S.
  */
-export function parseRunCandidates(json: unknown): LearnCandidate[] {
+export function parseRunCandidates(json: unknown, opts: ParseOptions = {}): LearnCandidate[] {
   if (!Array.isArray(json)) return [];
   const out: LearnCandidate[] = [];
   for (const raw of json) {
     if (typeof raw !== 'object' || raw === null) continue;
     const c = raw as Record<string, unknown>;
     if (typeof c.userId !== 'string') continue;
-    out.push({ userId: c.userId, score: isNum(c.score) ? c.score : null, features: featuresOf(c.components) });
+    out.push({ userId: c.userId, score: isNum(c.score) ? c.score : null, features: featuresOf(c.components, opts.includeFilled ?? false) });
   }
   return out;
 }

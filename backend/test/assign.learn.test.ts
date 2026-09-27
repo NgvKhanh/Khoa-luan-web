@@ -10,9 +10,11 @@ import { describe, expect, it } from 'vitest';
 import {
   LEARN_ETA,
   LEARN_MIN_FEEDBACK,
+  LEARN_MIN_SHARED,
   learnStep,
   learningDecision,
   parseRunCandidates,
+  sharedComponents,
   type Features,
   type LearnCandidate,
   type LearnInput,
@@ -94,6 +96,83 @@ describe('learnStep - mot buoc cap nhat (bo trong so kieu cu: Ho so = 0)', () =>
       expect(legacyWeightIssues(out), JSON.stringify({ w, out })).toEqual([]);
       expect(out.declared).toBe(0);
     }
+  });
+});
+
+describe('buoc 13 (§17.7): hoc tren S = cac thanh phan CA HAI nguoi deu co', () => {
+  it('sharedComponents: theo thu tu co dinh, chi so huu han, can o CA HAI', () => {
+    expect(sharedComponents({ declared: 0.1, experience: 1, availability: 0 }, { availability: 1, declared: 0, reliability: 0.2 })).toEqual(['availability', 'declared']);
+    expect(sharedComponents({ experience: Number.NaN, reliability: 1 }, { experience: 0, reliability: 0 })).toEqual(['reliability']);
+    expect(sharedComponents({}, { experience: 1 })).toEqual([]);
+    expect(LEARN_MIN_SHARED).toBe(2);
+  });
+
+  it('S = 2 (thieu tin cay o mot nguoi): chinh kinh nghiem + kha dung trong khoi 1 - 0,30; tin cay va Ho so KHONG doi (tinh tay)', () => {
+    const out = learnStep(LEGACY_WEIGHTS_V1, { experience: 1, availability: 0 }, { experience: 0, reliability: 0.9, availability: 1 });
+    expect(near(out, W(0.4, 0.3, 0.3, 0))).toBe(true);
+    expect(out.reliability).toBe(0.3);
+  });
+
+  it('S co Ho so: kinh nghiem + Ho so trong khoi 1 - (0,24 + 0,20) = 0,56 (tinh tay)', () => {
+    const out = learnStep(DEFAULT_WEIGHTS, { experience: 1, declared: 0 }, { experience: 0, declared: 1 });
+    expect(near(out, W(0.31, 0.24, 0.2, 0.25))).toBe(true);
+    expect([out.reliability, out.availability]).toEqual([0.24, 0.2]);
+  });
+
+  it('S = 4: luat cu mo rong - (0,36; 0,24; 0,20; 0,20) + 0,05 x (-1; 0; +1; +1) -> tong 1,05 -> tru deu 0,0125 (tinh tay)', () => {
+    const out = learnStep(DEFAULT_WEIGHTS, { experience: 1, reliability: 0.5, availability: 0, declared: 0 }, { experience: 0, reliability: 0.5, availability: 1, declared: 1 });
+    expect(near(out, W(0.2975, 0.2275, 0.2375, 0.2375))).toBe(true);
+  });
+
+  it('|S| < 2 -> learnStep tu choi; learningDecision tra MISSING_COMPONENT (moi nguoi du nhieu thanh phan nhung CHUNG chi 1)', () => {
+    expect(() => learnStep(DEFAULT_WEIGHTS, { availability: 0 }, { availability: 1, experience: 1 })).toThrow(/it nhat 2 thanh phan chung/);
+    const d = learningDecision({
+      weights: DEFAULT_WEIGHTS,
+      feedbackCount: 10,
+      topUserId: 'a',
+      chosenUserId: 'b',
+      candidates: [
+        { userId: 'a', score: 60, features: { experience: 1, reliability: 1, availability: 0 } },
+        { userId: 'b', score: 40, features: { availability: 1, declared: 1 } },
+      ],
+    });
+    expect(d).toEqual({ learn: false, reason: 'MISSING_COMPONENT' });
+  });
+
+  it('gia tri DIEN bang NEUTRAL (value null) khong duoc hoc - tru khi bat includeFilled (chi de do)', () => {
+    const run = [
+      { userId: 'a', score: 60, components: { experience: { value: 0.9, scaled: 1 }, availability: { value: 0.2, scaled: 0 }, declared: { value: null, scaled: 0.5 } } },
+      { userId: 'b', score: 40, components: { experience: { value: 0.1, scaled: 0 }, availability: { value: 1, scaled: 1 }, declared: { value: 0.8, scaled: 1 } } },
+    ];
+    expect(parseRunCandidates(run)[0]!.features).toEqual({ experience: 1, availability: 0 });
+    expect(parseRunCandidates(run, { includeFilled: true })[0]!.features).toEqual({ experience: 1, availability: 0, declared: 0.5 });
+    const base = { weights: DEFAULT_WEIGHTS, feedbackCount: 10, topUserId: 'a', chosenUserId: 'b' };
+    const strict = learningDecision({ ...base, candidates: parseRunCandidates(run) });
+    const filled = learningDecision({ ...base, candidates: parseRunCandidates(run, { includeFilled: true }) });
+    if (!strict.learn || !filled.learn) throw new Error('phai hoc');
+    expect(strict.next.declared).toBe(0.2); // Ho so ngoai S
+    expect(filled.next.declared).toBeGreaterThan(0.2); // Ho so trong S
+  });
+
+  it('3000 tinh huong ngau nhien (S bat ky, >= 2): hop le, ngoai S giu tung bit, tong trong S giu nguyen', () => {
+    const rng = new Rng(1313);
+    const KEYS = ['experience', 'reliability', 'availability', 'declared'] as const;
+    let checked = 0;
+    for (let i = 0; i < 3000; i += 1) {
+      const w = projectWithin(W(rng.range(-1, 2), rng.range(-1, 2), rng.range(-1, 2), rng.range(-1, 2)), WEIGHT_KEYS);
+      const feat = () => Object.fromEntries(KEYS.filter(() => rng.chance(0.75)).map((k) => [k, rng.next()]));
+      const top = feat();
+      const chosen = feat();
+      const S = sharedComponents(top, chosen);
+      if (S.length < 2) continue;
+      const out = learnStep(w, top, chosen, rng.chance(0.3) ? rng.range(0.01, 0.5) : LEARN_ETA);
+      expect(weightIssues(out), JSON.stringify({ w, out })).toEqual([]);
+      for (const k of KEYS) if (!S.includes(k)) expect(out[k]).toBe(w[k]);
+      const sum = (x: Weights) => S.reduce((s, k) => s + x[k], 0);
+      expect(Math.abs(sum(out) - sum(w))).toBeLessThan(1e-9);
+      checked += 1;
+    }
+    expect(checked).toBeGreaterThan(1500);
   });
 });
 
@@ -243,13 +322,20 @@ describe('parseRunCandidates - doc lai AssignRun.candidates', () => {
     expect(parseRunCandidates([withDeclared])[0]!.features).toEqual({ experience: 1, reliability: 0.5, availability: 0 });
   });
 
-  it('thieu MOT thanh phan that (value = null) hoac khong co scaled -> features = null; diem khong so -> null', () => {
+  it('thanh phan thieu gia tri that (value = null, vd dien NEUTRAL) hoac khong co scaled -> CHI thanh phan do vang; khong co components -> null', () => {
     const missingValue = { ...good('a'), components: { ...good('a').components, reliability: comp(null, 0.5) } };
     const missingScaled = { ...good('b'), components: { ...good('b').components, availability: comp(0.4, null) } };
     const noComponent = { userId: 'c', score: 5 };
     const badScore = good('d', null);
     const out = parseRunCandidates([missingValue, missingScaled, noComponent, badScore]);
-    expect(out.map((c) => [c.userId, c.features === null])).toEqual([['a', true], ['b', true], ['c', true], ['d', false]]);
+    expect(out.map((c) => [c.userId, c.features])).toEqual([
+      ['a', { experience: 1, availability: 0 }],
+      ['b', { experience: 1, reliability: 0.5 }],
+      ['c', null],
+      ['d', { experience: 1, reliability: 0.5, availability: 0 }],
+    ]);
+    // Thanh phan hong (khong phai doi tuong) cung chi vang rieng no
+    expect(parseRunCandidates([{ ...good('e'), components: { ...good('e').components, experience: 'x' } }])[0]!.features).toEqual({ reliability: 0.5, availability: 0 });
     expect(out[3]!.score).toBeNull();
     expect(parseRunCandidates([{ ...good('e'), score: 'cao' }])[0]!.score).toBeNull();
     expect(parseRunCandidates([{ ...good('f'), score: Number.NaN }])[0]!.score).toBeNull();

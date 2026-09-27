@@ -1241,7 +1241,7 @@ băng đầu vào; mục chỉ gồm từ ngoài kho → `declared = 0`, không 
 | **10** | Tài liệu: mục này + sửa §1–§6, §8–§10, §12–§16 | `ASSIGN_MODULE.md` |
 | **11** | Trọng số 4 khoá (thuần): `Weights.declared`, `projectOnto`, `LEGACY_WEIGHTS_V1`, `upgradeLegacyWeights`, ghim nhánh đánh giá cũ | `assign.weights.ts`, `assign.learn.ts`, `assign.score.ts`, `scripts/evalAssign*.ts`, `showSuggestions.ts` + test |
 | **12** | Thành phần Hồ sơ (thuần): mục khai, `vectorizeKnown`, max-cosine, `declaredEvidence`, `NO_PROFILE`, thiếu dữ liệu theo thành phần | `assign.score.ts`, `assign.tfidf.ts`, mới `assign.declared.ts` + test |
-| 13 | Luật học trên thành phần chung; JSON cũ vẫn đọc được | `assign.learn.ts` + test |
+| **13** | Luật học trên thành phần chung; JSON cũ vẫn đọc được | `assign.learn.ts` + test |
 | 14 | Mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy (W2, hồ sơ trong `snapshotAsOf`) | mới `scripts/simDeclared.ts`, `simReplay.ts`, `evalAssignRun.ts`, `evalAssignStats.ts` + test |
 | 15 | Quét 9801–9820 → chốt `d` (một commit hằng số) → chạy xác nhận 4001–4020 → báo cáo | mới `scripts/evalDeclared*.ts`, `backend/eval-declared-result.md` |
 | 16 | CSDL + kho dữ liệu + service: migration, nâng cấp trọng số khi đọc, `AssignRun` v2, nạp hồ sơ vào chấm | `schema.prisma`, migration mới, `assign.repo.ts`, `assign.service.ts` + test API |
@@ -2465,3 +2465,24 @@ chia việc không lộ thành phần thứ 4 / `NO_PROFILE` / `declaredEvidence
   cách đúng và cách sai.
 
 **Tiếp theo**: bước 13 — luật học trên các thành phần chung (user đã cho làm liền 12→19 không cần hỏi).
+
+### Đã xong — Bước 13: học trọng số trên các thành phần chung (27/09/2026)
+
+**Kế hoạch (làm liền, user cho phép không hỏi)**: `assign.learn.ts` theo §17.7 + test; kiểm số liệu học cũ.
+
+**Đã làm**: `sharedComponents(a, b)` = S, các thành phần **cả hai** người (xếp đầu, được chọn) đều có giá trị thật; `|S| < 2` →
+`MISSING_COMPONENT` (`LEARN_MIN_SHARED = 2`); `learnStep` chỉ cập nhật trong S rồi `projectWithin(raw, S)` (giữ tổng khối của S; ngoài S
+giữ **từng bit**); đặc trưng có mặt mà không phải số hữu hạn vẫn là lỗi của người gọi (không âm thầm coi là thiếu).
+`parseRunCandidates` đọc thành phần nào **có** thì lấy (trước: thiếu một → cả người `null`), JSON cũ 3 thành phần học được (Hồ sơ vắng →
+rơi khỏi S); tuỳ chọn `includeFilled` (**chỉ để đo**, §17.7 "nhánh đo thêm") lấy cả giá trị điền bằng NEUTRAL. Thứ tự lý do giữ nguyên.
+
+**Đổi hành vi sản phẩm (đúng §17.7 đã duyệt)**: trước cần đủ 3 thành phần mới học; nay 2 thành phần chung là đủ. Trong sản phẩm hiện tại
+(dịch vụ ghim Hồ sơ = 0, nhật ký 3 thành phần) chỉ khác khi một người thiếu **tin cậy** mà vẫn có kinh nghiệm — tức nhóm chưa có thẻ nào có
+hạn (`muy` = null); người chưa có lịch sử thiếu cả kinh nghiệm lẫn tin cậy nên |S| = 1 như cũ. **Số liệu học của bước 7b không đổi**: phép
+chụp trước/sau (2 gu × 2 hạt giống + nhánh học tự giao) trùng từng byte — trong mô phỏng từ ngày 60 `muy` luôn có.
+
+**Kiểm chứng**: suite backend 87 tệp / 1027 test xanh, `tsc` + `eslint` sạch; test mới trong `assign.learn.test.ts` (S tính tay với 2 / "có Hồ sơ" / 4 thành phần; |S| < 2; giá trị NEUTRAL
+không được học trừ khi bật `includeFilled`; 3000 tình huống: hợp lệ, ngoài S giữ từng bit, tổng S giữ nguyên) + một ca ở CSDL thật
+(`assign.learning.test.ts`: người được chọn thiếu tin cậy → vẫn học, tin cậy trong CSDL giữ 0,30). Cài lỗi **11/11** bị bắt ngay lần đầu.
+
+**Tiếp theo**: bước 14 — mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy.
