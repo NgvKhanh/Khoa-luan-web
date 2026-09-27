@@ -419,7 +419,7 @@ describe('Buoc 4 - diem tong va do tin cay (§5.7)', () => {
     const legacy = scoreCandidate(CARD, c, ctx({ weights: LEGACY_WEIGHTS_V1 }));
     expect(legacy.score).toBeCloseTo(53.75, 12);
     expect(legacy.components.experience).toMatchObject({ weight: 0.45, share: 0.45 });
-    expect(r.flags).toEqual([]);
+    expect(r.flags).toEqual(['NO_PROFILE']); // khong khai ho so (buoc 12)
 
     // Trong so tuy chinh (khong can tong 1): 1 / 0 / 1 -> trung binh cua kinh nghiem va kha dung
     const w: Weights = { experience: 1, reliability: 0, availability: 1, declared: 0 };
@@ -430,7 +430,7 @@ describe('Buoc 4 - diem tong va do tin cay (§5.7)', () => {
 
   it('thieu du lieu: NO_HISTORY -> chi con kha dung; NO_DATA khi khong thanh phan co trong so nao; diem khong bi keo xuong', () => {
     const noHist = scoreCandidate(CARD, cand('u', [], [open('o', null, null), open('p', null, null)]), ctx());
-    expect(noHist.flags).toEqual(['NO_HISTORY']);
+    expect(noHist.flags).toEqual(['NO_HISTORY', 'NO_PROFILE']);
     expect(noHist.components.experience.value).toBeNull();
     expect(noHist.components.reliability.value).toBeNull();
     expect(noHist.components.availability.share).toBe(1);
@@ -442,7 +442,7 @@ describe('Buoc 4 - diem tong va do tin cay (§5.7)', () => {
     // NO_DATA: cac thanh phan co du lieu deu co trong so 0
     const nd = scoreCandidate(CARD, cand('u'), ctx({ weights: { experience: 1, reliability: 1, availability: 0, declared: 0 } }));
     expect(nd.score).toBeNull();
-    expect(nd.flags).toEqual(['NO_HISTORY', 'NO_DATA']);
+    expect(nd.flags).toEqual(['NO_HISTORY', 'NO_PROFILE', 'NO_DATA']);
     // ...nhung cung nguoi do co lich su thi co diem
     const withHist = scoreCandidate(CARD, cand('u', [hist('a', 'alpha', 0)]), ctx({ weights: { experience: 1, reliability: 1, availability: 0, declared: 0 } }));
     expect(withHist.score).not.toBeNull();
@@ -720,8 +720,8 @@ describe('Buoc 4 - tinh chat tren 300 tinh huong ngau nhien (hat giong co dinh)'
 
 describe('Buoc 4 - chot chan kien truc va kiem tra nhanh tren du lieu mo phong', () => {
   it('cac tep loi chi import lan nhau va ai.rules: khong Prisma, khong cau hinh, khong simGenerator/simVocab/scripts', () => {
-    const pure = ['assign.text', 'assign.tfidf', 'assign.profile', 'assign.score'];
-    const allowed = new Set(['./assign.text', './assign.tfidf', './assign.profile', '../ai/ai.rules']);
+    const pure = ['assign.text', 'assign.tfidf', 'assign.profile', 'assign.declared', 'assign.score'];
+    const allowed = new Set(['./assign.text', './assign.tfidf', './assign.profile', './assign.declared', '../ai/ai.rules']);
     let imports = 0;
     for (const f of pure) {
       const src = readFileSync(`src/modules/assign/${f}.ts`, 'utf8');

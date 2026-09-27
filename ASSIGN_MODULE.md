@@ -1240,7 +1240,7 @@ băng đầu vào; mục chỉ gồm từ ngoài kho → `declared = 0`, không 
 |---|---|---|
 | **10** | Tài liệu: mục này + sửa §1–§6, §8–§10, §12–§16 | `ASSIGN_MODULE.md` |
 | **11** | Trọng số 4 khoá (thuần): `Weights.declared`, `projectOnto`, `LEGACY_WEIGHTS_V1`, `upgradeLegacyWeights`, ghim nhánh đánh giá cũ | `assign.weights.ts`, `assign.learn.ts`, `assign.score.ts`, `scripts/evalAssign*.ts`, `showSuggestions.ts` + test |
-| 12 | Thành phần Hồ sơ (thuần): mục khai, `vectorizeKnown`, max-cosine, `declaredEvidence`, `NO_PROFILE`, thiếu dữ liệu theo thành phần | `assign.score.ts`, `assign.tfidf.ts`, mới `assign.declared.ts` + test |
+| **12** | Thành phần Hồ sơ (thuần): mục khai, `vectorizeKnown`, max-cosine, `declaredEvidence`, `NO_PROFILE`, thiếu dữ liệu theo thành phần | `assign.score.ts`, `assign.tfidf.ts`, mới `assign.declared.ts` + test |
 | 13 | Luật học trên thành phần chung; JSON cũ vẫn đọc được | `assign.learn.ts` + test |
 | 14 | Mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy (W2, hồ sơ trong `snapshotAsOf`) | mới `scripts/simDeclared.ts`, `simReplay.ts`, `evalAssignRun.ts`, `evalAssignStats.ts` + test |
 | 15 | Quét 9801–9820 → chốt `d` (một commit hằng số) → chạy xác nhận 4001–4020 → báo cáo | mới `scripts/evalDeclared*.ts`, `backend/eval-declared-result.md` |
@@ -2415,7 +2415,8 @@ từng bit số thực. Xếp hạng thì không đổi (test mới: mặc đị
 - Cài lỗi: 69 phép (trọng số 36, bộ chấm 5, bộ học 3, dịch vụ / repo / schema 12, script đánh giá 13) — **67 bị bắt, 2 tương
   đương**: dịch vụ chấm (gợi ý một thẻ và chia việc) với Hồ sơ = 0,2 thay vì 0. Tương đương **thật** ở bước 11 vì thành phần Hồ sơ chưa
   tồn tại nên trọng số của nó không vào phép cộng (mẫu số vẫn 0,45 + 0,30 + 0,25 = 1, trùng từng bit) — chính là bất biến đã có test.
-  **Bước 12 phải thêm test** để hai phép này bị bắt (khi đó Hồ sơ được điền NEUTRAL nên trọng số của nó vào mẫu số). Một phép lọt khác
+  (Sửa ở bước 12: tôi từng ghi "bước 12 phải thêm test để hai phép này bị bắt" — **sai**: dịch vụ chỉ nạp hồ sơ ở bước 16, và bước
+  16 cũng gỡ luôn `pinLegacy`, nên hai phép này tương đương suốt đời của đoạn mã tạm; không bước nào bắt được.) Một phép lọt khác
   là do **tôi viết sai phép cài lỗi** (thêm `declared` vào đầu vào của `legacyWeightIssues` — hàm này vốn bỏ qua khoá đó); đã thay bằng
   hai phép đúng nghĩa (schema dùng nhầm bộ kiểm 4 khoá / bỏ kiểm) — cả hai bị bắt. Chạy khô trước: mọi mẫu khớp đúng 1 chỗ; mã nguồn
   nguyên vẹn sau mỗi nhóm.
@@ -2423,3 +2424,44 @@ từng bit số thực. Xếp hạng thì không đổi (test mới: mặc đị
 **Tiếp theo**: bước 12 — thành phần Hồ sơ (hàm thuần: mục khai, `vectorizeKnown`, max-cosine, `declaredEvidence`, `NO_PROFILE`, thiếu dữ
 liệu theo thành phần); chỉ bắt đầu khi bạn nói "làm bước 12 đi" (liệt kê tệp trước). Vẫn treo: báo GVHD trước bước 16; DROP/NEUTRAL;
 phạt 10 điểm/thẻ ở lớp 2.
+
+### Đã xong — Bước 12: thành phần Hồ sơ (hàm thuần) (27/09/2026)
+
+**Sản phẩm vẫn chưa đổi hành vi** (dịch vụ chưa nạp hồ sơ — bước 16; điểm, API, `AssignRun`, `ALGORITHM_VERSION` y như trước). Số liệu
+đánh giá bước 7/9 trùng **từng byte** (chụp trước/sau như bước 11).
+
+**Đã làm**:
+- `assign.declared.ts` (mới, thuần): `declaredItems(hồSơ)` cắt hồ sơ thành mục khai — kỹ năng tách theo xuống dòng `, ; • |`, bỏ khoảng
+  trắng thừa, bỏ trùng sau khi hạ chữ thường + bỏ dấu, tối đa 50; công việc (tiêu đề ×2 + mô tả, như thẻ) tối đa 30; CV tách theo dòng
+  trống / gạch đầu dòng, gom thành đoạn ≤ 400 ký tự (mảnh dài cắt ở khoảng trắng), 50 đoạn đầu (`cvChunks` dừng ngay khi đủ → tuyến
+  tính: 2 triệu ký tự vẫn tức thì). Mục không còn thuật ngữ bị bỏ (không chiếm số thứ tự). Mục CV **luôn** `title = null`.
+  `scoreDeclared` = max cosine (sim > 0 và ≥ simMin), không mục nào → `null`; bằng chứng tối đa 3, hoà thì WORK → SKILL → CV → vị trí.
+- `assign.tfidf.ts`: `vectorizeKnown` (bỏ từ df = 0 rồi mới chuẩn hoá).
+- `assign.score.ts`: `CandidateInput.declared` = **mục khai đã cắt sẵn** (xem "khác kế hoạch"); `components.declared`,
+  `declaredEvidence`, cờ `NO_PROFILE` (đứng sau cờ lịch sử, trước quá tải); Hồ sơ không góp vào tin cậy / `confidence` / bằng chứng thẻ.
+  **Thiếu dữ liệu theo thành phần**: `missing` nhận một giá trị (áp cả bốn) hoặc bản ghi; không truyền = `DEFAULT_MISSING` (DROP ×3,
+  NEUTRAL cho Hồ sơ); thêm `'ZERO'` (chỉ để đo: thiếu = 0 **trước** chuẩn hoá = "khai mà không khớp"); đường tắt "trả kết quả thô" chỉ
+  khi `NONE` và **cả bốn** DROP.
+- `assign.service.ts`: phần **che tạm** (bước 12 → 18): phản hồi gợi ý / chia việc và nhật ký `AssignRun` giữ đúng 3 thành phần, lọc cờ
+  `NO_PROFILE` (giao diện chưa có nhãn — `flagLabel` sẽ in một nhãn rỗng), không có `declaredEvidence`.
+
+**Khác kế hoạch — nói rõ**:
+1. **Ứng viên mang mục khai đã cắt sẵn** (`declared: DeclaredItem[]`), không mang hồ sơ thô. Lý do đo được: hồ sơ cỡ lớn nhất (121 mục)
+   tách từ mất **6,4 ms**, lặp cho mỗi thẻ × mỗi người → 30 người × 3000 thẻ: **302 ms / thẻ** (so với 78 không hồ sơ), chia 30 thẻ
+   **9,1 s**. Tách một lần khi lập danh sách ứng viên: **106 ms / thẻ** (+28%), chia 30 thẻ **3,2 s** (so với 2,3). Không dùng bộ nhớ đệm
+   ẩn trong bộ chấm (giữ hàm thuần, không trạng thái). Véc-tơ vẫn tính mỗi thẻ (0,8 ms / người — rẻ).
+2. Sửa lời ghi sai ở nhật ký bước 11 về hai phép cài lỗi tương đương (đã ghi chú tại chỗ).
+
+**Kiểm chứng**: suite backend 87 tệp xanh, `tsc` + `eslint` sạch; số liệu bước 7/9 trùng từng byte; test mới `assign.declared.test.ts` (29 ca: cắt mục ba loại + biên 400/401 ký tự + cắt ở khoảng trắng /
+cắt cứng + 50 đoạn + 2 triệu ký tự; `vectorizeKnown` tính tay; giá trị Hồ sơ tính tay 1 và 1/√2; ngưỡng đúng bằng simMin; thêm mục không
+làm giảm / chép mục không bơm (300 tình huống); CV giả mạo có title vẫn không lộ; DROP / NEUTRAL / ZERO tính tay 100 / 75 / 50; `missing`
+một giá trị ≡ bản ghi, sai → lỗi; NONE; hoán vị; không ai có hồ sơ → trùng từng bit giữa mọi cách xử lý trên bộ mô phỏng); API: gợi ý và
+chia việc không lộ thành phần thứ 4 / `NO_PROFILE` / `declaredEvidence`. Cài lỗi: 60 phép (cắt mục 35, bộ chấm 17, dịch vụ 8). Lần đầu **56/60** — 4 lỗ hổng test thật, đã vá rồi
+  chạy lại cả 4 đều bị bắt: (a) cắt mảnh dài "luôn cắt cứng" lọt vì test dùng từ 5 ký tự nên vị trí 400 tình cờ rơi đúng ranh giới từ →
+  thêm ca từ 7 ký tự; (b) `NO_PROFILE` gắn nhầm cho người **khai mà không khớp** (giá trị 0) — chưa ca nào khẳng định điều ngược lại;
+  (c) `ZERO` điền 0 **sau** chuẩn hoá — ví dụ tính tay có người khai thấp nhất đúng bằng 0 nên hai cách trùng nhau → thêm ca thấp nhất
+  1/√2; (d) giới hạn 50 cụm kỹ năng được kiểm **hai lần** (vòng lặp và `flush`) nên phép ở một chỗ tương đương → bỏ chỗ thừa, phép
+  nhắm vào chỗ còn lại bị bắt. Bài học lặp lại từ bước 9: ví dụ tính tay "đẹp" (số tròn, biên trùng 0, bội số của 5) dễ trùng giữa
+  cách đúng và cách sai.
+
+**Tiếp theo**: bước 13 — luật học trên các thành phần chung (user đã cho làm liền 12→19 không cần hỏi).

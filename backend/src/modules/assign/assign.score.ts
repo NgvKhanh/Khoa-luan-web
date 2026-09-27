@@ -10,6 +10,9 @@
 //   reliability  "lam nhung viec giong the nay co dung han khong" - tinh tren DUNG cac the do,
 //                co ve trung binh nhom (lam tron kieu Bayes) de 1 the dung han khong thanh 100%.
 //   availability "co ranh khong" - so the dang mo chong lan khoang thoi gian cua the moi.
+// THANH PHAN THU TU (buoc 12, §17): declared "ho so tu khai co khop the nay khong" - do giong lon nhat giua the va tung muc
+//                ho so (ky nang, cong viec da lam, doan CV) - assign.declared.ts. Chua kiem chung nen KHONG gop vao tin cay /
+//                confidence; khong co ho so -> null + co NO_PROFILE.
 // Diem tong chi cong cac thanh phan CO DU LIEU (chia lai theo tong trong so cua chung). Khi XEP HANG, moi
 // thanh phan duoc CHUAN HOA trong nhom ung vien cua the do truoc khi cong (phuong an A, ASSIGN_MODULE.md
 // nhat ky buoc 4b): ba thanh phan khong cung thang nen cong tho thi trong so danh nghia khong phai anh huong
@@ -28,6 +31,7 @@
 //     (da tim va khong thay), tin cay lui ve trung binh nhom.
 //  6. Chi the co sim > 0 moi tinh: neu simMin = 0 thi the sim = 0 van khong duoc dem la bang chung.
 
+import { scoreDeclared, type DeclaredEvidence, type DeclaredItem } from './assign.declared';
 import { buildProfile, type HistoryCard, type ProfileEntry } from './assign.profile';
 import { countTerms, type CardText } from './assign.text';
 import { cosine, vectorize, type Idf, type SparseVector } from './assign.tfidf';
@@ -37,8 +41,8 @@ const DAY_MS = 86_400_000;
 // ---------- Tham so ----------
 
 /**
- * Bon trong so (§17.6). `declared` = thanh phan "Ho so" (ho so tu khai). BUOC 11: thanh phan nay CHUA duoc tinh (buoc 12) -
- * bo cham coi nhu moi ung vien deu vang no nen bo di va chia lai theo ba trong so con lai; `declared` chi duoc kiem tra.
+ * Bon trong so (§17.6). `declared` = thanh phan "Ho so" (ho so tu khai). Khong ai co ho so -> thanh phan nay vang voi moi nguoi,
+ * bi bo va chia lai theo ba trong so con lai (voi DROP va NEUTRAL).
  */
 export interface Weights {
   experience: number;
@@ -205,6 +209,11 @@ export interface CandidateInput {
   maxParallelCards?: number;
   /** MemberWorkProfile.pausedUntil. */
   pausedUntil?: Date | null;
+  /**
+   * Cac MUC ho so tu khai da cat san (§17.3): nguoi lap danh sach ung vien goi declaredItems(hoSo) MOT lan - tach tu la phan dat
+   * nhat (~6 ms / ho so lon), khong duoc lap lai cho moi the. null / thieu / rong = khong co ho so dung duoc (NO_PROFILE).
+   */
+  declared?: readonly DeclaredItem[] | null;
 }
 
 /**
@@ -219,12 +228,28 @@ export type Normalization = 'MINMAX' | 'NONE';
 
 /**
  * Thanh phan THIEU du lieu (vd nguoi chua co lich su khong co kinh nghiem / tin cay) tinh the nao:
- *  - 'DROP' (mac dinh, nguyen tac 4): bo thanh phan do, chia lai theo trong so cac thanh phan con lai.
- *  - 'NEUTRAL': thay bang TRUNG BINH cua nhung nguoi co du lieu ("chua biet = trung binh nhom").
- * Tren du lieu mo phong hai cach cho do chinh xac nhu nhau; khac nhau o CHO NGUOI MOI: DROP van cho ho
+ *  - 'DROP' (nguyen tac 4): bo thanh phan do, chia lai theo trong so cac thanh phan con lai.
+ *  - 'NEUTRAL': thay bang TRUNG BINH cua nhung nguoi co du lieu ("chua biet = trung binh nhom"); khong ai co -> van bo.
+ *  - 'ZERO' (CHI dung khi do, §17.5): thieu = 0 TRUOC khi chuan hoa, tuc nhu "co khai ma khong khop".
+ * Tren du lieu mo phong DROP va NEUTRAL cho do chinh xac nhu nhau; khac nhau o CHO NGUOI MOI: DROP van cho ho
  * dung dau o ~3% so the (gap ~2 lan ti le ung vien), NEUTRAL gan nhu khong bao gio (~0,1%).
  */
-export type MissingPolicy = 'DROP' | 'NEUTRAL';
+export type MissingPolicy = 'DROP' | 'NEUTRAL' | 'ZERO';
+
+export type ComponentKey = 'experience' | 'reliability' | 'availability' | 'declared';
+export const COMPONENT_KEYS: readonly ComponentKey[] = ['experience', 'reliability', 'availability', 'declared'];
+
+/**
+ * §17.5 - mac dinh khi khong truyen `missing`: DROP cho ba thanh phan tu lich su, NEUTRAL cho Ho so (voi DROP, nguoi KHONG khai
+ * khong bi so o thanh phan nay con nguoi khai ma khong khop bi chuan hoa ve 0 - "khong khai lai co loi"; NEUTRAL chi GIAM, khong
+ * xoa han dong co do).
+ */
+export const DEFAULT_MISSING: Readonly<Record<ComponentKey, MissingPolicy>> = {
+  experience: 'DROP',
+  reliability: 'DROP',
+  availability: 'DROP',
+  declared: 'NEUTRAL',
+};
 
 export interface ScoreContext {
   /** IDF cua kho ngu lieu (the cua khong gian lam viec) - dung CHUNG cho the moi va ho so. */
@@ -236,8 +261,11 @@ export interface ScoreContext {
   params?: Partial<ScoreParams>;
   /** Chi co tac dung o rankCandidates (scoreCandidate cham mot nguoi nen khong co "nhom" de chuan hoa). Mac dinh 'MINMAX'. */
   normalize?: Normalization;
-  /** Chi co tac dung o rankCandidates. Mac dinh 'DROP'. */
-  missing?: MissingPolicy;
+  /**
+   * Chi co tac dung o rankCandidates. MOT gia tri = ap cho ca bon thanh phan (moi loi goi cu giu nguyen nghia); hoac ban ghi theo
+   * thanh phan (khoa thieu lay theo DEFAULT_MISSING). Khong truyen = DEFAULT_MISSING.
+   */
+  missing?: MissingPolicy | Partial<Record<ComponentKey, MissingPolicy>>;
 }
 
 export interface EvidenceItem {
@@ -252,7 +280,7 @@ export interface EvidenceItem {
   dueDate: Date | null;
 }
 
-export type Flag = 'NO_HISTORY' | 'NO_SIMILAR' | 'OVERLOADED' | 'PAUSED' | 'NO_DATA';
+export type Flag = 'NO_HISTORY' | 'NO_SIMILAR' | 'NO_PROFILE' | 'OVERLOADED' | 'PAUSED' | 'NO_DATA';
 export type ConfidenceLevel = 'THIN' | 'FAIR' | 'GOOD';
 
 export interface ComponentScore {
@@ -281,9 +309,11 @@ export interface CandidateScore {
   /** evidenceMass / (evidenceMass + confidenceScale), trong [0,1). */
   confidence: number;
   confidenceLevel: ConfidenceLevel;
-  components: { experience: ComponentScore; reliability: ComponentScore; availability: ComponentScore };
+  components: Record<ComponentKey, ComponentScore>;
   /** Toi da K the cu da dung, giong nhat truoc. Bang chung truy vet duoc cua diem. */
   evidence: EvidenceItem[];
+  /** Toi da 3 muc ho so tu khai giong nhat (§17.4) - TACH RIENG khoi `evidence` (bang chung la the that). */
+  declaredEvidence: DeclaredEvidence[];
   /** "So the hieu dung" = tong trong so thoi gian cua cac the trong `evidence` (e trong §5.4). */
   evidenceMass: number;
   /** Chat luong khop trung binh (co trong so) cua cac the trong `evidence`, [0,1]. */
@@ -360,7 +390,25 @@ interface Resolved {
   weights: Weights;
   params: ScoreParams;
   normalize: Normalization;
-  missing: MissingPolicy;
+  missing: Readonly<Record<ComponentKey, MissingPolicy>>;
+}
+
+const POLICIES: ReadonlySet<string> = new Set(['DROP', 'NEUTRAL', 'ZERO']);
+
+function resolveMissing(m: ScoreContext['missing']): Readonly<Record<ComponentKey, MissingPolicy>> {
+  if (m === undefined) return DEFAULT_MISSING;
+  if (typeof m === 'string') {
+    if (!POLICIES.has(m)) throw new RangeError(`missing khong hop le: ${String(m)}`);
+    return { experience: m, reliability: m, availability: m, declared: m };
+  }
+  if (typeof m !== 'object' || m === null) throw new RangeError(`missing khong hop le: ${String(m)}`);
+  const out: Record<ComponentKey, MissingPolicy> = { ...DEFAULT_MISSING };
+  for (const [k, v] of Object.entries(m)) {
+    if (!(COMPONENT_KEYS as readonly string[]).includes(k)) throw new RangeError(`missing: thanh phan la "${k}"`);
+    if (typeof v !== 'string' || !POLICIES.has(v)) throw new RangeError(`missing.${k} khong hop le: ${String(v)}`);
+    out[k as ComponentKey] = v as MissingPolicy;
+  }
+  return out;
 }
 
 function resolveContext(ctx: ScoreContext): Resolved {
@@ -370,8 +418,7 @@ function resolveContext(ctx: ScoreContext): Resolved {
   }
   const normalize = ctx.normalize ?? 'MINMAX';
   if (normalize !== 'MINMAX' && normalize !== 'NONE') throw new RangeError(`normalize khong hop le: ${String(normalize)}`);
-  const missing = ctx.missing ?? 'DROP';
-  if (missing !== 'DROP' && missing !== 'NEUTRAL') throw new RangeError(`missing khong hop le: ${String(missing)}`);
+  const missing = resolveMissing(ctx.missing);
   return {
     now: ctx.now,
     nowMs: ctx.now.getTime(),
@@ -386,8 +433,6 @@ function resolveContext(ctx: ScoreContext): Resolved {
 
 const cmpStr = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
-
-const COMPONENT_KEYS = ['experience', 'reliability', 'availability'] as const;
 
 /**
  * §5.7: 100 x tong(w.gia_tri) / tong(w) tren cac thanh phan CO gia tri. Tra ve diem (null neu tong trong so = 0)
@@ -479,12 +524,16 @@ function scoreOne(card: ScoreCard, qvec: SparseVector, cand: CandidateInput, r: 
   const paused = validDate(cand.pausedUntil) && cand.pausedUntil.getTime() >= ws;
   const availability = paused ? 0 : clamp01(1 - load / capacity);
 
+  // ---- Ho so tu khai (§17.4): khong gop vao tin cay / confidence ----
+  const declared = scoreDeclared(qvec, cand.declared ?? [], r.idf, p.simMin);
+
   // ---- Tong hop (§5.7): chi cong thanh phan CO du lieu ----
-  const values = [experience, reliability, availability];
-  const { score, shares } = combine(values, [w.experience, w.reliability, w.availability]);
+  const values = [experience, reliability, availability, declared.value];
+  const weights = COMPONENT_KEYS.map((k) => w[k]);
+  const { score, shares } = combine(values, weights);
   const component = (i: number): ComponentScore => ({
     value: values[i]!,
-    weight: [w.experience, w.reliability, w.availability][i]!,
+    weight: weights[i]!,
     scaled: values[i]!, // scoreCandidate khong chuan hoa; rankCandidates co the doi
     share: shares[i]!,
   });
@@ -492,6 +541,7 @@ function scoreOne(card: ScoreCard, qvec: SparseVector, cand: CandidateInput, r: 
   const flags: Flag[] = [];
   if (!hasHistory) flags.push('NO_HISTORY');
   else if (top.length === 0) flags.push('NO_SIMILAR');
+  if (declared.value === null) flags.push('NO_PROFILE');
   if (load >= capacity) flags.push('OVERLOADED');
   if (paused) flags.push('PAUSED');
   if (score === null) flags.push('NO_DATA');
@@ -507,8 +557,10 @@ function scoreOne(card: ScoreCard, qvec: SparseVector, cand: CandidateInput, r: 
       experience: component(0),
       reliability: component(1),
       availability: component(2),
+      declared: component(3),
     },
     evidence,
+    declaredEvidence: declared.evidence,
     evidenceMass,
     fit,
     load,
@@ -517,12 +569,14 @@ function scoreOne(card: ScoreCard, qvec: SparseVector, cand: CandidateInput, r: 
   };
 }
 
-/** Chuan hoa MOT cot (mot thanh phan, moi ung vien). null = khong co du lieu (giu nguyen tru khi 'NEUTRAL'). */
+/** Chuan hoa MOT cot (mot thanh phan, moi ung vien). null = khong co du lieu (giu nguyen tru khi 'NEUTRAL' / 'ZERO'). */
 function scaleColumn(
-  values: readonly (number | null)[],
+  raw: readonly (number | null)[],
   mode: Normalization,
   missing: MissingPolicy
 ): (number | null)[] {
+  // 'ZERO': thieu = 0 TRUOC khi chuan hoa - dung nhu mot nguoi co khai ma khong khop
+  const values = missing === 'ZERO' ? raw.map((v) => v ?? 0) : raw;
   const present = values.filter((v): v is number => v !== null);
   let scaled: (number | null)[] = [...values];
   if (mode === 'MINMAX' && present.length > 0) {
@@ -543,13 +597,14 @@ function scaleColumn(
 
 /** Tinh lai `scaled`, ti trong, diem va co NO_DATA cua ca nhom sau khi chuan hoa tung thanh phan. */
 function applyScaling(scored: CandidateScore[], r: Resolved): CandidateScore[] {
-  if (r.normalize === 'NONE' && r.missing === 'DROP') return scored; // = ket qua tho cua scoreOne
-  const weights = [r.weights.experience, r.weights.reliability, r.weights.availability];
-  const cols = COMPONENT_KEYS.map((k) => scaleColumn(scored.map((s) => s.components[k].value), r.normalize, r.missing));
+  // = ket qua tho cua scoreOne: chi khi khong chuan hoa VA moi thanh phan deu DROP
+  if (r.normalize === 'NONE' && COMPONENT_KEYS.every((k) => r.missing[k] === 'DROP')) return scored;
+  const weights = COMPONENT_KEYS.map((k) => r.weights[k]);
+  const cols = COMPONENT_KEYS.map((k) => scaleColumn(scored.map((s) => s.components[k].value), r.normalize, r.missing[k]));
   return scored.map((s, i) => {
     const vals = cols.map((c) => c[i]!);
     const { score, shares } = combine(vals, weights);
-    const withScaled = (k: (typeof COMPONENT_KEYS)[number], j: number): ComponentScore => ({
+    const withScaled = (k: ComponentKey, j: number): ComponentScore => ({
       ...s.components[k],
       scaled: vals[j]!,
       share: shares[j]!,
@@ -564,6 +619,7 @@ function applyScaling(scored: CandidateScore[], r: Resolved): CandidateScore[] {
         experience: withScaled('experience', 0),
         reliability: withScaled('reliability', 1),
         availability: withScaled('availability', 2),
+        declared: withScaled('declared', 3),
       },
     };
   });

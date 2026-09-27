@@ -215,6 +215,9 @@ describe('POST .../assignment-plan - dang tra ve va rieng tu', () => {
     expect(row.assignee).not.toBeNull();
     expect(row.assignee!.user.id).toBe(w.alice.id); // co lich su giong the nay
     expect(Object.keys(row.assignee!.components).sort()).toEqual(['availability', 'experience', 'reliability']);
+    // Tu buoc 12 den buoc 18 (§17.9): khong lo co NO_PROFILE (giao dien chua co nhan cho no)
+    expect(row.assignee!.flags).not.toContain('NO_PROFILE');
+    expect(row.ranking.every((r) => !r.flags.includes('NO_PROFILE'))).toBe(true);
     expect(row.ranking.map((r) => r.userId)).toEqual(layer1.body.data.candidates.map((c: Cand) => c.user.id));
     expect(row.ranking.map((r) => r.rank)).toEqual([1, 2, 3]);
 

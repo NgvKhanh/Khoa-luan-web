@@ -57,6 +57,16 @@ const NORMALIZE = 'MINMAX' as const;
 const MISSING = 'DROP' as const;
 export const ALGORITHM_VERSION = `knn-tfidf-v1/${NORMALIZE.toLowerCase()}/${MISSING.toLowerCase()}`;
 
+// TAM (buoc 12 -> buoc 18, §17.9): giao dien chua biet thanh phan Ho so va co NO_PROFILE (flagLabel khong co nhanh cho no -> nhan
+// trong), dich vu cung chua nap ho so (buoc 16) -> phan hoi va nhat ky giu DUNG dang ba thanh phan nhu truoc.
+type LegacyComponents = Pick<CandidateScore['components'], 'experience' | 'reliability' | 'availability'>;
+const legacyComponents = (c: CandidateScore['components']): LegacyComponents => ({
+  experience: c.experience,
+  reliability: c.reliability,
+  availability: c.availability,
+});
+const legacyFlags = (flags: readonly Flag[]): Flag[] => flags.filter((f) => f !== 'NO_PROFILE');
+
 /**
  * Moi thu bo cham can doc cua mot khong gian (dung chung cho goi y mot the va chia ca danh sach): the, lien ket the-nguoi,
  * the tung mo lai, ho so, va bo trong so DANG DUNG. Trong so luu hong (sua tay trong CSDL) khong duoc lam mat goi y cua ca
@@ -101,7 +111,7 @@ export interface Suggestion {
   rawScore: number | null;
   confidence: number;
   confidenceLevel: ConfidenceLevel;
-  components: CandidateScore['components'];
+  components: LegacyComponents;
   fit: number;
   evidenceMass: number;
   load: number;
@@ -178,12 +188,12 @@ export async function suggestForCard(userId: string, cardId: string, now: Date =
       rawScore: r.rawScore,
       confidence: r.confidence,
       confidenceLevel: r.confidenceLevel,
-      components: r.components,
+      components: legacyComponents(r.components),
       fit: r.fit,
       evidenceMass: r.evidenceMass,
       load: r.load,
       capacity: r.capacity,
-      flags: r.flags,
+      flags: legacyFlags(r.flags),
       assigned: assignedIds.has(r.userId),
       evidence: r.evidence.map((e) => ({
         cardId: e.cardId,
@@ -217,7 +227,7 @@ export async function suggestForCard(userId: string, cardId: string, now: Date =
         confidenceLevel: r.confidenceLevel,
         load: r.load,
         capacity: r.capacity,
-        flags: r.flags,
+        flags: legacyFlags(r.flags),
         components: {
           experience: { value: r.components.experience.value, scaled: r.components.experience.scaled, share: r.components.experience.share },
           reliability: { value: r.components.reliability.value, scaled: r.components.reliability.scaled, share: r.components.reliability.share },
@@ -252,7 +262,7 @@ export interface PlanPick {
   rawScore: number | null;
   confidence: number;
   confidenceLevel: ConfidenceLevel;
-  components: CandidateScore['components'];
+  components: LegacyComponents;
   load: number;
   capacity: number;
   flags: Flag[];
@@ -335,10 +345,10 @@ export async function planForList(userId: string, listId: string, now: Date = ne
             rawScore: pick.rawScore,
             confidence: pick.confidence,
             confidenceLevel: pick.confidenceLevel,
-            components: pick.components,
+            components: legacyComponents(pick.components),
             load: pick.load,
             capacity: pick.capacity,
-            flags: pick.flags,
+            flags: legacyFlags(pick.flags),
           }
         : null,
       ranking: row.ranked.map((r) => ({
@@ -347,7 +357,7 @@ export async function planForList(userId: string, listId: string, now: Date = ne
         score: r.score,
         load: r.load,
         capacity: r.capacity,
-        flags: r.flags,
+        flags: legacyFlags(r.flags),
       })),
     };
   });

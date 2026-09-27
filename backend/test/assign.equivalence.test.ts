@@ -46,9 +46,13 @@ async function compareOne(seed: SeedResult, ownerId: string, c: SimCard, now: Da
     expect(got.rawScore, label).toBe(want.rawScore);
     expect(got.confidence, label).toBe(want.confidence);
     expect(got.confidenceLevel, label).toBe(want.confidenceLevel);
-    expect(got.components, label).toEqual(want.components);
+    // Tu buoc 12 bo cham co them thanh phan Ho so + co NO_PROFILE; API giu dang ba thanh phan cho toi buoc 18 (§17.9)
+    const { declared: wantDeclared, ...wantLegacy } = want.components;
+    expect(got.components, label).toEqual(wantLegacy);
+    expect(wantDeclared.value, label).toBeNull(); // dich vu chua nap ho so (buoc 16)
     expect([got.load, got.capacity, got.fit, got.evidenceMass], label).toEqual([want.load, want.capacity, want.fit, want.evidenceMass]);
-    expect(got.flags, label).toEqual(want.flags);
+    expect(want.flags, label).toContain('NO_PROFILE');
+    expect(got.flags, label).toEqual(want.flags.filter((f) => f !== 'NO_PROFILE'));
     // Bang chung: cung the (doi id CSDL -> khoa bo sinh), cung do giong / trong so / ket qua, tieu de hien du (chu bang xem het)
     expect(
       got.evidence.map((e) => ({ card: cardKey.get(e.cardId), title: e.title, sim: e.sim, weight: e.weight, outcome: e.outcome, completedAt: e.completedAt, dueDate: e.dueDate })),

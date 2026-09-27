@@ -157,7 +157,7 @@ describe('Buoc 4b - thanh phan thieu du lieu: DROP (nguyen tac 4) va NEUTRAL', (
     expect(d.get('N')!.components.experience.scaled).toBeNull();
     expect(d.get('N')!.components.reliability.scaled).toBeNull();
     expect(d.get('N')!.components.availability.share).toBe(1);
-    expect(d.get('N')!.flags).toEqual(['NO_HISTORY']);
+    expect(d.get('N')!.flags).toEqual(['NO_HISTORY', 'NO_PROFILE']);
     // Nguoi co du lieu khong bi anh huong boi viec N vang mat o hai cot kia
     expect(d.get('Z')!.score).toBeCloseTo(46.125, 9);
     expect(d.get('Y')!.score).toBeCloseTo(100 * 0.25 * (2 / 3), 9);
@@ -172,7 +172,7 @@ describe('Buoc 4b - thanh phan thieu du lieu: DROP (nguyen tac 4) va NEUTRAL', (
     expect(nn.components.reliability.scaled!).toBeCloseTo((1 + 0 + 0.6) / 3, 12);
     expect(nn.score!).toBeCloseTo(100 * (0.45 * ((1 + 0.625) / 3) + 0.3 * ((1 + 0.6) / 3) + 0.25 * 1), 9); // 65,375
     expect(KEYS.map((k) => nn.components[k].share)).toEqual([expect.closeTo(0.45, 12), expect.closeTo(0.3, 12), expect.closeTo(0.25, 12)]);
-    expect(nn.flags).toEqual(['NO_HISTORY']); // van la nguoi moi, chi la khong bi thoi phong
+    expect(nn.flags).toEqual(['NO_HISTORY', 'NO_PROFILE']); // van la nguoi moi, chi la khong bi thoi phong
     // Nguoi co du lieu khong doi
     expect(n.get('X')!.score).toBeCloseTo(100, 9);
     expect(n.get('Z')!.score).toBeCloseTo(46.125, 9);
@@ -202,7 +202,7 @@ describe('Buoc 4b - thanh phan thieu du lieu: DROP (nguyen tac 4) va NEUTRAL', (
     const drop = rankCandidates(CARD, [N(), X(), Y(), Z()], ctx({ weights: onlyExp, missing: 'DROP' }));
     expect(drop.map((r) => r.userId)).toEqual(['X', 'Z', 'Y', 'N']);
     expect(drop[3]!.score).toBeNull();
-    expect(drop[3]!.flags).toEqual(['NO_HISTORY', 'NO_DATA']);
+    expect(drop[3]!.flags).toEqual(['NO_HISTORY', 'NO_PROFILE', 'NO_DATA']);
     expect(drop[0]!.score).toBeCloseTo(100, 9);
     expect(drop[1]!.score).toBeCloseTo(62.5, 9); // Z: kinh nghiem chuan hoa 0,625
     expect(drop[2]!.score).toBeCloseTo(0, 9);
@@ -211,7 +211,7 @@ describe('Buoc 4b - thanh phan thieu du lieu: DROP (nguyen tac 4) va NEUTRAL', (
     expect(neutral.map((r) => r.userId)).toEqual(['X', 'Z', 'N', 'Y']);
     const nn = byId(neutral).get('N')!;
     expect(nn.score).toBeCloseTo((100 * 1.625) / 3, 9);
-    expect(nn.flags).toEqual(['NO_HISTORY']);
+    expect(nn.flags).toEqual(['NO_HISTORY', 'NO_PROFILE']);
     // rawScore cua N van null (khong co thanh phan tho nao co trong so) - khong bi chuan hoa che di
     expect(nn.rawScore).toBeNull();
   });

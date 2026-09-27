@@ -51,6 +51,19 @@ export function vectorize(counts: TermCounts, idf: Idf): SparseVector {
   return unit;
 }
 
+/**
+ * Nhu vectorize nhung BO cac thuat ngu co df = 0 (chua tung xuat hien trong kho the) TRUOC khi chuan hoa - dung cho muc ho so tu
+ * khai (§17.4). idfOf cho tu la idf LON NHAT, nen giu chung thi mot van ban nhieu tu ngoai linh vuc (dia chi, truong hoc...) bi keo
+ * do giong xuong ma khong the nao khop them. Bo di khong mat tu nao co the khop: the dang cham luon nam trong kho.
+ */
+export function vectorizeKnown(counts: TermCounts, idf: Idf): SparseVector {
+  const known = new Map<string, number>();
+  for (const [term, count] of counts) {
+    if ((idf.df.get(term) ?? 0) > 0) known.set(term, count);
+  }
+  return vectorize(known, idf);
+}
+
 /** Cosine cua hai vec-to DA chuan hoa. Ket qua trong [0,1]; vec-to rong -> 0. */
 export function cosine(a: SparseVector, b: SparseVector): number {
   if (a.size === 0 || b.size === 0) return 0;

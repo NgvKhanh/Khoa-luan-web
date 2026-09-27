@@ -215,6 +215,12 @@ describe('GET assignment-suggestions - cham diem tren du lieu that', () => {
     expect(alice.components.availability.value).toBe(1);
     expect(alice.score).not.toBeNull();
     expect(alice.rawScore).not.toBeNull();
+    // Tu buoc 12 den buoc 18 (§17.9): API van dung BA thanh phan, khong co co NO_PROFILE, khong co bang chung ho so
+    for (const c of res.body.data.candidates as (Cand & Record<string, unknown>)[]) {
+      expect(Object.keys(c.components).sort()).toEqual(['availability', 'experience', 'reliability']);
+      expect(c.flags).not.toContain('NO_PROFILE');
+      expect(c).not.toHaveProperty('declaredEvidence');
+    }
   });
 
   it('tai va suc chua: qua suc chua mac dinh 5 -> OVERLOADED; ho so suc chua 8 duoc doc; tam nghi -> PAUSED, kha dung 0', async () => {
@@ -511,6 +517,7 @@ describe('GET assignment-suggestions - ghi AssignRun', () => {
     expect(logged.map((c) => c.userId)).toEqual(res.body.data.candidates.map((c: Cand) => c.user.id));
     expect(logged.map((c) => c.rank)).toEqual([1, 2, 3]);
     expect(Object.keys(logged[0]!.components).sort()).toEqual(['availability', 'experience', 'reliability']);
+    expect(logged.every((c) => !c.flags.includes('NO_PROFILE'))).toBe(true);
     expect(logged[0]!.evidence.length).toBeGreaterThan(0);
     expect(Object.keys(logged[0]!.evidence[0]!).sort()).toEqual(['cardId', 'outcome', 'sim', 'weight']);
 
