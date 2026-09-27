@@ -9,7 +9,7 @@
 // lay mot ban moi cho moi (hat giong, lan chay) - khong dung chung giua hai lan chay.
 
 import {
-  DEFAULT_WEIGHTS,
+  LEGACY_WEIGHTS_V1,
   rankCandidates,
   type CandidateInput,
   type MissingPolicy,
@@ -158,7 +158,7 @@ export function mostFrequentArm(): Arm {
 export interface ScorerArmOptions {
   id: string;
   label: string;
-  /** Mac dinh DEFAULT_WEIGHTS. */
+  /** Mac dinh LEGACY_WEIGHTS_V1 (ghim so lieu buoc 7, §17.6) - khong phai DEFAULT_WEIGHTS moi cua san pham. */
   weights?: Weights;
   params?: Partial<ScoreParams>;
   /** Mac dinh 'MINMAX' va 'DROP' - dung cau hinh SAN PHAM (assign.service.ts). */
@@ -168,7 +168,7 @@ export interface ScorerArmOptions {
 
 /** Cac nhanh dung bo cham: chi khac nhau o trong so / tham so. */
 export function scorerArm(o: ScorerArmOptions): Arm {
-  const weights: Weights = { ...(o.weights ?? DEFAULT_WEIGHTS) };
+  const weights: Weights = { ...(o.weights ?? LEGACY_WEIGHTS_V1) };
   return {
     id: o.id,
     label: o.label,
@@ -188,16 +188,21 @@ export function scorerArm(o: ScorerArmOptions): Arm {
   };
 }
 
-export type WeightKey = keyof Weights;
+/** Ba thanh phan tu lich su - cac nhanh cua buoc 7 chi nhin ba thanh phan nay (Ho so = 0). */
+export type WeightKey = Exclude<keyof Weights, 'declared'>;
 
 const W_KEYS: readonly WeightKey[] = ['experience', 'reliability', 'availability'];
 
-/** Bo mot thanh phan (trong so 0) va chia lai hai trong so con lai cho tong = 1 - dung cho nhanh "cat bo". */
+/**
+ * Bo mot thanh phan (trong so 0) va chia lai hai trong so con lai cho tong = 1 - dung cho nhanh "cat bo". Chi cho bo ba trong so kieu
+ * cu (Ho so = 0): Ho so khac 0 se bi bo mat im lang nen nem loi.
+ */
 export function withoutComponent(w: Weights, drop: WeightKey): Weights {
+  if (w.declared !== 0) throw new RangeError('withoutComponent chi dung cho bo trong so khong co Ho so (declared = 0)');
   const rest = W_KEYS.filter((k) => k !== drop);
   const total = rest.reduce((s, k) => s + w[k], 0);
   if (!(total > 0)) throw new RangeError('hai trong so con lai phai co tong > 0');
-  const out: Weights = { experience: 0, reliability: 0, availability: 0 };
+  const out: Weights = { experience: 0, reliability: 0, availability: 0, declared: 0 };
   for (const k of rest) out[k] = w[k] / total;
   return out;
 }
@@ -206,6 +211,7 @@ const only = (k: WeightKey): Weights => ({
   experience: k === 'experience' ? 1 : 0,
   reliability: k === 'reliability' ? 1 : 0,
   availability: k === 'availability' ? 1 : 0,
+  declared: 0,
 });
 
 /** Bay nhanh dau cua bang so sanh chinh (nhanh 8 - "co hoc" - nam o evalAssignLeader.ts vi can truong nhom gia). */
@@ -241,16 +247,16 @@ export const ABLATION_ARMS: readonly ArmSpec[] = [
   {
     id: 'no-avail',
     label: 'Bỏ khả dụng',
-    make: () => scorerArm({ id: 'no-avail', label: 'Bỏ khả dụng', weights: withoutComponent(DEFAULT_WEIGHTS, 'availability') }),
+    make: () => scorerArm({ id: 'no-avail', label: 'Bỏ khả dụng', weights: withoutComponent(LEGACY_WEIGHTS_V1, 'availability') }),
   },
   {
     id: 'no-rel',
     label: 'Bỏ tin cậy',
-    make: () => scorerArm({ id: 'no-rel', label: 'Bỏ tin cậy', weights: withoutComponent(DEFAULT_WEIGHTS, 'reliability') }),
+    make: () => scorerArm({ id: 'no-rel', label: 'Bỏ tin cậy', weights: withoutComponent(LEGACY_WEIGHTS_V1, 'reliability') }),
   },
   {
     id: 'no-exp',
     label: 'Bỏ kinh nghiệm',
-    make: () => scorerArm({ id: 'no-exp', label: 'Bỏ kinh nghiệm', weights: withoutComponent(DEFAULT_WEIGHTS, 'experience') }),
+    make: () => scorerArm({ id: 'no-exp', label: 'Bỏ kinh nghiệm', weights: withoutComponent(LEGACY_WEIGHTS_V1, 'experience') }),
   },
 ];

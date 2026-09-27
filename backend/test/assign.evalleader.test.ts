@@ -3,9 +3,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { LEARN_ETA, LEARN_MIN_FEEDBACK, learnStep, projectWeights } from '../src/modules/assign/assign.learn';
-import { DEFAULT_WEIGHTS, type RankedCandidate, type Weights } from '../src/modules/assign/assign.score';
-import { WEIGHT_MAX, WEIGHT_MIN } from '../src/modules/assign/assign.weights';
+import { LEARN_ETA, LEARN_MIN_FEEDBACK, learnStep } from '../src/modules/assign/assign.learn';
+import { LEGACY_WEIGHTS_V1, type RankedCandidate, type Weights } from '../src/modules/assign/assign.score';
+import {
+  LEGACY_DEFAULT_WEIGHTS,
+  LEGACY_KEYS,
+  WEIGHT_MAX,
+  WEIGHT_MIN,
+  pinLegacy,
+  projectWithin,
+  type LegacyWeights,
+} from '../src/modules/assign/assign.weights';
 import type { Arm, ArmOutput } from '../src/scripts/evalAssignArms';
 import { PERSONAS, biasedLeader, l1Distance, learningArm, learningTrace, withCompleteFlags } from '../src/scripts/evalAssignLeader';
 import { streamSeed } from '../src/scripts/evalAssignStats';
@@ -40,7 +48,7 @@ describe('biasedLeader', () => {
   const A = cand('A', 90, c(0.9), c(0.1), c(0.1));
   const B = cand('B', 80, c(0.1), c(0.9), c(0.5));
   const C = cand('C', 70, c(0.5), c(0.5), c(0.9));
-  const pick = (bias: Weights, list: RankedCandidate[], opts: { noise?: number; space?: 'SCALED' | 'RAW'; seed?: number } = {}) =>
+  const pick = (bias: LegacyWeights, list: RankedCandidate[], opts: { noise?: number; space?: 'SCALED' | 'RAW'; seed?: number } = {}) =>
     biasedLeader({ bias, noise: opts.noise ?? 0, space: opts.space }).pick({ cardKey: 'x', ranked: list, rng: new Rng(opts.seed ?? 1) });
 
   it('khong nhieu: chon nguoi co tien ich cao nhat - so tinh tay', () => {
@@ -62,7 +70,7 @@ describe('biasedLeader', () => {
   it("khong gian dac trung: 'SCALED' (mac dinh) doc scaled, 'RAW' doc value", () => {
     const x = cand('X', 50, c(0.2, 0.9), c(0.5), c(0.5)); // tho thap, da chuan hoa cao
     const y = cand('Y', 50, c(0.8, 0.1), c(0.5), c(0.5)); // tho cao, da chuan hoa thap
-    const bias: Weights = { experience: 1, reliability: 0, availability: 0 };
+    const bias: LegacyWeights = { experience: 1, reliability: 0, availability: 0 };
     expect(pick(bias, [x, y])).toBe('X');
     expect(pick(bias, [x, y], { space: 'SCALED' })).toBe('X');
     expect(pick(bias, [x, y], { space: 'RAW' })).toBe('Y');
@@ -71,16 +79,16 @@ describe('biasedLeader', () => {
   it('hoa tien ich -> nguoi dung truoc trong danh sach (nguoi diem cao hon)', () => {
     const p = cand('P', 90, c(0.5), c(0.5), c(0.5));
     const q = cand('Q', 80, c(0.5), c(0.5), c(0.5));
-    expect(pick(DEFAULT_WEIGHTS, [p, q])).toBe('P');
-    expect(pick(DEFAULT_WEIGHTS, [q, p])).toBe('Q');
+    expect(pick(LEGACY_DEFAULT_WEIGHTS, [p, q])).toBe('P');
+    expect(pick(LEGACY_DEFAULT_WEIGHTS, [q, p])).toBe('Q');
   });
 
   it('noise = 0 khong rut so ngau nhien nao; noise > 0 co rut', () => {
     const rng = new Rng(5);
-    biasedLeader({ bias: DEFAULT_WEIGHTS, noise: 0 }).pick({ cardKey: 'x', ranked: [A, B, C], rng });
+    biasedLeader({ bias: LEGACY_DEFAULT_WEIGHTS, noise: 0 }).pick({ cardKey: 'x', ranked: [A, B, C], rng });
     expect(rng.next()).toBe(new Rng(5).next());
     const rng2 = new Rng(5);
-    biasedLeader({ bias: DEFAULT_WEIGHTS, noise: 0.1 }).pick({ cardKey: 'x', ranked: [A, B, C], rng: rng2 });
+    biasedLeader({ bias: LEGACY_DEFAULT_WEIGHTS, noise: 0.1 }).pick({ cardKey: 'x', ranked: [A, B, C], rng: rng2 });
     expect(rng2.next()).not.toBe(new Rng(5).next());
   });
 
@@ -92,7 +100,7 @@ describe('biasedLeader', () => {
     let i = 0;
     const rng = { next: () => script[i++]! } as unknown as Rng;
     const same = (id: string) => cand(id, 50, c(0.5), c(0.5), c(0.5)); // dac trung nhu nhau: chi con nhieu quyet dinh
-    const chosen = biasedLeader({ bias: DEFAULT_WEIGHTS, noise: 10 }).pick({ cardKey: 'x', ranked: [same('A'), same('B'), same('C')], rng });
+    const chosen = biasedLeader({ bias: LEGACY_DEFAULT_WEIGHTS, noise: 10 }).pick({ cardKey: 'x', ranked: [same('A'), same('B'), same('C')], rng });
     expect(chosen).toBe('B');
     expect(i).toBe(6); // moi ung vien rut dung hai so
   });
@@ -100,14 +108,14 @@ describe('biasedLeader', () => {
   it('co nhieu: tat dinh theo luong; hai nguoi bang nhau thi moi nguoi ~50%; nhieu lon thi khong con chac chan', () => {
     const P = cand('P', 90, c(0.5), c(0.5), c(0.5));
     const Q = cand('Q', 80, c(0.5), c(0.5), c(0.5));
-    const a = pick(DEFAULT_WEIGHTS, [P, Q], { noise: 0.3, seed: 9 });
-    expect(pick(DEFAULT_WEIGHTS, [P, Q], { noise: 0.3, seed: 9 })).toBe(a);
+    const a = pick(LEGACY_DEFAULT_WEIGHTS, [P, Q], { noise: 0.3, seed: 9 });
+    expect(pick(LEGACY_DEFAULT_WEIGHTS, [P, Q], { noise: 0.3, seed: 9 })).toBe(a);
     let p = 0;
-    for (let s = 1; s <= 4000; s += 1) if (pick(DEFAULT_WEIGHTS, [P, Q], { noise: 0.3, seed: streamSeed(41, s, 0) }) === 'P') p += 1;
+    for (let s = 1; s <= 4000; s += 1) if (pick(LEGACY_DEFAULT_WEIGHTS, [P, Q], { noise: 0.3, seed: streamSeed(41, s, 0) }) === 'P') p += 1;
     expect(p / 4000).toBeGreaterThan(0.46);
     expect(p / 4000).toBeLessThan(0.54);
     // Nguoi ro rang hon (A hon B ve kinh nghiem 0,8): nhieu nho thi hau nhu luon chon A, nhieu lon thi lan lon
-    const bias: Weights = { experience: 1, reliability: 0, availability: 0 };
+    const bias: LegacyWeights = { experience: 1, reliability: 0, availability: 0 };
     const rate = (noise: number) => {
       let hit = 0;
       for (let s = 1; s <= 3000; s += 1) if (pick(bias, [A, B], { noise, seed: streamSeed(42, s, 0) }) === 'A') hit += 1;
@@ -123,7 +131,7 @@ describe('biasedLeader', () => {
     // Hai nguoi ma A hon B mot khoang d: P(A duoc chon) = Phi(d / (sigma * sqrt(2))). Voi d = sigma * sqrt(2) -> Phi(1) ~ 0,841
     const A2 = cand('A', 90, c(0.5 + 0.05 * Math.SQRT2), c(0.5), c(0.5));
     const B2 = cand('B', 80, c(0.5), c(0.5), c(0.5));
-    const bias: Weights = { experience: 1, reliability: 0, availability: 0 };
+    const bias: LegacyWeights = { experience: 1, reliability: 0, availability: 0 };
     let hit = 0;
     const n = 6000;
     for (let s = 1; s <= n; s += 1) if (pick(bias, [A2, B2], { noise: 0.05, seed: streamSeed(43, s, 0) }) === 'A') hit += 1;
@@ -132,7 +140,7 @@ describe('biasedLeader', () => {
   });
 
   it('tham so sai bi tu choi', () => {
-    const ok: Weights = { experience: 0.5, reliability: 0.3, availability: 0.2 };
+    const ok: LegacyWeights = { experience: 0.5, reliability: 0.3, availability: 0.2 };
     expect(() => biasedLeader({ bias: { ...ok, experience: 0.6 }, noise: 0 })).toThrow(/tong bang 1/);
     // Dung sai rat chat: lech 1e-7 da bi tu choi (khong chap nhan "gan bang 1")
     expect(() => biasedLeader({ bias: { experience: 0.5, reliability: 0.3, availability: 0.2000001 }, noise: 0 })).toThrow(/tong bang 1/);
@@ -158,10 +166,11 @@ describe('PERSONAS, l1Distance', () => {
         expect(v).toBeLessThanOrEqual(WEIGHT_MAX);
       }
       // Hop le -> phep chieu khong doi -> muc tieu cua duong hoi tu chinh la thien lech
-      const target = projectWeights(p.bias);
+      const target = projectWithin(pinLegacy(p.bias), LEGACY_KEYS);
       expect(l1Distance(target, p.bias)).toBeCloseTo(0, 9);
     }
-    expect(PERSONAS.control.bias).toEqual(DEFAULT_WEIGHTS);
+    // Gu cua truong nhom gia chi co ba thanh phan tu lich su (buoc 7 khong co Ho so)
+    expect(PERSONAS.control.bias).toEqual(LEGACY_DEFAULT_WEIGHTS);
     expect(PERSONAS.expert.bias.experience).toBe(0.7);
     expect(PERSONAS.reliable.bias.reliability).toBe(0.7);
     expect(PERSONAS.free.bias.availability).toBe(0.7);
@@ -186,14 +195,14 @@ describe('learningArm - dung luat hoc cua san pham', () => {
     for (let i = 0; i < n; i += 1) arm.observe!({ output: outputOf(ranked), chosenKey: chosen });
   }
 
-  it('trang thai ban dau: trong so mac dinh, chua co phan hoi; weights() la ban sao', () => {
+  it('trang thai ban dau: trong so mac dinh CUA BUOC 7 (LEGACY_WEIGHTS_V1, §17.6), chua co phan hoi; weights() la ban sao', () => {
     const arm = learningArm();
     expect(arm.id).toBe('learned');
-    expect(arm.weights!()).toEqual(DEFAULT_WEIGHTS);
+    expect(arm.weights!()).toEqual(LEGACY_WEIGHTS_V1);
     expect(arm.stats()).toEqual({ feedback: 0, learned: 0 });
     arm.weights!().experience = 0;
-    expect(arm.weights!()).toEqual(DEFAULT_WEIGHTS);
-    const custom = learningArm({ initial: { experience: 0.3, reliability: 0.3, availability: 0.4 } });
+    expect(arm.weights!()).toEqual(LEGACY_WEIGHTS_V1);
+    const custom = learningArm({ initial: { experience: 0.3, reliability: 0.3, availability: 0.4, declared: 0 } });
     expect(custom.weights!().availability).toBe(0.4);
   });
 
@@ -201,7 +210,7 @@ describe('learningArm - dung luat hoc cua san pham', () => {
     const arm = learningArm();
     feed(arm, LEARN_MIN_FEEDBACK - 1, [TOP, OTHER], 'OTHER'); // luot thu 1..9: feedbackCount < 10
     expect(arm.stats()).toEqual({ feedback: LEARN_MIN_FEEDBACK - 1, learned: 0 });
-    expect(arm.weights!()).toEqual(DEFAULT_WEIGHTS);
+    expect(arm.weights!()).toEqual(LEGACY_WEIGHTS_V1);
     feed(arm, 1, [TOP, OTHER], 'OTHER'); // luot thu 10: du (dem SAU khi cong)
     expect(arm.stats()).toEqual({ feedback: LEARN_MIN_FEEDBACK, learned: 1 });
   });
@@ -210,7 +219,7 @@ describe('learningArm - dung luat hoc cua san pham', () => {
     const arm = learningArm({ minFeedback: 1 });
     feed(arm, 1, [TOP, OTHER], 'OTHER');
     const expected = learnStep(
-      DEFAULT_WEIGHTS,
+      LEGACY_WEIGHTS_V1,
       { experience: 0.9, reliability: 0.9, availability: 0.1 },
       { experience: 0.3, reliability: 0.3, availability: 0.9 },
       LEARN_ETA
@@ -220,8 +229,8 @@ describe('learningArm - dung luat hoc cua san pham', () => {
     expect(w.reliability).toBeCloseTo(expected.reliability, 12);
     expect(w.availability).toBeCloseTo(expected.availability, 12);
     // Keo ve phia thanh phan cua nguoi duoc chon (kha dung) va xa hai thanh phan cua nguoi xep dau
-    expect(w.availability).toBeGreaterThan(DEFAULT_WEIGHTS.availability);
-    expect(w.experience).toBeLessThan(DEFAULT_WEIGHTS.experience);
+    expect(w.availability).toBeGreaterThan(LEGACY_WEIGHTS_V1.availability);
+    expect(w.experience).toBeLessThan(LEGACY_WEIGHTS_V1.experience);
   });
 
   it('dac trung la `scaled`, khong phai `value` (gia tri tho)', () => {
@@ -230,7 +239,7 @@ describe('learningArm - dung luat hoc cua san pham', () => {
     const arm = learningArm({ minFeedback: 1 });
     feed(arm, 1, [top, other], 'OTHER');
     const expected = learnStep(
-      DEFAULT_WEIGHTS,
+      LEGACY_WEIGHTS_V1,
       { experience: 0.9, reliability: 0.9, availability: 0.1 },
       { experience: 0.3, reliability: 0.3, availability: 0.9 }
     );
@@ -241,7 +250,7 @@ describe('learningArm - dung luat hoc cua san pham', () => {
     const arm = learningArm({ minFeedback: 1 });
     feed(arm, 5, [TOP, OTHER], 'TOP');
     expect(arm.stats()).toEqual({ feedback: 5, learned: 0 });
-    expect(arm.weights!()).toEqual(DEFAULT_WEIGHTS);
+    expect(arm.weights!()).toEqual(LEGACY_WEIGHTS_V1);
   });
 
   it('cac ly do KHONG hoc: hoa diem (TIE), thieu thanh phan, nguoi xep dau khong co diem, nguoi duoc chon ngoai danh sach', () => {
@@ -264,7 +273,7 @@ describe('learningArm - dung luat hoc cua san pham', () => {
     arm = learningArm({ minFeedback: 1 });
     feed(arm, 3, [TOP, OTHER], 'NGOAI-DANH-SACH');
     expect(arm.stats()).toEqual({ feedback: 3, learned: 0 }); // NOT_CANDIDATE
-    expect(arm.weights!()).toEqual(DEFAULT_WEIGHTS);
+    expect(arm.weights!()).toEqual(LEGACY_WEIGHTS_V1);
   });
 
   it('tham so: eta lon di xa hon; minFeedback tuy chinh; trong so ban dau tuy chinh', () => {
@@ -272,7 +281,7 @@ describe('learningArm - dung luat hoc cua san pham', () => {
     const fast = learningArm({ minFeedback: 1, eta: 0.2 });
     feed(slow, 1, [TOP, OTHER], 'OTHER');
     feed(fast, 1, [TOP, OTHER], 'OTHER');
-    const move = (a: ReturnType<typeof learningArm>) => l1Distance(a.weights!(), DEFAULT_WEIGHTS);
+    const move = (a: ReturnType<typeof learningArm>) => l1Distance(a.weights!(), LEGACY_WEIGHTS_V1);
     expect(move(fast)).toBeGreaterThan(move(slow) * 5);
 
     const three = learningArm({ minFeedback: 3 });
@@ -281,7 +290,7 @@ describe('learningArm - dung luat hoc cua san pham', () => {
     feed(three, 1, [TOP, OTHER], 'OTHER');
     expect(three.stats().learned).toBe(1);
 
-    const init: Weights = { experience: 0.2, reliability: 0.2, availability: 0.6 };
+    const init: Weights = { experience: 0.2, reliability: 0.2, availability: 0.6, declared: 0 };
     const a = learningArm({ minFeedback: 1, initial: init });
     feed(a, 1, [TOP, OTHER], 'OTHER');
     const expected = learnStep(init, { experience: 0.9, reliability: 0.9, availability: 0.1 }, { experience: 0.3, reliability: 0.3, availability: 0.9 });
@@ -317,7 +326,7 @@ describe('learningArm - dung luat hoc cua san pham', () => {
 });
 
 describe('learningTrace', () => {
-  const w = (e: number, r: number, a: number): Weights => ({ experience: e, reliability: r, availability: a });
+  const w = (e: number, r: number, a: number): Weights => ({ experience: e, reliability: r, availability: a, declared: 0 });
   const target = w(0.15, 0.15, 0.7);
   const dec = (weights: Weights | null, topKey: string, leaderKey: string | null, topHasNoHistory = false) => ({ weights, topKey, leaderKey, topHasNoHistory });
   const ds = [
@@ -400,7 +409,7 @@ describe('withCompleteFlags', () => {
         const ranked = lists[i++]!;
         return { order: ranked.map((r) => r.userId), ranked };
       },
-      weights: () => ({ ...DEFAULT_WEIGHTS }),
+      weights: () => ({ ...LEGACY_WEIGHTS_V1 }),
     };
   };
   const input = { card: { title: 't', description: '' }, snapshot: { now: new Date(), idf: { docCount: 0, df: new Map() }, mu: null, candidates: [] }, load: new Map<string, number>(), rng: new Rng(1) };
@@ -419,7 +428,7 @@ describe('withCompleteFlags', () => {
     expect(out.order).toEqual(['a', 'b']);
     expect(out.ranked).toBe(list);
     expect(arm.id).toBe('fake');
-    expect(arm.weights!()).toEqual(DEFAULT_WEIGHTS);
+    expect(arm.weights!()).toEqual(LEGACY_WEIGHTS_V1);
     arm.completeFlags().push(false);
     expect(arm.completeFlags()).toEqual([true]);
   });
@@ -430,7 +439,7 @@ describe('withCompleteFlags', () => {
     const arm = withCompleteFlags(learningArm({ minFeedback: 1 }));
     arm.observe!({ output: outputOf([TOP, OTHER]), chosenKey: 'OTHER' });
     expect(arm.stats()).toEqual({ feedback: 1, learned: 1 });
-    expect(arm.weights!().availability).toBeGreaterThan(DEFAULT_WEIGHTS.availability);
+    expect(arm.weights!().availability).toBeGreaterThan(LEGACY_WEIGHTS_V1.availability);
   });
 
   it('"du du lieu" tinh tren gia tri da chuan hoa `scaled` (co gia tri that nhung scaled null hoac nguoc lai cho ket qua dung)', () => {

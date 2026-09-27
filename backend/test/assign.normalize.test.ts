@@ -197,7 +197,7 @@ describe('Buoc 4b - thanh phan thieu du lieu: DROP (nguyen tac 4) va NEUTRAL', (
   });
 
   it('co NO_DATA di theo DIEM CUOI (khong theo diem tho): NEUTRAL go co, DROP giu co va xuong cuoi', () => {
-    const onlyExp: Weights = { experience: 1, reliability: 0, availability: 0 };
+    const onlyExp: Weights = { experience: 1, reliability: 0, availability: 0, declared: 0 };
     // DROP: N khong co kinh nghiem -> khong thanh phan nao co trong so -> score null + NO_DATA, xuong cuoi
     const drop = rankCandidates(CARD, [N(), X(), Y(), Z()], ctx({ weights: onlyExp, missing: 'DROP' }));
     expect(drop.map((r) => r.userId)).toEqual(['X', 'Z', 'Y', 'N']);
@@ -281,10 +281,10 @@ describe('Buoc 4b - tinh chat tren tinh huong ngau nhien (hat giong co dinh)', (
       const wMode = next();
       const weights: Weights =
         wMode < 0.25
-          ? { experience: 1, reliability: 0, availability: 0 }
+          ? { experience: 1, reliability: 0, availability: 0, declared: 0 }
           : wMode < 0.4
-            ? { experience: 0, reliability: 1, availability: 0 }
-            : { experience: next(), reliability: next(), availability: next() + 0.01 };
+            ? { experience: 0, reliability: 1, availability: 0, declared: 0 }
+            : { experience: next(), reliability: next(), availability: next() + 0.01, declared: 0 };
       const mu = next() < 0.85 ? next() : null;
 
       for (const [normalize, missing] of combos) {

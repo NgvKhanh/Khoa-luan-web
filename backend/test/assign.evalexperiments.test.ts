@@ -1,7 +1,7 @@
 // Buoc 7b - cac thi nghiem (evalAssignExperiments.ts). THUAN: khong cham CSDL. Kiem CAC KHAI BAO diem do (tham so, nhom, mac dinh,
 // the gioi) va vong lap chung tren vai bo nho - khong chay ca 20 hat giong (viec do la cua CLI).
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_PARAMS, DEFAULT_WEIGHTS } from '../src/modules/assign/assign.score';
+import { DEFAULT_PARAMS, LEGACY_WEIGHTS_V1 } from '../src/modules/assign/assign.score';
 import { countTerms } from '../src/modules/assign/assign.text';
 import {
   DENSITIES,
@@ -111,7 +111,7 @@ describe('cac diem quet tham so', () => {
     // Nhanh duoc tao ra dung bo cham: kiem qua hanh vi, khong doc noi bo - doi H thi thu tu co the doi, nhung khong duoc nem loi
     for (const p of points.slice(0, 6)) {
       const arm = p.make();
-      expect(arm.weights!()).toEqual(DEFAULT_WEIGHTS);
+      expect(arm.weights!()).toEqual(LEGACY_WEIGHTS_V1);
     }
   });
 });
@@ -155,7 +155,9 @@ describe('luoi trong so', () => {
     expect(pts).toHaveLength(34);
     oneDefaultPerGroup(pts);
     expect(pts[0]!.isDefault).toBe(true);
-    expect(pts[0]!.make().weights!()).toEqual(DEFAULT_WEIGHTS);
+    expect(pts[0]!.make().weights!()).toEqual(LEGACY_WEIGHTS_V1);
+    // Luoi cua buoc 7: moi diem Ho so = 0
+    expect(pts.every((p) => p.make().weights!().declared === 0)).toBe(true);
     expect(pts[0]!.label).toContain('0,45 / 0,30 / 0,25');
   });
 });
@@ -230,7 +232,7 @@ describe('runSweep', () => {
     const provider = makeDatasetProvider();
     const pts: SweepPoint[] = [
       { group: 'g', label: 'a', isDefault: true, make: () => scorerArm({ id: 'x', label: 'x' }), opts: { mode: 'ARM', minDay: 30 }, world: SMALL },
-      { group: 'g', label: 'b', make: () => scorerArm({ id: 'y', label: 'y', weights: { experience: 1, reliability: 0, availability: 0 } }), opts: { mode: 'ARM', minDay: 30 }, world: SMALL },
+      { group: 'g', label: 'b', make: () => scorerArm({ id: 'y', label: 'y', weights: { experience: 1, reliability: 0, availability: 0, declared: 0 } }), opts: { mode: 'ARM', minDay: 30 }, world: SMALL },
     ];
     const lines: string[] = [];
     const r = runSweep([9401, 9402], pts, provider, (l) => lines.push(l));
@@ -323,9 +325,11 @@ describe('thi nghiem hoc', () => {
 
   it('muc tieu hoi tu = thien lech cua gu (da hop le nen phep chieu khong doi); doi chung = mac dinh', () => {
     for (const persona of ['expert', 'reliable', 'free', 'control'] as const) {
-      expect(l1Distance(learningTarget(persona), PERSONAS[persona].bias)).toBeCloseTo(0, 9);
+      expect(l1Distance(learningTarget(persona), { ...PERSONAS[persona].bias, declared: 0 })).toBeCloseTo(0, 9);
+      // Bo hoc cua buoc 7 khong cham Ho so (= 0) -> muc tieu cung khong
+      expect(learningTarget(persona).declared).toBe(0);
     }
-    expect(l1Distance(learningTarget('control'), DEFAULT_WEIGHTS)).toBeCloseTo(0, 9);
+    expect(l1Distance(learningTarget('control'), LEGACY_WEIGHTS_V1)).toBeCloseTo(0, 9);
   });
 
   it('muc tieu hoi tu: gu nam NGOAI tap trong so hop le -> diem hop le GAN NHAT (bo hoc khong bao gio toi duoc gu tho)', () => {
@@ -438,7 +442,7 @@ describe('thi nghiem hoc', () => {
 
   it('runLearnedObjective: nhanh co hoc THAT SU hoc tu truong nhom (trong so cuoi tien sat gu) du tu giao nguoi xep dau', () => {
     const target = learningTarget('free');
-    const start = l1Distance(DEFAULT_WEIGHTS, target); // 0,9: mac dinh nghieng ve kinh nghiem, gu nghieng ve kha dung
+    const start = l1Distance(LEGACY_WEIGHTS_V1, target); // 0,9: mac dinh nghieng ve kinh nghiem, gu nghieng ve kha dung
     const r = runLearnedObjective([9701, 9702], 'free', 0, provider);
     for (const w of r.finals) expect(l1Distance(w, target)).toBeLessThan(0.25 * start);
     // Trong so doi thi goi y doi thi ket qua doi: hai nhanh khong the trung het tung hat giong

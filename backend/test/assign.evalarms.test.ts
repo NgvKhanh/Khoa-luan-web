@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_WEIGHTS,
+  LEGACY_WEIGHTS_V1,
   rankCandidates,
   type CandidateInput,
   type ScoreCard,
@@ -118,10 +118,11 @@ describe('danh muc nhanh', () => {
 
   it('trong so cua cac nhanh dung bo cham: 1/0/0, 0/0/1, mac dinh; cat bo chia lai cho tong bang 1', () => {
     const w = (id: string) => [...MAIN_ARMS, ...ABLATION_ARMS].find((a) => a.id === id)!.make().weights!();
-    expect(w('exp-only')).toEqual({ experience: 1, reliability: 0, availability: 0 });
-    expect(w('load-only')).toEqual({ experience: 0, reliability: 0, availability: 1 });
-    expect(w('rel-only')).toEqual({ experience: 0, reliability: 1, availability: 0 });
-    expect(w('full')).toEqual(DEFAULT_WEIGHTS);
+    expect(w('exp-only')).toEqual({ experience: 1, reliability: 0, availability: 0, declared: 0 });
+    expect(w('load-only')).toEqual({ experience: 0, reliability: 0, availability: 1, declared: 0 });
+    expect(w('rel-only')).toEqual({ experience: 0, reliability: 1, availability: 0, declared: 0 });
+    // Nhanh "day du" ghim bo cu 0,45 / 0,30 / 0,25 (Ho so = 0) - so lieu buoc 7 khong doi theo mac dinh moi (§17.6)
+    expect(w('full')).toEqual(LEGACY_WEIGHTS_V1);
     const noAvail = w('no-avail');
     expect(noAvail.experience).toBeCloseTo(0.6, 12);
     expect(noAvail.reliability).toBeCloseTo(0.4, 12);
@@ -129,6 +130,7 @@ describe('danh muc nhanh', () => {
     for (const id of ['no-avail', 'no-rel', 'no-exp']) {
       const x = w(id);
       expect(x.experience + x.reliability + x.availability).toBeCloseTo(1, 12);
+      expect(x.declared).toBe(0);
     }
     // Nhanh khong dung bo cham thi khong co trong so
     expect(MAIN_ARMS[0]!.make().weights).toBeUndefined();
@@ -137,24 +139,28 @@ describe('danh muc nhanh', () => {
 
 describe('withoutComponent', () => {
   it('bo mot thanh phan, chia lai hai cai con (so tinh tay)', () => {
-    const a = withoutComponent(DEFAULT_WEIGHTS, 'availability');
+    const a = withoutComponent(LEGACY_WEIGHTS_V1, 'availability');
     expect(a.experience).toBeCloseTo(0.45 / 0.75, 12);
     expect(a.reliability).toBeCloseTo(0.3 / 0.75, 12);
     expect(a.availability).toBe(0);
-    const r = withoutComponent(DEFAULT_WEIGHTS, 'reliability');
+    const r = withoutComponent(LEGACY_WEIGHTS_V1, 'reliability');
     expect(r.experience).toBeCloseTo(0.45 / 0.7, 12);
     expect(r.availability).toBeCloseTo(0.25 / 0.7, 12);
     expect(r.reliability).toBe(0);
-    const e = withoutComponent(DEFAULT_WEIGHTS, 'experience');
+    const e = withoutComponent(LEGACY_WEIGHTS_V1, 'experience');
     expect(e.reliability).toBeCloseTo(0.3 / 0.55, 12);
     expect(e.availability).toBeCloseTo(0.25 / 0.55, 12);
     expect(e.experience).toBe(0);
   });
 
   it('khong sua dau vao; hai thanh phan con deu bang 0 thi tu choi', () => {
-    const w: Weights = deepFreeze({ experience: 1, reliability: 0, availability: 0 });
-    expect(withoutComponent(w, 'availability')).toEqual({ experience: 1, reliability: 0, availability: 0 });
-    expect(() => withoutComponent(w, 'experience')).toThrow(RangeError);
+    const w: Weights = deepFreeze({ experience: 1, reliability: 0, availability: 0, declared: 0 });
+    expect(withoutComponent(w, 'availability')).toEqual({ experience: 1, reliability: 0, availability: 0, declared: 0 });
+    expect(() => withoutComponent(w, 'experience')).toThrow(/tong > 0/);
+  });
+
+  it('chi cho bo trong so khong co Ho so: Ho so khac 0 se bi bo mat im lang nen nem loi', () => {
+    expect(() => withoutComponent({ ...LEGACY_WEIGHTS_V1, declared: 0.2 }, 'availability')).toThrow(/declared = 0/);
   });
 });
 
@@ -279,7 +285,7 @@ describe('nhanh dung bo cham', () => {
         idf: inp.snapshot.idf,
         now: inp.snapshot.now,
         groupOnTimeRate: inp.snapshot.mu,
-        weights: DEFAULT_WEIGHTS,
+        weights: LEGACY_WEIGHTS_V1,
         normalize: 'MINMAX',
         missing: 'DROP',
       });
@@ -305,7 +311,7 @@ describe('nhanh dung bo cham', () => {
         idf: inp.snapshot.idf,
         now: inp.snapshot.now,
         groupOnTimeRate: inp.snapshot.mu,
-        weights: DEFAULT_WEIGHTS,
+        weights: LEGACY_WEIGHTS_V1,
         normalize: 'NONE',
       });
       expect(none.order).toEqual(direct.map((r) => r.userId));
@@ -319,8 +325,8 @@ describe('nhanh dung bo cham', () => {
     let neutralDiffers = 0;
     let paramsDiffer = 0;
     for (const inp of inputs) {
-      const e = scorerArm({ id: 'e', label: 'e', weights: { experience: 1, reliability: 0, availability: 0 } }).rank(inp).order;
-      const l = scorerArm({ id: 'l', label: 'l', weights: { experience: 0, reliability: 0, availability: 1 } }).rank(inp).order;
+      const e = scorerArm({ id: 'e', label: 'e', weights: { experience: 1, reliability: 0, availability: 0, declared: 0 } }).rank(inp).order;
+      const l = scorerArm({ id: 'l', label: 'l', weights: { experience: 0, reliability: 0, availability: 1, declared: 0 } }).rank(inp).order;
       if (e.join() !== l.join()) expDiffersLoad += 1;
       const drop = scorerArm({ id: 'd', label: 'd' }).rank(inp).order;
       const neutral = scorerArm({ id: 'n', label: 'n', missing: 'NEUTRAL' }).rank(inp).order;
@@ -337,9 +343,9 @@ describe('nhanh dung bo cham', () => {
     const arm = scorerArm({ id: 'x', label: 'x' });
     const w = arm.weights!();
     w.experience = 0;
-    expect(arm.weights!()).toEqual(DEFAULT_WEIGHTS);
+    expect(arm.weights!()).toEqual(LEGACY_WEIGHTS_V1);
     // ... va sua doi tuong trong so truyen vao khong lam doi nhanh da tao
-    const src: Weights = { experience: 0.5, reliability: 0.3, availability: 0.2 };
+    const src: Weights = { experience: 0.5, reliability: 0.3, availability: 0.2, declared: 0 };
     const arm2 = scorerArm({ id: 'y', label: 'y', weights: src });
     src.experience = 0;
     expect(arm2.weights!().experience).toBe(0.5);

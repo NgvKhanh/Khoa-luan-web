@@ -14,7 +14,7 @@
 // DOC ky nang an (topic, skillAt) - CHI nam trong scripts/, module assign/ khong bao gio import tep nay.
 
 import type { PlanCard } from '../modules/assign/assign.plan';
-import type { CandidateInput, ScoreContext } from '../modules/assign/assign.score';
+import { LEGACY_WEIGHTS_V1, type CandidateInput, type ScoreContext } from '../modules/assign/assign.score';
 import { assignablePool, skillAt, type SimCard, type SimDataset, type SimPerson } from './simGenerator';
 import { simDate, snapshotAsOf } from './simReplay';
 
@@ -92,7 +92,8 @@ export function cutBatch(data: SimDataset, day: number, k: number): PlanBatch | 
     day,
     cards,
     candidates: snap.candidates,
-    ctx: { idf: snap.idf, now: snap.now, groupOnTimeRate: snap.mu },
+    // Ghim bo trong so cua buoc 9 (§17.6): so lieu da cong bo tai hien dung khi mac dinh cua san pham doi
+    ctx: { idf: snap.idf, now: snap.now, groupOnTimeRate: snap.mu, weights: LEGACY_WEIGHTS_V1 },
     poolKeys: pool.map((p) => p.key).sort(cmpStr),
     skillOf,
     bestSkill,

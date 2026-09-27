@@ -36,17 +36,41 @@ const DAY_MS = 86_400_000;
 
 // ---------- Tham so ----------
 
+/**
+ * Bon trong so (§17.6). `declared` = thanh phan "Ho so" (ho so tu khai). BUOC 11: thanh phan nay CHUA duoc tinh (buoc 12) -
+ * bo cham coi nhu moi ung vien deu vang no nen bo di va chia lai theo ba trong so con lai; `declared` chi duoc kiem tra.
+ */
 export interface Weights {
   experience: number;
   reliability: number;
   availability: number;
+  declared: number;
 }
 
-/** §5.7. Moi nhom co bo rieng (bang WorkspaceAssignWeights); day chi la mac dinh. */
+/** Trong so thanh phan Ho so trong bo mac dinh - TAM, chot bang do o buoc 15 (§17.10). */
+export const DEFAULT_DECLARED_WEIGHT = 0.2;
+
+/**
+ * §5.7, §17.6. Moi nhom co bo rieng (bang WorkspaceAssignWeights); day chi la mac dinh. Thuoc ho (1 - d) x (0,45; 0,30; 0,25) + d
+ * voi d = DEFAULT_DECLARED_WEIGHT: khi khong ai co Ho so, ba trong so con lai chia lai dung ve 0,45 / 0,30 / 0,25 -> xep hang
+ * y nhu truoc buoc 11.
+ */
 export const DEFAULT_WEIGHTS: Readonly<Weights> = {
+  experience: 0.36,
+  reliability: 0.24,
+  availability: 0.2,
+  declared: 0.2,
+};
+
+/**
+ * Bo mac dinh truoc buoc 11 (khong co Ho so). CHI de ghim cac nhanh danh gia cu (buoc 7/9) cho so lieu cu tai hien dung, va - tu
+ * buoc 11 den buoc 16 - de dich vu cham bang bo ba trong so dang luu (§17.6). Khong luu duoc qua API (0 < muc san 0,05).
+ */
+export const LEGACY_WEIGHTS_V1: Readonly<Weights> = {
   experience: 0.45,
   reliability: 0.3,
   availability: 0.25,
+  declared: 0,
 };
 
 export interface ScoreParams {
@@ -98,7 +122,8 @@ function resolveParams(over?: Partial<ScoreParams>): ScoreParams {
 function resolveWeights(w: Weights | undefined): Weights {
   const r = w ?? DEFAULT_WEIGHTS;
   let sum = 0;
-  for (const key of ['experience', 'reliability', 'availability'] as const) {
+  // Du BON khoa: bo ba khoa kieu cu (test / script khong qua tsc) phai loi ngay, khong duoc am tham coi Ho so = 0
+  for (const key of ['experience', 'reliability', 'availability', 'declared'] as const) {
     if (!Number.isFinite(r[key]) || r[key] < 0) throw new RangeError(`trong so ${key} phai la so huu han >= 0`);
     sum += r[key];
   }

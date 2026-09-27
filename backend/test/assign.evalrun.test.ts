@@ -2,7 +2,7 @@
 // Hat giong phat trien 9xxx; bo hat giong danh gia 2001-2020 chi dung cho lan chay chinh thuc.
 import { describe, expect, it } from 'vitest';
 import { buildIdf } from '../src/modules/assign/assign.tfidf';
-import { DEFAULT_WEIGHTS, rankCandidates, type RankedCandidate, type ScoreCard, type Weights } from '../src/modules/assign/assign.score';
+import { LEGACY_WEIGHTS_V1, rankCandidates, type RankedCandidate, type ScoreCard, type Weights } from '../src/modules/assign/assign.score';
 import { MAIN_ARMS, scorerArm, type Arm, type ArmFeedback, type ArmInput } from '../src/scripts/evalAssignArms';
 import {
   DEFAULT_MIN_DAY,
@@ -145,11 +145,11 @@ describe('che do HISTORY khop replay() cu (moc doi chieu da qua cai loi o buoc 4
   it('tuy chon trong so / chuan hoa / thieu du lieu / tham so duoc chuyen xuong DUNG nhu replay', () => {
     const data = gen(9002);
     const cases: { weights?: Weights; normalize?: 'MINMAX' | 'NONE'; missing?: 'DROP' | 'NEUTRAL'; params?: { k: number; halfLifeDays: number } }[] = [
-      { weights: { experience: 1, reliability: 0, availability: 0 }, normalize: 'NONE' },
+      { weights: { experience: 1, reliability: 0, availability: 0, declared: 0 }, normalize: 'NONE' },
       // Voi MOT thanh phan duy nhat min-max chi la phep bien doi don dieu (thu tu khong doi) nen ca tren KHONG phan biet duoc NONE voi
       // MINMAX; ca duoi day (nhieu thanh phan) moi bat duoc viec `normalize` co duoc chuyen xuong hay khong
       { normalize: 'NONE' },
-      { weights: { experience: 0.6, reliability: 0.4, availability: 0 } },
+      { weights: { experience: 0.6, reliability: 0.4, availability: 0, declared: 0 } },
       { missing: 'NEUTRAL' },
       { params: { k: 2, halfLifeDays: 30 } },
     ];
@@ -457,7 +457,7 @@ describe('truong nhom, phan hoi va che do LEADER', () => {
   it('truong nhom nhin xep hang THAM CHIEU (cau hinh san pham), khong phai xep hang cua nhanh - de moi nhanh thay cung mot the gioi', () => {
     const small = gen(9002, SMALL);
     const inputs = new Map<string, ArmInput>();
-    const expOnly = scorerArm({ id: 'e', label: 'e', weights: { experience: 1, reliability: 0, availability: 0 } });
+    const expOnly = scorerArm({ id: 'e', label: 'e', weights: { experience: 1, reliability: 0, availability: 0, declared: 0 } });
     const probe: Arm = {
       ...expOnly,
       rank: (input) => {
@@ -477,10 +477,12 @@ describe('truong nhom, phan hoi va che do LEADER', () => {
     let differsFromArm = 0;
     for (const { cardKey, ranked } of seen) {
       const input = inputs.get(cardKey)!;
+      // Cau hinh san pham tu buoc 11 den buoc 16: ba trong so cu + Ho so = 0 (§17.6)
       const expected = rankCandidates(input.card, input.snapshot.candidates, {
         idf: input.snapshot.idf,
         now: input.snapshot.now,
         groupOnTimeRate: input.snapshot.mu,
+        weights: LEGACY_WEIGHTS_V1,
       });
       expect(ranked).toEqual(expected);
       if (expOnly.rank(input).order.join() !== expected.map((r) => r.userId).join()) differsFromArm += 1;
@@ -731,7 +733,7 @@ describe('an toan va tat dinh', () => {
   it('ghi lai trong so cua nhanh dung bo cham (cuoi moi quyet dinh); nhanh khac -> null', () => {
     const data = gen(9002, SMALL);
     const a = runArm(data, full, { mode: 'HISTORY', minDay: 30 });
-    expect(a.finalWeights).toEqual(DEFAULT_WEIGHTS);
+    expect(a.finalWeights).toEqual(LEGACY_WEIGHTS_V1);
     expect(a.decisions.every((d) => d.weights !== null && d.weights.experience === 0.45)).toBe(true);
     const b = runArm(data, arm('random'), { mode: 'HISTORY', minDay: 30 });
     expect(b.finalWeights).toBeNull();

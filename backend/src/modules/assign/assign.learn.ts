@@ -8,56 +8,37 @@
 //
 // CHIEU thay vi "kep roi chuan hoa" (§8 ghi ban dau): kep tung so vao [0,05; 0,70] roi chia cho tong CO THE lam
 // vo chinh bat bien §14 - (0,70; 0,05; 0,05) chuan hoa thanh (0,875; 0,0625; 0,0625), vuot tran. Phep chieu tim
-// DIEM HOP LE GAN NHAT (tong = 1, moi so trong khoang) nen luon dung bat bien; cung y do, chinh xac hon.
+// DIEM HOP LE GAN NHAT (tong dung, moi so trong khoang) nen luon dung bat bien; cung y do, chinh xac hon. Phep chieu nam o
+// assign.weights.ts (projectOnto / projectWithin).
+//
+// BUOC 11 (§17.7): bo trong so co bon khoa nhung bo hoc CHI chinh ba thanh phan tu lich su, trong dung "khoi" cua chung
+// (1 - trong so Ho so); trong so Ho so giu nguyen. Voi Ho so = 0 (bo trong so dang luu, LEGACY_WEIGHTS_V1) ket qua trung tung bit
+// voi truoc buoc 11. Luat day du "hoc tren cac thanh phan ca hai nguoi deu co" la buoc 13.
 
 import type { Weights } from './assign.score';
-import { WEIGHT_KEYS, WEIGHT_MAX, WEIGHT_MIN, sameWeights, type WeightKey } from './assign.weights';
+import { LEGACY_KEYS, projectWithin, sameWeights, type LegacyKey } from './assign.weights';
 
 /** Toc do hoc (§5.8). */
 export const LEARN_ETA = 0.05;
 /** Chi bat dau HOC tu luot phan hoi thu nay tro di; truoc do chi ghi nhan (muc 1) - §8 chot chan 1. */
 export const LEARN_MIN_FEEDBACK = 10;
 
-/** Ba thanh phan cua mot ung vien (cung khoa voi Weights). */
-export type Features = Readonly<Record<WeightKey, number>>;
-
-const BISECTION_STEPS = 200;
+/** Ba thanh phan tu lich su cua mot ung vien - cac thanh phan bo hoc chinh o buoc 11. */
+export type Features = Readonly<Record<LegacyKey, number>>;
 
 /**
- * Chieu vuong goc len tap {tong = 1, moi so trong [WEIGHT_MIN, WEIGHT_MAX]}: nghiem la
- * w_i = kep(v_i - tau) voi tau chon sao cho tong bang 1. Ham tong theo tau don dieu giam va lien tuc, di tu
- * 3 * MAX (= 2,1) xuong 3 * MIN (= 0,15) nen luon co nghiem; tim bang chia doi (tat dinh, khong phu thuoc thu tu).
+ * Mot buoc cap nhat: keo trong so ve phia thanh phan nguoi duoc chon (`chosen`) hon nguoi xep dau (`top`), chi tren ba thanh phan tu
+ * lich su, roi chieu ba so do len {tong = 1 - Ho so, moi so trong khoang}. Ho so khong doi.
  */
-export function projectWeights(v: Weights): Weights {
-  const xs = WEIGHT_KEYS.map((k) => v[k]);
-  if (!xs.every((x) => typeof x === 'number' && Number.isFinite(x))) {
-    throw new RangeError('trong so phai la so huu han');
-  }
-  const clamp = (x: number) => Math.min(WEIGHT_MAX, Math.max(WEIGHT_MIN, x));
-  const total = (tau: number) => xs.reduce((s, x) => s + clamp(x - tau), 0);
-
-  let lo = Math.min(...xs) - WEIGHT_MAX; // tai day moi so bi kep len MAX: total = 3 * MAX >= 1
-  let hi = Math.max(...xs) - WEIGHT_MIN; // tai day moi so bi kep xuong MIN: total = 3 * MIN <= 1
-  for (let i = 0; i < BISECTION_STEPS; i += 1) {
-    const mid = (lo + hi) / 2;
-    if (total(mid) > 1) lo = mid;
-    else hi = mid;
-  }
-  const tau = (lo + hi) / 2;
-  const [experience, reliability, availability] = xs.map((x) => clamp(x - tau)) as [number, number, number];
-  return { experience, reliability, availability };
-}
-
-/** Mot buoc cap nhat: keo trong so ve phia thanh phan nguoi duoc chon (`chosen`) hon nguoi xep dau (`top`). */
 export function learnStep(w: Weights, top: Features, chosen: Features, eta: number = LEARN_ETA): Weights {
   if (!Number.isFinite(eta) || eta <= 0) throw new RangeError('eta phai la so huu han > 0');
-  const raw = {} as Record<WeightKey, number>;
-  for (const k of WEIGHT_KEYS) {
+  const raw: Weights = { ...w };
+  for (const k of LEGACY_KEYS) {
     const d = chosen[k] - top[k];
     if (!Number.isFinite(w[k]) || !Number.isFinite(d)) throw new RangeError(`gia tri ${k} khong hop le`);
     raw[k] = w[k] + eta * d;
   }
-  return projectWeights(raw);
+  return projectWithin(raw, LEGACY_KEYS);
 }
 
 export interface LearnCandidate {
@@ -126,8 +107,8 @@ const isNum = (x: unknown): x is number => typeof x === 'number' && Number.isFin
 function featuresOf(components: unknown): Features | null {
   if (typeof components !== 'object' || components === null) return null;
   const record = components as Record<string, unknown>;
-  const out = {} as Record<WeightKey, number>;
-  for (const k of WEIGHT_KEYS) {
+  const out = {} as Record<LegacyKey, number>;
+  for (const k of LEGACY_KEYS) {
     const c = record[k];
     if (typeof c !== 'object' || c === null) return null;
     const { value, scaled } = c as Record<string, unknown>;

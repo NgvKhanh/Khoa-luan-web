@@ -248,7 +248,7 @@ describe('planAssignments - hanh vi', () => {
   });
 
   it('nguoi khong co diem (NO_DATA) khong bao gio duoc chon; khong ai co diem -> de trong', () => {
-    const expOnly: Weights = { experience: 1, reliability: 0, availability: 0 };
+    const expOnly: Weights = { experience: 1, reliability: 0, availability: 0, declared: 0 };
     const ctx: ScoreContext = { ...CTX, weights: expOnly };
     // 'a0' chua co lich su: khong co kinh nghiem, cac thanh phan con lai trong so 0 -> khong co diem
     const candidates = [cand('a0'), cand('b1', [hist('h', 'alpha', 10)])];

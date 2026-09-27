@@ -8,6 +8,7 @@ import { buildIdf, type Idf } from '../modules/assign/assign.tfidf';
 import { countTerms } from '../modules/assign/assign.text';
 import {
   groupOnTimeRate,
+  LEGACY_WEIGHTS_V1,
   rankCandidates,
   type CandidateInput,
   type RankedCandidate,
@@ -125,6 +126,7 @@ export interface ReplayOptions {
   normalize?: Normalization;
   /** Cach xu ly thanh phan thieu; mac dinh theo rankCandidates ('DROP'). */
   missing?: MissingPolicy;
+  /** Mac dinh LEGACY_WEIGHTS_V1 (ghim so lieu buoc 4-7, §17.6), KHONG phai DEFAULT_WEIGHTS cua san pham. */
   weights?: Weights;
   params?: Partial<ScoreParams>;
   /** Chi phat lai the giao tu ngay nay tro di (truoc do chua ai co lich su). */
@@ -164,7 +166,7 @@ export function* replayTargets(data: SimDataset, opts: ReplayOptions = {}): Gene
         idf: snap.idf,
         now: snap.now,
         groupOnTimeRate: snap.mu,
-        weights: opts.weights,
+        weights: opts.weights ?? LEGACY_WEIGHTS_V1,
         params: opts.params,
         normalize: opts.normalize,
         missing: opts.missing,

@@ -14,7 +14,7 @@
 //
 // DOC ky nang an de DANH GIA - chi nam trong scripts/, module assign/ khong bao gio import. Bo cham (qua Arm) khong thay chung.
 
-import { rankCandidates, type RankedCandidate, type ScoreCard, type Weights } from '../modules/assign/assign.score';
+import { LEGACY_WEIGHTS_V1, rankCandidates, type RankedCandidate, type ScoreCard, type Weights } from '../modules/assign/assign.score';
 import type { Arm, ArmInput, ArmOutput, Oracle } from './evalAssignArms';
 import { gini, maxShare, streamSeed } from './evalAssignStats';
 import {
@@ -278,11 +278,13 @@ export function runArm(data: SimDataset, makeArm: () => Arm, opts: RunOptions): 
     };
 
     // "Tai" cua tung nguoi theo dinh nghia cua bo cham (the mo chong lan) - dung cho ca cac nhanh khong dung bo cham va cho
-    // mo hinh ket qua cua the gioi. Xep hang tham chieu nay khong anh huong nhanh nao.
+    // mo hinh ket qua cua the gioi. Xep hang tham chieu nay khong anh huong nhanh nao, nhung la thu TRUONG NHOM GIA nhin (thu tu
+    // quyet dinh ai thang khi hoa tien ich) -> ghim bo trong so cua buoc 7 (§17.6) de so lieu cu tai hien dung.
     const reference = rankCandidates(scoreCard, snap.candidates, {
       idf: snap.idf,
       now: snap.now,
       groupOnTimeRate: snap.mu,
+      weights: LEGACY_WEIGHTS_V1,
     });
     const load = new Map(reference.map((r) => [r.userId, r.load]));
 

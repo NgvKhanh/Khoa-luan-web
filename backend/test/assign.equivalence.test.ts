@@ -4,7 +4,7 @@
 // neu tang doc CSDL lam meo bat ky thu gi (bo sot bang da luu tru, dem nham the, lech mo lai...) thi test nay vo.
 import { describe, expect, it } from 'vitest';
 import { prisma } from '../src/config/prisma';
-import { rankCandidates } from '../src/modules/assign/assign.score';
+import { LEGACY_WEIGHTS_V1, rankCandidates } from '../src/modules/assign/assign.score';
 import { suggestForCard, type SuggestionResult } from '../src/modules/assign/assign.service';
 import { DEFAULT_SIM, generateSimulation, type SimCard } from '../src/scripts/simGenerator';
 import { snapshotAsOf } from '../src/scripts/simReplay';
@@ -31,7 +31,8 @@ async function compareOne(seed: SeedResult, ownerId: string, c: SimCard, now: Da
   const ranked = rankCandidates(
     { id: c.key, title: c.title, description: c.description, startDate: at(c.assignedDay), dueDate: at(c.dueDay, 23, 59) },
     ref.candidates,
-    { idf: ref.idf, now: ref.now, groupOnTimeRate: ref.mu }
+    // Tu buoc 11 den buoc 16 dich vu cham bang ba trong so da luu + Ho so = 0 (§17.6): cung bo o day de so TUNG BIT
+    { idf: ref.idf, now: ref.now, groupOnTimeRate: ref.mu, weights: LEGACY_WEIGHTS_V1 }
   );
 
   expect(db.groupOnTimeRate).toBe(ref.mu);

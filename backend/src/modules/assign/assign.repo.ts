@@ -11,8 +11,9 @@ import type { BoardVisibility } from '../../generated/prisma/enums';
 import { workspaceRoleOf } from '../workspace/workspace.service';
 import { learningDecision, parseRunCandidates, type LearnReason } from './assign.learn';
 import type { PlanCard } from './assign.plan';
-import type { Weights } from './assign.score';
 import type { SnapshotCard, SnapshotMembership, SnapshotProfile } from './assign.snapshot';
+// Tu buoc 11 den buoc 16 (§17.6): bang trong so chi co BA cot - doc/ghi ba khoa, gan Ho so = 0 khi dua vao bo hoc
+import { pinLegacy, toLegacy, type LegacyWeights } from './assign.weights';
 
 export interface BoardRef {
   id: string;
@@ -30,7 +31,7 @@ export interface CandidateUser {
 export type WorkspaceCard = SnapshotCard & { boardId: string };
 
 export interface StoredWeights {
-  weights: Weights;
+  weights: LegacyWeights;
   feedbackCount: number;
   updatedAt: Date;
 }
@@ -216,7 +217,7 @@ async function lockedWeightsRow(tx: Tx, workspaceId: string) {
  */
 export async function saveWeights(
   workspaceId: string,
-  weights: Weights,
+  weights: LegacyWeights,
   opts: { resetCount?: boolean } = {}
 ): Promise<StoredWeights> {
   return prisma.$transaction(async (tx) => {
@@ -236,7 +237,7 @@ export async function saveWeights(
 export interface WeightHistoryRow {
   id: string;
   createdAt: Date;
-  weights: Weights;
+  weights: LegacyWeights;
   feedbackCount: number;
   /** Luot goi y gay ra thay doi; null = chinh tay hoac dat lai. */
   runId: string | null;
@@ -293,7 +294,7 @@ export interface LearnOutcome {
   /** So luot phan hoi cua nhom SAU luot nay. */
   feedbackCount: number;
   /** Trong so cua nhom SAU luot nay. */
-  weights: Weights;
+  weights: LegacyWeights;
   learning: { learned: boolean; reason: LearnReason };
 }
 
@@ -321,13 +322,14 @@ export async function decideAndLearn(
     const currentWeights = toStored(current).weights;
     const feedbackCount = current.feedbackCount + 1;
     const decision = learningDecision({
-      weights: currentWeights,
+      weights: pinLegacy(currentWeights),
       feedbackCount,
       topUserId: run.topUserId,
       chosenUserId,
       candidates: parseRunCandidates(run.candidates),
     });
-    const next = decision.learn ? decision.next : currentWeights;
+    // Ho so = 0 khong bi bo hoc dong toi (chi chinh ba thanh phan lich su) nen cat ve ba khoa khong mat gi
+    const next = decision.learn ? toLegacy(decision.next) : currentWeights;
     const values = {
       wExperience: next.experience,
       wReliability: next.reliability,

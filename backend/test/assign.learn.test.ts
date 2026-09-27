@@ -1,9 +1,11 @@
 // Buoc 6a - hoc trong so (assign.learn.ts). HAM THUAN, khong can DB.
 // Bon loai bao dam:
-//  (1) phep CHIEU: luon hop le (tong = 1, moi so trong [0,05; 0,70]) VA la diem hop le GAN NHAT (doi chieu vet can);
-//  (2) mot buoc hoc di dung huong, dung do lon, khong bao gio pha bat bien;
+//  (1) phep CHIEU (tu buoc 11 nam o assign.weights.ts - test o assign.weights.test.ts);
+//  (2) mot buoc hoc di dung huong, dung do lon, khong bao gio pha bat bien; tu buoc 11 chi chinh ba thanh phan tu lich su,
+//      trong so Ho so giu nguyen;
 //  (3) quyet dinh "co hoc khong" - tung ly do khong hoc va THU TU kiem tra;
 //  (4) mot "truong nhom gia" co thien lech co dinh: trong so hoc duoc phai BAM THEO (so do truoc khi viet expect).
+// Ca cu (truoc buoc 11) dung LEGACY_WEIGHTS_V1 (Ho so = 0): ket qua phai y nhu truoc.
 import { describe, expect, it } from 'vitest';
 import {
   LEARN_ETA,
@@ -11,17 +13,26 @@ import {
   learnStep,
   learningDecision,
   parseRunCandidates,
-  projectWeights,
   type Features,
   type LearnCandidate,
   type LearnInput,
 } from '../src/modules/assign/assign.learn';
-import { DEFAULT_WEIGHTS, type Weights } from '../src/modules/assign/assign.score';
-import { WEIGHT_KEYS, WEIGHT_MAX, WEIGHT_MIN, weightIssues } from '../src/modules/assign/assign.weights';
+import { DEFAULT_WEIGHTS, LEGACY_WEIGHTS_V1, type Weights } from '../src/modules/assign/assign.score';
+import {
+  LEGACY_KEYS,
+  WEIGHT_KEYS,
+  legacyWeightIssues,
+  projectWithin,
+  weightIssues,
+} from '../src/modules/assign/assign.weights';
 import { Rng } from '../src/scripts/simGenerator';
 
-const W = (experience: number, reliability: number, availability: number): Weights => ({ experience, reliability, availability });
-const sum = (w: Weights) => w.experience + w.reliability + w.availability;
+const W = (experience: number, reliability: number, availability: number, declared = 0): Weights => ({
+  experience,
+  reliability,
+  availability,
+  declared,
+});
 const near = (a: Weights, b: Weights, eps = 1e-12) => WEIGHT_KEYS.every((k) => Math.abs(a[k] - b[k]) <= eps);
 
 describe('hang so hoc', () => {
@@ -31,108 +42,16 @@ describe('hang so hoc', () => {
   });
 });
 
-describe('projectWeights - phep chieu len {tong = 1, moi so trong [0,05; 0,70]}', () => {
-  it('cac ca biet truoc (tinh tay)', () => {
-    const cases: [string, Weights, Weights][] = [
-      ['da hop le thi giu nguyen', W(0.45, 0.3, 0.25), W(0.45, 0.3, 0.25)],
-      ['tran o mot so: (0,75; 0,30; 0) -> (0,70; 0,25; 0,05)', W(0.75, 0.3, 0), W(0.7, 0.25, 0.05)],
-      ['tong 0,8, mot so o tran: (0,70; 0,05; 0,05) -> (0,70; 0,15; 0,15)', W(0.7, 0.05, 0.05), W(0.7, 0.15, 0.15)],
-      ['tong dung 1 nhung vuot tran: (0,05; 0,05; 0,90) -> (0,15; 0,15; 0,70)', W(0.05, 0.05, 0.9), W(0.15, 0.15, 0.7)],
-      ['ba so bang nhau lon: (2; 2; 2) -> moi so 1/3', W(2, 2, 2), W(1 / 3, 1 / 3, 1 / 3)],
-      ['ba so bang nhau am: (-1; -1; -1) -> moi so 1/3', W(-1, -1, -1), W(1 / 3, 1 / 3, 1 / 3)],
-      ['mot so rat lon: (5; 0; 0) -> (0,70; 0,15; 0,15)', W(5, 0, 0), W(0.7, 0.15, 0.15)],
-    ];
-    for (const [label, input, want] of cases) {
-      const got = projectWeights(input);
-      expect(near(got, want), `${label}: ${JSON.stringify(got)}`).toBe(true);
-    }
-  });
-
-  it('TAI SAO khong "kep roi chuan hoa": cach do lam vo bat bien §14, phep chieu thi khong', () => {
-    const v = W(0.7, 0.05, 0.05);
-    const clamp = (x: number) => Math.min(WEIGHT_MAX, Math.max(WEIGHT_MIN, x));
-    const clamped = { experience: clamp(v.experience), reliability: clamp(v.reliability), availability: clamp(v.availability) };
-    const total = sum(clamped);
-    const naive = W(clamped.experience / total, clamped.reliability / total, clamped.availability / total);
-    expect(naive.experience).toBeGreaterThan(WEIGHT_MAX); // 0,875: vuot tran
-    expect(weightIssues(naive).length).toBeGreaterThan(0);
-    const good = projectWeights(v);
-    expect(weightIssues(good)).toEqual([]);
-    expect(good.experience).toBeLessThanOrEqual(WEIGHT_MAX + 1e-12);
-  });
-
-  it('LUON hop le tren 3000 dau vao ngau nhien rong [-2; 3] (hat giong co dinh): moi so trong khoang, tong = 1 sai so 1e-12', () => {
-    const rng = new Rng(20260920);
-    for (let i = 0; i < 3000; i += 1) {
-      const v = W(rng.range(-2, 3), rng.range(-2, 3), rng.range(-2, 3));
-      const p = projectWeights(v);
-      for (const k of WEIGHT_KEYS) {
-        expect(p[k], `${JSON.stringify(v)}`).toBeGreaterThanOrEqual(WEIGHT_MIN - 1e-12);
-        expect(p[k], `${JSON.stringify(v)}`).toBeLessThanOrEqual(WEIGHT_MAX + 1e-12);
-      }
-      expect(Math.abs(sum(p) - 1), JSON.stringify(v)).toBeLessThan(1e-12);
-      expect(weightIssues(p)).toEqual([]);
-    }
-  });
-
-  it('la diem hop le GAN NHAT (doi chieu vet can luoi buoc 0,005 tren 300 dau vao) - khong chi la "mot diem hop le"', () => {
-    const grid: Weights[] = [];
-    for (let a = 0.05; a <= 0.7 + 1e-9; a += 0.005) {
-      for (let b = 0.05; b <= 0.7 + 1e-9; b += 0.005) {
-        const c = 1 - a - b;
-        if (c >= WEIGHT_MIN - 1e-9 && c <= WEIGHT_MAX + 1e-9) grid.push(W(a, b, c));
-      }
-    }
-    expect(grid.length).toBeGreaterThan(5000);
-    const dist2 = (p: Weights, q: Weights) => WEIGHT_KEYS.reduce((s, k) => s + (p[k] - q[k]) ** 2, 0);
-    const rng = new Rng(7);
-    for (let i = 0; i < 300; i += 1) {
-      const v = W(rng.range(-0.5, 1.5), rng.range(-0.5, 1.5), rng.range(-0.5, 1.5));
-      const p = projectWeights(v);
-      const best = Math.min(...grid.map((g) => dist2(v, g)));
-      expect(dist2(v, p), JSON.stringify(v)).toBeLessThanOrEqual(best + 1e-9);
-    }
-  });
-
-  it('luy dang (chieu hai lan = mot lan) va bat bien theo hoan vi ba thanh phan', () => {
-    const rng = new Rng(11);
-    const perms: [WeightKeyIdx, WeightKeyIdx, WeightKeyIdx][] = [
-      [0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0],
-    ];
-    for (let i = 0; i < 300; i += 1) {
-      const xs = [rng.range(-1, 2), rng.range(-1, 2), rng.range(-1, 2)] as [number, number, number];
-      const p = projectWeights(W(...xs));
-      expect(near(projectWeights(p), p), `luy dang ${xs}`).toBe(true);
-      const base = [p.experience, p.reliability, p.availability];
-      for (const perm of perms) {
-        const q = projectWeights(W(xs[perm[0]], xs[perm[1]], xs[perm[2]]));
-        const got = [q.experience, q.reliability, q.availability];
-        expect(got.map((g, j) => Math.abs(g - base[perm[j]]!)).every((d) => d < 1e-12), `hoan vi ${perm} cua ${xs}`).toBe(true);
-      }
-    }
-  });
-
-  it('dau vao khong huu han bi tu choi bang RangeError (khong tra so rac)', () => {
-    for (const bad of [Number.NaN, Infinity, -Infinity]) {
-      expect(() => projectWeights(W(bad, 0.3, 0.7))).toThrow(RangeError);
-      expect(() => projectWeights(W(0.3, bad, 0.7))).toThrow(RangeError);
-      expect(() => projectWeights(W(0.3, 0.7, bad))).toThrow(RangeError);
-    }
-    expect(() => projectWeights({ experience: 0.3, reliability: 0.7 } as unknown as Weights)).toThrow(RangeError);
-  });
-});
-type WeightKeyIdx = 0 | 1 | 2;
-
-describe('learnStep - mot buoc cap nhat', () => {
+describe('learnStep - mot buoc cap nhat (bo trong so kieu cu: Ho so = 0)', () => {
   const TOP: Features = { experience: 1, reliability: 0.5, availability: 0 };
   const CHOSEN: Features = { experience: 0, reliability: 0.5, availability: 1 };
 
   it('do lon dung: w + eta * (x_chon - x_dau); (0,45; 0,30; 0,25) voi hieu (-1; 0; +1) -> (0,40; 0,30; 0,30)', () => {
-    expect(near(learnStep(DEFAULT_WEIGHTS, TOP, CHOSEN), W(0.4, 0.3, 0.3))).toBe(true);
+    expect(near(learnStep(LEGACY_WEIGHTS_V1, TOP, CHOSEN), W(0.4, 0.3, 0.3))).toBe(true);
     // Doi vai tro (chon lai la nguoi hon o kinh nghiem) -> di nguoc lai
-    expect(near(learnStep(DEFAULT_WEIGHTS, CHOSEN, TOP), W(0.5, 0.3, 0.2))).toBe(true);
+    expect(near(learnStep(LEGACY_WEIGHTS_V1, CHOSEN, TOP), W(0.5, 0.3, 0.2))).toBe(true);
     // eta tuy chinh: buoc gap doi
-    expect(near(learnStep(DEFAULT_WEIGHTS, TOP, CHOSEN, 0.1), W(0.35, 0.3, 0.35))).toBe(true);
+    expect(near(learnStep(LEGACY_WEIGHTS_V1, TOP, CHOSEN, 0.1), W(0.35, 0.3, 0.35))).toBe(true);
   });
 
   it('dung HUONG: thanh phan nguoi duoc chon hon thi tang, kem hon thi giam, bang nhau thi giu', () => {
@@ -145,10 +64,10 @@ describe('learnStep - mot buoc cap nhat', () => {
   });
 
   it('hai nguoi giong het nhau -> khong doi; nguoi duoc chon hon o CA BA thanh phan -> phep chieu tru deu, ket qua van la w', () => {
-    expect(near(learnStep(DEFAULT_WEIGHTS, TOP, TOP), DEFAULT_WEIGHTS)).toBe(true);
+    expect(near(learnStep(LEGACY_WEIGHTS_V1, TOP, TOP), LEGACY_WEIGHTS_V1)).toBe(true);
     const zero: Features = { experience: 0, reliability: 0, availability: 0 };
     const one: Features = { experience: 1, reliability: 1, availability: 1 };
-    expect(near(learnStep(DEFAULT_WEIGHTS, zero, one), DEFAULT_WEIGHTS)).toBe(true);
+    expect(near(learnStep(LEGACY_WEIGHTS_V1, zero, one), LEGACY_WEIGHTS_V1)).toBe(true);
   });
 
   it('cham tran / san thi phep chieu giu bat bien: (0,70; 0,25; 0,05) + eta * (+1; +1; -1) -> (0,70; 0,25; 0,05)', () => {
@@ -158,22 +77,67 @@ describe('learnStep - mot buoc cap nhat', () => {
 
   it('eta va dac trung khong hop le bi tu choi', () => {
     for (const eta of [0, -0.05, Number.NaN, Infinity]) {
-      expect(() => learnStep(DEFAULT_WEIGHTS, TOP, CHOSEN, eta), String(eta)).toThrow(RangeError);
+      expect(() => learnStep(LEGACY_WEIGHTS_V1, TOP, CHOSEN, eta), String(eta)).toThrow(RangeError);
     }
-    // Kem THONG DIEP cua chinh learnStep (khong phai cua projectWeights phia sau): phat hien dung cho, dung ten thanh phan
-    expect(() => learnStep(DEFAULT_WEIGHTS, { ...TOP, experience: Number.NaN }, CHOSEN)).toThrow(/experience khong hop le/);
-    expect(() => learnStep(DEFAULT_WEIGHTS, TOP, { ...CHOSEN, availability: Infinity })).toThrow(/availability khong hop le/);
+    // Kem THONG DIEP cua chinh learnStep (khong phai cua phep chieu phia sau): phat hien dung cho, dung ten thanh phan
+    expect(() => learnStep(LEGACY_WEIGHTS_V1, { ...TOP, experience: Number.NaN }, CHOSEN)).toThrow(/experience khong hop le/);
+    expect(() => learnStep(LEGACY_WEIGHTS_V1, TOP, { ...CHOSEN, availability: Infinity })).toThrow(/availability khong hop le/);
     expect(() => learnStep(W(Number.NaN, 0.5, 0.5), TOP, CHOSEN)).toThrow(/experience khong hop le/);
   });
 
-  it('LUON tra bo trong so hop le tren 2000 tinh huong ngau nhien (w hop le bat ky, dac trung [0,1])', () => {
+  it('LUON tra bo trong so hop le tren 2000 tinh huong ngau nhien (w hop le bat ky, dac trung [0,1]); Ho so van = 0', () => {
     const rng = new Rng(99);
     const feat = (): Features => ({ experience: rng.next(), reliability: rng.next(), availability: rng.next() });
     for (let i = 0; i < 2000; i += 1) {
-      const w = projectWeights(W(rng.range(-1, 2), rng.range(-1, 2), rng.range(-1, 2)));
+      const w = projectWithin(W(rng.range(-1, 2), rng.range(-1, 2), rng.range(-1, 2)), LEGACY_KEYS);
+      const out = learnStep(w, feat(), feat(), rng.chance(0.3) ? rng.range(0.01, 0.5) : LEARN_ETA);
+      expect(legacyWeightIssues(out), JSON.stringify({ w, out })).toEqual([]);
+      expect(out.declared).toBe(0);
+    }
+  });
+});
+
+describe('learnStep - bo bon trong so (§17.7): chi chinh ba thanh phan tu lich su, trong khoi 1 - Ho so', () => {
+  const TOP: Features = { experience: 1, reliability: 0.5, availability: 0 };
+  const CHOSEN: Features = { experience: 0, reliability: 0.5, availability: 1 };
+
+  it('mac dinh moi (0,36; 0,24; 0,20; 0,20) voi hieu (-1; 0; +1) -> (0,31; 0,24; 0,25; 0,20) (tinh tay)', () => {
+    const out = learnStep(DEFAULT_WEIGHTS, TOP, CHOSEN);
+    expect(near(out, W(0.31, 0.24, 0.25, 0.2))).toBe(true);
+    expect(weightIssues(out)).toEqual([]);
+  });
+
+  it('cham san khi khoi < 1: (0,10; 0,60; 0,10; 0,20) + 0,1 * (-1; +1; 0) -> (0,05; 0,675; 0,075; 0,20) (tinh tay: tau = 0,025)', () => {
+    const out = learnStep(W(0.1, 0.6, 0.1, 0.2), { experience: 1, reliability: 0, availability: 0 }, { experience: 0, reliability: 1, availability: 0 }, 0.1);
+    expect(near(out, W(0.05, 0.675, 0.075, 0.2))).toBe(true);
+  });
+
+  it('nguoi duoc chon hon o CA BA thanh phan: ba trong so tru deu ve cho cu, Ho so KHONG bi keo (chieu ca bo thi Ho so tut xuong 0,1625)', () => {
+    const w = W(0.5, 0.2, 0.1, 0.2);
+    const zero: Features = { experience: 0, reliability: 0, availability: 0 };
+    const one: Features = { experience: 1, reliability: 1, availability: 1 };
+    expect(near(learnStep(w, zero, one), w)).toBe(true);
+    // Doi chung: phep chieu CA BO (4 khoa) cho ket qua khac - chung minh ca nay phan biet duoc hai cach
+    const global = projectWithin(W(0.55, 0.25, 0.15, 0.2), WEIGHT_KEYS);
+    expect(near(global, W(0.5125, 0.2125, 0.1125, 0.1625))).toBe(true);
+  });
+
+  it('2000 tinh huong ngau nhien: luon hop le (4 khoa), Ho so giu nguyen tung bit, tong ba thanh phan = 1 - Ho so', () => {
+    const rng = new Rng(4242);
+    const feat = (): Features => ({ experience: rng.next(), reliability: rng.next(), availability: rng.next() });
+    for (let i = 0; i < 2000; i += 1) {
+      const d = rng.range(0.05, 0.7);
+      const w = projectWithin(W(rng.range(-1, 2), rng.range(-1, 2), rng.range(-1, 2), d), LEGACY_KEYS);
+      expect(weightIssues(w), JSON.stringify(w)).toEqual([]);
       const out = learnStep(w, feat(), feat(), rng.chance(0.3) ? rng.range(0.01, 0.5) : LEARN_ETA);
       expect(weightIssues(out), JSON.stringify({ w, out })).toEqual([]);
+      expect(out.declared).toBe(d);
+      expect(Math.abs(out.experience + out.reliability + out.availability - (1 - d))).toBeLessThan(1e-12);
     }
+  });
+
+  it('Ho so khong phai so huu han -> loi (khong am tham tinh khoi bang NaN)', () => {
+    expect(() => learnStep(W(0.4, 0.3, 0.3, Number.NaN), TOP, CHOSEN)).toThrow(RangeError);
   });
 });
 
@@ -183,7 +147,7 @@ describe('learningDecision - co hoc khong, vi sao khong', () => {
   const B = cand('b', 40, { experience: 0, reliability: 0.5, availability: 1 });
   const C = cand('c', 10, null);
   const base = (over: Partial<LearnInput> = {}): LearnInput => ({
-    weights: DEFAULT_WEIGHTS,
+    weights: LEGACY_WEIGHTS_V1,
     feedbackCount: 10,
     topUserId: 'a',
     chosenUserId: 'b',
@@ -196,8 +160,12 @@ describe('learningDecision - co hoc khong, vi sao khong', () => {
     expect(d.learn).toBe(true);
     if (!d.learn) throw new Error('khong hoc');
     expect(d.reason).toBe('LEARNED');
-    expect(near(d.next, learnStep(DEFAULT_WEIGHTS, A.features!, B.features!))).toBe(true);
+    expect(near(d.next, learnStep(LEGACY_WEIGHTS_V1, A.features!, B.features!))).toBe(true);
     expect(near(d.next, W(0.4, 0.3, 0.3))).toBe(true);
+    // Bo bon trong so: cung luat, Ho so giu nguyen
+    const d4 = learningDecision(base({ weights: DEFAULT_WEIGHTS }));
+    if (!d4.learn) throw new Error('khong hoc');
+    expect(near(d4.next, W(0.31, 0.24, 0.25, 0.2))).toBe(true);
   });
 
   it('tung ly do khong hoc', () => {
@@ -267,6 +235,14 @@ describe('parseRunCandidates - doc lai AssignRun.candidates', () => {
     ]);
   });
 
+  it('JSON cu (ba thanh phan, truoc buoc 11) van hoc duoc: khong doi hoi thanh phan Ho so (buoc 13 moi xet no)', () => {
+    const out = parseRunCandidates([good('a')]);
+    expect(out[0]!.features).not.toBeNull();
+    // Co them khoa `declared` (tu buoc 12) cung khong lam hong dac trung cua ba thanh phan
+    const withDeclared = { ...good('b'), components: { ...good('b').components, declared: comp(null, 0.5) } };
+    expect(parseRunCandidates([withDeclared])[0]!.features).toEqual({ experience: 1, reliability: 0.5, availability: 0 });
+  });
+
   it('thieu MOT thanh phan that (value = null) hoac khong co scaled -> features = null; diem khong so -> null', () => {
     const missingValue = { ...good('a'), components: { ...good('a').components, reliability: comp(null, 0.5) } };
     const missingScaled = { ...good('b'), components: { ...good('b').components, availability: comp(0.4, null) } };
@@ -291,6 +267,7 @@ describe('parseRunCandidates - doc lai AssignRun.candidates', () => {
 // trong [0,1]; he thong xep theo w . x, "truong nhom" chon theo thien lech CO DINH b . x (+ nhieu). Khong nhieu: L1 giua trong
 // so hoc duoc va thien lech 0,50 -> 0,03 / 0,90 -> 0,02 / 0,80 -> 0,03 (8/8 hat giong), dong y top-1 76-88% -> 98-99%, chi ~25 trong
 // 300 vong thuc su cap nhat. Truong nhom nhieu (+-0,15): L1 -> 0,10-0,16, dong y 66-78% -> 76-78%.
+// Ba thanh phan tu lich su, Ho so = 0 (dung nhu truoc buoc 11).
 
 interface SimResult {
   end: Weights;
@@ -303,9 +280,9 @@ interface SimResult {
 
 function simulate(seed: number, bias: Weights, rounds: number, noise: number): SimResult {
   const rng = new Rng(seed);
-  let w: Weights = { ...DEFAULT_WEIGHTS };
-  const l1 = (a: Weights, b: Weights) => WEIGHT_KEYS.reduce((s, k) => s + Math.abs(a[k] - b[k]), 0);
-  const dot = (p: Weights, x: Features) => WEIGHT_KEYS.reduce((s, k) => s + p[k] * x[k], 0);
+  let w: Weights = { ...LEGACY_WEIGHTS_V1 };
+  const l1 = (a: Weights, b: Weights) => LEGACY_KEYS.reduce((s, k) => s + Math.abs(a[k] - b[k]), 0);
+  const dot = (p: Weights, x: Features) => LEGACY_KEYS.reduce((s, k) => s + p[k] * x[k], 0);
   let agreeFirst = 0;
   let agreeLast = 0;
   let learned = 0;
@@ -323,10 +300,11 @@ function simulate(seed: number, bias: Weights, rounds: number, noise: number): S
     if (d.learn) {
       w = d.next;
       learned += 1;
-      expect(weightIssues(w), `vong ${r}`).toEqual([]); // moi buoc trung gian deu hop le
+      expect(legacyWeightIssues(w), `vong ${r}`).toEqual([]); // moi buoc trung gian deu hop le
+      expect(w.declared).toBe(0);
     }
   }
-  return { end: w, distStart: l1(DEFAULT_WEIGHTS, bias), distEnd: l1(w, bias), agreeFirst, agreeLast, learned };
+  return { end: w, distStart: l1(LEGACY_WEIGHTS_V1, bias), distEnd: l1(w, bias), agreeFirst, agreeLast, learned };
 }
 
 describe('truong nhom gia co thien lech co dinh: trong so hoc duoc BAM THEO', () => {
@@ -364,9 +342,9 @@ describe('truong nhom gia co thien lech co dinh: trong so hoc duoc BAM THEO', ()
 
   it('DOI CHUNG: truong nhom chon dung theo trong so mac dinh (khong nhieu) -> KHONG hoc gi, trong so giu nguyen', () => {
     for (const seed of SEEDS) {
-      const r = simulate(seed, DEFAULT_WEIGHTS, 300, 0);
+      const r = simulate(seed, LEGACY_WEIGHTS_V1, 300, 0);
       expect(r.learned, String(seed)).toBe(0);
-      expect(near(r.end, DEFAULT_WEIGHTS), String(seed)).toBe(true);
+      expect(near(r.end, LEGACY_WEIGHTS_V1), String(seed)).toBe(true);
       expect(r.agreeFirst).toBe(100);
     }
   });

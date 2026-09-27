@@ -12,6 +12,7 @@ import {
   CONFIDENCE_THIN_BELOW,
   DEFAULT_PARAMS,
   DEFAULT_WEIGHTS,
+  LEGACY_WEIGHTS_V1,
   confidenceLevelOf,
   groupOnTimeRate,
   outcomeKindOf,
@@ -407,14 +408,21 @@ describe('Buoc 4 - diem tong va do tin cay (§5.7)', () => {
     expect(r.components.availability.value).toBeCloseTo(0.8, 12);
     expect(r.score).toBeCloseTo(100 * (0.45 * (1 / 3) + 0.3 * 0.625 + 0.25 * 0.8), 9); // 53,75
     expect(r.score).toBeCloseTo(53.75, 9);
-    expect(r.components.experience).toMatchObject({ weight: 0.45 });
+    // Mac dinh moi 0,36 / 0,24 / 0,20 / Ho so 0,20 (§17.6): Ho so chua tinh (buoc 12) nen bi bo va chia lai -> ti trong THUC
+    // SU van la 0,45 / 0,30 / 0,25, diem y nhu truoc buoc 11
+    expect(r.components.experience).toMatchObject({ weight: 0.36 });
     expect(r.components.experience.share + r.components.reliability.share + r.components.availability.share).toBeCloseTo(1, 12);
+    expect(r.components.experience.share).toBeCloseTo(0.45, 12);
     expect(r.components.reliability.share).toBeCloseTo(0.3, 12);
-    expect(DEFAULT_WEIGHTS).toEqual({ experience: 0.45, reliability: 0.3, availability: 0.25 });
+    expect(r.components.availability.share).toBeCloseTo(0.25, 12);
+    expect(DEFAULT_WEIGHTS).toEqual({ experience: 0.36, reliability: 0.24, availability: 0.2, declared: 0.2 });
+    const legacy = scoreCandidate(CARD, c, ctx({ weights: LEGACY_WEIGHTS_V1 }));
+    expect(legacy.score).toBeCloseTo(53.75, 12);
+    expect(legacy.components.experience).toMatchObject({ weight: 0.45, share: 0.45 });
     expect(r.flags).toEqual([]);
 
     // Trong so tuy chinh (khong can tong 1): 1 / 0 / 1 -> trung binh cua kinh nghiem va kha dung
-    const w: Weights = { experience: 1, reliability: 0, availability: 1 };
+    const w: Weights = { experience: 1, reliability: 0, availability: 1, declared: 0 };
     const rw = scoreCandidate(CARD, c, ctx({ weights: w }));
     expect(rw.score).toBeCloseTo((100 * (1 / 3 + 0.8)) / 2, 9);
     expect(rw.components.reliability.share).toBe(0);
@@ -432,11 +440,11 @@ describe('Buoc 4 - diem tong va do tin cay (§5.7)', () => {
     expect(noHist.confidence).toBe(0);
 
     // NO_DATA: cac thanh phan co du lieu deu co trong so 0
-    const nd = scoreCandidate(CARD, cand('u'), ctx({ weights: { experience: 1, reliability: 1, availability: 0 } }));
+    const nd = scoreCandidate(CARD, cand('u'), ctx({ weights: { experience: 1, reliability: 1, availability: 0, declared: 0 } }));
     expect(nd.score).toBeNull();
     expect(nd.flags).toEqual(['NO_HISTORY', 'NO_DATA']);
     // ...nhung cung nguoi do co lich su thi co diem
-    const withHist = scoreCandidate(CARD, cand('u', [hist('a', 'alpha', 0)]), ctx({ weights: { experience: 1, reliability: 1, availability: 0 } }));
+    const withHist = scoreCandidate(CARD, cand('u', [hist('a', 'alpha', 0)]), ctx({ weights: { experience: 1, reliability: 1, availability: 0, declared: 0 } }));
     expect(withHist.score).not.toBeNull();
     // Co lich su nhung thieu muy: reliability vang, diem chi con kinh nghiem + kha dung
     const noMu = scoreCandidate(CARD, cand('u', [hist('a', 'alpha', 0)]), ctx({ groupOnTimeRate: null }));
@@ -518,7 +526,7 @@ describe('Buoc 4 - xep hang', () => {
     expect(same.map((r) => r.userId)).toEqual(['abe', 'zed']);
     expect(same[0]!.score).toBe(same[1]!.score);
     // Cung diem, do tin cay khac: hai nguoi cung diem tong nhung bang chung khac (tinh bang trong so chi kha dung)
-    const w: Weights = { experience: 0, reliability: 0, availability: 1 };
+    const w: Weights = { experience: 0, reliability: 0, availability: 1, declared: 0 };
     const a1 = cand('lo', [hist('l', 'alpha', 90)]); // e = 0,5 -> tin cay thap
     const a2 = cand('hi', [hist('h1', 'alpha', 0), hist('h2', 'alpha', 0)]); // e = 2 -> tin cay cao hon
     const eq = rankCandidates(CARD, [a1, a2], ctx({ weights: w }));
@@ -526,7 +534,7 @@ describe('Buoc 4 - xep hang', () => {
     expect(eq.map((r) => r.userId)).toEqual(['hi', 'lo']);
 
     // Khong co diem (NO_DATA) xuong cuoi, du userId dung dau bang chu cai
-    const wNull: Weights = { experience: 1, reliability: 0, availability: 0 };
+    const wNull: Weights = { experience: 1, reliability: 0, availability: 0, declared: 0 };
     const withNull = rankCandidates(CARD, [cand('aaa'), cand('zzz', [hist('z', 'alpha', 0)])], ctx({ weights: wNull }));
     expect(withNull.map((r) => r.userId)).toEqual(['zzz', 'aaa']);
     expect(withNull[1]!.score).toBeNull();
@@ -583,9 +591,13 @@ describe('Buoc 4 - tham so, trong so va boi canh sai bi tu choi', () => {
       ['confidenceScale = 0', { params: { confidenceScale: 0 } }],
       ['halfLife = 0', { params: { halfLifeDays: 0 } }],
       ['defaultWindow < 0', { params: { defaultWindowDays: -1 } }],
-      ['trong so am', { weights: { experience: -1, reliability: 1, availability: 1 } }],
-      ['trong so NaN', { weights: { experience: Number.NaN, reliability: 1, availability: 1 } }],
-      ['tat ca trong so 0', { weights: { experience: 0, reliability: 0, availability: 0 } }],
+      ['trong so am', { weights: { experience: -1, reliability: 1, availability: 1, declared: 0 } }],
+      ['trong so NaN', { weights: { experience: Number.NaN, reliability: 1, availability: 1, declared: 0 } }],
+      ['tat ca trong so 0', { weights: { experience: 0, reliability: 0, availability: 0, declared: 0 } }],
+      ['Ho so am', { weights: { experience: 0.4, reliability: 0.3, availability: 0.3, declared: -0.1 } }],
+      ['Ho so NaN', { weights: { experience: 0.4, reliability: 0.3, availability: 0.3, declared: Number.NaN } }],
+      // Bo ba khoa kieu cu (test / script khong qua tsc): loi ngay, khong am tham coi Ho so = 0
+      ['thieu Ho so', { weights: { experience: 0.45, reliability: 0.3, availability: 0.25 } as unknown as Weights }],
       ['now hong', { now: new Date('x') }],
       ['muy > 1', { groupOnTimeRate: 1.5 }],
       ['muy < 0', { groupOnTimeRate: -0.1 }],
@@ -647,7 +659,7 @@ describe('Buoc 4 - tinh chat tren 300 tinh huong ngau nhien (hat giong co dinh)'
         maxParallelCards: 1 + Math.floor(next() * 6),
         pausedUntil: next() < 0.1 ? at(Math.floor(next() * 30 - 10)) : null,
       });
-      const weights: Weights = { experience: next(), reliability: next(), availability: next() + 0.01 };
+      const weights: Weights = { experience: next(), reliability: next(), availability: next() + 0.01, declared: 0 };
       const c = ctx({ idf, groupOnTimeRate: next() < 0.85 ? next() : null, weights });
 
       const r: CandidateScore = scoreCandidate(card, input, c);
@@ -756,13 +768,13 @@ describe('Buoc 4 - chot chan kien truc va kiem tra nhanh tren du lieu mo phong',
       expect(Math.abs(s.corrWithSkill)).toBeLessThanOrEqual(1);
     }
     // Trong so chi kha dung: moi the co du lieu kha dung (khong ai bi thieu) nen n = so muc tieu
-    expect(componentSpread([data], { weights: { experience: 0, reliability: 0, availability: 1 } }).availability.n).toBe(targets.length);
+    expect(componentSpread([data], { weights: { experience: 0, reliability: 0, availability: 1, declared: 0 } }).availability.n).toBe(targets.length);
   });
 
   it('phat lai lich su: kinh nghiem + tin cay hon ngau nhien o MOI hat giong (chot chan "bo cham khong vo nghia")', () => {
     // Chi la kiem tra nhanh, KHONG phai danh gia (khong nhanh nen, khong khoang tin cay): do duoc top-1 26,0-55,6% va hoi tiec
     // 0,138-0,197 tren 7 hat giong, so voi ngau nhien ~19,5% va 0,26-0,35. Nguong dat duoi cac muc do do.
-    const weights: Weights = { experience: 0.6, reliability: 0.4, availability: 0 };
+    const weights: Weights = { experience: 0.6, reliability: 0.4, availability: 0, declared: 0 };
     const seeds = [DEFAULT_SIM.seed, 1, 2, 3, 4, 5, 6];
     const rows = seeds.map((seed) => replay(generateSimulation({ ...DEFAULT_SIM, seed }), { weights }));
     for (const [i, r] of rows.entries()) {
@@ -773,5 +785,57 @@ describe('Buoc 4 - chot chan kien truc va kiem tra nhanh tren du lieu mo phong',
     const mean = (f: (r: (typeof rows)[number]) => number) => rows.reduce((s, r) => s + f(r), 0) / rows.length;
     expect(mean((r) => r.hitScorer)).toBeGreaterThan(0.33);
     expect(mean((r) => r.hitRandom)).toBeLessThan(0.21);
+  });
+
+  it('buoc 11: thanh phan Ho so CHUA tinh -> trong so Ho so bat ky khong doi diem, ti trong, thu tu (ca scoreCandidate va rankCandidates)', () => {
+    const people = [
+      cand('a', [hist('a1', 'alpha', 0)], [open('o', null, null)]),
+      cand('b', [hist('b1', 'alpha beta', 30), hist('b2', 'gamma', 5)]),
+      cand('c', [], [open('p', null, null), open('q', null, null)]),
+    ];
+    const base: Weights = { experience: 0.5, reliability: 0.3, availability: 0.2, declared: 0 };
+    const strip = (r: CandidateScore) => ({ score: r.score, shares: Object.values(r.components).map((x) => x.share) });
+    for (const declared of [0.05, 0.2, 0.7, 5]) {
+      const w = { ...base, declared };
+      for (const p of people) {
+        const x = strip(scoreCandidate(CARD, p, ctx({ weights: w })));
+        const y = strip(scoreCandidate(CARD, p, ctx({ weights: base })));
+        expect(x.score, `${p.userId} d=${declared}`).toBeCloseTo(y.score!, 9);
+        x.shares.forEach((v, i) => expect(v).toBeCloseTo(y.shares[i]!, 12));
+      }
+      for (const normalize of ['MINMAX', 'NONE'] as const) {
+        const rx = rankCandidates(CARD, people, ctx({ weights: w, normalize }));
+        const ry = rankCandidates(CARD, people, ctx({ weights: base, normalize }));
+        expect(rx.map((r) => r.userId)).toEqual(ry.map((r) => r.userId));
+        rx.forEach((r, i) => expect(r.score).toBeCloseTo(ry[i]!.score!, 9));
+      }
+    }
+    // Chi co trong so o Ho so: khong thanh phan nao co du lieu duoc tinh -> NO_DATA (khong chia cho 0)
+    const onlyDeclared = scoreCandidate(CARD, people[0]!, ctx({ weights: { experience: 0, reliability: 0, availability: 0, declared: 1 } }));
+    expect(onlyDeclared.score).toBeNull();
+    expect(onlyDeclared.flags).toContain('NO_DATA');
+  });
+
+  it('buoc 11 (§17.6): mac dinh MOI xep hang Y NHU bo cu 0,45 / 0,30 / 0,25 tren bo mo phong (moi the, moi ung vien)', () => {
+    let n = 0;
+    for (const seed of [DEFAULT_SIM.seed, 1, 2]) {
+      const data = generateSimulation({ ...DEFAULT_SIM, seed });
+      const legacy = [...replayTargets(data)]; // mac dinh cua bo phat lai = LEGACY_WEIGHTS_V1
+      const fresh = [...replayTargets(data, { weights: DEFAULT_WEIGHTS })];
+      expect(fresh.length).toBe(legacy.length);
+      legacy.forEach((t, i) => {
+        const f = fresh[i]!;
+        expect(f.ranked.map((r) => r.userId), `${seed} ${t.card.key}`).toEqual(t.ranked.map((r) => r.userId));
+        f.ranked.forEach((r, j) => {
+          const old = t.ranked[j]!;
+          if (old.score === null) expect(r.score).toBeNull();
+          else expect(Math.abs(r.score! - old.score)).toBeLessThan(1e-9);
+          expect(r.components.experience.weight).toBe(0.36);
+          expect(old.components.experience.weight).toBe(0.45);
+        });
+        n += 1;
+      });
+    }
+    expect(n).toBeGreaterThan(250);
   });
 });

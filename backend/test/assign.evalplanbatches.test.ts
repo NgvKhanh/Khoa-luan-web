@@ -1,5 +1,6 @@
 // Buoc 9a - lop 2: cat mot dot chia viec tu bo mo phong (evalPlanBatches.ts). HAM THUAN: khong cham CSDL.
 import { describe, expect, it } from 'vitest';
+import { LEGACY_WEIGHTS_V1 } from '../src/modules/assign/assign.score';
 import { cutBatch, cutBatches, PLAN_BATCH_DAYS, PLAN_BATCH_K } from '../src/scripts/evalPlanBatches';
 import { DEFAULT_SIM, generateSimulation, skillAt, type SimCard, type SimDataset } from '../src/scripts/simGenerator';
 
@@ -90,6 +91,11 @@ describe('cutBatch', () => {
     expect(JSON.stringify(a.candidates)).toBe(JSON.stringify(b.candidates));
     expect(a.ctx.now.getTime()).toBe(b.ctx.now.getTime());
     expect(a.ctx.groupOnTimeRate).toBe(b.ctx.groupOnTimeRate);
+  });
+
+  it('ghim bo trong so cua buoc 9 (LEGACY_WEIGHTS_V1, §17.6): so lieu da cong bo khong doi theo mac dinh moi cua san pham', () => {
+    const data = generateSimulation({ ...DEFAULT_SIM, seed: SEED });
+    expect(cutBatch(data, 90, 12)!.ctx.weights).toEqual(LEGACY_WEIGHTS_V1);
   });
 
   it('the gioi con lai (candidates) KHONG chua lich su/tai cua chinh cac the trong dot (khong ro ri)', () => {

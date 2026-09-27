@@ -11,16 +11,20 @@
 //
 // KHONG import simGenerator (chi type Rng qua Leader): truong nhom chi thay nhung gi giao dien hien ra (gia tri tho / da chuan hoa).
 
-import { DEFAULT_WEIGHTS, rankCandidates, type RankedCandidate, type Weights } from '../modules/assign/assign.score';
+import { LEGACY_WEIGHTS_V1, rankCandidates, type RankedCandidate, type Weights } from '../modules/assign/assign.score';
 import { LEARN_ETA, LEARN_MIN_FEEDBACK, learningDecision, parseRunCandidates } from '../modules/assign/assign.learn';
+import { LEGACY_DEFAULT_WEIGHTS, type LegacyWeights } from '../modules/assign/assign.weights';
 import type { Arm, ArmFeedback, ArmInput, ScorerArmOptions } from './evalAssignArms';
 import type { Leader } from './evalAssignRun';
 
 export type FeatureSpace = 'SCALED' | 'RAW';
 
 export interface LeaderConfig {
-  /** Thien lech that: ba trong so khong am, tong 1 (khong bat buoc nam trong [0,05; 0,70] nhu trong so cua nhom). */
-  bias: Weights;
+  /**
+   * Thien lech that: ba trong so khong am, tong 1 (khong bat buoc nam trong [0,05; 0,70] nhu trong so cua nhom). Chi ba thanh phan tu
+   * lich su: truong nhom gia cua buoc 7 khong nhin thanh phan Ho so.
+   */
+  bias: LegacyWeights;
   /** Do lech chuan cua nhieu Gauss cong vao tien ich (0 = nhat quan tuyet doi). Dac trung nam trong [0,1], bias tong 1 -> tien ich trong [0,1]. */
   noise: number;
   /**
@@ -86,8 +90,8 @@ export const PERSONAS = {
   expert: { label: 'Ưu tiên kinh nghiệm', bias: { experience: 0.7, reliability: 0.15, availability: 0.15 } },
   reliable: { label: 'Ưu tiên đúng hạn', bias: { experience: 0.15, reliability: 0.7, availability: 0.15 } },
   free: { label: 'Ưu tiên người rảnh', bias: { experience: 0.15, reliability: 0.15, availability: 0.7 } },
-  control: { label: 'Trùng mặc định (đối chứng)', bias: { ...DEFAULT_WEIGHTS } },
-} as const satisfies Record<string, { label: string; bias: Weights }>;
+  control: { label: 'Trùng mặc định (đối chứng)', bias: { ...LEGACY_DEFAULT_WEIGHTS } },
+} as const satisfies Record<string, { label: string; bias: LegacyWeights }>;
 
 export type PersonaId = keyof typeof PERSONAS;
 
@@ -115,7 +119,7 @@ export interface LearningArmOptions extends Omit<ScorerArmOptions, 'weights' | '
   eta?: number;
   /** So luot phan hoi toi thieu truoc khi hoc (mac dinh LEARN_MIN_FEEDBACK cua san pham). */
   minFeedback?: number;
-  /** Trong so ban dau (mac dinh DEFAULT_WEIGHTS - nhu nhom moi tao). */
+  /** Trong so ban dau (mac dinh LEGACY_WEIGHTS_V1 - nhu nhom moi tao o buoc 7; ghim so lieu cu, §17.6). */
   initial?: Weights;
 }
 
@@ -137,7 +141,7 @@ export interface LearningArm extends Arm {
 export function learningArm(o: LearningArmOptions = {}): LearningArm {
   const eta = o.eta ?? LEARN_ETA;
   const minFeedback = o.minFeedback ?? LEARN_MIN_FEEDBACK;
-  let weights: Weights = { ...(o.initial ?? DEFAULT_WEIGHTS) };
+  let weights: Weights = { ...(o.initial ?? LEGACY_WEIGHTS_V1) };
   let feedback = 0;
   let learned = 0;
   return {
@@ -236,7 +240,7 @@ export function learningTrace(
   decisions: readonly TraceDecision[],
   target: Weights,
   complete: readonly boolean[],
-  initial: Weights = DEFAULT_WEIGHTS
+  initial: Weights = LEGACY_WEIGHTS_V1
 ): LearningTrace {
   const n = decisions.length;
   if (n < 3) throw new RangeError('can it nhat 3 quyet dinh de chia ba');

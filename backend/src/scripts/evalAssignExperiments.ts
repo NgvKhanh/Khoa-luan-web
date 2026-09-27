@@ -8,13 +8,13 @@
 
 import {
   DEFAULT_PARAMS,
-  DEFAULT_WEIGHTS,
+  LEGACY_WEIGHTS_V1,
   type MissingPolicy,
   type Normalization,
   type ScoreParams,
   type Weights,
 } from '../modules/assign/assign.score';
-import { projectWeights } from '../modules/assign/assign.learn';
+import { LEGACY_KEYS, pinLegacy, projectWithin } from '../modules/assign/assign.weights';
 import { countTerms, type CardText } from '../modules/assign/assign.text';
 import type { TermCounts } from '../modules/assign/assign.tfidf';
 import { MAIN_ARMS, scorerArm, withoutComponent, type Arm, type ArmSpec } from './evalAssignArms';
@@ -174,13 +174,13 @@ export function normalizationPoints(): SweepPoint[] {
 
 // ---------- 3. Luoi trong so ----------
 
-/** Moi bo (a, b, c) la boi cua 0,1 trong [0,1; 0,7], tong 1: 33 diem. */
+/** Moi bo (a, b, c) la boi cua 0,1 trong [0,1; 0,7], tong 1: 33 diem (Ho so = 0 - luoi cua buoc 7). */
 export function weightGrid(): Weights[] {
   const out: Weights[] = [];
   for (let a = 1; a <= 7; a += 1) {
     for (let b = 1; b <= 7; b += 1) {
       const c = 10 - a - b;
-      if (c >= 1 && c <= 7) out.push({ experience: a / 10, reliability: b / 10, availability: c / 10 });
+      if (c >= 1 && c <= 7) out.push({ experience: a / 10, reliability: b / 10, availability: c / 10, declared: 0 });
     }
   }
   return out;
@@ -191,7 +191,7 @@ const fmtW = (w: Weights) => [w.experience, w.reliability, w.availability].map((
 export function weightsGridPoints(): SweepPoint[] {
   const group = 'Lưới trọng số (kinh nghiệm / tin cậy / khả dụng)';
   const points = [
-    pt(group, `${fmtW(DEFAULT_WEIGHTS)} (MẶC ĐỊNH)`, () => scorerArm({ id: 'full', label: 'full' }), ARM_MODE, { isDefault: true }),
+    pt(group, `${fmtW(LEGACY_WEIGHTS_V1)} (MẶC ĐỊNH)`, () => scorerArm({ id: 'full', label: 'full' }), ARM_MODE, { isDefault: true }),
   ];
   for (const w of weightGrid()) {
     points.push(pt(group, fmtW(w), () => scorerArm({ id: 'w', label: 'w', weights: w }), ARM_MODE));
@@ -205,7 +205,7 @@ export const LOAD_PENALTIES: readonly number[] = [0, 0.06, 0.12, 0.2, 0.3];
 const WORLD_ARM_IDS = ['random', 'most-free', 'exp-only', 'full'] as const;
 
 function noAvailabilityArm(): Arm {
-  return scorerArm({ id: 'no-avail', label: 'Bỏ khả dụng', weights: withoutComponent(DEFAULT_WEIGHTS, 'availability') });
+  return scorerArm({ id: 'no-avail', label: 'Bỏ khả dụng', weights: withoutComponent(LEGACY_WEIGHTS_V1, 'availability') });
 }
 
 /** Voi moi muc phat tai cua the gioi: cac nhanh chinh + nhanh bo kha dung. Nhom = muc phat tai, dong = nhanh. */
@@ -303,9 +303,12 @@ export interface LearningResult {
   fixed: LearningTrace[];
 }
 
-/** Trong so muc tieu cua duong hoi tu: diem hop le gan nhat voi thien lech that (bo hoc chi co the toi day). */
+/**
+ * Trong so muc tieu cua duong hoi tu: diem hop le gan nhat voi thien lech that (bo hoc chi co the toi day). Bo hoc chi chinh ba thanh
+ * phan tu lich su va Ho so = 0 o nhanh buoc 7 -> chieu rieng ba thanh phan do, tong 1.
+ */
 export function learningTarget(persona: PersonaId): Weights {
-  return projectWeights(PERSONAS[persona].bias);
+  return projectWithin(pinLegacy(PERSONAS[persona].bias), LEGACY_KEYS);
 }
 
 /**

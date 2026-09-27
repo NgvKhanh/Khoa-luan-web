@@ -127,6 +127,8 @@ describe('POST outcome - hoc trong so (muc 2)', () => {
     expect(r10.status).toBe(200);
     expect(r10.body.data).toMatchObject({ learned: true, feedbackCount: 10, learning: { learned: true, reason: 'LEARNED' } });
     expect(closeTo(wApi(r10.body.data.weights), [0.4, 0.3, 0.3])).toBe(true);
+    // Tu buoc 11 den buoc 16 API van tra BA trong so (bo hoc chay voi Ho so = 0 roi cat lai, §17.6)
+    expect(Object.keys(r10.body.data.weights).sort()).toEqual(['availability', 'experience', 'reliability']);
     row = await rowOf(w.wsId);
     expect(row.feedbackCount).toBe(10);
     expect(closeTo(wOf(row), [0.4, 0.3, 0.3])).toBe(true);
@@ -212,11 +214,12 @@ describe('POST outcome - hoc trong so (muc 2)', () => {
         { userId: w.bob.id, score: 40, f: f.chosen },
       ]);
     const [run1, run2] = [await mk(f1), await mk(f2)];
-    type Ws = { experience: number; reliability: number; availability: number };
-    const feat = (t: [number, number, number]): Ws => ({ experience: t[0], reliability: t[1], availability: t[2] });
+    type Ws = { experience: number; reliability: number; availability: number; declared: number };
+    const feat = (t: [number, number, number]) => ({ experience: t[0], reliability: t[1], availability: t[2] });
     const step = (from: Ws, f: typeof f1) => learnStep(from, feat(f.top), feat(f.chosen));
     const arr = (x: Ws) => [x.experience, x.reliability, x.availability];
-    const DEFAULT = { experience: 0.45, reliability: 0.3, availability: 0.25 };
+    // Bo dang luu (ba cot) duoc dua vao bo hoc voi Ho so = 0 (buoc 11 -> buoc 16)
+    const DEFAULT = { experience: 0.45, reliability: 0.3, availability: 0.25, declared: 0 };
     // Hai buoc cong tinh, khong cham bien -> giao hoan: ket qua cuoi la (0,45; 0,25; 0,30) du thu tu nao
     const both = step(step(DEFAULT, f1), f2);
     const only1 = step(DEFAULT, f1); // (0,40; 0,30; 0,30)

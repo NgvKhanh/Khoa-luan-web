@@ -34,16 +34,22 @@ import { PLAN_MAX_CARDS, PLAN_VERSION, planAssignments, urgencyOrder } from './a
 import { MAX_PARALLEL_LIMIT } from './assign.schema';
 import {
   DEFAULT_MAX_PARALLEL,
-  DEFAULT_WEIGHTS,
   rankCandidates,
   type CandidateScore,
   type ConfidenceLevel,
   type Flag,
   type OutcomeKind,
-  type Weights,
 } from './assign.score';
 import { buildSnapshot } from './assign.snapshot';
-import { isDefaultWeights, sameWeights, weightIssues } from './assign.weights';
+// Tu buoc 11 den buoc 16 (§17.6): CSDL va API van luu / tra BA trong so; khi cham, gan Ho so = 0 (pinLegacy) -> ket qua y nhu truoc
+import {
+  LEGACY_DEFAULT_WEIGHTS,
+  isLegacyDefault,
+  legacyWeightIssues,
+  pinLegacy,
+  sameLegacyWeights,
+  type LegacyWeights,
+} from './assign.weights';
 
 // Hai lua chon cua bo cham duoc ghi RO o day (khong dua vao mac dinh cua assign.score.ts) de mot lan ai do doi
 // mac dinh thi nhat ky khong noi doi: phien ban thuat toan luon mo ta dung thu da chay.
@@ -64,9 +70,9 @@ async function readScoringInputs(workspaceId: string, candidateIds: readonly str
     readProfiles(workspaceId, candidateIds),
     readWeights(workspaceId),
   ]);
-  let weights: Weights = { ...DEFAULT_WEIGHTS };
+  let weights: LegacyWeights = { ...LEGACY_DEFAULT_WEIGHTS };
   if (stored) {
-    if (weightIssues(stored.weights).length === 0) weights = stored.weights;
+    if (legacyWeightIssues(stored.weights).length === 0) weights = stored.weights;
     else console.warn(`[assign] trong so cua khong gian ${workspaceId} khong hop le, dung mac dinh`);
   }
   return { cards, memberships, reopened, profiles, weights };
@@ -112,7 +118,7 @@ export interface SuggestionResult {
   card: { id: string; title: string; boardId: string; workspaceId: string };
   algorithmVersion: string;
   generatedAt: Date;
-  weights: Weights & { custom: boolean };
+  weights: LegacyWeights & { custom: boolean };
   /** `muy` cua nhom, null neu chua the nao co han. */
   groupOnTimeRate: number | null;
   candidateCount: number;
@@ -151,7 +157,7 @@ export async function suggestForCard(userId: string, cardId: string, now: Date =
   const ranked = rankCandidates(
     { id: card.id, title: card.title, description: card.description, startDate: card.startDate, dueDate: card.dueDate },
     snapshot.candidates,
-    { idf: snapshot.idf, now, groupOnTimeRate: snapshot.mu, weights, normalize: NORMALIZE, missing: MISSING }
+    { idf: snapshot.idf, now, groupOnTimeRate: snapshot.mu, weights: pinLegacy(weights), normalize: NORMALIZE, missing: MISSING }
   );
 
   const userById = new Map(candidateUsers.map((u) => [u.id, u]));
@@ -230,7 +236,7 @@ export async function suggestForCard(userId: string, cardId: string, now: Date =
     card: { id: card.id, title: card.title, boardId: board.id, workspaceId: board.workspaceId },
     algorithmVersion: ALGORITHM_VERSION,
     generatedAt: now,
-    weights: { ...weights, custom: !isDefaultWeights(weights) },
+    weights: { ...weights, custom: !isLegacyDefault(weights) },
     groupOnTimeRate: snapshot.mu,
     candidateCount: ranked.length,
     candidates,
@@ -275,7 +281,7 @@ export interface PlanResult {
   algorithmVersion: string;
   planVersion: string;
   generatedAt: Date;
-  weights: Weights & { custom: boolean };
+  weights: LegacyWeights & { custom: boolean };
   groupOnTimeRate: number | null;
   people: PlanPerson[];
   /** Tong so the chua co nguoi nhan trong danh sach (co the nhieu hon so dong: xem `truncated`). */
@@ -307,7 +313,7 @@ export async function planForList(userId: string, listId: string, now: Date = ne
   const plan = planAssignments({
     cards: urgencyOrder(planCards).slice(0, PLAN_MAX_CARDS),
     candidates: snapshot.candidates,
-    ctx: { idf: snapshot.idf, now, groupOnTimeRate: snapshot.mu, weights, normalize: NORMALIZE, missing: MISSING },
+    ctx: { idf: snapshot.idf, now, groupOnTimeRate: snapshot.mu, weights: pinLegacy(weights), normalize: NORMALIZE, missing: MISSING },
   });
 
   const userById = new Map(candidateUsers.map((u) => [u.id, u]));
@@ -358,7 +364,7 @@ export async function planForList(userId: string, listId: string, now: Date = ne
     algorithmVersion: ALGORITHM_VERSION,
     planVersion: PLAN_VERSION,
     generatedAt: now,
-    weights: { ...weights, custom: !isDefaultWeights(weights) },
+    weights: { ...weights, custom: !isLegacyDefault(weights) },
     groupOnTimeRate: snapshot.mu,
     people,
     totalUnassigned: planCards.length,
@@ -386,7 +392,7 @@ export interface OutcomeResult {
   /** So luot phan hoi cua nhom sau luot nay. */
   feedbackCount?: number;
   /** Trong so cua nhom sau luot nay. */
-  weights?: Weights;
+  weights?: LegacyWeights;
 }
 
 /**
@@ -457,7 +463,7 @@ export const WEIGHT_HISTORY_LIMIT = 20;
 export interface WeightHistoryEntry {
   id: string;
   at: Date;
-  weights: Weights;
+  weights: LegacyWeights;
   /** So luot phan hoi cua nhom LUC DO. */
   feedbackCount: number;
   /** LEARNED = do hoc tu mot luot phan hoi (co runId); MANUAL = chinh tay hoac dat lai. */
@@ -467,8 +473,8 @@ export interface WeightHistoryEntry {
 
 export interface WorkspaceWeightsView {
   workspaceId: string;
-  weights: Weights;
-  defaults: Weights;
+  weights: LegacyWeights;
+  defaults: LegacyWeights;
   /** Khac mac dinh. */
   custom: boolean;
   feedbackCount: number;
@@ -486,13 +492,13 @@ async function viewOf(workspaceId: string, stored: StoredWeights | null): Promis
     readWeightHistory(workspaceId, WEIGHT_HISTORY_LIMIT),
     readFeedbackStats(workspaceId),
   ]);
-  const weights: Weights = stored ? { ...stored.weights } : { ...DEFAULT_WEIGHTS };
+  const weights: LegacyWeights = stored ? { ...stored.weights } : { ...LEGACY_DEFAULT_WEIGHTS };
   const feedbackCount = stored?.feedbackCount ?? 0;
   return {
     workspaceId,
     weights,
-    defaults: { ...DEFAULT_WEIGHTS },
-    custom: !isDefaultWeights(weights),
+    defaults: { ...LEGACY_DEFAULT_WEIGHTS },
+    custom: !isLegacyDefault(weights),
     feedbackCount,
     updatedAt: stored?.updatedAt ?? null,
     learning: { minFeedback: LEARN_MIN_FEEDBACK, eta: LEARN_ETA, active: feedbackCount >= LEARN_MIN_FEEDBACK },
@@ -515,15 +521,15 @@ export async function getWorkspaceWeights(userId: string, workspaceId: string): 
 }
 
 /** Chi OWNER/ADMIN cua khong gian. Kiem tra CHAT (khong tu sua ngam); dat giong het gia tri hien tai thi khong ghi gi. */
-export async function setWorkspaceWeights(userId: string, workspaceId: string, input: Weights): Promise<WorkspaceWeightsView> {
+export async function setWorkspaceWeights(userId: string, workspaceId: string, input: LegacyWeights): Promise<WorkspaceWeightsView> {
   await assertWorkspaceManage(userId, workspaceId);
-  const issues = weightIssues(input);
+  const issues = legacyWeightIssues(input);
   if (issues.length > 0) {
     throw new AppError(`Trong so khong hop le: ${issues.map((i) => i.message).join('; ')}`, 400);
   }
-  const next: Weights = { experience: input.experience, reliability: input.reliability, availability: input.availability };
+  const next: LegacyWeights = { experience: input.experience, reliability: input.reliability, availability: input.availability };
   const current = await readWeights(workspaceId);
-  if (sameWeights(current?.weights ?? DEFAULT_WEIGHTS, next)) return viewOf(workspaceId, current);
+  if (sameLegacyWeights(current?.weights ?? LEGACY_DEFAULT_WEIGHTS, next)) return viewOf(workspaceId, current);
   return viewOf(workspaceId, await saveWeights(workspaceId, next));
 }
 
@@ -531,10 +537,10 @@ export async function setWorkspaceWeights(userId: string, workspaceId: string, i
 export async function resetWorkspaceWeights(userId: string, workspaceId: string): Promise<WorkspaceWeightsView> {
   await assertWorkspaceManage(userId, workspaceId);
   const current = await readWeights(workspaceId);
-  if (!current || (isDefaultWeights(current.weights) && current.feedbackCount === 0)) {
+  if (!current || (isLegacyDefault(current.weights) && current.feedbackCount === 0)) {
     return viewOf(workspaceId, current);
   }
-  return viewOf(workspaceId, await saveWeights(workspaceId, DEFAULT_WEIGHTS, { resetCount: true }));
+  return viewOf(workspaceId, await saveWeights(workspaceId, LEGACY_DEFAULT_WEIGHTS, { resetCount: true }));
 }
 
 // ===================== Ho so lam viec ca nhan =====================

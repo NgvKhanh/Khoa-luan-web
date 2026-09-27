@@ -13,7 +13,7 @@
 // buoc 7). Script DOC ky nang an de danh gia; module assign/ thi khong bao gio duoc thay chung.
 
 import {
-  DEFAULT_WEIGHTS,
+  LEGACY_WEIGHTS_V1,
   rankCandidates,
   type MissingPolicy,
   type Normalization,
@@ -80,7 +80,8 @@ function main() {
     const ranked = rankCandidates(
       { id: c.key, title: c.title, description: c.description, startDate: at(c.assignedDay), dueDate: at(c.dueDay, 23, 59) },
       snap.candidates,
-      { idf: snap.idf, now: snap.now, groupOnTimeRate: snap.mu }
+      // Bo trong so san pham dang cham (tu buoc 11 den buoc 16: ba trong so da luu + Ho so = 0)
+      { idf: snap.idf, now: snap.now, groupOnTimeRate: snap.mu, weights: LEGACY_WEIGHTS_V1 }
     );
     const skills = today
       .map((p) => `${p.key}:${skillAt(data.people.find((q) => q.key === p.key)!, c.topic, days).toFixed(2)}`)
@@ -145,10 +146,10 @@ function main() {
   console.log('\n===== TACH THANH PHAN, CONG THO (chan doan ban dau: tai sao mac dinh cu chi 26%) =====');
   const variants: [string, Weights | undefined][] = [
     ['mac dinh 0,45 / 0,30 / 0,25', undefined],
-    ['chi kinh nghiem   1 / 0 / 0', { experience: 1, reliability: 0, availability: 0 }],
-    ['chi tin cay       0 / 1 / 0', { experience: 0, reliability: 1, availability: 0 }],
-    ['chi kha dung      0 / 0 / 1', { experience: 0, reliability: 0, availability: 1 }],
-    ['kinh nghiem + tin cay 0,6 / 0,4 / 0', { experience: 0.6, reliability: 0.4, availability: 0 }],
+    ['chi kinh nghiem   1 / 0 / 0', { experience: 1, reliability: 0, availability: 0, declared: 0 }],
+    ['chi tin cay       0 / 1 / 0', { experience: 0, reliability: 1, availability: 0, declared: 0 }],
+    ['chi kha dung      0 / 0 / 1', { experience: 0, reliability: 0, availability: 1, declared: 0 }],
+    ['kinh nghiem + tin cay 0,6 / 0,4 / 0', { experience: 0.6, reliability: 0.4, availability: 0, declared: 0 }],
   ];
   for (const [name, weights] of variants) {
     const rs = datasets.map((d) => replay(d, { weights, normalize: 'NONE' }));
@@ -162,7 +163,7 @@ function main() {
   console.log('  Anh huong THUC TE len thu tu xep hang ~ trong so x do lech chuan cua gia tri DUNG DE CONG.');
   const names = ['experience', 'reliability', 'availability'] as const;
   const spreadRow = (label: string, sp: ReturnType<typeof componentSpread>, key: 'sd' | 'scaledSd') => {
-    const influence = names.map((k) => DEFAULT_WEIGHTS[k] * sp[k][key]);
+    const influence = names.map((k) => LEGACY_WEIGHTS_V1[k] * sp[k][key]);
     const total = influence.reduce((a, b) => a + b, 0);
     console.log(
       `  ${label.padEnd(24)} do lech chuan ${names.map((k) => sp[k][key].toFixed(3)).join(' / ')}   anh huong thuc te ${influence.map((v) => ((v / total) * 100).toFixed(0).padStart(2) + '%').join(' / ')}`

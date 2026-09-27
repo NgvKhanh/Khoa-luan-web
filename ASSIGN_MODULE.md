@@ -1112,6 +1112,10 @@ thành phần**. Mặc định sản phẩm: `DROP` cho kinh nghiệm/tin cậy/
   → **xếp hạng y như hiện nay** (sai khác chỉ ở chữ số làm tròn cuối; có test đối chiếu trên bộ mô phỏng).
 - `LEGACY_WEIGHTS_V1 = (0,45; 0,30; 0,25; 0)` — **chỉ** dùng để ghim các nhánh đánh giá cũ (bước 7/9) cho số liệu cũ tái
   hiện đúng; không lưu được qua API (0 < mức sàn 0,05).
+- **Giai đoạn chuyển tiếp bước 11 → bước 16** (ghi thêm ở bước 11): CSDL chưa có cột `wDeclared` và giao diện vẫn 3 thanh trượt,
+  nên dịch vụ vẫn đọc / ghi / trả **ba** trọng số (`LegacyWeights`) và khi chấm gắn Hồ sơ = 0 (`pinLegacy`) — tức sản phẩm chấm
+  **tương đương `LEGACY_WEIGHTS_V1`** cho tới bước 16 (điểm, API, `ALGORITHM_VERSION` y như trước). Bộ hàm tạm này nằm ở cuối
+  `assign.weights.ts` và bị gỡ ở bước 16.
 
 ### 17.7 Học trọng số trên các thành phần chung
 
@@ -1142,6 +1146,9 @@ dòng → dịch vụ **lặng lẽ** quay về mặc định (đúng lỗi ph�
 (có test) chạy **khi đọc** một dòng có `wDeclared = null`:
 - bằng mặc định cũ (0,45 / 0,30 / 0,25, trong sai số) → mặc định mới;
 - khác (nhóm đã chỉnh tay hoặc đã học) → `projectOnto(((1−d)e, (1−d)r, (1−d)a, d), 1)`.
+
+(Bước 11: cài bằng **một** công thức — nhánh đầu là trường hợp riêng của nhánh sau vì mặc định mới chính là (1−d)·mặc định cũ + d, đã
+hợp lệ nên phép chiếu không đổi gì; có test "mặc định cũ → đúng mặc định mới". Để hai nhánh thì cài lỗi sẽ ra một mutant tương đương.)
 Mọi lần lưu ghi đủ 4 cột; `isDefaultWeights` so với mặc định mới. Dòng lịch sử cũ trả `declared: null` → đường hội tụ
 vẽ 3 đường cho tới lúc chuyển. `AssignRun`: `algorithmVersion` mới; `candidates` có thêm thành phần Hồ sơ và
 `declaredEvidence` **chỉ gồm `kind`, `itemId`, `sim`** (không chép tiêu đề, như §10.4).
@@ -1232,7 +1239,7 @@ băng đầu vào; mục chỉ gồm từ ngoài kho → `declared = 0`, không 
 | Bước | Nội dung | Tệp chính |
 |---|---|---|
 | **10** | Tài liệu: mục này + sửa §1–§6, §8–§10, §12–§16 | `ASSIGN_MODULE.md` |
-| 11 | Trọng số 4 khoá (thuần): `Weights.declared`, `projectOnto`, `LEGACY_WEIGHTS_V1`, `upgradeLegacyWeights`, ghim nhánh đánh giá cũ | `assign.weights.ts`, `assign.learn.ts`, `assign.score.ts`, `scripts/evalAssign*.ts`, `showSuggestions.ts` + test |
+| **11** | Trọng số 4 khoá (thuần): `Weights.declared`, `projectOnto`, `LEGACY_WEIGHTS_V1`, `upgradeLegacyWeights`, ghim nhánh đánh giá cũ | `assign.weights.ts`, `assign.learn.ts`, `assign.score.ts`, `scripts/evalAssign*.ts`, `showSuggestions.ts` + test |
 | 12 | Thành phần Hồ sơ (thuần): mục khai, `vectorizeKnown`, max-cosine, `declaredEvidence`, `NO_PROFILE`, thiếu dữ liệu theo thành phần | `assign.score.ts`, `assign.tfidf.ts`, mới `assign.declared.ts` + test |
 | 13 | Luật học trên thành phần chung; JSON cũ vẫn đọc được | `assign.learn.ts` + test |
 | 14 | Mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy (W2, hồ sơ trong `snapshotAsOf`) | mới `scripts/simDeclared.ts`, `simReplay.ts`, `evalAssignRun.ts`, `evalAssignStats.ts` + test |
@@ -2357,3 +2364,62 @@ theo 4 khoá. Lộ trình 10 bước (10–19), tương đương cỡ bước 5�
 điểm/thẻ" cho lớp 2 vẫn chờ duyệt, không thuộc lộ trình này.
 
 **Tiếp theo**: bước 11 — trọng số 4 khoá (hàm thuần), chỉ bắt đầu khi bạn nói "làm bước 11 đi" (liệt kê tệp trước).
+
+### Đã xong — Bước 11: trọng số 4 khoá (hàm thuần) (27/09/2026)
+
+**Sản phẩm không đổi hành vi**: API, CSDL, giao diện, `ALGORITHM_VERSION` và điểm số y như trước; số liệu đánh giá bước 7/9 tái hiện
+**đúng từng byte** (kiểm bằng cách chụp trước/sau, xem dưới).
+
+**Đã làm**:
+- `assign.score.ts`: `Weights` thêm `declared` **bắt buộc**; `DEFAULT_DECLARED_WEIGHT = 0,20` (tạm, chốt ở bước 15);
+  `DEFAULT_WEIGHTS = 0,36 / 0,24 / 0,20 / 0,20`; `LEGACY_WEIGHTS_V1 = 0,45 / 0,30 / 0,25 / 0`. `resolveWeights` đòi đủ bốn khoá — bộ ba
+  khoá kiểu cũ (test / script không qua `tsc`) lỗi ngay chứ không âm thầm coi Hồ sơ = 0. Thành phần Hồ sơ **chưa được tính** (bước 12):
+  bộ chấm coi như mọi người đều vắng nó nên bỏ và chia lại → với mặc định mới, tỉ trọng thực vẫn 0,45 / 0,30 / 0,25.
+- `assign.weights.ts`: `WEIGHT_KEYS` 4 khoá; `weightIssues(w, keys)`; `projectOnto(values, mass)` (phép chiếu tổng quát n số, khối bất
+  kỳ, báo lỗi khi không khả thi — chuyển từ `assign.learn.ts › projectWeights`, số học giữ nguyên từng bit với 3 số khối 1);
+  `projectWithin(w, keys)` (chiếu riêng một nhóm khoá trong khối `1 − các khoá còn lại`); `upgradeLegacyWeights(w3, d)` (thuần, **chưa
+  nối** — bước 16). Cuối tệp là nhóm hàm **tạm** cho giai đoạn CSDL/API còn 3 khoá: `LegacyWeights`, `LEGACY_KEYS`,
+  `LEGACY_DEFAULT_WEIGHTS`, `legacyWeightIssues`, `sameLegacyWeights`, `isLegacyDefault`, `pinLegacy` (Hồ sơ = 0), `toLegacy`.
+- `assign.learn.ts`: `learnStep` chỉ chỉnh ba thành phần lịch sử, chiếu trong khối `1 − Hồ sơ`; Hồ sơ giữ nguyên. Với Hồ sơ = 0 kết quả
+  trùng từng bit bản cũ. `Features` / `parseRunCandidates` vẫn đọc ba thành phần (JSON cũ học được; khoá `declared` thêm vào không làm
+  hỏng). Luật đầy đủ "học trên thành phần chung" để bước 13.
+- Ranh giới dịch vụ (chỉ đổi kiểu): `assign.service.ts`, `assign.repo.ts`, `assign.schema.ts` dùng `LegacyWeights`; chấm và học qua
+  `pinLegacy`, lưu / trả về qua `toLegacy` (§17.6 "giai đoạn chuyển tiếp").
+- Ghim đánh giá cũ vào `LEGACY_WEIGHTS_V1`: `simReplay.ts` (mặc định), `evalPlanBatches.ts` (ctx của đợt), `evalAssignArms.ts`
+  (mặc định + `withoutComponent` / `only`, `withoutComponent` từ chối Hồ sơ ≠ 0), `evalAssignExperiments.ts` (lưới, nhãn "MẶC ĐỊNH",
+  `learningTarget`), `evalAssignLeader.ts` (trọng số ban đầu; gu trưởng nhóm giả kiểu `LegacyWeights` — không nhìn Hồ sơ),
+  `evalAssignRun.ts` (xếp hạng tham chiếu), `showSuggestions.ts`.
+
+**Khác kế hoạch — nói rõ**:
+1. Bảng §17.12 không ghi service/repo/schema cho bước 11, nhưng phải đụng vì `tsc` chỉ ra mọi chỗ 3 khoá (chính là mục đích); chỉ đổi
+   kiểu + hàm chuyển. Đã ghi "giai đoạn chuyển tiếp" vào §17.6.
+2. `upgradeLegacyWeights` cài bằng **một** công thức thay vì hai nhánh của §17.8 (nhánh đầu là trường hợp riêng; ghi chú ở §17.8).
+3. **Sót trong kế hoạch, tự phát hiện khi sửa test**: tôi từng nói xếp hạng "tham chiếu" của `evalAssignRun.ts` chỉ dùng để lấy tải
+   nên không cần ghim — sai: nó cũng là thứ **trưởng nhóm giả nhìn**, và thứ tự của nó (quyết định ai thắng khi hoà tiện ích) phụ thuộc
+   điểm. Đã ghim thêm. Phép so trước/sau vẫn trùng từng byte (các lần chạy thử không có hoà nào bị đổi), nhưng ghim để bảo đảm.
+
+**Vì sao phải ghim — có bằng chứng**: phép đối chiếu CSDL ↔ bộ nhớ (bước 5) **vỡ ở chữ số cuối** khi đường bộ nhớ dùng mặc định mới
+(`42.37819914632357` so với `42.378199146323574`): chia lại (0,36; 0,24; 0,20)/0,8 bằng đúng (0,45; 0,30; 0,25) về toán nhưng không trùng
+từng bit số thực. Xếp hạng thì không đổi (test mới: mặc định mới xếp **y như** bộ cũ trên 3 hạt giống, > 250 thẻ, điểm lệch < 1e−9).
+
+**Kiểm chứng**:
+- Chụp số liệu **trước khi sửa** (script tạm): phát lại 3 hạt giống, vòng kín mọi nhánh của `MAIN_ARMS` × 2 hạt giống, 4 điểm lưới trọng số, học với
+  trưởng nhóm giả (2 gu × 2 hạt giống) và nhánh học tự giao; sau khi sửa chạy lại → **trùng từng byte** (bỏ khoá `declared`, kiểm luôn
+  mọi `declared` đều = 0). `npm run eval:plan` 20 hạt giống: JSON thô trùng hệt, báo cáo chỉ khác dòng ngày chạy so với bản đã commit.
+- Suite backend 86 tệp / 989 test xanh (có cả `assign.team.test.ts` của phiên khác — không đụng); `tsc --noEmit` và `eslint src` sạch.
+  Test mới: `projectOnto` (tính tay, khối ≠ 1, 2–5 số, gần nhất bằng vét cạn ở khối 1 và 0,8, luỹ đẳng, hoán vị, không khả thi),
+  `projectWithin`, `upgradeLegacyWeights` (mọi bộ ba hợp lệ + 6 góc biên × 4 giá trị d → bộ bốn hợp lệ, giữ thứ tự; mặc định cũ → đúng mặc
+  định mới; bộ cũ hỏng / d ngoài khoảng → lỗi), `learnStep` với Hồ sơ > 0 (tính tay, Hồ sơ không bị kéo — kèm đối chứng "chiếu cả bộ thì
+  Hồ sơ tụt 0,1625"), `weightIssues` 4 khoá (đối chiếu định nghĩa viết lại), trọng số Hồ sơ bất kỳ không đổi điểm khi chưa có thành phần,
+  thiếu `declared` → lỗi, API học vẫn trả 3 khoá, đợt chia việc bước 9 ghim `LEGACY_WEIGHTS_V1`.
+- Cài lỗi: 69 phép (trọng số 36, bộ chấm 5, bộ học 3, dịch vụ / repo / schema 12, script đánh giá 13) — **67 bị bắt, 2 tương
+  đương**: dịch vụ chấm (gợi ý một thẻ và chia việc) với Hồ sơ = 0,2 thay vì 0. Tương đương **thật** ở bước 11 vì thành phần Hồ sơ chưa
+  tồn tại nên trọng số của nó không vào phép cộng (mẫu số vẫn 0,45 + 0,30 + 0,25 = 1, trùng từng bit) — chính là bất biến đã có test.
+  **Bước 12 phải thêm test** để hai phép này bị bắt (khi đó Hồ sơ được điền NEUTRAL nên trọng số của nó vào mẫu số). Một phép lọt khác
+  là do **tôi viết sai phép cài lỗi** (thêm `declared` vào đầu vào của `legacyWeightIssues` — hàm này vốn bỏ qua khoá đó); đã thay bằng
+  hai phép đúng nghĩa (schema dùng nhầm bộ kiểm 4 khoá / bỏ kiểm) — cả hai bị bắt. Chạy khô trước: mọi mẫu khớp đúng 1 chỗ; mã nguồn
+  nguyên vẹn sau mỗi nhóm.
+
+**Tiếp theo**: bước 12 — thành phần Hồ sơ (hàm thuần: mục khai, `vectorizeKnown`, max-cosine, `declaredEvidence`, `NO_PROFILE`, thiếu dữ
+liệu theo thành phần); chỉ bắt đầu khi bạn nói "làm bước 12 đi" (liệt kê tệp trước). Vẫn treo: báo GVHD trước bước 16; DROP/NEUTRAL;
+phạt 10 điểm/thẻ ở lớp 2.
