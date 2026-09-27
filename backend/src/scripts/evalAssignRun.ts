@@ -14,6 +14,7 @@
 //
 // DOC ky nang an de DANH GIA - chi nam trong scripts/, module assign/ khong bao gio import. Bo cham (qua Arm) khong thay chung.
 
+import type { DeclaredItem } from '../modules/assign/assign.declared';
 import { LEGACY_WEIGHTS_V1, rankCandidates, type RankedCandidate, type ScoreCard, type Weights } from '../modules/assign/assign.score';
 import type { Arm, ArmInput, ArmOutput, Oracle } from './evalAssignArms';
 import { gini, maxShare, streamSeed } from './evalAssignStats';
@@ -56,6 +57,14 @@ export interface RunOptions {
   keepWorld?: boolean;
   /** CHI DE KIEM THU: dung ket qua cua bo sinh thay vi rut (chi hop le khi nguoi duoc giao trung nguoi cua bo sinh). */
   replayOutcomes?: boolean;
+  /** Buoc 14: muc ho so tu khai da cat san theo khoa nguoi (simDeclared.ts) - dua vao anh chup cua moi quyet dinh. */
+  declared?: ReadonlyMap<string, readonly DeclaredItem[]>;
+  /**
+   * Buoc 14 - the gioi W2 "NHOM MOI" (§17.10): xoa trang (khong nguoi nhan, khong ket qua) moi the giao TRUOC `minDay` -> luc bat
+   * dau danh gia khong ai co lich su hay tai. Chu cua cac the do van o kho IDF (xoa trang, khong xoa: vi tri the la khoa cua luong
+   * ngau nhien).
+   */
+  coldStart?: boolean;
 }
 
 /**
@@ -68,7 +77,7 @@ export const DEFAULT_MIN_DAY = 60;
 /** Gio "hom nay" cua quyet dinh: giong replayTargets. */
 const DECISION_HOUR = 10;
 /** Muc dich cua tung luong ngau nhien RIENG cua moi the; phai doi mot (neu trung, ket qua va lua chon tuong quan ngam). */
-export const STREAM_SALTS = { outcome: 1, arm: 2, leader: 3 } as const;
+export const STREAM_SALTS = { outcome: 1, arm: 2, leader: 3, declared: 4 } as const;
 
 /** Mot quyet dinh cua nhanh. */
 export interface DecisionRecord {
@@ -102,6 +111,8 @@ export interface DecisionRecord {
   chancePOnTime: number;
   /** Trong so cua nhanh SAU quyet dinh nay (nhanh dung bo cham); null voi nhanh khong dung. */
   weights: Weights | null;
+  /** So the nguoi TOT NHAT da xong tinh den luc quyet dinh (the gioi cua nhanh) - loc "quyet dinh lanh" W3 (§17.10). */
+  bestDoneCount: number;
 }
 
 export interface RunSummary {
@@ -262,13 +273,16 @@ export function runArm(data: SimDataset, makeArm: () => Arm, opts: RunOptions): 
   const mutable = mode !== 'HISTORY';
   const world: SimDataset = {
     ...data,
-    cards: mutable ? data.cards.map((c) => (decidedKeys.has(c.key) ? blank(c) : c)) : data.cards,
+    cards:
+      mutable || opts.coldStart
+        ? data.cards.map((c) => (decidedKeys.has(c.key) && mutable) || (opts.coldStart && c.assignedDay < minDay) ? blank(c) : c)
+        : data.cards,
   };
 
   const decisions: DecisionRecord[] = [];
   for (const { card: c, cardIndex, pool } of plan) {
     const poolSpec = pool.map((p) => ({ key: p.key, capacity: assumedCapacity ?? p.capacity }));
-    const snap = snapshotAsOf(world, c.assignedDay, DECISION_HOUR, poolSpec, c.key);
+    const snap = snapshotAsOf(world, c.assignedDay, DECISION_HOUR, poolSpec, c.key, opts.declared);
     const scoreCard: ScoreCard = {
       id: c.key,
       title: c.title,
@@ -355,6 +369,7 @@ export function runArm(data: SimDataset, makeArm: () => Arm, opts: RunOptions): 
     if (rankOfBest === 0) throw new Error(`nguoi tot nhat ${best.key} khong nam trong ho boi (the ${c.key})`);
     const skills = poolKeys.map(skillOf);
     const topInfo = snap.candidates.find((k) => k.userId === topKey)!;
+    const bestInfo = snap.candidates.find((k) => k.userId === best.key)!;
     const nowMs = snap.now.getTime();
     decisions.push({
       index: decisions.length,
@@ -377,6 +392,7 @@ export function runArm(data: SimDataset, makeArm: () => Arm, opts: RunOptions): 
       chanceRegret: best.skill - mean(skills),
       chancePOnTime: mean(poolKeys.map(pOn)),
       weights: arm.weights ? arm.weights() : null,
+      bestDoneCount: bestInfo.history.filter((h) => h.completedAt.getTime() <= nowMs).length,
     });
   }
 

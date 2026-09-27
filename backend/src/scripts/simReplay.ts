@@ -18,6 +18,7 @@ import {
   type ScoreParams,
   type Weights,
 } from '../modules/assign/assign.score';
+import type { DeclaredItem } from '../modules/assign/assign.declared';
 import type { HistoryCard } from '../modules/assign/assign.profile';
 import {
   assignablePool,
@@ -50,14 +51,16 @@ export interface Snapshot {
 /**
  * Anh chup "tai ngay `day`" chi voi thong tin biet duoc luc do. Cac the da xong SAU luc do van duoc
  * dua vao `history` cho nguoi cham tu bo (kiem chong roi ri tuong lai); the con mo luc do la nhung the
- * da giao (assignedDay <= day) va chua xong tinh den `now`.
+ * da giao (assignedDay <= day) va chua xong tinh den `now`. `declared` (buoc 14): muc ho so tu khai da cat san theo
+ * khoa nguoi (simDeclared.ts); khong truyen = khong ai co ho so (ung vien khong co khoa `declared`, y nhu truoc).
  */
 export function snapshotAsOf(
   data: SimDataset,
   day: number,
   hour: number,
   pool: readonly { key: string; capacity: number }[],
-  targetKey: string | null
+  targetKey: string | null,
+  declared?: ReadonlyMap<string, readonly DeclaredItem[]>
 ): Snapshot {
   const at = (d: number, h = 0, m = 0) => simDayToDate(TODAY, data.config.days, d, h, m);
   const now = at(day, hour);
@@ -92,7 +95,8 @@ export function snapshotAsOf(
           (!c.done || c.completedDay === null || at(c.completedDay, 17).getTime() > now.getTime())
       )
       .map((c) => ({ cardId: c.key, startDate: at(c.assignedDay, 0), dueDate: at(c.dueDay, 23, 59) }));
-    return { userId: p.key, history, openCards, maxParallelCards: p.capacity, pausedUntil: null };
+    const base: CandidateInput = { userId: p.key, history, openCards, maxParallelCards: p.capacity, pausedUntil: null };
+    return declared ? { ...base, declared: declared.get(p.key) ?? null } : base;
   });
   return { now, idf, mu: groupOnTimeRate(asOutcome, now), candidates };
 }

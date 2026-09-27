@@ -528,10 +528,10 @@ describe('luong ngau nhien RIENG cua tung the: kiem chung dung hat giong / chi s
   const data = gen(9001);
   const plan = planDecisions(data, DEFAULT_MIN_DAY);
 
-  it('ba muc dich la ba so nguyen khac nhau (trung nhau thi ket qua, lua chon nhanh, truong nhom tuong quan ngam)', () => {
+  it('cac muc dich la cac so nguyen khac nhau (trung nhau thi ket qua, lua chon nhanh, truong nhom, ho so tu khai tuong quan ngam)', () => {
     const v = Object.values(STREAM_SALTS);
-    expect(v).toHaveLength(3);
-    expect(new Set(v).size).toBe(3);
+    expect(v).toHaveLength(4); // buoc 14: them luong ho so tu khai
+    expect(new Set(v).size).toBe(4);
     for (const s of v) expect(Number.isInteger(s) && s >= 0).toBe(true);
   });
 

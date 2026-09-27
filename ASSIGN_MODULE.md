@@ -853,10 +853,10 @@ Khung khác với dự kiến ban đầu ở ba điểm, đều có lý do đo �
 | Bước | Nội dung | Xong thì thấy gì |
 |---|---|---|
 | **10** | Tài liệu: đảo §2, công thức, thiếu dữ liệu theo thành phần, luật học, đánh giá đăng ký trước (§17) | Thiết kế chốt, chưa có mã |
-| 11 | Trọng số 4 khoá (hàm thuần) + nâng cấp trọng số cũ + ghim nhánh đánh giá cũ | Số liệu bước 7/9 vẫn tái hiện đúng |
-| 12 | Thành phần Hồ sơ trong bộ chấm (hàm thuần) | Không ai khai hồ sơ → xếp hạng y như cũ |
-| 13 | Luật học trên các thành phần chung | Học vẫn chạy khi nhiều người chưa khai |
-| 14 | Mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy | Mã băm đóng băng cũ giữ nguyên |
+| **11** | Trọng số 4 khoá (hàm thuần) + nâng cấp trọng số cũ + ghim nhánh đánh giá cũ | Số liệu bước 7/9 vẫn tái hiện đúng |
+| **12** | Thành phần Hồ sơ trong bộ chấm (hàm thuần) | Không ai khai hồ sơ → xếp hạng y như cũ |
+| **13** | Luật học trên các thành phần chung | Học vẫn chạy khi nhiều người chưa khai |
+| **14** | Mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy | Mã băm đóng băng cũ giữ nguyên |
 | 15 | Quét trên hạt giống dev → chốt `d` → chạy xác nhận trên 4001–4020 | Bảng số liệu phần ba |
 | 16 | CSDL + kho dữ liệu + service | Gợi ý thật có thành phần Hồ sơ |
 | 17 | API hồ sơ + CV (lưu tệp riêng tư, trích chữ, quyền tải) | Tải/xoá/tải về CV qua API |
@@ -1242,7 +1242,7 @@ băng đầu vào; mục chỉ gồm từ ngoài kho → `declared = 0`, không 
 | **11** | Trọng số 4 khoá (thuần): `Weights.declared`, `projectOnto`, `LEGACY_WEIGHTS_V1`, `upgradeLegacyWeights`, ghim nhánh đánh giá cũ | `assign.weights.ts`, `assign.learn.ts`, `assign.score.ts`, `scripts/evalAssign*.ts`, `showSuggestions.ts` + test |
 | **12** | Thành phần Hồ sơ (thuần): mục khai, `vectorizeKnown`, max-cosine, `declaredEvidence`, `NO_PROFILE`, thiếu dữ liệu theo thành phần | `assign.score.ts`, `assign.tfidf.ts`, mới `assign.declared.ts` + test |
 | **13** | Luật học trên thành phần chung; JSON cũ vẫn đọc được | `assign.learn.ts` + test |
-| 14 | Mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy (W2, hồ sơ trong `snapshotAsOf`) | mới `scripts/simDeclared.ts`, `simReplay.ts`, `evalAssignRun.ts`, `evalAssignStats.ts` + test |
+| **14** | Mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy (W2, hồ sơ trong `snapshotAsOf`) | mới `scripts/simDeclared.ts`, `simReplay.ts`, `evalAssignRun.ts`, `evalAssignStats.ts` + test |
 | 15 | Quét 9801–9820 → chốt `d` (một commit hằng số) → chạy xác nhận 4001–4020 → báo cáo | mới `scripts/evalDeclared*.ts`, `backend/eval-declared-result.md` |
 | 16 | CSDL + kho dữ liệu + service: migration, nâng cấp trọng số khi đọc, `AssignRun` v2, nạp hồ sơ vào chấm | `schema.prisma`, migration mới, `assign.repo.ts`, `assign.service.ts` + test API |
 | 17 | API hồ sơ + CV: lưu tệp riêng tư, trích chữ, quyền tải, xoá, xoá theo tài khoản | `config/upload.ts`, route/controller/service mới, `app.ts` + test |
@@ -2486,3 +2486,34 @@ không được học trừ khi bật `includeFilled`; 3000 tình huống: hợp
 (`assign.learning.test.ts`: người được chọn thiếu tin cậy → vẫn học, tin cậy trong CSDL giữ 0,30). Cài lỗi **11/11** bị bắt ngay lần đầu.
 
 **Tiếp theo**: bước 14 — mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy.
+
+### Đã xong — Bước 14: mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy (27/09/2026)
+
+**Kế hoạch**: `scripts/simDeclared.ts` (mới) + sửa bộ chạy (`simReplay.ts`, `evalAssignRun.ts`) + test; không chạy đánh giá chính thức
+(bước 15).
+
+**Đã làm**:
+- `simDeclared.ts`: `generateDeclaredProfiles(data, núm)` — mỗi người một hồ sơ viết **lúc vào nhóm** (kỹ năng ẩn ở ngày vào), luồng ngẫu
+  nhiên riêng `streamSeed(hạt giống, vị trí người, STREAM_SALTS.declared = 4)` → `generateSimulation` không đổi, ba mã băm cũ giữ nguyên.
+  Núm đúng §17.10 (θ 0,5 · pOver 0,15 · pUnder 0,15 · overlap 0,5 · pNone 0,3) + `liarKey` (một người cố tình khai mọi chủ đề). Mỗi chủ
+  đề **luôn rút cùng số lần** dù khai hay không → đổi một núm không đổi phần còn lại của hồ sơ (so sánh cặp giữa các mức "cùng may rủi" —
+  có test). Mỗi chủ đề khai: 2 cụm kỹ năng + 1–2 công việc (lấy từ từ vựng của thẻ với xác suất `overlap`, còn lại từ **bộ từ khai
+  riêng** `DECLARED_VOCAB`); CV = kỹ năng + công việc + các dòng "độn" (học vấn, sở thích, địa chỉ…). Trả thêm `topics` (chủ đề đã khai,
+  ẩn — chỉ để phân tích). `declaredItemsByPerson` cắt mục khai một lần.
+- Bộ chạy: `snapshotAsOf(…, declared?)` gắn mục khai vào ứng viên (không truyền = không có khoá `declared`, y như trước);
+  `RunOptions.declared`, `RunOptions.coldStart` (W2 "nhóm mới": **xoá trắng** — không người nhận, không kết quả — mọi thẻ giao trước
+  `minDay`; xoá trắng chứ không xoá vì vị trí thẻ là khoá của luồng ngẫu nhiên; chữ của chúng vẫn ở kho IDF);
+  `DecisionRecord.bestDoneCount` (số thẻ người tốt nhất đã xong tính đến lúc quyết định — lọc W3).
+
+**Phát hiện khi làm**: bản đầu của bộ từ khai riêng **trùng 7 thuật ngữ** với từ vựng thẻ (`google`, `docs`, `figma`, `prototype`,
+`wireframe`, `user`, `docker`) — đã thay các cụm đó; test khoá lại: không thuật ngữ nào của bộ từ riêng xuất hiện trong từ vựng bộ sinh,
+và không thẻ nào của 3 bộ dữ liệu chứa chúng. Thăm dò trên hạt giống thử 9901–9903 (ngoài mọi dải đã đăng ký): hiệu ứng của Hồ sơ lẫn lộn
+theo hạt giống — **không chỉnh gì** theo số thăm dò; đo chính thức ở bước 15.
+
+**Kiểm chứng**: suite backend 88 tệp / 1042 test xanh, `tsc` + `eslint` sạch; số liệu bước 7/9 không đổi (mã băm bộ sinh giữ nguyên); test mới `assign.simdeclared.test.ts` (tất định; **đóng băng mã băm hồ sơ của 4001–4020** `e2f1d7e9…`; núm sai →
+lỗi; không khai quá/thiếu → chủ đề khai đúng bằng {kỹ năng lúc vào ≥ θ}; pNone = 1 → chỉ người cố tình khai; tăng pOver chỉ THÊM chủ đề
+và giữ nguyên cụm cũ; overlap = 1 / 0 → cụm từ thẻ / từ bộ riêng; cấu trúc hồ sơ; hồ sơ trong ảnh chụp; trọng số Hồ sơ = 0 → mọi quyết
+định như không có hồ sơ; W2 → quyết định đầu không ai có lịch sử, thẻ giữ vị trí; `bestDoneCount` đối chiếu tính lại từ thế giới cuối).
+Cài lỗi **21/21** bị bắt lần đầu.
+
+**Tiếp theo**: bước 15 — quét `d` trên 9801–9820 theo luật đăng ký trước, chốt hằng số, chạy xác nhận một lần trên 4001–4020, báo cáo.
