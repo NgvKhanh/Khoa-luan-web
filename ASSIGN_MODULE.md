@@ -7,6 +7,9 @@
 > `POST /api/lists/:listId/assignment-plan`, §10.10; 8b giao diện: mục "Chia việc gợi ý…" ở menu danh sách + màn xem trước,
 > sửa từng dòng rồi mới áp dụng); 9: **đánh giá lớp 2 chính thức** (`npm run eval:plan`: 7 cách chia × 20 hạt giống mới
 > 3001–3020, khoảng tin cậy bootstrap, năm so sánh đăng ký trước; kết quả ở nhật ký 9a / 9b, `backend/eval-plan-result.md`).
+> **Lộ trình mới 10–19 (đang làm): hồ sơ tự khai** — kỹ năng, công việc đã làm, CV — thành **thành phần thứ 4 "Hồ sơ"**
+> của lớp 1, có trọng số riêng, được học, đo trên mô phỏng. **Đảo một quyết định cũ ở §2** (tự khai từng bị loại);
+> thiết kế đầy đủ và đánh giá đăng ký trước ở **§17**. Bước 10 (tài liệu) xong; chưa có mã.
 > Thiết kế đã chốt; nền dữ
 > liệu mô phỏng, bộ tách từ + TF-IDF + hồ sơ người, **bộ chấm cặp (việc, người)**
 > đã có, chạy được trên dữ liệu mô phỏng và **đã chuẩn hoá thành phần trong nhóm
@@ -27,7 +30,9 @@
 > **Quan hệ với bản v1 đã xoá**: nhánh `ai-module-v1-backup` (commit `bdb8f3a`)
 > còn nguyên một module `assign/` cũ dùng **kỹ năng tự khai báo**. Bản này
 > **không dùng lại cách tiếp cận đó** (xem §2), nhưng tham khảo được phần khung
-> API, `AssignPreviewModal.tsx` và `assignmentLabels.ts` ở bước 8.
+> API, `AssignPreviewModal.tsx` và `assignmentLabels.ts` ở bước 8. Từ bước 10, tự khai
+> quay lại nhưng ở vai khác hẳn v1: **một** thành phần chưa kiểm chứng cạnh ba thành
+> phần từ lịch sử, trọng số do phản hồi và số đo quyết định (§17.1).
 
 ---
 
@@ -37,8 +42,9 @@
 sách thành viên của bảng.
 
 **Đầu ra**: xếp hạng các thành viên theo độ phù hợp, mỗi người kèm
-(a) điểm 0–100, (b) tách nhỏ ba thành phần, (c) **bằng chứng truy vết được** —
-những thẻ cũ cụ thể đã dùng để tính ra điểm đó, và (d) cờ cảnh báo.
+(a) điểm 0–100, (b) tách nhỏ ba thành phần (bốn từ bước 11–12: thêm "Hồ sơ", §17),
+(c) **bằng chứng truy vết được** — những thẻ cũ cụ thể đã dùng để tính ra điểm đó,
+cộng (từ bước 12) những mục tự khai đã khớp, tách riêng khỏi bằng chứng thẻ — và (d) cờ cảnh báo.
 
 **Tên học thuật của bài toán**: *task assignee recommendation*, họ hàng gần với
 *bug triage* (gán báo lỗi cho lập trình viên). Phương pháp thuộc nhóm *gợi ý
@@ -60,8 +66,9 @@ phản hồi* (pairwise learning to rank).
 | Học từ phản hồi | **Mức 2 — học trực tuyến trọng số theo nhóm** | Mức 1 (chỉ thống kê) là bước đệm bắt buộc |
 | Kiến trúc | **Hai lớp tách rời**: lớp 1 chấm cặp (việc, người); lớp 2 xếp việc cho cả nhóm | Xem §4 |
 | Thứ tự làm | Lớp 1 xong hẳn (có số liệu) rồi mới tới lớp 2 | Hết thời gian vẫn còn một khoá luận trọn vẹn |
-| Cách tiếp cận bị loại | Kỹ năng **tự khai báo** kiểu v1 | Không phải cá nhân hoá từ dữ liệu — đúng chỗ GVHD góp ý |
-| Phạm vi hồ sơ | Theo **không gian làm việc**, mượn toàn cục chỉ khi bật công tắc | Mặc định TẮT vì lý do riêng tư |
+| Cách tiếp cận bị loại | Kỹ năng **tự khai báo làm tín hiệu duy nhất** kiểu v1 | Không phải cá nhân hoá từ dữ liệu — đúng chỗ GVHD góp ý |
+| **Hồ sơ tự khai (bước 10, đảo một phần dòng trên)** | Kỹ năng + công việc đã làm + CV thành **thành phần thứ 4 "Hồ sơ"**, trọng số riêng, được học, đo trên mô phỏng | Khác v1 ở ba chỗ: không phải tín hiệu duy nhất; trọng số do phản hồi + số đo quyết định; đánh giá cả khi người khai "nói quá". User chốt 27/09/2026 — **nên báo GVHD**. Chi tiết §17 |
+| Phạm vi hồ sơ | Theo **không gian làm việc**, mượn toàn cục chỉ khi bật công tắc | Mặc định TẮT vì lý do riêng tư. Riêng hồ sơ **tự khai** là theo **người**, dùng mọi không gian (người dùng tự khai để được dùng; có công tắc) |
 | Nhánh tuỳ chọn | Hồi quy logistic (huấn luyện theo lô) + nhánh embedding | Chỉ là nhánh đối chứng ở bước 7, không phải đường chạy chính |
 
 ### Vì sao không dùng thư viện / Python
@@ -85,7 +92,11 @@ cần tối ưu.
    gắn cờ `NO_HISTORY`, không phải bị chấm 0 điểm.
 4. **Thành phần thiếu dữ liệu không được kéo điểm xuống.** Điểm tổng chia lại
    theo tổng trọng số của những thành phần *thực sự có dữ liệu* (kỹ thuật
-   `completeness` — điểm duy nhất của engine v1 đáng giữ lại).
+   `completeness` — điểm duy nhất của engine v1 đáng giữ lại). **Ngoại lệ có chủ ý
+   (bước 10)**: thành phần Hồ sơ tự khai thiếu thì được điền **trung bình nhóm**
+   (`NEUTRAL`), không bỏ đi — vì người dùng tự chọn khai hay không, bỏ đi sẽ làm
+   "không khai lại có lợi" hơn khai mà không khớp (§17.5). Người không khai vẫn không
+   bị kéo xuống dưới mức trung bình của nhóm.
 5. **Lõi tính toán là hàm thuần, không biết Prisma.** Nhận một "ảnh chụp" dữ
    liệu, trả kết quả. Nhờ vậy test được bằng vitest và đo được bằng script
    offline mà không cần dựng CSDL.
@@ -101,9 +112,11 @@ Lớp 2 — xếp việc cho cả nhóm (bước 8)
         v
 Lớp 1 — chấm cặp (việc, người)   <-- "module đánh giá độ phù hợp"
    hàm thuần: ảnh chụp dữ liệu -> điểm + bằng chứng
+   (kinh nghiệm · tin cậy · khả dụng · Hồ sơ tự khai — thành phần thứ 4 từ bước 12)
         |
         v
 Tầng hồ sơ — TF-IDF, hồ sơ người, k láng giềng gần nhất
+           + hồ sơ tự khai (kỹ năng, công việc đã làm, các đoạn CV) — §17
 ```
 
 **Vì sao phải tách**: nếu chỉ có lớp 1, gợi ý cho cả nhóm sẽ dồn **mọi việc cho
@@ -200,6 +213,8 @@ thành phần này báo **không có dữ liệu** (xem nguyên tắc 4).
 ### 5.7 Điểm tổng và độ tin cậy của điểm
 
 - Trọng số mặc định: **kinh nghiệm 0.45 · tin cậy 0.30 · khả dụng 0.25**.
+  **Từ bước 11 có 4 trọng số** (thêm Hồ sơ): mặc định thuộc họ `(1−d)·(0,45; 0,30; 0,25) + d`
+  — tạm d = 0,20 → 0,36 / 0,24 / 0,20 / 0,20 — d chốt bằng số đo ở bước 15 (§17.6).
 - `score = tổng(trọng số_k * điểm_k) / tổng(trọng số_k)` — **chỉ cộng những
   thành phần có dữ liệu**, rồi nhân 100.
 - Không thành phần nào có dữ liệu → `score = null`, cờ `NO_DATA`.
@@ -232,7 +247,10 @@ thành phần này báo **không có dữ liệu** (xem nguyên tắc 4).
 | `confidenceScale` | Mẫu số của `confidence = e / (e + c)` | 3 |
 | `defaultWindowDays` | Độ dài cửa sổ mặc định khi thẻ mới thiếu ngày | 14 ngày |
 | `normalize` | Cách đưa ba thành phần về cùng thang khi xếp hạng: `MINMAX` / `NONE` (cộng thô) | `MINMAX` |
-| `missing` | Thành phần thiếu dữ liệu: `DROP` (bỏ, nguyên tắc 4) / `NEUTRAL` (thay bằng trung bình nhóm) | `DROP` |
+| `missing` | Thành phần thiếu dữ liệu: `DROP` (bỏ, nguyên tắc 4) / `NEUTRAL` (thay bằng trung bình nhóm); từ bước 12 nhận **một giá trị hoặc một bản ghi theo thành phần** (§17.5) | `DROP` cho ba thành phần lịch sử · `NEUTRAL` cho Hồ sơ |
+| `d` | Trọng số mặc định của Hồ sơ trong họ `(1−d)·(0,45; 0,30; 0,25) + d` (§17.6) | 0,20 **tạm** — chốt ở bước 15 (quét trên hạt giống dev 9801–9820) |
+| `DECLARED_CHUNK_CHARS` / `DECLARED_MAX_CHUNKS` | Độ dài một đoạn CV / số đoạn CV tối đa (§17.3) | ~400 ký tự / 50 |
+| `DECLARED_MAX_WORK_ITEMS` / `DECLARED_MAX_SKILL_ITEMS` | Số công việc / cụm kỹ năng tối đa được chấm (§17.3) | 30 / 50 |
 
 ### 5.9 Các chỗ §5.4–5.7 để hở, đã chốt ở bước 4 (`assign.score.ts`)
 
@@ -271,6 +289,9 @@ thành phần này báo **không có dữ liệu** (xem nguyên tắc 4).
 11. **Tất định tuyệt đối**: trung bình dùng cho `NEUTRAL` được cộng theo thứ tự tăng dần, vì
     phép cộng số thực không giao hoán — cộng theo thứ tự ứng viên đầu vào làm điểm lệch ở chữ
     số cuối khi đổi thứ tự, đủ để hai điểm sát nhau đổi hạng.
+12. **Thành phần Hồ sơ (bước 12)**: công thức, cờ `NO_PROFILE`, bằng chứng tách riêng và chính
+    sách thiếu dữ liệu theo từng thành phần ở §17.3–17.5. Không góp vào tin cậy, không tăng
+    `confidence` (dữ liệu chưa kiểm chứng).
 
 ## 6. Cá nhân hoá nằm ở đâu — bốn chỗ
 
@@ -281,16 +302,21 @@ thành phần này báo **không có dữ liệu** (xem nguyên tắc 4).
 3. **Trọng số riêng cho từng nhóm** — mỗi không gian làm việc có bộ ba trọng số
    riêng, trưởng nhóm chỉnh được bằng thanh trượt.
 4. **Trọng số đó tự học từ phản hồi của chính nhóm đó** (§8).
+5. **(Từ bước 12) Hồ sơ tự khai của từng người** — kỹ năng, công việc đã làm, CV — so với
+   đúng thẻ đang xét (§17). Trọng số của nó cũng nằm trong bộ trọng số của nhóm và cũng được
+   học, nên mỗi nhóm tự "quyết" tin hồ sơ tự khai tới đâu.
 
 ### Xuống thang khi thiếu dữ liệu
 
 | Tình huống | Hành vi |
 |---|---|
-| 0 thẻ lịch sử | Không chấm kinh nghiệm, cờ `NO_HISTORY`, chỉ xét khả dụng |
+| 0 thẻ lịch sử | Không chấm kinh nghiệm, cờ `NO_HISTORY`, chỉ xét khả dụng (và Hồ sơ nếu đã khai — từ bước 12) |
 | Ít thẻ | Co mạnh về trung bình nhóm, gắn nhãn "dữ liệu mỏng" |
 | Đủ thẻ | Dùng hồ sơ riêng đầy đủ |
+| Chưa khai hồ sơ tự khai (từ bước 12) | Thành phần Hồ sơ lấy trung bình nhóm (`NEUTRAL`), cờ `NO_PROFILE` |
 
-Ba mức này **phải hiện ra giao diện**, không được giấu.
+Các mức này **phải hiện ra giao diện**, không được giấu. Hồ sơ tự khai **không** làm người mới
+thoát khỏi nhãn "dữ liệu mỏng": độ tin cậy của điểm chỉ tính từ lịch sử thật (§17.4).
 
 ### Mặt tối phải đo, không né
 
@@ -352,7 +378,10 @@ Khi module xếp `a` đứng đầu mà người dùng chọn `b` (khác `a`):
    chỉ ghi nhận (mức 1).
 2. Chỉ học khi người được chọn **nằm trong danh sách ứng viên đã chấm**.
 3. Chỉ học khi cả hai người **đủ cả ba thành phần** — tránh học từ so sánh khập
-   khiễng giữa người có dữ liệu và người không.
+   khiễng giữa người có dữ liệu và người không. **Từ bước 13 (4 thành phần)**: chỉ học
+   trên tập **S** các thành phần cả hai người đều có dữ liệu thật; `|S| < 2` → không học;
+   trọng số ngoài S giữ nguyên (§17.7). Giữ nguyên ý của chốt chặn này — không học từ giá
+   trị được điền (`NEUTRAL`) — mà không làm tê liệt việc học khi nhiều người chưa khai hồ sơ.
 4. Lưu **lịch sử mọi lần đổi trọng số** → vẽ được **đường hội tụ** trong luận
    văn. Biểu đồ đó chính là bằng chứng nhìn thấy được rằng cá nhân hoá có xảy ra.
 
@@ -416,6 +445,11 @@ nhiêu.
 `AssignRun` vừa là nhật ký vừa là **nguồn dữ liệu đánh giá trực tuyến** (tỉ lệ
 chấp nhận) vừa là đầu vào cho mức 2. Một bảng làm ba việc.
 
+**Thay đổi dự kiến ở bước 16 (hồ sơ tự khai, §17.8)**: cột `wDeclared` **cho phép null** ở
+`WorkspaceAssignWeights` và `AssignWeightHistory` (null = dòng có từ trước khi có thành phần
+Hồ sơ); bảng mới `UserAssignProfile` (khoá `userId`, `Cascade` theo người dùng — hồ sơ là dữ liệu
+riêng của người đó, xoá tài khoản phải xoá theo). **Không** quy đổi trọng số cũ bằng SQL (xem §17.8).
+
 > **Cảnh báo migration** (bài học cũ, bắt buộc đọc lại): `prisma migrate dev`
 > **không dùng được** trong repo này vì hai migration cũ bị sửa sau khi áp. Phải
 > dùng `prisma migrate diff --from-schema ... --to-schema ... --script` rồi
@@ -431,6 +465,9 @@ chấp nhận) vừa là đầu vào cho mức 2. Một bảng làm ba việc.
 | GET / PUT / DELETE | `/api/workspaces/:workspaceId/assignment-weights` | Xem (kèm lịch sử, số phản hồi, trạng thái học), chỉnh ba thanh trượt, đặt lại mặc định | **bước 5** + **6a** (trường mới) |
 | GET / PUT | `/api/workspaces/:workspaceId/assignment-profile` | Hồ sơ làm việc của **chính người gọi**: số thẻ chồng lấn tối đa, tạm nghỉ đến ngày | **bước 6a** |
 | POST | `/api/lists/:listId/assignment-plan` | Lớp 2: chia các thẻ **chưa có người nhận** của danh sách, trả bản **xem trước** (không ghi gì) | **bước 8a** (giao diện: **8b**) |
+| GET / PUT | `/api/me/assign-profile` | Hồ sơ tự khai của **chính người gọi**: kỹ năng, công việc đã làm, công tắc "dùng cho gợi ý" (§17.9) | dự kiến **bước 17** |
+| POST / DELETE / GET | `/api/me/assign-profile/cv` | Tải CV lên (lưu tệp riêng tư + trích chữ để người dùng sửa), xoá, tải lại bản của mình | dự kiến **bước 17** |
+| GET | `/api/users/:userId/assign-profile/cv` | Tải CV của người khác — chỉ OWNER/ADMIN của không gian chung; khác → 404 | dự kiến **bước 17** |
 
 Phân quyền: chỉ người **sửa được thẻ** mới gọi được gợi ý (đúng hàm `assertCardAccess` của thao
 tác sửa thẻ → VIEWER và người ngoài bảng bị chặn); chỉ OWNER/ADMIN của không gian làm việc mới sửa
@@ -515,6 +552,9 @@ vì `score` không so sánh được giữa hai thẻ (§5.9 mục 10).
 - Không trả email, mật khẩu, phiên bản token ở bất kỳ chỗ nào.
 - **Chưa đọc `MemberWorkProfile.allowCrossWorkspace`**: bật lên thì bằng chứng sẽ lộ tiêu đề thẻ của
   không gian khác. Cột vẫn nằm đó cho bước sau; hiện mọi thứ đọc trong đúng một không gian.
+- **Hồ sơ tự khai và CV (từ bước 16–17)**: quy tắc riêng tư ở §17.8 — tệp CV ở thư mục riêng, chỉ
+  chủ CV và OWNER/ADMIN của không gian chung tải được (khác → 404); chữ trong CV không bao giờ rời khỏi
+  chủ của nó; bằng chứng Hồ sơ trong `AssignRun` chỉ lưu `kind`, `itemId`, `sim`.
 
 ### 10.5 `POST .../runs/:runId/outcome`
 
@@ -787,6 +827,11 @@ Khung khác với dự kiến ban đầu ở ba điểm, đều có lý do đo �
 | Migration hỏng | §9 — bắt buộc dùng `migrate diff`, không dùng `migrate dev` |
 | Thiên lệch với người mới | Đo hệ số Gini; cân nhắc phần thưởng cơ hội học nghề |
 | Riêng tư: chấm điểm đồng nghiệp | Không có bảng xếp hạng công khai; mượn lịch sử chéo không gian mặc định tắt |
+| **Hồ sơ tự khai đảo quyết định GVHD đã góp ý** (bước 10) | Trình bày khác biệt với v1 (§17.1), báo thầy sớm, câu trả lời sẵn ở §16 |
+| **Mô phỏng "tự khen" thành phần Hồ sơ** | Bộ từ khai **riêng** có độ trùng chỉnh được; báo cáo **đường cong** theo mức khai quá / độ trùng / tỉ lệ không khai, không một con số (§17.10) |
+| **Người khai "nói quá"** để được giao việc | Đo riêng một người cố tình khai mọi chủ đề; trọng số Hồ sơ được học nên nhóm có thể hạ nó xuống |
+| **"Không khai lại có lợi"** | `NEUTRAL` cho Hồ sơ giảm (không xoá hẳn) động cơ này; đo cả `DROP` và `ZERO` để so (§17.5) |
+| **Tệp CV là dữ liệu cá nhân nhạy cảm** | Thư mục riêng không mount tĩnh, 404 khi không có quyền, xoá thật khi người dùng xoá hoặc xoá tài khoản (§17.8) |
 
 ## 13. Lộ trình 0–9
 
@@ -802,6 +847,21 @@ Khung khác với dự kiến ban đầu ở ba điểm, đều có lý do đo �
 | 7 | Bộ đánh giá offline, 8 nhánh, quét tham số, bootstrap | Bảng số liệu cho luận văn |
 | 8 | Lớp 2 tối giản: chia việc cả danh sách + màn xem trước | Nút "chia việc" chạy thật |
 | 9 | Đánh giá lớp 2 (cân tải, việc trễ hạn) + viết chương | Số liệu phần hai |
+
+**Lộ trình 10–19 — hồ sơ tự khai** (chi tiết §17.12; mỗi bước một commit, có test + cài lỗi tự động):
+
+| Bước | Nội dung | Xong thì thấy gì |
+|---|---|---|
+| **10** | Tài liệu: đảo §2, công thức, thiếu dữ liệu theo thành phần, luật học, đánh giá đăng ký trước (§17) | Thiết kế chốt, chưa có mã |
+| 11 | Trọng số 4 khoá (hàm thuần) + nâng cấp trọng số cũ + ghim nhánh đánh giá cũ | Số liệu bước 7/9 vẫn tái hiện đúng |
+| 12 | Thành phần Hồ sơ trong bộ chấm (hàm thuần) | Không ai khai hồ sơ → xếp hạng y như cũ |
+| 13 | Luật học trên các thành phần chung | Học vẫn chạy khi nhiều người chưa khai |
+| 14 | Mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy | Mã băm đóng băng cũ giữ nguyên |
+| 15 | Quét trên hạt giống dev → chốt `d` → chạy xác nhận trên 4001–4020 | Bảng số liệu phần ba |
+| 16 | CSDL + kho dữ liệu + service | Gợi ý thật có thành phần Hồ sơ |
+| 17 | API hồ sơ + CV (lưu tệp riêng tư, trích chữ, quyền tải) | Tải/xoá/tải về CV qua API |
+| 18 | Giao diện: trang Hồ sơ, thanh trượt thứ 4, bằng chứng Hồ sơ | Dùng được trong sản phẩm |
+| 19 | Chạy lại đánh giá lớp 2 + cập nhật tài liệu, chương | Số liệu lớp 2 với thành phần mới |
 
 Mức 2 (học trọng số) nằm rải: ghi phản hồi ở bước 5, học ở bước 6, đo ở bước 7.
 
@@ -825,11 +885,24 @@ Giữ nguyên công thức đã hiệu quả ở module AI:
 Ràng buộc bất biến cần có test canh giữ:
 
 1. Điểm luôn trong `[0,100]` hoặc `null`, không bao giờ `NaN`.
-2. Thành phần thiếu dữ liệu không làm giảm điểm (nguyên tắc 4).
+2. Thành phần thiếu dữ liệu không làm giảm điểm (nguyên tắc 4) — với thành phần Hồ sơ (từ
+   bước 12): người không khai nhận đúng trung bình nhóm, không thấp hơn (§17.5).
 3. Trọng số sau khi học luôn có tổng bằng 1 và mỗi cái nằm trong `[0.05, 0.70]`.
 4. Người không có lịch sử không bao giờ bị chấm 0 — phải ra cờ `NO_HISTORY`.
-5. Bằng chứng trả về phải là thẻ **có thật** của đúng người đó, và đúng những
-   thẻ đã dùng để tính.
+5. Bằng chứng (`evidence`) trả về phải là thẻ **có thật** của đúng người đó, và đúng những
+   thẻ đã dùng để tính. Mục tự khai đã khớp nằm **riêng** ở `declaredEvidence`, không bao giờ
+   trộn vào `evidence`.
+
+Thêm từ bước 11–17 (hồ sơ tự khai, §17.11):
+
+6. Không ai trong nhóm khai hồ sơ → xếp hạng **y như trước khi có thành phần Hồ sơ** (với trọng
+   số mặc định thuộc họ §17.6).
+7. Thêm một mục khai không bao giờ làm **giảm** giá trị Hồ sơ của người đó.
+8. Từ khai không có trong kho thẻ của không gian không làm đổi bất kỳ điểm nào.
+9. Hồ sơ tự khai không góp vào tin cậy và không làm tăng `confidence`.
+10. Chữ trong CV không xuất hiện trong phản hồi cho bất kỳ ai ngoài chủ CV; mục CV trong
+    `declaredEvidence` luôn có `title = null` với người khác.
+11. Các nhánh đánh giá cũ ghim `LEGACY_WEIGHTS_V1` → số liệu bước 7/9 tái hiện đúng từng chữ số.
 
 ## 15. Chương đánh giá luận văn
 
@@ -844,6 +917,10 @@ Dàn ý dự kiến, thu số liệu tự động ngay từ bước 7:
 6. Quét tham số.
 7. Cá nhân hoá: đường hội tụ trọng số, so nhánh cố định với nhánh có học.
 8. Giới hạn: dữ liệu mô phỏng, một người gán nhãn, chưa thử nghiệm người dùng thật.
+9. **(Bước 15) Hồ sơ tự khai**: đầy đủ-4 so với đầy đủ-3 trong ba thế giới (mặc định, nhóm mới,
+   quyết định "lạnh"); đường cong theo mức khai quá / độ trùng từ vựng / tỉ lệ không khai; người
+   cố tình khai quá; DROP/NEUTRAL/ZERO; học trọng số khi trưởng nhóm tin hoặc không tin hồ sơ.
+   Nói rõ: kết quả phụ thuộc giả định người ta khai trung thực tới đâu.
 
 ## 16. Ôn trả lời giảng viên hướng dẫn
 
@@ -898,7 +975,29 @@ lệch để chống vòng tròn; và khai thẳng giới hạn.
 nhánh nền, sẽ có số liệu chênh lệch cụ thể.
 
 **"Người mới chưa có lịch sử thì sao?"** — Xuống thang ba mức, nói thẳng "chưa
-đủ căn cứ" thay vì bịa số. Và có đo mức độ dồn việc.
+đủ căn cứ" thay vì bịa số. Và có đo mức độ dồn việc. Từ bước 12, người mới có thêm
+hồ sơ tự khai (kỹ năng, công việc đã làm, CV) để bộ chấm có dữ liệu so với thẻ —
+nhưng nhãn "dữ liệu mỏng" vẫn giữ, vì độ tin cậy của điểm chỉ tính từ việc đã làm thật.
+
+**"Thầy đã góp ý bỏ kỹ năng tự khai, sao em lại thêm hồ sơ tự khai?"** — Em không
+quay lại cách v1. Ở v1, kỹ năng tự khai là tín hiệu **duy nhất** và là con số chọn tay.
+Ở bản này, lịch sử làm việc vẫn là ba thành phần; hồ sơ tự khai là **thành phần thứ tư,
+chưa kiểm chứng**, và trọng số của nó **không do em đặt**: nó được học từ phản hồi của
+chính nhóm (nhóm nào thấy hồ sơ không đáng tin thì trọng số tự giảm), và em đo trên mô
+phỏng xem nó giúp hay hại ở từng mức trung thực của người khai. Trong tài liệu hệ gợi ý,
+dùng thông tin người dùng tự cung cấp để giải bài toán **khởi đầu lạnh** (cold-start) là
+kỹ thuật chuẩn — cái em thêm là con số đo được nó đáng tin tới đâu.
+
+**"Người ta khai láo, CV đẹp mà làm kém thì sao?"** — Ba lớp: (1) hồ sơ không bao giờ
+góp vào độ tin cậy (chỉ lịch sử đúng hạn/trễ hạn mới góp); (2) khi người đó đã làm vài
+việc, thành phần kinh nghiệm và tin cậy từ việc thật sẽ chênh lên hoặc tụt xuống bên cạnh;
+(3) em có số đo riêng cho một người cố tình khai mọi chủ đề — được giao thêm bao nhiêu
+việc, nhóm mất bao nhiêu xác suất đúng hạn — và đường cong theo mức khai quá (§17.10).
+
+**"Lưu CV có an toàn không?"** — Tệp nằm ở thư mục riêng, không phục vụ tĩnh; chỉ chính
+người đó và trưởng nhóm (OWNER/ADMIN) của các không gian họ tham gia tải được, người khác
+nhận 404 như thể không có tệp; chữ trong CV không bao giờ gửi cho người khác — họ chỉ thấy
+"khớp kỹ năng đã khai: …"; người dùng xoá CV là xoá thật cả tệp lẫn chữ.
 
 **"Đóng góp riêng của em là gì?"** — Bốn điểm: (a) độ tin cậy tính **theo ngữ
 cảnh việc đang xét** thay vì một chỉ số tổng; (b) mỗi gợi ý kèm bằng chứng truy
@@ -919,6 +1018,234 @@ mở đầu bằng công nghệ.
 mô hình học máy được huấn luyện theo lô không?** Nếu có, thêm nhánh hồi quy
 logistic ở §11 là đủ đáp ứng mà không phải kéo Python vào. Nếu bắt buộc phải là
 Python thì phải tính lại kiến trúc từ đầu.
+
+**(Thêm ở bước 10) Thầy có chấp nhận hồ sơ tự khai ở vai "thành phần thứ tư, chưa kiểm
+chứng, trọng số học từ phản hồi" không** — hay thầy vẫn muốn cá nhân hoá chỉ từ lịch sử?
+Hỏi **trước bước 16** (trước khi đụng CSDL và giao diện): nếu thầy không đồng ý, các bước
+11–15 vẫn dùng được làm một nghiên cứu cắt bỏ ("thêm tự khai có giúp không") mà không phải
+đưa vào sản phẩm.
+
+## 17. Hồ sơ tự khai — thành phần thứ 4 "Hồ sơ" (lộ trình 10–19)
+
+> Chốt ở bước 10 (27/09/2026), sau hai vòng hỏi user và một lượt soát thiết kế độc lập. Mục này là hợp đồng cho
+> các bước 11–19; chỗ nào đổi khi làm phải ghi lại ở nhật ký bước đó.
+
+### 17.1 Vì sao, và khác v1 thế nào
+
+Người chưa có lịch sử (`NO_HISTORY`) chỉ còn thành phần khả dụng nên bị thổi điểm (đứng đầu 8% số thẻ dù chỉ là
+1,6% ứng viên — nhật ký 4b); vòng kín bước 7b cho thấy họ bị gợi ý mãi mà không được chọn; DROP hay NEUTRAL đều không
+sửa được gốc vì gốc là **thiếu dữ liệu**. User chốt thêm dữ liệu **tự khai**: kỹ năng, các công việc đã làm, và CV.
+
+Khác v1 ở ba chỗ, đây là lập luận phải giữ trước GVHD: (1) tự khai **không phải tín hiệu duy nhất** — ba thành phần
+từ lịch sử vẫn nguyên; (2) trọng số của nó **không đặt tay** — nằm trong bộ trọng số của nhóm và được **học** từ phản
+hồi như ba thành phần kia; (3) có **số đo** nó giúp hay hại ở từng mức trung thực của người khai (§17.10). Tự khai
+không bao giờ góp vào độ tin cậy (chỉ lịch sử đúng/trễ hạn mới nói được ai làm đúng hạn) và không làm tăng `confidence`.
+
+### 17.2 Dữ liệu người dùng khai (theo **người**, dùng ở mọi không gian)
+
+| Trường | Giới hạn | Ghi chú |
+|---|---|---|
+| `skillsText` | ≤ 2000 ký tự | Tự do; mỗi dòng / dấu phẩy / chấm phẩy / gạch đầu dòng là một cụm kỹ năng |
+| `workItems` | ≤ 30 mục, mỗi mục tiêu đề ≤ 200 + mô tả ≤ 1000 ký tự | "Các công việc đã làm" (dự án, nhiệm vụ) |
+| `cvText` | ≤ 20 000 ký tự (đúng giới hạn của `extractDocument`) | Chữ trích từ CV, **người dùng sửa được** trước khi lưu |
+| Tệp CV | `.pdf` / `.docx`, ≤ 5 MB | **Lưu tệp** (user chốt); chỉ lưu sau khi `extractDocument` kiểm xong nội dung |
+| `useForAssign` | mặc định bật | Tắt → coi như không có hồ sơ (cờ `NO_PROFILE`) |
+
+Đọc CV **không gọi LLM**: dùng lại `ai.document.ts › extractDocument` (kiểm magic bytes, chống zip bomb, tiến trình con
+có giới hạn heap/thời gian). Luồng giống module AI: tải lên → trích chữ → người dùng sửa / chép sang ô kỹ năng và danh
+sách công việc → lưu. Toàn văn CV (đã sửa) cũng là một nguồn từ khoá.
+
+### 17.3 Mục khai
+
+Hồ sơ được cắt thành các **mục** — mỗi mục là một "tài liệu" riêng để so với thẻ, tránh một văn bản dài bị loãng:
+
+- **SKILL**: tách `skillsText` theo xuống dòng, `,`, `;`, `•`, `|`; bỏ khoảng trắng thừa, bỏ rỗng, bỏ trùng (so sau khi
+  chuẩn hoá chữ); tối đa `DECLARED_MAX_SKILL_ITEMS = 50`. Đếm thuật ngữ như **mô tả** (không nhân tiêu đề).
+- **WORK**: mỗi công việc = `countTerms({ title, description })` (tiêu đề ×2 như thẻ); tối đa 30, theo thứ tự người dùng.
+- **CV**: tách `cvText` theo dòng trống và dòng bắt đầu bằng gạch đầu dòng, rồi gom các mảnh liền nhau thành **đoạn**
+  ≤ `DECLARED_CHUNK_CHARS ≈ 400` ký tự (mảnh dài hơn thì cắt ở khoảng trắng); lấy 50 đoạn đầu. Lý do: `countTerms` chỉ
+  đọc 4000 ký tự đầu mỗi trường, và một CV nhiều chủ đề sẽ khớp mỗi chủ đề chỉ khoảng 1/√n nếu để nguyên.
+- Mã mục: `skill:<i>`, `work:<i>`, `cv:<i>` — tất định theo thứ tự.
+
+### 17.4 Giá trị thành phần Hồ sơ
+
+Với thẻ `c` (véc-tơ `q` như hiện nay) và mỗi mục `i`:
+
+- `v_i = vectorizeKnown(countTerms(i), idf)` — hàm mới ở `assign.tfidf.ts`: **bỏ thuật ngữ có df = 0** trong kho thẻ của
+  không gian rồi mới chuẩn hoá độ dài. Lý do: `idfOf` cho từ lạ IDF **cao nhất**, nên CV nhiều từ không bao giờ xuất
+  hiện trong thẻ (địa chỉ, trường học…) sẽ luôn bị điểm thấp. Việc bỏ này không làm mất từ nào có thể khớp, vì kho IDF
+  luôn chứa chính thẻ đang chấm (§10.2; `snapshotAsOf` cũng vậy). Hồ sơ **không** được đưa vào kho IDF (nếu đưa, điểm
+  kinh nghiệm của mọi người sẽ đổi và phép đối chiếu bước 5 vỡ).
+- `sim_i = cosine(q, v_i)`.
+- **`declared = max sim_i` trên các mục có `sim_i ≥ simMin` (0,05); không mục nào đạt → 0** ("đã khai nhưng không khớp",
+  giống `NO_SIMILAR`). Chọn **max** (không phải trung bình top-k): thêm mục không bao giờ làm điểm giảm (không ai phải
+  giấu bớt kinh nghiệm), không bị "bơm" bằng cách chép một mục nhiều lần, và mỗi điểm có đúng một dòng bằng chứng chính.
+  Trung bình 2 mục cao nhất chỉ là một nhánh quét để so.
+- Không có hồ sơ dùng được (chưa khai, `useForAssign` tắt, hoặc 0 mục sau khi làm sạch) → `declared = null`, cờ
+  **`NO_PROFILE`**.
+- **Bằng chứng** tách riêng: `declaredEvidence: { kind: 'SKILL' | 'WORK' | 'CV', itemId, title: string | null, sim }[]`,
+  tối đa 3 mục có `sim` cao nhất (hoà thì WORK → SKILL → CV, rồi `itemId`). `title` = cụm kỹ năng / tiêu đề công việc;
+  mục CV **luôn** `title = null` trong phản hồi gợi ý (không lộ chữ trong CV).
+- Không góp vào tin cậy; `confidence` vẫn chỉ tính từ lịch sử.
+
+### 17.5 Thiếu dữ liệu theo từng thành phần
+
+`ScoreContext.missing` nhận **một giá trị** (áp cho cả bốn — mọi lời gọi cũ giữ nguyên nghĩa) **hoặc một bản ghi theo
+thành phần**. Mặc định sản phẩm: `DROP` cho kinh nghiệm/tin cậy/khả dụng, **`NEUTRAL` cho Hồ sơ**.
+
+- Vì sao NEUTRAL cho Hồ sơ: với DROP, người **không khai** không bị so ở thành phần này, còn người khai mà không khớp bị
+  chuẩn hoá về 0 — tức "không khai lại có lợi". NEUTRAL điền trung bình của những người có khai (không ai khai → vẫn bỏ,
+  như §5.9.9).
+- **Giới hạn phải nói**: NEUTRAL chỉ **giảm**, không xoá hẳn động cơ đó — người khai không khớp vẫn dưới mức trung bình
+  được điền cho người không khai. Chỉ `ZERO` (không khai = 0) xoá hẳn, nhưng nó phạt người không muốn chia sẻ thông tin
+  → **loại** vì lý do riêng tư, nhưng **có đo** để so (thêm `'ZERO'` làm chính sách chỉ dùng trong đánh giá).
+- Sửa `applyScaling`: đường tắt "trả kết quả thô" chỉ khi `normalize = 'NONE'` **và mọi thành phần** là `DROP`.
+- Chính sách nằm trong `algorithmVersion` (ví dụ `knn-tfidf-v2/minmax/drop+decl-neutral`).
+
+### 17.6 Trọng số 4 khoá
+
+- `Weights = { experience, reliability, availability, declared }`, **bắt buộc đủ 4 khoá** (để `tsc` chỉ ra mọi chỗ còn
+  dùng 3 khoá; test backend không qua `tsc` nên `resolveWeights` và bộ đánh giá sẽ ném lỗi lúc chạy nếu sót). Giới hạn
+  giữ nguyên: mỗi trọng số trong `[0,05; 0,70]`, tổng 1 (4 × 0,05 ≤ 1 ≤ 4 × 0,70 nên luôn khả thi).
+- **Mặc định thuộc họ `(1−d)·(0,45; 0,30; 0,25) + d`** — tạm d = 0,20 → **0,36 / 0,24 / 0,20 / 0,20**; d chốt ở bước 15.
+  Nhờ họ này: không gian **chưa ai khai hồ sơ** → Hồ sơ vắng cho mọi người → bị bỏ → chia lại đúng về 0,45 / 0,30 / 0,25
+  → **xếp hạng y như hiện nay** (sai khác chỉ ở chữ số làm tròn cuối; có test đối chiếu trên bộ mô phỏng).
+- `LEGACY_WEIGHTS_V1 = (0,45; 0,30; 0,25; 0)` — **chỉ** dùng để ghim các nhánh đánh giá cũ (bước 7/9) cho số liệu cũ tái
+  hiện đúng; không lưu được qua API (0 < mức sàn 0,05).
+
+### 17.7 Học trọng số trên các thành phần chung
+
+Chốt chặn 3 của §8 ("chỉ học khi cả hai đủ thành phần") với 4 thành phần sẽ gần như tắt việc học (vốn đã ít: bước 7b
+chỉ 4–13 lần cập nhật trên ~105 quyết định). Luật mới:
+
+- **S** = các thành phần mà **cả hai người** (người xếp đầu và người được chọn) đều có **giá trị thật** (`value ≠ null`) —
+  không học từ giá trị được điền bằng NEUTRAL (giữ đúng ý chốt chặn cũ).
+- `|S| < 2` → `MISSING_COMPONENT` (một chiều thì không có tỉ lệ nào để chỉnh).
+- Cập nhật **chỉ trong S**: `w_S ← projectOnto(w_S + η·(x_chọn − x_đầu)_S, khối = Σ_{k∈S} w_k)`, mỗi số trong
+  `[0,05; 0,70]`; trọng số ngoài S **giữ nguyên** (chiếu toàn cục sẽ kéo cả chúng đi một lượng τ mà không có bằng chứng).
+  Luôn khả thi vì điểm hiện tại đã thoả ràng buộc. `S` đủ 4 → đúng luật cũ mở rộng.
+- `projectWeights` viết lại thành `projectOnto(values, mass)` (bản hiện tại gắn cứng 3 khoá trong phần gán kết quả).
+- `parseRunCandidates` đọc được JSON cũ 3 thành phần: Hồ sơ vắng → coi như thiếu → tự rơi khỏi S, không cần nhánh riêng.
+- Thứ tự lý do của `learningDecision` giữ nguyên. Nhánh đo thêm (chỉ đánh giá): học trên giá trị đã điền NEUTRAL.
+
+### 17.8 CSDL, nâng cấp trọng số cũ, riêng tư
+
+**Migration** (bước 16, `prisma migrate diff … --script` + `migrate deploy`, chạy trong `backend/`, §9):
+
+- `WorkspaceAssignWeights.wDeclared DOUBLE PRECISION NULL`, `AssignWeightHistory.wDeclared DOUBLE PRECISION NULL`.
+- Bảng `UserAssignProfile`: `userId` (PK, FK → `User`, `ON DELETE CASCADE`), `useForAssign BOOLEAN DEFAULT true`,
+  `skillsText TEXT DEFAULT ''`, `workItems JSONB DEFAULT '[]'`, `cvText TEXT NULL`, `cvFileName TEXT NULL`,
+  `cvStoredName TEXT NULL UNIQUE`, `cvSize INT NULL`, `cvUploadedAt TIMESTAMP NULL`, `createdAt`, `updatedAt`.
+
+**Không quy đổi trọng số cũ bằng SQL.** Nhân 0,8 vào một trọng số đang là 0,05 cho 0,04 < mức sàn → `weightIssues` loại
+dòng → dịch vụ **lặng lẽ** quay về mặc định (đúng lỗi phải tránh). Thay bằng hàm thuần **`upgradeLegacyWeights(w3, d)`**
+(có test) chạy **khi đọc** một dòng có `wDeclared = null`:
+- bằng mặc định cũ (0,45 / 0,30 / 0,25, trong sai số) → mặc định mới;
+- khác (nhóm đã chỉnh tay hoặc đã học) → `projectOnto(((1−d)e, (1−d)r, (1−d)a, d), 1)`.
+Mọi lần lưu ghi đủ 4 cột; `isDefaultWeights` so với mặc định mới. Dòng lịch sử cũ trả `declared: null` → đường hội tụ
+vẽ 3 đường cho tới lúc chuyển. `AssignRun`: `algorithmVersion` mới; `candidates` có thêm thành phần Hồ sơ và
+`declaredEvidence` **chỉ gồm `kind`, `itemId`, `sim`** (không chép tiêu đề, như §10.4).
+
+**Riêng tư**:
+- Tệp CV ở `uploads/cv/<uuid>.<đuôi>` — thư mục **riêng**, **không bao giờ** mount tĩnh (như thẻ đính kèm, `upload.ts`).
+- Tải về: **chủ CV**, hoặc người là **OWNER/ADMIN của một không gian mà chủ CV là thành viên** (hoặc chủ sở hữu). Khác →
+  **404** (không phải 403: không để lộ ai có CV). Luôn `Content-Disposition: attachment`, Content-Type suy từ đuôi,
+  `X-Content-Type-Options: nosniff`, `Cache-Control: no-store` (mẫu `attachment.serve.ts`).
+- `cvText` chỉ trả cho chủ CV. Người xem gợi ý (người sửa được thẻ) thấy cụm kỹ năng / tiêu đề công việc đã khớp, không
+  bao giờ thấy chữ trong CV.
+- Xoá CV = xoá tệp trên đĩa + `cvText` + các cột `cv*`; xoá tài khoản cũng vậy. Có giới hạn tốc độ tải lên.
+- `allowCrossWorkspace` vẫn chỉ nói về **lịch sử**; hồ sơ tự khai là dữ liệu người dùng tự đưa ra để dùng ở mọi nhóm.
+
+### 17.9 API và giao diện (dự kiến, bước 16–18)
+
+- `GET/PUT /api/me/assign-profile` → `{ useForAssign, skillsText, workItems: [{ id, title, description }], cv: { fileName,
+  size, uploadedAt } | null, cvText | null }`; `PUT` kiểm bằng zod theo giới hạn §17.2.
+- `POST /api/me/assign-profile/cv` (multipart `file`) → lưu tệp + trả `{ cv, text, truncated }` để người dùng sửa;
+  `DELETE /api/me/assign-profile/cv`; `GET /api/me/assign-profile/cv` (tải bản của mình).
+- `GET /api/users/:userId/assign-profile/cv` — cho trưởng nhóm (§17.8).
+- Gợi ý (`assignment-suggestions`, `assignment-plan`): thêm thành phần `declared`, `declaredEvidence`, cờ `NO_PROFILE`.
+- Giao diện: mục **"Hồ sơ kỹ năng"** ở trang Hồ sơ cá nhân (`ProfilePage.tsx`): công tắc, ô kỹ năng, danh sách công việc
+  (thêm/xoá/sửa), tải lên / xoá / tải về CV, ô chữ trích từ CV để sửa. `AssignWeightsPanel`: thanh trượt thứ 4 —
+  **`rebalance` / `toPct` trong `frontend/src/lib/assignWeights.ts` phải viết lại cho N khoá** (bản hiện tại chia phần
+  còn lại cho đúng hai thanh kia). `AssignSuggestPanel` / `AssignPlanModal`: "Khớp hồ sơ tự khai: …", "Chưa khai hồ sơ".
+  Trưởng nhóm thấy nút tải CV của thành viên.
+
+### 17.10 Đánh giá — đăng ký trước (bước 14–15)
+
+**Bộ sinh hồ sơ tự khai** (`scripts/simDeclared.ts`, tệp mới): `generateSimulation` **không đổi** → ba mã băm đóng băng
+(bộ sinh `e7ddf9ac…`, 2001–2020 `ff6c7cc6…`, 3001–3020 `72ccdf33…`) giữ nguyên. Hồ sơ sinh bằng luồng ngẫu nhiên riêng
+`streamSeed(seed, chỉ số người, STREAM_SALTS.declared = 4)`, viết **lúc người đó vào nhóm** (dùng kỹ năng ở ngày vào — người
+học nghề về sau sẽ khai thiếu, như ngoài đời).
+
+| Núm | Ý nghĩa | Mặc định (chốt TRƯỚC khi đo) | Quét |
+|---|---|---|---|
+| `θ` | Khai một chủ đề nếu kỹ năng ẩn ≥ θ | 0,5 | — |
+| `pOver` | Xác suất khai thêm một chủ đề mình yếu (khai quá) | 0,15 | 0 · 0,15 · 0,3 · 0,5 · 0,7 |
+| `pUnder` | Xác suất bỏ sót một chủ đề mình mạnh | 0,15 | 0 · 0,15 · 0,3 |
+| `overlap` | Tỉ lệ cụm từ khai lấy từ **từ vựng của thẻ** (còn lại lấy từ **bộ từ khai riêng** của chủ đề) | 0,5 | 0,1 · 0,3 · 0,5 · 0,7 · 0,9 |
+| `pNone` | Tỉ lệ người không khai hồ sơ | 0,3 | 0 · 0,3 · 0,6 · 0,9 |
+
+Mỗi chủ đề được khai sinh 2 cụm kỹ năng + 1–2 công việc; CV = kỹ năng + công việc + các dòng "độn" không liên quan (học
+vấn, sở thích, địa chỉ) từ một danh sách cố định. **Bộ từ khai riêng** là bắt buộc: nếu hồ sơ dùng đúng từ của thẻ thì
+thành phần Hồ sơ gần như "biết đáp án" và kết quả vô nghĩa. Mã băm của hồ sơ sinh cho 4001–4020 được **đóng băng** bằng test.
+
+**Ba thế giới** (vòng kín `ARM` của bước 7, giai đoạn đánh giá từ ngày 60): **W1 mặc định** (giữ lịch sử trước ngày 60);
+**W2 nhóm mới** (xoá sạch lịch sử trước ngày 60 — mọi người đều "lạnh", tuỳ chọn mới của bộ chạy); **W3 quyết định lạnh**
+= các quyết định trong W1 mà người giỏi nhất họ bốc có ≤ 2 thẻ đã xong lúc đó.
+
+**Nhánh**: đầy đủ-3 (`LEGACY_WEIGHTS_V1`) · đầy đủ-4 (mặc định mới) · chỉ-Hồ-sơ · ngẫu nhiên · chỉ-kinh-nghiệm · tối ưu
+(tham chiếu). **Chỉ số chính**: xác suất đúng hạn kỳ vọng của người được giao (như bước 7), bootstrap cặp 95%, mỗi hạt
+giống là một đơn vị.
+
+**Bốn so sánh chính** (đăng ký trước):
+
+| # | So sánh | Thế giới | Tiêu chí |
+|---|---|---|---|
+| P1 | đầy đủ-4 − đầy đủ-3 | W1 | **Không kém hơn**: cận dưới khoảng tin cậy > −0,005 |
+| P2 | đầy đủ-4 − đầy đủ-3 | W2 | Tốt hơn: cận dưới > 0 |
+| P3 | đầy đủ-4 − đầy đủ-3 | W3 | Tốt hơn: cận dưới > 0 |
+| P4 | chỉ-Hồ-sơ − ngẫu nhiên | W2 | Tốt hơn: cận dưới > 0 (tự khai ở mức trung thực mặc định có mang tín hiệu) |
+
+**Phụ (mô tả)**: người mới (việc nhận / phần chia đều), top-1, hối tiếc, Gini + người nhiều nhất; **đường cong** theo
+`pOver`, `overlap`, `pNone` kèm **điểm hoà vốn** (mức khai quá mà đầy đủ-4 hết hơn đầy đủ-3); **một người cố tình khai
+mọi chủ đề** (phần việc họ nhận, P(đúng hạn) nhóm mất); `DROP` / `NEUTRAL` / `ZERO` cho Hồ sơ; max so với trung bình 2 mục;
+học trọng số với trưởng nhóm giả **tin** hồ sơ và **không tin** hồ sơ (trọng số Hồ sơ đi về đâu); Gini lớp 2 (bước 19).
+
+**Chọn `d`** (bước 15): quét d ∈ {0; 0,05; 0,10; 0,15; 0,20; 0,25; 0,30; 0,40} trên hạt giống dev **9801–9820** (các dải
+93xx–97xx đã dùng làm dữ liệu thử). Luật chọn đăng ký trước: d **nhỏ nhất** trong các giá trị cho P(đúng hạn) ở W2 cao nhất
+(trong phạm vi 0,002 của giá trị tốt nhất) **và** không kém d = 0 quá 0,005 ở W1. Nếu d tốt nhất là 0 → kết luận trung
+thực "thành phần Hồ sơ không đáng đưa vào mặc định" (sản phẩm vẫn để mức sàn 0,05 để nhóm tự học). Sau đó chạy **một lần**
+trên hạt giống mới **4001–4020** với cấu hình đã chốt; không chỉnh gì sau khi thấy số.
+
+**Câu phải viết trong luận văn**: kết quả phụ thuộc giả định người ta khai trung thực tới đâu và từ khai trùng từ của
+thẻ tới đâu — nên báo **đường cong**, không một con số; và vẫn là thế giới mô phỏng (§7).
+
+### 17.11 Bất biến cần test
+
+§14 mục 6–11. Thêm các phép thử: tính tay `declared` trên ví dụ nhỏ; hoán vị thứ tự mục / ứng viên không đổi kết quả; đóng
+băng đầu vào; mục chỉ gồm từ ngoài kho → `declared = 0`, không `NaN`; CV rất dài vẫn trong thời gian tuyến tính (cắt 50
+đoạn); `upgradeLegacyWeights` luôn trả trọng số hợp lệ với mọi bộ 3 trọng số hợp lệ cũ (thử cả biên 0,05 / 0,70);
+`projectOnto` giữ đúng khối và giới hạn; học với S = 2, 3, 4 thành phần.
+
+### 17.12 Lộ trình 10–19
+
+| Bước | Nội dung | Tệp chính |
+|---|---|---|
+| **10** | Tài liệu: mục này + sửa §1–§6, §8–§10, §12–§16 | `ASSIGN_MODULE.md` |
+| 11 | Trọng số 4 khoá (thuần): `Weights.declared`, `projectOnto`, `LEGACY_WEIGHTS_V1`, `upgradeLegacyWeights`, ghim nhánh đánh giá cũ | `assign.weights.ts`, `assign.learn.ts`, `assign.score.ts`, `scripts/evalAssign*.ts`, `showSuggestions.ts` + test |
+| 12 | Thành phần Hồ sơ (thuần): mục khai, `vectorizeKnown`, max-cosine, `declaredEvidence`, `NO_PROFILE`, thiếu dữ liệu theo thành phần | `assign.score.ts`, `assign.tfidf.ts`, mới `assign.declared.ts` + test |
+| 13 | Luật học trên thành phần chung; JSON cũ vẫn đọc được | `assign.learn.ts` + test |
+| 14 | Mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy (W2, hồ sơ trong `snapshotAsOf`) | mới `scripts/simDeclared.ts`, `simReplay.ts`, `evalAssignRun.ts`, `evalAssignStats.ts` + test |
+| 15 | Quét 9801–9820 → chốt `d` (một commit hằng số) → chạy xác nhận 4001–4020 → báo cáo | mới `scripts/evalDeclared*.ts`, `backend/eval-declared-result.md` |
+| 16 | CSDL + kho dữ liệu + service: migration, nâng cấp trọng số khi đọc, `AssignRun` v2, nạp hồ sơ vào chấm | `schema.prisma`, migration mới, `assign.repo.ts`, `assign.service.ts` + test API |
+| 17 | API hồ sơ + CV: lưu tệp riêng tư, trích chữ, quyền tải, xoá, xoá theo tài khoản | `config/upload.ts`, route/controller/service mới, `app.ts` + test |
+| 18 | Giao diện | `ProfilePage.tsx`, `AssignWeightsPanel.tsx`, `lib/assignWeights.ts`, `lib/assignLabels.ts`, `AssignSuggestPanel.tsx`, `AssignPlanModal.tsx`, `types/assign.ts`, `lib/api/*` + test |
+| 19 | Chạy lại đánh giá lớp 2 với thành phần mới; cập nhật tài liệu + chương | `evalPlan*.ts`, `ASSIGN_MODULE.md` |
+
+Độ lan đã ước lượng: khoảng 14 tệp test backend (vd `assign.api`, `assign.planapi`, `assign.score`, `assign.evalarms`,
+`assign.evalleader`, `assign.learn`, `assign.weights`) và ~10 tệp frontend phải sửa theo 4 khoá. Việc đang dở chưa commit
+của phiên khác (`teamSeed.ts`, `seedTeam.ts`, `assign.team.test.ts`) **không** đụng tới; khi nó vào kho, bước 11 phải
+cập nhật cả `assign.team.test.ts` nếu nó so trọng số 3 khoá.
 
 ---
 
@@ -1991,3 +2318,42 @@ tối ưu (hoặc mặc định mới) cho lớp 2 hay không, đổi lấy sự
 **Sai sót của chính tôi ở bước này**: không có phát sinh mới — bước này chỉ chạy CLI đã kiểm ở 9a trên hạt giống chính thức và diễn giải số ra, không sửa mã.
 
 **Chưa làm**: chưa quyết định DROP/NEUTRAL; chưa quyết định có đổi cơ chế cân tải mặc định của lớp 2 hay không (để ngỏ cho bạn); câu hỏi Python cho GVHD vẫn treo từ trước.
+
+### Đã xong — Bước 10: chốt thiết kế hồ sơ tự khai (thành phần thứ 4 "Hồ sơ") (27/09/2026)
+
+**Chỉ sửa tài liệu này, chưa có mã.** User đề xuất thêm phần tải CV + điền hồ sơ để có dữ liệu cho người mới; qua hai vòng hỏi,
+user chốt: (1) hồ sơ tự khai là **một phần chính** của điểm — cài thành **thành phần thứ 4 có trọng số riêng, được học**; (2) **lưu cả
+tệp CV**, chỉ chủ CV và OWNER/ADMIN của không gian chung tải được; (3) hồ sơ **theo người**, dùng mọi không gian; (4) đọc CV bằng **trích
+chữ** (dùng lại bộ trích của module AI), không LLM; (5) **có đo trên mô phỏng**. Toàn bộ thiết kế ở **§17**; các mục §1–§6, §8–§10,
+§12–§16 được sửa cho khớp (xem banner đầu tệp).
+
+**Đảo một quyết định cũ**: §2 từng ghi "kỹ năng tự khai báo" là cách tiếp cận bị loại vì GVHD góp ý. Đã sửa dòng đó thành "tự khai làm
+tín hiệu **duy nhất**" (vẫn loại) và thêm dòng mới cho hồ sơ tự khai ở vai "một thành phần chưa kiểm chứng, trọng số học từ phản hồi, có
+đo". Câu trả lời cho thầy ở §16; **câu hỏi phải hỏi thầy trước bước 16** ghi ở §16 "Cần hỏi lại thầy".
+
+**Các quyết định kỹ thuật chốt ở bước này** (một agent thiết kế độc lập đã soát; ba bẫy trong mã tôi đã đọc lại để kiểm chứng):
+- Giá trị Hồ sơ = **max cosine** giữa thẻ và từng **mục khai** (cụm kỹ năng, công việc, đoạn CV ~400 ký tự), dưới `simMin` thì 0; véc-tơ
+  mục qua `vectorizeKnown` mới vì `idfOf` cho từ lạ IDF **cao nhất** (kiểm chứng: `log((N+1)/(0+1)) + 1`) — CV nhiều từ lạ sẽ luôn bị
+  điểm thấp nếu không bỏ các từ đó.
+- Thiếu dữ liệu **theo từng thành phần**: DROP cho ba thành phần lịch sử, **NEUTRAL cho Hồ sơ** — tránh "không khai lại có lợi" (chỉ
+  giảm, không xoá hẳn; đo cả ZERO để so). Kiểm chứng: `applyScaling` hiện dùng một `r.missing` chung cho mọi cột.
+- Trọng số 4 khoá, mặc định thuộc họ `(1−d)·(0,45; 0,30; 0,25) + d` (tạm d = 0,20) để **không gian chưa ai khai hồ sơ xếp hạng y như cũ**;
+  `LEGACY_WEIGHTS_V1` ghim nhánh đánh giá cũ.
+- Học chỉ trên các thành phần **cả hai người đều có** (|S| ≥ 2), trọng số ngoài S giữ nguyên — luật cũ "đủ cả ba thành phần" với 4
+  thành phần sẽ gần như tắt việc học.
+- **Không quy đổi trọng số cũ bằng SQL** (0,05 × 0,8 < mức sàn → dịch vụ lặng lẽ về mặc định); dùng `upgradeLegacyWeights` khi đọc.
+- Giao diện: kiểm chứng `rebalance` ở `frontend/src/lib/assignWeights.ts` hiện tách đúng **hai** thanh còn lại
+  (`const [i, j] = WEIGHT_KEYS.filter(...)`) → phải viết lại cho N khoá ở bước 18.
+- Đánh giá **đăng ký trước** (§17.10): bộ từ khai **riêng** có độ trùng chỉnh được (nếu không, thành phần Hồ sơ gần như "biết đáp án");
+  ba thế giới (mặc định, nhóm mới, quyết định lạnh); bốn so sánh chính với tiêu chí viết sẵn (P1 không kém hơn −0,005); luật chọn `d`
+  trên hạt giống dev 9801–9820 viết sẵn; xác nhận **một lần** trên hạt giống mới 4001–4020; báo cáo đường cong theo mức trung thực.
+
+**Rủi ro nói trước**: GVHD có thể không đồng ý (các bước 11–15 vẫn dùng được làm nghiên cứu cắt bỏ nếu vậy); mô phỏng có thể "tự khen"
+nếu giả định khai trung thực quá lạc quan; tệp CV là dữ liệu cá nhân nhạy cảm; khoảng 14 tệp test backend + ~10 tệp frontend sẽ phải sửa
+theo 4 khoá. Lộ trình 10 bước (10–19), tương đương cỡ bước 5–9 cộng lại.
+
+**Không đụng**: việc đang dở chưa commit của phiên khác (`backend/src/scripts/teamSeed.ts`, `seedTeam.ts`,
+`backend/test/assign.team.test.ts`, dòng `seed:team` trong `backend/package.json`) và các tệp chưa theo dõi ở gốc repo. Kế hoạch "phạt 10
+điểm/thẻ" cho lớp 2 vẫn chờ duyệt, không thuộc lộ trình này.
+
+**Tiếp theo**: bước 11 — trọng số 4 khoá (hàm thuần), chỉ bắt đầu khi bạn nói "làm bước 11 đi" (liệt kê tệp trước).
