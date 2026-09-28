@@ -6,9 +6,9 @@
 > nghĩa, con số và quy tắc ở đây là chuẩn mà code và test phải khớp. Đổi hợp
 > đồng thì sửa tài liệu này trước, ghi lý do vào nhật ký cuối file.
 >
-> Trạng thái: **xong bước 0–1** (tài liệu hợp đồng + lõi thuần: ý định/tham số, khoảng thời
-> gian, so khớp tên, bộ luật B0, câu nối tiếp). Chưa có API, CSDL hay LLM. Lộ trình ở §17,
-> nhật ký cuối file.
+> Trạng thái: **xong bước 0–2** (tài liệu hợp đồng; lõi thuần: ý định/tham số, khoảng thời
+> gian, so khớp tên, bộ luật B0, câu nối tiếp; tầng phạm vi + quyền đọc + danh sách người trên
+> CSDL). Chưa có truy vấn công việc, API hay LLM. Lộ trình ở §17, nhật ký cuối file.
 
 ---
 
@@ -327,9 +327,13 @@ Mọi vai trò đều bị giới hạn bởi quyền đọc bảng (§7.1).
 
 - `WORKSPACE(id)`: thành viên hiện tại của workspace + chủ workspace, chỉ người dùng
   chưa bị xoá (cách của `assign.repo.ts:54-78`).
-- `BOARD(id)`: chủ bảng + BoardMember hiện tại + (nếu bảng `WORKSPACE`) thành viên workspace.
+- `BOARD(id)`: chủ bảng + BoardMember hiện tại (kể cả `VIEWER`, kể cả khách không ở workspace)
+  + (nếu bảng `WORKSPACE`) chủ + thành viên workspace.
+- `MY`: rỗng — hỏi về người khác ở phạm vi cá nhân thì hỏi lại chọn workspace (§7.2).
 - Danh sách này **chỉ ở server**, là tham số đầu vào của bộ luật và bộ nhận diện;
-  **không** gửi cho LLM.
+  **không** gửi cho LLM. Đọc lại mỗi lượt: người đã rời không còn nhận diện được, kể cả khi
+  phiên đang giữ id của họ (`resolveMemberRef` luôn đối chiếu id với danh sách hiện tại).
+- Chủ workspace / chủ bảng luôn có mặt, kể cả dữ liệu cũ thiếu dòng thành viên của chủ.
 
 ### 8.2 So khớp tên
 
@@ -670,7 +674,7 @@ Mỗi bước một commit; bắt đầu khi được giao "làm bước N đi".
 |---|---|---|
 | 0 | Tài liệu hợp đồng này | **xong** |
 | 1 | Lõi thuần: `chat.intent`, `chat.period`, `chat.members` (so khớp tên — chuyển lên từ bước 2 vì bộ luật cần), `chat.rules`, `chat.followup` + test canh giữ | **xong** |
-| 2 | Phạm vi (`chat.scope`): bảng đọc được, danh sách người lấy từ CSDL, trưởng nhóm + test CSDL phân quyền và nhận diện tên trên dữ liệu thật | chưa |
+| 2 | Phạm vi (`chat.scope`): bảng đọc được, danh sách người lấy từ CSDL, trưởng nhóm + test CSDL phân quyền và nhận diện tên trên dữ liệu thật | **xong** |
 | 3 | Truy vấn, nhãn ưu tiên, dựng câu trả lời + test đối chiếu số liệu, > 200 thẻ | chưa |
 | 4 | Phiên, dịch vụ, API, `chatLimiter` — chạy trọn vẹn **không cần LLM** | chưa |
 | 5 | Lớp LLM (tham số `format` cho `callLlm`, luật gộp, ngân sách) + nhận xét tổng kết | chưa |
@@ -745,5 +749,39 @@ khôi phục nguyên vẹn (so từng byte).
   một ca chỉ nó canh ("tuần **vừa** qua": "vừa" không nằm trong danh sách từ bổ nghĩa).
 - Kiểm tra "từ gõ có dấu khác dạng" chỉ lộ ra với từ có cùng bản bỏ dấu ("chán"/"chặn", "tới"/"tôi").
 
-**Bước 2 cần**: `chat.scope.ts` (bảng đọc được, danh sách người lấy từ CSDL, trưởng nhóm) + test CSDL;
-chạy lại bảng từ dễ nhầm tên với danh sách người lấy từ CSDL thật.
+### Đã xong — Bước 2: phạm vi + quyền đọc + danh sách người (28/09/2026)
+
+**Tệp**: `backend/src/modules/chat/chat.scope.ts` (mới) —
+
+| Hàm | Việc |
+|---|---|
+| `readableBoardWhere(userId, wsIds)` | Bảng đọc được §7.1 (sao y OR của `listMyCards`, không PUBLIC, không bảng xoá/lưu trữ) |
+| `liveCardWhere(boardWhere)` | Thẻ còn sống §6.1 (thẻ + danh sách + bảng) |
+| `resolveScope(userId, scope)` | `MY` / `WORKSPACE` (qua `assertWorkspaceAccess`: 404 / 403) / `BOARD` (404 nếu không có hoặc đã xoá/lưu trữ, 403 "Tro ly chi ho tro bang ban tham gia" nếu không đọc được — kể cả PUBLIC); cờ trưởng nhóm theo vai trò **workspace**; `boardCount` |
+| `loadRoster(scope)` | Danh sách người §8.1 |
+| `listChoosableWorkspaces(userId)` | Lựa chọn khi hỏi lại "workspace nào?" (nhóm trước, cá nhân sau) |
+
+`chat.members.ts` thêm `resolveMemberRef` (thuần): id đã chọn chỉ hợp lệ khi còn trong danh
+sách hiện tại; id ưu tiên hơn tên gõ.
+
+**Test** `backend/test/chat.scope.test.ts` (8 ca, dữ liệu thật: 2 workspace, 9 bảng, 11 người):
+bảng đọc được đúng cho 9 vai trò và **trùng `listMyBoards`** (hàm sẵn có của trang chủ); bảng
+PUBLIC xem được qua `assertBoardView` nhưng trợ lý không tính; ADMIN workspace quản lý được bảng
+PRIVATE (`canManageBoard`) nhưng không đọc; quản trị viên **bảng** / chủ **bảng** không phải
+trưởng nhóm; quyền workspace A không dùng cho B; thu hồi quyền / đổi vai trò / đổi hiển thị / rời
+workspace giữa hai lượt; thẻ còn sống; danh sách người + nhận diện tên (trùng tên, người đã rời,
+tài khoản đã xoá, khách chỉ có ở phạm vi bảng, id cũ trong phiên); dữ liệu cũ thiếu dòng thành
+viên của chủ. `chat.guard.test.ts` thêm: không import `modules/assign`; `chat.scope` không dùng
+`assertBoardView` / `isBoardParticipant` / `assertBoardAccess`.
+
+**Cài lỗi**: 30 phép (27 trên `chat.scope.ts`, 3 trên `resolveMemberRef`) → lần đầu lọt 1 (chủ
+bảng bị coi là trưởng nhóm) → thêm ca → **30/30**. Trước khi chạy đã tự soát ra 4 nhánh "chủ luôn
+có dòng thành viên" mà dữ liệu mẫu không phân biệt được → thêm ca dữ liệu cũ; và gỡ một điều kiện
+thừa trong `loadRoster` (`MY` luôn có `workspace = null`) thay vì viết test cho mã chết.
+
+**Ghi nhận**: `listMyBoards` không có nhánh `ownerId` còn `listMyCards` (và chatbot) có — chỉ
+khác nhau với dữ liệu cũ thiếu dòng thành viên của chủ; có test ghi nhận chủ ý này.
+
+**Bước 3 cần**: `chat.queries.ts` (đếm + danh sách + `groupBy` theo người, dùng `liveCardWhere`
+ghép `AND`), `chat.priority.ts`, `chat.answer.ts`; test đối chiếu số liệu với phép đếm "ngây thơ"
+và `getWorkspaceOverview`, > 200 thẻ.

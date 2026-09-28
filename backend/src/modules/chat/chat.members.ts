@@ -143,6 +143,24 @@ export function matchMember(query: string, roster: readonly RosterMember[]): Mem
   return { kind: 'MANY', members: hits.map((h) => h.member).sort(byName) };
 }
 
+/**
+ * Nhan dien nguoi duoc hoi toi trong danh sach nguoi HIEN TAI cua pham vi:
+ * - `memberUserId` (nguoi da chon o luot truoc / nut "Y ban la ai?") -> chi hop le neu
+ *   van con trong danh sach (nguoi da roi, bi xoa, hoac pham vi doi -> NONE);
+ * - nguoc lai so `memberText` theo matchMember.
+ */
+export function resolveMemberRef(
+  ref: { memberText: string | null; memberUserId: string | null },
+  roster: readonly RosterMember[]
+): MemberMatch {
+  if (ref.memberUserId !== null) {
+    const found = roster.find((m) => m.userId === ref.memberUserId);
+    return found ? { kind: 'ONE', member: found } : { kind: 'NONE' };
+  }
+  if (ref.memberText !== null) return matchMember(ref.memberText, roster);
+  return { kind: 'NONE' };
+}
+
 /** Mot doan tu [start, end) trong cau hoi trung voi duoi ten cua it nhat 1 nguoi. */
 export interface NameSpan {
   start: number;

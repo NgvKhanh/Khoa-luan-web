@@ -59,8 +59,14 @@ describe('ky luat ma nguon module chatbot', () => {
       }
     }
     for (const f of sourceFiles().filter((x) => x !== 'chat.period.ts')) {
-      expect(read(f), f).not.toMatch(/ai\.service|ai\.apply|config\/prisma/);
+      expect(read(f), f).not.toMatch(/ai\.service|ai\.apply/);
     }
+  });
+
+  it('khong dung lai module phan cong (pham vi + truong du lieu khac chinh sach chatbot, §3.4 CHATBOT_PLAN)', () => {
+    for (const f of sourceFiles()) expect(read(f), f).not.toMatch(/modules\/assign|\.\.\/assign\//);
+    // Pham vi doc KHONG di qua assertBoardView (co nhanh PUBLIC) / isBoardParticipant (loai VIEWER)
+    expect(read('chat.scope.ts')).not.toMatch(/assertBoardView|isBoardParticipant|assertBoardAccess/);
   });
 
   it('khong co ky tu vo hinh / dau to hop roi trong tep nguon va tep test chatbot', () => {
