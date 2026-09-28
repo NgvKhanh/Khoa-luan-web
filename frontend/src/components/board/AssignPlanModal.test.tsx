@@ -28,7 +28,7 @@ const pick = (id: string, name: string, over: Partial<AssignPlanPick> = {}): Ass
   rawScore: 61,
   confidence: 0.6,
   confidenceLevel: 'GOOD',
-  components: { experience: comp(0.71), reliability: comp(1), availability: comp(0.4) },
+  components: { experience: comp(0.71), reliability: comp(1), availability: comp(0.4), declared: comp(0.33) },
   load: 1,
   capacity: 5,
   flags: [],
@@ -78,7 +78,7 @@ function plan(rows: AssignPlanRow[], over: Partial<AssignPlanResult> = {}): Assi
     algorithmVersion: 'knn-tfidf-v1/minmax/drop',
     planVersion: 'greedy-v1',
     generatedAt: '2026-09-20T05:00:00.000Z',
-    weights: { experience: 0.45, reliability: 0.3, availability: 0.25, custom: false },
+    weights: { experience: 0.36, reliability: 0.24, availability: 0.2, declared: 0.2, custom: false },
     groupOnTimeRate: 0.6,
     people: [person('u1', 'Lan Nguyễn'), person('u2', 'Bình Trần')],
     totalUnassigned: rows.length,
@@ -130,7 +130,7 @@ describe('AssignPlanModal - hiển thị kế hoạch', () => {
     expect(rowOf('c2').getByRole('combobox', { name: 'Người nhận thẻ Viết báo cáo tuần' })).toHaveValue('u2');
   });
 
-  it('dòng của người được gợi ý có điểm tương đối, tải và ba giá trị THÔ; nhãn của ô chọn có điểm và cờ', async () => {
+  it('dòng của người được gợi ý có điểm tương đối, tải và bốn giá trị THÔ; nhãn của ô chọn có điểm và cờ', async () => {
     setup();
     await flush();
     const r1 = rowOf('c1');
@@ -139,6 +139,7 @@ describe('AssignPlanModal - hiển thị kế hoạch', () => {
     expect(r1.getByText('KN 71%')).toBeInTheDocument();
     expect(r1.getByText('TC 100%')).toBeInTheDocument();
     expect(r1.getByText('KD 40%')).toBeInTheDocument();
+    expect(r1.getByText('HS 33%')).toBeInTheDocument();
     const options = r1.getAllByRole('option').map((o) => o.textContent);
     expect(options).toEqual(['— Không giao —', 'Lan Nguyễn — phù hợp 82', 'Bình Trần — phù hợp 40']);
     expect(rowOf('c2').getAllByRole('option').map((o) => o.textContent)).toContain('Bình Trần — phù hợp 75 · quá tải');
@@ -267,6 +268,7 @@ describe('AssignPlanModal - sửa kế hoạch', () => {
     expect(within(shareOf('u2')).getByText('+2 thẻ mới · đang mở 3/5')).toBeInTheDocument();
     expect(rowOf('c1').getByText('Phù hợp 40')).toBeInTheDocument();
     expect(rowOf('c1').queryByText(/^KN /)).not.toBeInTheDocument();
+    expect(rowOf('c1').queryByText(/^HS /)).not.toBeInTheDocument();
     expect(rowOf('c1').getByRole('checkbox', { name: /Chọn thẻ/ })).toBeChecked();
     // Đổi lại đúng người được gợi ý thì KN/TC/KD hiện lại
     fireEvent.change(select, { target: { value: 'u1' } });

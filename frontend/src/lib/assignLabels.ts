@@ -1,5 +1,6 @@
 import type {
   AssignConfidenceLevel,
+  AssignDeclaredEvidence,
   AssignEvidenceOutcome,
   AssignFlag,
   AssignWeightKey,
@@ -11,12 +12,14 @@ export const COMPONENT_LABEL: Record<AssignWeightKey, string> = {
   experience: 'Kinh nghiệm',
   reliability: 'Độ tin cậy',
   availability: 'Khả dụng',
+  declared: 'Hồ sơ',
 };
 
 export const COMPONENT_SHORT: Record<AssignWeightKey, string> = {
   experience: 'KN',
   reliability: 'TC',
   availability: 'KD',
+  declared: 'HS',
 };
 
 /** Vi sao thanh phan nay co y nghia (tooltip). */
@@ -24,6 +27,14 @@ export const COMPONENT_HINT: Record<AssignWeightKey, string> = {
   experience: 'Mức độ giống giữa thẻ này và những thẻ người đó đã hoàn thành trước đây',
   reliability: 'Tỉ lệ đúng hạn của người đó ở những thẻ giống thẻ này',
   availability: 'Còn bao nhiêu chỗ trống: 1 trừ (số thẻ đang mở chồng lấn / số thẻ song song tối đa)',
+  declared: 'Mức khớp giữa thẻ này và kỹ năng, công việc đã làm, CV mà người đó TỰ KHAI (chưa được kiểm chứng bằng lịch sử)',
+};
+
+/** Loai muc ho so tu khai (bang chung Ho so). */
+export const DECLARED_KIND_LABEL: Record<AssignDeclaredEvidence['kind'], string> = {
+  SKILL: 'Kỹ năng',
+  WORK: 'Công việc đã làm',
+  CV: 'CV',
 };
 
 export const CONFIDENCE_LABEL: Record<AssignConfidenceLevel, string> = {
@@ -52,6 +63,8 @@ export function flagLabel(flag: AssignFlag, s: { load: number; capacity: number 
       return 'Chưa có lịch sử';
     case 'NO_SIMILAR':
       return 'Chưa làm việc tương tự';
+    case 'NO_PROFILE':
+      return 'Chưa khai hồ sơ';
     case 'NO_DATA':
       return 'Không đủ dữ liệu';
   }

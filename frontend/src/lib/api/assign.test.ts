@@ -4,14 +4,20 @@ const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), del
 vi.mock('../axios', () => ({ api: mocks }));
 
 import {
+  deleteDeclaredCv,
   fetchAssignPlan,
   fetchAssignProfile,
   fetchAssignSuggestions,
   fetchAssignWeights,
+  fetchDeclaredProfile,
+  myCvUrl,
   recordAssignOutcome,
   resetAssignWeights,
   saveAssignProfile,
   saveAssignWeights,
+  saveDeclaredProfile,
+  uploadDeclaredCv,
+  userCvUrl,
 } from './assign';
 
 // Lop goi API cua module goi y phan cong: dung DUONG DAN (ma hoa id), dung THAN yeu cau, tra `res.data.data`.
@@ -60,10 +66,10 @@ describe('lib/api/assign', () => {
     expect(mocks.get).toHaveBeenLastCalledWith('/workspaces/w%2F1/assignment-weights'); // id duoc ma hoa
   });
 
-  it('saveAssignWeights: PUT cung duong dan, than la ba trong so (khong them khoa nao khac)', async () => {
+  it('saveAssignWeights: PUT cung duong dan, than la BON trong so (khong them khoa nao khac)', async () => {
     const data = { custom: true };
     mocks.put.mockResolvedValue({ data: { data } });
-    const w = { experience: 0.5, reliability: 0.3, availability: 0.2 };
+    const w = { experience: 0.4, reliability: 0.3, availability: 0.2, declared: 0.1 };
     await expect(saveAssignWeights('w1', w)).resolves.toBe(data);
     expect(mocks.put).toHaveBeenCalledWith('/workspaces/w1/assignment-weights', w);
     await saveAssignWeights('w/1', w);
@@ -91,6 +97,40 @@ describe('lib/api/assign', () => {
     expect(mocks.put).toHaveBeenCalledWith('/workspaces/w1/assignment-profile', input);
     await saveAssignProfile('w1', { maxParallelCards: 5, pausedUntil: null });
     expect(mocks.put).toHaveBeenLastCalledWith('/workspaces/w1/assignment-profile', { maxParallelCards: 5, pausedUntil: null });
+  });
+
+  it('ho so tu khai: GET / PUT /me/assign-profile (than giu nguyen), POST cv la FormData truong "file", DELETE cv', async () => {
+    const data = { skillsText: 'React' };
+    mocks.get.mockResolvedValue({ data: { data } });
+    await expect(fetchDeclaredProfile()).resolves.toBe(data);
+    expect(mocks.get).toHaveBeenCalledWith('/me/assign-profile');
+
+    const input = { useForAssign: true, skillsText: 'React', workItems: [{ title: 'A' }], cvText: null };
+    mocks.put.mockResolvedValue({ data: { data } });
+    await expect(saveDeclaredProfile(input)).resolves.toBe(data);
+    expect(mocks.put).toHaveBeenCalledWith('/me/assign-profile', input);
+
+    const up = { text: 'chu', truncated: false };
+    mocks.post.mockResolvedValue({ data: { data: up } });
+    const file = new File(['x'], 'cv.pdf', { type: 'application/pdf' });
+    await expect(uploadDeclaredCv(file)).resolves.toBe(up);
+    const [url, form] = mocks.post.mock.calls[0]!;
+    expect(url).toBe('/me/assign-profile/cv');
+    expect(form).toBeInstanceOf(FormData);
+    expect((form as FormData).get('file')).toBe(file);
+    expect([...(form as FormData).keys()]).toEqual(['file']);
+
+    mocks.delete.mockResolvedValue({ data: { data } });
+    await expect(deleteDeclaredCv()).resolves.toBe(data);
+    expect(mocks.delete).toHaveBeenCalledWith('/me/assign-profile/cv');
+  });
+
+  it('duong dan tai CV: cua minh / cua thanh vien (id duoc ma hoa), goc la VITE_API_URL', () => {
+    const base = import.meta.env.VITE_API_URL as string;
+    expect(base).toMatch(/^https?:/);
+    expect(myCvUrl()).toBe(`${base}/me/assign-profile/cv`);
+    expect(userCvUrl('u1')).toBe(`${base}/users/u1/assign-profile/cv`);
+    expect(userCvUrl('a/b?c')).toBe(`${base}/users/a%2Fb%3Fc/assign-profile/cv`);
   });
 
   it('loi cua may chu duoc day nguyen (khong nuot): giao dien tu lay thong diep', async () => {

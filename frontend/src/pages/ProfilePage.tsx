@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Avatar from '../components/Avatar';
+import DeclaredProfileSection from '../components/DeclaredProfileSection';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
 import { useTheme } from '../context/ThemeContext';
@@ -271,6 +272,14 @@ export default function ProfilePage() {
           </div>
         </Card>
       </form>
+
+      {/* Hồ sơ kỹ năng (tự khai) cho gợi ý phân công */}
+      <Card
+        title="Hồ sơ kỹ năng"
+        desc="Kỹ năng, công việc đã làm và CV bạn tự khai — gợi ý phân công dùng ở mọi không gian bạn tham gia, như một thành phần chưa kiểm chứng bên cạnh lịch sử làm việc thật."
+      >
+        <DeclaredProfileSection />
+      </Card>
 
       {/* Tài khoản & bảo mật */}
       <Card title="Tài khoản & bảo mật">

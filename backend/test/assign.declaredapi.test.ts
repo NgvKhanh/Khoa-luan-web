@@ -142,7 +142,9 @@ describe('ho so tu khai THAT vao bo cham', () => {
     expect(owner.components.declared.value).toBeNull(); // khong khai
     // NEUTRAL: nguoi khong khai nhan trung binh (khong phai 0) o thanh phan Ho so
     expect(owner.components.declared.scaled).toBeCloseTo(((bob.components.declared.scaled ?? 0) + (alice.components.declared.scaled ?? 0)) / 2, 12);
-    expect(owner.flags).not.toContain('NO_PROFILE'); // co van loc cho toi buoc 18
+    expect(owner.flags).toContain('NO_PROFILE'); // buoc 18: co ra API
+    expect(bob.flags).not.toContain('NO_PROFILE');
+    expect(alice.flags).not.toContain('NO_PROFILE'); // co khai (du khong khop) -> khong phai NO_PROFILE
     expect(res.body.data.weights).toEqual({ ...DEFAULT_WEIGHTS, custom: false });
   });
 

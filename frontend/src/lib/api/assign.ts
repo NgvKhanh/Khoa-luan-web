@@ -7,6 +7,9 @@ import type {
   AssignSuggestionResult,
   AssignWeights,
   AssignWeightsView,
+  DeclaredCvUploadResult,
+  DeclaredProfile,
+  DeclaredProfileInput,
 } from '../../types/assign';
 
 // Lop goi API cua module goi y phan cong (ASSIGN_MODULE.md §10). Moi ham tra `res.data.data`.
@@ -51,7 +54,7 @@ export async function fetchAssignWeights(workspaceId: string): Promise<AssignWei
   return res.data.data;
 }
 
-// PUT .../assignment-weights - chi OWNER/ADMIN. Moi so trong [0,05; 0,70], tong = 1 (server tu choi neu sai).
+// PUT .../assignment-weights - chi OWNER/ADMIN. Bon so (them Ho so), moi so trong [0,05; 0,70], tong = 1 (server tu choi neu sai).
 export async function saveAssignWeights(
   workspaceId: string,
   weights: AssignWeights
@@ -60,7 +63,7 @@ export async function saveAssignWeights(
   return res.data.data;
 }
 
-// DELETE .../assignment-weights - dat lai 45/30/25 va dua so luot phan hoi ve 0 (chi OWNER/ADMIN).
+// DELETE .../assignment-weights - dat lai mac dinh (36/24/20/20) va dua so luot phan hoi ve 0 (chi OWNER/ADMIN).
 export async function resetAssignWeights(workspaceId: string): Promise<AssignWeightsView> {
   const res = await api.delete<{ data: AssignWeightsView }>(weightsUrl(workspaceId));
   return res.data.data;
@@ -80,3 +83,38 @@ export async function saveAssignProfile(
   const res = await api.put<{ data: AssignProfile }>(profileUrl(workspaceId), input);
   return res.data.data;
 }
+
+// ---------- Ho so tu khai cua CHINH nguoi dung (ky nang, cong viec da lam, CV) - ASSIGN_MODULE.md §17.9 ----------
+
+const MY_PROFILE = '/me/assign-profile';
+
+// GET /api/me/assign-profile - chua khai thi tra ho so rong (bat "dung cho goi y").
+export async function fetchDeclaredProfile(): Promise<DeclaredProfile> {
+  const res = await api.get<{ data: DeclaredProfile }>(MY_PROFILE);
+  return res.data.data;
+}
+
+// PUT /api/me/assign-profile - cong tac, ky nang, cong viec da lam, chu CV (da sua). Tep CV di qua uploadDeclaredCv.
+export async function saveDeclaredProfile(input: DeclaredProfileInput): Promise<DeclaredProfile> {
+  const res = await api.put<{ data: DeclaredProfile }>(MY_PROFILE, input);
+  return res.data.data;
+}
+
+// POST /api/me/assign-profile/cv - tep .pdf / .docx <= 5MB o truong "file"; may chu TRICH CHU (khong goi AI) va tra ve de sua.
+export async function uploadDeclaredCv(file: File): Promise<DeclaredCvUploadResult> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await api.post<{ data: DeclaredCvUploadResult }>(`${MY_PROFILE}/cv`, form);
+  return res.data.data;
+}
+
+// DELETE /api/me/assign-profile/cv - xoa tep, chu trich va moi thong tin CV.
+export async function deleteDeclaredCv(): Promise<DeclaredProfile> {
+  const res = await api.delete<{ data: DeclaredProfile }>(`${MY_PROFILE}/cv`);
+  return res.data.data;
+}
+
+// Tai tep CV: lien ket thuong (trinh duyet gui cookie, may chu ep tai xuong). Nguoi khong co quyen nhan 404.
+const API_URL = import.meta.env.VITE_API_URL as string;
+export const myCvUrl = () => `${API_URL}${MY_PROFILE}/cv`;
+export const userCvUrl = (userId: string) => `${API_URL}/users/${encodeURIComponent(userId)}/assign-profile/cv`;

@@ -19,7 +19,7 @@ const pick = (id: string): AssignPlanPick => ({
   rawScore: 60,
   confidence: 0.6,
   confidenceLevel: 'GOOD',
-  components: { experience: comp(0.5), reliability: comp(0.5), availability: comp(0.5) },
+  components: { experience: comp(0.5), reliability: comp(0.5), availability: comp(0.5), declared: comp(0.5) },
   load: 1,
   capacity: 5,
   flags: [],

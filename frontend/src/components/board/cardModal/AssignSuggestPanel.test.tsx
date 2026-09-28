@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({ fetchAssignSuggestions: vi.fn(), recordAssignO
 vi.mock('../../../lib/api/assign', () => ({
   fetchAssignSuggestions: mocks.fetchAssignSuggestions,
   recordAssignOutcome: mocks.recordAssignOutcome,
+  userCvUrl: (id: string) => `http://api.test/users/${id}/assign-profile/cv`,
 }));
 
 const member = (id: string, name: string, role: BoardMember['role'] = 'MEMBER'): BoardMember => ({
@@ -34,7 +35,7 @@ function sug(id: string, name: string, rank: number, over: Partial<AssignSuggest
     rawScore: 61.2,
     confidence: 0.62,
     confidenceLevel: 'GOOD',
-    components: { experience: comp(0.71), reliability: comp(1), availability: comp(0.4) },
+    components: { experience: comp(0.71), reliability: comp(1), availability: comp(0.4), declared: comp(0.55) },
     fit: 0.7,
     evidenceMass: 3,
     load: 2,
@@ -42,6 +43,8 @@ function sug(id: string, name: string, rank: number, over: Partial<AssignSuggest
     flags: [],
     assigned: false,
     evidence: [],
+    declaredEvidence: [],
+    cvAvailable: false,
     ...over,
   };
 }
@@ -50,9 +53,9 @@ function result(candidates: AssignSuggestion[], over: Partial<AssignSuggestionRe
   return {
     runId: 'run-1',
     card: { id: 'c1', title: 'Thiết kế màn hình đăng nhập', boardId: 'b1', workspaceId: 'w1' },
-    algorithmVersion: 'knn-tfidf-v1/minmax/drop',
+    algorithmVersion: 'knn-tfidf-v2/minmax/drop+decl-neutral',
     generatedAt: '2026-09-20T05:00:00.000Z',
-    weights: { experience: 0.45, reliability: 0.3, availability: 0.25, custom: false },
+    weights: { experience: 0.36, reliability: 0.24, availability: 0.2, declared: 0.2, custom: false },
     groupOnTimeRate: 0.6,
     candidateCount: candidates.length,
     candidates,
@@ -89,14 +92,14 @@ beforeEach(() => {
 });
 
 describe('AssignSuggestPanel - hiển thị gợi ý', () => {
-  it('đang tải -> khung chờ; xong -> các dòng THEO THỨ TỰ máy chủ, kèm hạng, điểm tương đối, ba giá trị THÔ, mức dữ liệu và trọng số nhóm', async () => {
+  it('đang tải -> khung chờ; xong -> các dòng THEO THỨ TỰ máy chủ, kèm hạng, điểm tương đối, bốn giá trị THÔ, mức dữ liệu và trọng số nhóm', async () => {
     let resolve!: (r: AssignSuggestionResult) => void;
     mocks.fetchAssignSuggestions.mockReturnValue(new Promise((r) => (resolve = r)));
     setup();
     expect(screen.getByRole('status')).toHaveTextContent('Đang tính gợi ý');
     expect(screen.queryByTestId('assign-row-u1')).not.toBeInTheDocument();
 
-    await act(async () => resolve(result([sug('u2', 'Bình Trần', 1), sug('u1', 'Lan Nguyễn', 2, { score: 41.6, components: { experience: comp(0.2), reliability: comp(0.5), availability: comp(1) }, confidenceLevel: 'THIN' }), sug('u3', 'Chi Lê', 3)])));
+    await act(async () => resolve(result([sug('u2', 'Bình Trần', 1), sug('u1', 'Lan Nguyễn', 2, { score: 41.6, components: { experience: comp(0.2), reliability: comp(0.5), availability: comp(1), declared: comp(0.08) }, confidenceLevel: 'THIN' }), sug('u3', 'Chi Lê', 3)])));
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(rows()).toEqual(['assign-row-u2', 'assign-row-u1', 'assign-row-u3']);
 
@@ -107,31 +110,33 @@ describe('AssignSuggestPanel - hiển thị gợi ý', () => {
     expect(top.getByText('KN 71%')).toBeInTheDocument();
     expect(top.getByText('TC 100%')).toBeInTheDocument();
     expect(top.getByText('KD 40%')).toBeInTheDocument();
+    expect(top.getByText('HS 55%')).toBeInTheDocument();
     expect(top.getByText('Đủ dữ liệu')).toBeInTheDocument();
 
     const second = within(screen.getByTestId('assign-row-u1'));
     expect(second.getByText('Phù hợp 42')).toBeInTheDocument();
     expect(second.getByText('KN 20%')).toBeInTheDocument();
     expect(second.getByText('KD 100%')).toBeInTheDocument();
+    expect(second.getByText('HS 8%')).toBeInTheDocument();
     expect(second.getByText('Dữ liệu mỏng')).toBeInTheDocument();
 
-    expect(screen.getByText(/Trọng số nhóm: Kinh nghiệm 45% · Tin cậy 30% · Khả dụng 25%\./)).toBeInTheDocument();
+    expect(screen.getByText(/Trọng số nhóm: Kinh nghiệm 36% · Tin cậy 24% · Khả dụng 20% · Hồ sơ 20%\./)).toBeInTheDocument();
     expect(screen.queryByText(/đã tuỳ chỉnh/)).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Xem / chỉnh' })).toHaveAttribute('href', '/workspaces/w1');
   });
 
   it('trọng số đã tuỳ chỉnh và đã HỌC (lẻ) hiện làm tròn phần trăm, kèm "(đã tuỳ chỉnh)"', async () => {
     mocks.fetchAssignSuggestions.mockResolvedValue(
-      result([sug('u1', 'Lan Nguyễn', 1)], { weights: { experience: 0.38333, reliability: 0.30111, availability: 0.31556, custom: true } })
+      result([sug('u1', 'Lan Nguyễn', 1)], { weights: { experience: 0.306, reliability: 0.2445, availability: 0.253, declared: 0.1965, custom: true } })
     );
     setup();
-    expect(await screen.findByText(/Trọng số nhóm: Kinh nghiệm 38% · Tin cậy 30% · Khả dụng 32% \(đã tuỳ chỉnh\)\./)).toBeInTheDocument();
+    expect(await screen.findByText(/Trọng số nhóm: Kinh nghiệm 31% · Tin cậy 24% · Khả dụng 25% · Hồ sơ 20% \(đã tuỳ chỉnh\)\./)).toBeInTheDocument();
   });
 
   it('thành phần chưa có dữ liệu hiện "—"; điểm null hiện "Chưa đủ dữ liệu để chấm"; cờ hiện đủ nhãn (quá tải ghi số thẻ)', async () => {
     mocks.fetchAssignSuggestions.mockResolvedValue(
       result([
-        sug('u1', 'Lan Nguyễn', 1, { score: null, components: { experience: comp(null), reliability: comp(null), availability: comp(0.6) }, flags: ['NO_HISTORY', 'NO_DATA'], confidenceLevel: 'THIN' }),
+        sug('u1', 'Lan Nguyễn', 1, { score: null, components: { experience: comp(null), reliability: comp(null), availability: comp(0.6), declared: comp(null) }, flags: ['NO_HISTORY', 'NO_PROFILE', 'NO_DATA'], confidenceLevel: 'THIN' }),
         sug('u2', 'Bình Trần', 2, { load: 6, capacity: 5, flags: ['OVERLOADED', 'PAUSED', 'NO_SIMILAR'] }),
       ])
     );
@@ -142,7 +147,9 @@ describe('AssignSuggestPanel - hiển thị gợi ý', () => {
     expect(a.getByText('KN —')).toBeInTheDocument();
     expect(a.getByText('TC —')).toBeInTheDocument();
     expect(a.getByText('KD 60%')).toBeInTheDocument();
+    expect(a.getByText('HS —')).toBeInTheDocument();
     expect(a.getByText('Chưa có lịch sử')).toBeInTheDocument();
+    expect(a.getByText('Chưa khai hồ sơ')).toBeInTheDocument();
     expect(a.getByText('Không đủ dữ liệu')).toBeInTheDocument();
     const b = within(screen.getByTestId('assign-row-u2'));
     expect(b.getByText('Quá tải (6/5 thẻ)')).toBeInTheDocument();
@@ -197,6 +204,46 @@ describe('AssignSuggestPanel - hiển thị gợi ý', () => {
     expect(screen.getByText('Chưa có thẻ cũ nào đủ giống thẻ này.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Vì sao gợi ý Chi Lê' }));
     expect(screen.queryByText('Chưa có thẻ cũ nào đủ giống thẻ này.')).not.toBeInTheDocument();
+  });
+
+  it('"Vì sao?" phần HỒ SƠ: mục khai khớp (loại, tên, độ giống; đoạn CV không có chữ), chưa khai / không khớp nói rõ; "Tải CV" chỉ khi máy chủ cho', async () => {
+    mocks.fetchAssignSuggestions.mockResolvedValue(
+      result([
+        sug('u1', 'Lan Nguyễn', 1, {
+          cvAvailable: true,
+          declaredEvidence: [
+            { kind: 'CV', itemId: 'cv-3', title: null, sim: 0.91 },
+            { kind: 'WORK', itemId: 'w1', title: 'Trang quản trị bán hàng', sim: 0.62 },
+            { kind: 'SKILL', itemId: 's2', title: 'thiết kế giao diện', sim: 0.5 },
+          ],
+        }),
+        sug('u2', 'Bình Trần', 2, { flags: ['NO_PROFILE'], cvAvailable: false }),
+        sug('u3', 'Chi Lê', 3, { cvAvailable: true, components: { experience: comp(0.3), reliability: comp(1), availability: comp(0.4), declared: comp(0) } }),
+      ])
+    );
+    setup();
+    await screen.findByTestId('assign-row-u1');
+    fireEvent.click(screen.getByRole('button', { name: 'Vì sao gợi ý Lan Nguyễn' }));
+    const row = within(screen.getByTestId('assign-row-u1'));
+    expect(row.getByText(/Khớp hồ sơ tự khai/)).toBeInTheDocument();
+    expect(row.getByText('(chưa kiểm chứng)')).toBeInTheDocument();
+    const items = row.getAllByRole('listitem').map((li) => li.textContent);
+    expect(items).toEqual([
+      'CV: một đoạn trong CV — 91% giống',
+      'Công việc đã làm: Trang quản trị bán hàng — 62% giống',
+      'Kỹ năng: thiết kế giao diện — 50% giống',
+    ]);
+    expect(row.getByRole('link', { name: 'Tải CV' })).toHaveAttribute('href', 'http://api.test/users/u1/assign-profile/cv');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Vì sao gợi ý Bình Trần' }));
+    const b = within(screen.getByTestId('assign-row-u2'));
+    expect(b.getByText('Chưa khai hồ sơ kỹ năng.')).toBeInTheDocument();
+    expect(b.queryByRole('link', { name: 'Tải CV' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Vì sao gợi ý Chi Lê' }));
+    const c = within(screen.getByTestId('assign-row-u3'));
+    expect(c.getByText(/Hồ sơ tự khai không có mục nào đủ giống thẻ này\./)).toBeInTheDocument();
+    expect(c.getByRole('link', { name: 'Tải CV' })).toHaveAttribute('href', 'http://api.test/users/u3/assign-profile/cv');
   });
 });
 

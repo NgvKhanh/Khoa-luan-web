@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchAssignSuggestions, recordAssignOutcome } from '../../../lib/api/assign';
+import { fetchAssignSuggestions, recordAssignOutcome, userCvUrl } from '../../../lib/api/assign';
 import { formatViDate } from '../../../lib/assignDates';
 import {
   COMPONENT_HINT,
   COMPONENT_LABEL,
   COMPONENT_SHORT,
   CONFIDENCE_LABEL,
+  DECLARED_KIND_LABEL,
   OUTCOME_LABEL,
   flagLabel,
   riskWarning,
@@ -18,9 +19,9 @@ import type { AssignSuggestion, AssignSuggestionResult } from '../../../types/as
 import type { BoardMember } from '../../../types/board';
 import Avatar from '../../Avatar';
 
-// Ô "Thành viên" của thẻ có GỢI Ý PHÂN CÔNG (ASSIGN_MODULE.md §10): xếp hạng người có thể nhận thẻ theo lịch sử của
-// chính họ, kèm ba giá trị THÔ, cảnh báo và bằng chứng. Giao tay vẫn luôn dùng được: gợi ý lỗi / bị giới hạn tốc độ
-// thì rơi về danh sách thường.
+// Ô "Thành viên" của thẻ có GỢI Ý PHÂN CÔNG (ASSIGN_MODULE.md §10, §17): xếp hạng người có thể nhận thẻ theo lịch sử của
+// chính họ và hồ sơ tự khai, kèm bốn giá trị THÔ, cảnh báo và bằng chứng (thẻ cũ + mục hồ sơ khớp). Giao tay vẫn luôn dùng
+// được: gợi ý lỗi / bị giới hạn tốc độ thì rơi về danh sách thường.
 
 interface Props {
   cardId: string;
@@ -247,6 +248,7 @@ export default function AssignSuggestPanel({ cardId, boardMembers, cardMemberIds
                 </ul>
               </>
             )}
+            {renderDeclared(s)}
           </div>
         )}
         {warning && (
@@ -263,6 +265,41 @@ export default function AssignSuggestPanel({ cardId, boardMembers, cardMemberIds
           </div>
         )}
       </li>
+    );
+  }
+
+  // Phần "Hồ sơ tự khai" của mục "Vì sao?": mục khớp nhất (CV chỉ nói "một đoạn trong CV", không bao giờ có chữ) + nút tải CV
+  // cho người có quyền (máy chủ quyết định `cvAvailable`).
+  function renderDeclared(s: AssignSuggestion) {
+    const cv = s.cvAvailable ? (
+      <a href={userCvUrl(s.user.id)} download className="font-medium text-[#0c66e4] hover:underline dark:text-sky-300">
+        Tải CV
+      </a>
+    ) : null;
+    if (s.declaredEvidence.length > 0) {
+      return (
+        <div className="mt-1.5">
+          <p className="mb-1">
+            Khớp hồ sơ tự khai <span className="text-slate-500 dark:text-slate-400">(chưa kiểm chứng)</span>:
+          </p>
+          <ul className="space-y-1">
+            {s.declaredEvidence.map((e) => (
+              <li key={`${e.kind}-${e.itemId}`}>
+                <span className="text-slate-500 dark:text-slate-400">{DECLARED_KIND_LABEL[e.kind]}: </span>
+                {e.title === null ? <i>một đoạn trong CV</i> : <span className="font-medium">{e.title}</span>}
+                <span className="text-slate-500 dark:text-slate-400"> — {pct(e.sim)} giống</span>
+              </li>
+            ))}
+          </ul>
+          {cv && <p className="mt-1">{cv}</p>}
+        </div>
+      );
+    }
+    return (
+      <p className="mt-1.5">
+        {s.flags.includes('NO_PROFILE') ? 'Chưa khai hồ sơ kỹ năng.' : 'Hồ sơ tự khai không có mục nào đủ giống thẻ này.'}
+        {cv && <> {cv}</>}
+      </p>
     );
   }
 
@@ -314,8 +351,8 @@ export default function AssignSuggestPanel({ cardId, boardMembers, cardMemberIds
 
       {state.status === 'ready' && candidates.length > 0 && (
         <p className="mb-1 px-1 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-          Xếp theo độ phù hợp với thẻ này, dựa trên các thẻ cũ trong không gian làm việc. KN = kinh nghiệm · TC = độ tin cậy
-          · KD = khả dụng.
+          Xếp theo độ phù hợp với thẻ này, dựa trên các thẻ cũ trong không gian làm việc và hồ sơ tự khai. KN = kinh nghiệm · TC =
+          độ tin cậy · KD = khả dụng · HS = hồ sơ tự khai.
         </p>
       )}
 
@@ -332,7 +369,7 @@ export default function AssignSuggestPanel({ cardId, boardMembers, cardMemberIds
             const w = toPct(state.data.weights);
             return (
               <p>
-                Trọng số nhóm: Kinh nghiệm {w.experience}% · Tin cậy {w.reliability}% · Khả dụng {w.availability}%
+                Trọng số nhóm: Kinh nghiệm {w.experience}% · Tin cậy {w.reliability}% · Khả dụng {w.availability}% · Hồ sơ {w.declared}%
                 {state.data.weights.custom ? ' (đã tuỳ chỉnh)' : ''}.{' '}
                 <Link to={`/workspaces/${state.data.card.workspaceId}`} className="font-medium text-[#0c66e4] hover:underline dark:text-sky-300">
                   Xem / chỉnh

@@ -255,7 +255,7 @@ export default function AssignPlanModal({ listId, listName, onClose, onApplied }
         <div className="flex-1 overflow-y-auto p-4">
           <p className="mb-3 text-xs leading-snug text-slate-600 dark:text-slate-300">
             Các thẻ chưa có người nhận được xếp <b>hạn gấp trước</b>. Mỗi thẻ được gợi ý cho người phù hợp nhất theo lịch sử làm việc; thẻ vừa chia được tính vào
-            tải của người đó cho các thẻ sau. Bạn xem, đổi người hoặc bỏ tick từng thẻ — chỉ khi bấm <b>Áp dụng</b> thì mới giao thật. KN = kinh nghiệm · TC = độ tin cậy · KD = khả dụng.
+            tải của người đó cho các thẻ sau. Bạn xem, đổi người hoặc bỏ tick từng thẻ — chỉ khi bấm <b>Áp dụng</b> thì mới giao thật. KN = kinh nghiệm · TC = độ tin cậy · KD = khả dụng · HS = hồ sơ tự khai.
           </p>
 
           {state.status === 'loading' && (

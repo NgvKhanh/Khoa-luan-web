@@ -1,18 +1,23 @@
 // Kieu du lieu cua module goi y phan cong (khop dung phan hoi cua backend, xem ASSIGN_MODULE.md §10).
 // Thoi diem di qua JSON nen la chuoi ISO.
 
-export type AssignFlag = 'NO_HISTORY' | 'NO_SIMILAR' | 'OVERLOADED' | 'PAUSED' | 'NO_DATA';
+export type AssignFlag = 'NO_HISTORY' | 'NO_SIMILAR' | 'NO_PROFILE' | 'OVERLOADED' | 'PAUSED' | 'NO_DATA';
 export type AssignConfidenceLevel = 'THIN' | 'FAIR' | 'GOOD';
 export type AssignEvidenceOutcome = 'ON_TIME' | 'ON_TIME_REOPENED' | 'LATE' | 'NO_DUE';
 
-/** Ba thanh phan cua diem: kinh nghiem, do tin cay, kha dung. */
+/** Bon thanh phan cua diem: kinh nghiem, do tin cay, kha dung (tu lich su) va Ho so tu khai (§17). */
 export interface AssignWeights {
   experience: number;
   reliability: number;
   availability: number;
+  declared: number;
 }
 
 export type AssignWeightKey = keyof AssignWeights;
+export type LegacyWeightKey = Exclude<AssignWeightKey, 'declared'>;
+
+/** Moc lich su trong so: moc TRUOC buoc 16 khong co Ho so (`declared` = null). */
+export type AssignHistoryWeights = Omit<AssignWeights, 'declared'> & { declared: number | null };
 
 export interface AssignComponent {
   /** Gia tri THO trong [0,1]; null = chua co du lieu. */
@@ -34,6 +39,14 @@ export interface AssignEvidence {
   dueDate: string | null;
 }
 
+/** Muc ho so tu khai khop voi the (§17.4). Muc CV luon `title` = null: chu CV khong bao gio ra ngoai chu CV. */
+export interface AssignDeclaredEvidence {
+  kind: 'SKILL' | 'WORK' | 'CV';
+  itemId: string;
+  title: string | null;
+  sim: number;
+}
+
 export interface AssignSuggestion {
   rank: number;
   user: { id: string; name: string; avatarUrl: string | null };
@@ -50,6 +63,10 @@ export interface AssignSuggestion {
   flags: AssignFlag[];
   assigned: boolean;
   evidence: AssignEvidence[];
+  /** Toi da 3 muc ho so tu khai khop nhat; rong = khong khai / khong muc nao du giong. */
+  declaredEvidence: AssignDeclaredEvidence[];
+  /** Nguoi HOI tai duoc tep CV cua ung vien nay (co tep + co quyen: chinh minh hoac OWNER/ADMIN khong gian chung). */
+  cvAvailable: boolean;
 }
 
 export interface AssignSuggestionResult {
@@ -90,7 +107,7 @@ export interface AssignOutcomeResult {
 export interface AssignWeightHistoryEntry {
   id: string;
   at: string;
-  weights: AssignWeights;
+  weights: AssignHistoryWeights;
   feedbackCount: number;
   /** LEARNED = do he thong tu hoc tu mot luot phan hoi; MANUAL = chinh tay hoac dat lai. */
   source: 'LEARNED' | 'MANUAL';
@@ -182,4 +199,44 @@ export interface AssignPlanResult {
   /** Chi chia mot so the gap nhat moi lan; phan con lai de lan sau. */
   truncated: boolean;
   rows: AssignPlanRow[];
+}
+
+// ---------- Ho so tu khai cua CHINH nguoi dung (ASSIGN_MODULE.md §17.2, §17.9) ----------
+
+export interface DeclaredWorkItem {
+  id: string;
+  title: string;
+  description: string | null;
+}
+
+export interface DeclaredCvInfo {
+  fileName: string;
+  size: number;
+  uploadedAt: string;
+}
+
+export interface DeclaredProfile {
+  /** Tat = bo cham coi nhu nguoi nay khong khai. */
+  useForAssign: boolean;
+  skillsText: string;
+  workItems: DeclaredWorkItem[];
+  cv: DeclaredCvInfo | null;
+  /** Chu trich tu CV (nguoi dung da sua) - chi chinh chu CV nhan duoc. */
+  cvText: string | null;
+}
+
+export interface DeclaredProfileInput {
+  useForAssign: boolean;
+  skillsText: string;
+  /** Muc moi khong co `id` (may chu cap). */
+  workItems: { id?: string; title: string; description?: string | null }[];
+  cvText: string | null;
+}
+
+export interface DeclaredCvUploadResult {
+  cv: DeclaredCvInfo;
+  /** Chu trich duoc - hien cho nguoi dung SUA roi luu lai. */
+  text: string;
+  truncated: boolean;
+  profile: DeclaredProfile;
 }

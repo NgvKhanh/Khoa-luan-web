@@ -13,6 +13,7 @@ import {
   WEIGHT_MAX_PCT,
   WEIGHT_MIN_PCT,
   fromPct,
+  historyPct,
   rebalance,
   samePct,
   toPct,
@@ -22,7 +23,7 @@ import { getErrorMessage } from '../lib/errorMessage';
 import type { AssignProfile, AssignWeightsView } from '../types/assign';
 import ConfirmDialog from './ConfirmDialog';
 
-// Mục "Gợi ý phân công" của trang cài đặt không gian làm việc (ASSIGN_MODULE.md §6, §8): ba thanh trượt trọng số của nhóm,
+// Mục "Gợi ý phân công" của trang cài đặt không gian làm việc (ASSIGN_MODULE.md §6, §8, §17): bốn thanh trượt trọng số của nhóm,
 // trạng thái tự học, lịch sử thay đổi, và cấu hình làm việc của CHÍNH người xem (số thẻ chồng lấn tối đa, tạm nghỉ).
 
 interface Props {
@@ -34,7 +35,12 @@ interface Props {
 const MAX_PARALLEL_MIN = 1;
 const MAX_PARALLEL_MAX = 30;
 
-const pctText = (p: WeightsPct) => WEIGHT_KEYS.map((k) => `${COMPONENT_SHORT[k]} ${p[k]}%`).join(' · ');
+// Mốc lịch sử trước khi có Hồ sơ chỉ có ba khoá -> chỉ in các khoá có mặt
+const pctText = (p: Partial<WeightsPct>) =>
+  WEIGHT_KEYS.filter((k) => p[k] !== undefined)
+    .map((k) => `${COMPONENT_SHORT[k]} ${p[k]}%`)
+    .join(' · ');
+const pctSlash = (p: WeightsPct) => WEIGHT_KEYS.map((k) => `${p[k]}%`).join(' / ');
 
 function fmtDateTime(iso: string): string {
   const t = new Date(iso);
@@ -149,7 +155,7 @@ export default function AssignWeightsPanel({ workspaceId, canManage }: Props) {
     setNotice(null);
     try {
       applyView(await resetAssignWeights(workspaceId));
-      setNotice('Đã đặt lại 45 / 30 / 25 và bắt đầu đếm phản hồi từ đầu.');
+      setNotice(`Đã đặt lại ${pctSlash(toPct(view!.defaults))} và bắt đầu đếm phản hồi từ đầu.`);
     } catch (err) {
       setError(getErrorMessage(err, 'Không đặt lại được trọng số.'));
     } finally {
@@ -183,7 +189,7 @@ export default function AssignWeightsPanel({ workspaceId, canManage }: Props) {
       </div>
       <p className="text-sm text-slate-600 dark:text-slate-300">
         Khi mở ô Thành viên của một thẻ, hệ thống xếp hạng ai hợp với thẻ dựa trên các thẻ mà mỗi người đã hoàn thành trong không
-        gian này. Điểm là tổng có trọng số của ba thành phần dưới đây; không bao giờ tự động giao việc.
+        gian này và hồ sơ kỹ năng họ tự khai. Điểm là tổng có trọng số của bốn thành phần dưới đây; không bao giờ tự động giao việc.
       </p>
 
       {error && (
@@ -225,7 +231,7 @@ export default function AssignWeightsPanel({ workspaceId, canManage }: Props) {
           </div>
         ))}
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Mỗi thành phần từ {WEIGHT_MIN_PCT}% đến {WEIGHT_MAX_PCT}%, tổng luôn 100% (kéo một thanh thì hai thanh kia tự chia lại).
+          Mỗi thành phần từ {WEIGHT_MIN_PCT}% đến {WEIGHT_MAX_PCT}%, tổng luôn 100% (kéo một thanh thì các thanh kia tự chia lại theo tỉ lệ).
           Điểm chỉ so sánh giữa những người trong danh sách của <em>đúng thẻ đó</em>.
         </p>
 
@@ -298,7 +304,7 @@ export default function AssignWeightsPanel({ workspaceId, canManage }: Props) {
                 >
                   {h.source === 'LEARNED' ? 'Tự học' : 'Chỉnh tay'}
                 </span>
-                <span className="tabular-nums">{pctText(toPct(h.weights))}</span>
+                <span className="tabular-nums">{pctText(historyPct(h.weights))}</span>
                 <span className="text-slate-400">· phản hồi #{h.feedbackCount}</span>
               </li>
             ))}
@@ -372,7 +378,7 @@ export default function AssignWeightsPanel({ workspaceId, canManage }: Props) {
       <ConfirmDialog
         open={confirmReset}
         title="Đặt lại trọng số mặc định?"
-        message="Trọng số về 45% / 30% / 25% và số lượt phản hồi về 0, nên nhóm phải gom đủ 10 phản hồi mới tự học lại. Lịch sử thay đổi vẫn được giữ."
+        message={`Trọng số về ${pctSlash(toPct(view.defaults))} và số lượt phản hồi về 0, nên nhóm phải gom đủ ${view.learning.minFeedback} phản hồi mới tự học lại. Lịch sử thay đổi vẫn được giữ.`}
         confirmLabel="Đặt lại"
         danger
         busy={busy === 'reset'}

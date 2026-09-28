@@ -860,7 +860,7 @@ Khung khác với dự kiến ban đầu ở ba điểm, đều có lý do đo �
 | **15** | Quét trên hạt giống dev → chốt `d` → chạy xác nhận trên 4001–4020 | Bảng số liệu phần ba |
 | **16** | CSDL + kho dữ liệu + service | Gợi ý thật có thành phần Hồ sơ |
 | **17** | API hồ sơ + CV (lưu tệp riêng tư, trích chữ, quyền tải) | Tải/xoá/tải về CV qua API |
-| 18 | Giao diện: trang Hồ sơ, thanh trượt thứ 4, bằng chứng Hồ sơ | Dùng được trong sản phẩm |
+| **18** | Giao diện: trang Hồ sơ, thanh trượt thứ 4, bằng chứng Hồ sơ | Dùng được trong sản phẩm |
 | 19 | Chạy lại đánh giá lớp 2 + cập nhật tài liệu, chương | Số liệu lớp 2 với thành phần mới |
 
 Mức 2 (học trọng số) nằm rải: ghi phản hồi ở bước 5, học ở bước 6, đo ở bước 7.
@@ -1250,7 +1250,7 @@ băng đầu vào; mục chỉ gồm từ ngoài kho → `declared = 0`, không 
 | **15** | Quét 9801–9820 → chốt `d` (một commit hằng số) → chạy xác nhận 4001–4020 → báo cáo | mới `scripts/evalDeclared*.ts`, `backend/eval-declared-result.md` |
 | **16** | CSDL + kho dữ liệu + service: migration, nâng cấp trọng số khi đọc, `AssignRun` v2, nạp hồ sơ vào chấm | `schema.prisma`, migration mới, `assign.repo.ts`, `assign.service.ts` + test API |
 | **17** | API hồ sơ + CV: lưu tệp riêng tư, trích chữ, quyền tải, xoá, xoá theo tài khoản | `config/upload.ts`, route/controller/service mới, `app.ts` + test |
-| 18 | Giao diện | `ProfilePage.tsx`, `AssignWeightsPanel.tsx`, `lib/assignWeights.ts`, `lib/assignLabels.ts`, `AssignSuggestPanel.tsx`, `AssignPlanModal.tsx`, `types/assign.ts`, `lib/api/*` + test |
+| **18** | Giao diện | `ProfilePage.tsx`, `AssignWeightsPanel.tsx`, `lib/assignWeights.ts`, `lib/assignLabels.ts`, `AssignSuggestPanel.tsx`, `AssignPlanModal.tsx`, `types/assign.ts`, `lib/api/*` + test |
 | 19 | Chạy lại đánh giá lớp 2 với thành phần mới; cập nhật tài liệu + chương | `evalPlan*.ts`, `ASSIGN_MODULE.md` |
 
 Độ lan đã ước lượng: khoảng 14 tệp test backend (vd `assign.api`, `assign.planapi`, `assign.score`, `assign.evalarms`,
@@ -2674,3 +2674,48 @@ tồn tại → vi phạm khoá ngoại sau khi tệp đã ghi). (2) Bản nháp
 Suite backend 91 tệp / 1084 test xanh; `tsc` + `eslint` sạch; không còn tệp CV rác sau suite.
 
 **Tiếp theo**: bước 18 — giao diện (trang Hồ sơ, thanh trượt thứ 4, nhãn, bằng chứng Hồ sơ, nút tải CV) + bỏ bộ lọc `NO_PROFILE`.
+
+### Đã xong — Bước 18: giao diện cho thành phần Hồ sơ (28/09/2026)
+
+**Kế hoạch**: kiểu dữ liệu + lớp gọi API cho hồ sơ tự khai; thanh trượt thứ 4 (viết lại phép cân bằng cho N khoá); nhãn "Hồ sơ" / "HS",
+cờ "Chưa khai hồ sơ"; bằng chứng Hồ sơ + nút "Tải CV" trong ô Thành viên; mục "Hồ sơ kỹ năng" ở trang Hồ sơ cá nhân; bỏ bộ lọc tạm
+`NO_PROFILE` ở dịch vụ (§17.9). Hết lỗi tạm thời của bước 16–17 (giao diện 3 thanh trượt gửi thiếu `declared` → 400).
+
+**Phép cân bằng N khoá** (`frontend/src/lib/assignWeights.ts`): kéo một thanh tới v → phần còn lại (100 − v) chia cho CÁC thanh kia theo
+tỉ lệ hiện tại, mỗi thanh trong [5; 70]. Bản cũ chỉ đúng với "hai thanh còn lại" (kẹp một thanh, thanh kia nhận phần dư). Với ba thanh,
+kẹp lần lượt theo một thứ tự có thể sai khi vừa có thanh chạm sàn vừa có thanh chạm trần → tìm hệ số λ sao cho Σ kẹp(λ·bᵢ, 5, 70) = 100 − v
+(hàm đơn điệu theo λ → chia đôi 100 lần), rồi làm tròn bằng phần dư lớn nhất (tổng đúng 100, không vượt biên vì biên là số nguyên). Với
+bộ phần trăm hợp lệ, trường hợp chạm cả sàn lẫn trần không xảy ra (cần tỉ lệ cơ sở > 14 = 70/5) nhưng cách λ đúng mọi trường hợp và vẫn
+đơn giản. `toPct` / `fromPct` / `pctSum` / `samePct` theo N khoá; mới `historyPct`: mốc lịch sử TRƯỚC bước 16 (`declared: null`) chỉ in
+ba giá trị, không kẹp, **không bịa số Hồ sơ**.
+
+**Giao diện**:
+- `AssignWeightsPanel`: 4 thanh trượt (chú thích Hồ sơ nói rõ "TỰ KHAI, chưa được kiểm chứng bằng lịch sử"); câu mô tả "bốn thành phần";
+  thông báo / hộp xác nhận "đặt lại" lấy số từ `defaults` của máy chủ (trước đây gõ cứng 45 / 30 / 25) và số phản hồi tối thiểu từ
+  `learning.minFeedback`.
+- `AssignSuggestPanel`: thêm "HS …%"; mục "Vì sao?" có phần **"Khớp hồ sơ tự khai (chưa kiểm chứng)"**: loại (Kỹ năng / Công việc đã làm /
+  CV), tên mục, độ giống; mục CV chỉ hiện *"một đoạn trong CV"*; không có mục khớp → "Chưa khai hồ sơ kỹ năng." hoặc "Hồ sơ tự khai
+  không có mục nào đủ giống thẻ này."; link **"Tải CV"** chỉ khi máy chủ báo `cvAvailable`. Chân ô: trọng số nhóm có "Hồ sơ".
+- `AssignPlanModal`: "HS …%" cho người được gợi ý (tự động qua `WEIGHT_KEYS`), chú giải "HS = hồ sơ tự khai".
+- Mới `DeclaredProfileSection` (gắn vào `ProfilePage`, thẻ "Hồ sơ kỹ năng"): công tắc "Dùng hồ sơ này cho gợi ý phân công" (nói rõ tắt thì
+  người khác không tải được CV), ô kỹ năng (đếm ký tự), danh sách công việc (thêm / xoá / sửa, khoá nút ở 30), CV (tên, cỡ, ngày, "Tải
+  về", "Thay CV" / "Tải CV lên", "Xoá CV" có hộp xác nhận), ô "Nội dung CV dùng cho gợi ý" để sửa chữ trích. Tải CV lên: chữ trích vào ô,
+  **phần kỹ năng / công việc đang sửa dở giữ nguyên**, báo số ký tự đọc được và nhắc bấm "Lưu hồ sơ". Kiểm lỗi trước khi gửi bằng đúng
+  giới hạn của máy chủ (`lib/declaredProfile.ts`); "Hoàn tác" về bản đã lưu.
+- Dịch vụ: bỏ `visibleFlags` — cờ `NO_PROFILE` nay ra API (giao diện đã có nhãn).
+
+**Xem bằng mắt** (trang xem thử tạm `frontend/preview-assign18.html` thay adapter axios bằng dữ liệu giả, đã xoá, không commit — tôi không
+đăng nhập được): trang Hồ sơ kỹ năng, ô gợi ý có mở "Vì sao?", bảng trọng số 4 thanh + lịch sử có mốc cũ 3 giá trị; sáng / tối; 375px không
+tràn ngang (`scrollWidth` = 375). Sửa một chỗ nhờ nhìn: link "Tải CV" dính ngay sau dấu hai chấm của tiêu đề → chuyển xuống dưới danh
+sách; ngày tải CV in "20/9/2026" (thiếu số 0) → dùng `formatViDate` như các chỗ khác.
+
+**Kiểm chứng**: frontend 33 tệp / 247 test xanh; `tsc -b` sạch (bắt được một ép kiểu sai ở `fromPct` — test không bắt vì
+test không kiểm kiểu); oxlint sạch trên các tệp đã sửa. Test mới/sửa: `assignWeights.test.ts` (19 ca: đếm đủ 89 161 bộ 4 số hợp lệ, vòng
+tròn `toPct(fromPct(p)) = p` cho MỌI bộ, ca tính tay kéo thanh (kể cả kẹp sàn / trần), không đổi khi kéo về đúng giá trị, 5000 ca ngẫu
+nhiên, tỉ lệ giữ trong 1 điểm %, `historyPct` mốc cũ), `declaredProfile.test.ts` (8), `DeclaredProfileSection.test.tsx` (12),
+`assignLabels`, `api/assign` (thân yêu cầu hồ sơ, FormData đúng một trường `file`, đường dẫn tải CV mã hoá id), `AssignSuggestPanel`
+(bằng chứng Hồ sơ từng dòng, link tải CV đúng người), `AssignPlanModal`, `AssignWeightsPanel` (4 thanh, đặt lại theo `defaults`, lịch sử
+mốc cũ). Trước khi cài lỗi, tự soát thêm 2 ca: cơ sở tỉ lệ vừa 0 vừa dương (không nâng lên 5 thì một thanh ra 75%, vượt trần) và "có tệp CV nhưng chữ CV trống vẫn hiện ô sửa". Cài lỗi frontend **44 phép** (thư viện trọng số / hồ sơ / nhãn 26, giao diện 18): **44/44** bị bắt ngay lần đầu — kể cả "bỏ sai số 1e−9 khi làm tròn" mà tôi đoán là tương đương.
+Backend: sửa test theo cờ `NO_PROFILE` nay hiện ra; cài lỗi 3/3 (đưa lại bộ lọc ở từng chỗ: gợi ý, người được chọn của lớp 2, xếp hạng của lớp 2); 5 tệp test API liên quan 82/82 xanh; `tsc` + `eslint` sạch. Suite backend đầy đủ chạy lại ở bước 19.
+
+**Tiếp theo**: bước 19 — chạy lại đánh giá lớp 2 với thành phần Hồ sơ.

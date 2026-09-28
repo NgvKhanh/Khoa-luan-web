@@ -63,9 +63,6 @@ const MISSING: Readonly<Record<ComponentKey, MissingPolicy>> = {
 };
 export const ALGORITHM_VERSION = `knn-tfidf-v2/${NORMALIZE.toLowerCase()}/${MISSING.experience.toLowerCase()}+decl-${MISSING.declared.toLowerCase()}`;
 
-// TAM (buoc 12 -> buoc 18, §17.9): giao dien chua co nhan cho co NO_PROFILE (flagLabel khong co nhanh cho no -> nhan trong) -> loc
-// khoi phan hoi cho toi buoc 18. Thanh phan Ho so va bang chung ho so thi DA tra ve (giao dien bo qua khoa la).
-const visibleFlags = (flags: readonly Flag[]): Flag[] => flags.filter((f) => f !== 'NO_PROFILE');
 
 /**
  * Moi thu bo cham can doc cua mot khong gian (dung chung cho goi y mot the va chia ca danh sach): the, lien ket the-nguoi,
@@ -204,7 +201,7 @@ export async function suggestForCard(userId: string, cardId: string, now: Date =
       evidenceMass: r.evidenceMass,
       load: r.load,
       capacity: r.capacity,
-      flags: visibleFlags(r.flags),
+      flags: r.flags,
       assigned: assignedIds.has(r.userId),
       evidence: r.evidence.map((e) => ({
         cardId: e.cardId,
@@ -362,7 +359,7 @@ export async function planForList(userId: string, listId: string, now: Date = ne
             components: pick.components,
             load: pick.load,
             capacity: pick.capacity,
-            flags: visibleFlags(pick.flags),
+            flags: pick.flags,
           }
         : null,
       ranking: row.ranked.map((r) => ({
@@ -371,7 +368,7 @@ export async function planForList(userId: string, listId: string, now: Date = ne
         score: r.score,
         load: r.load,
         capacity: r.capacity,
-        flags: visibleFlags(r.flags),
+        flags: r.flags,
       })),
     };
   });

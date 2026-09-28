@@ -215,11 +215,11 @@ describe('GET assignment-suggestions - cham diem tren du lieu that', () => {
     expect(alice.components.availability.value).toBe(1);
     expect(alice.score).not.toBeNull();
     expect(alice.rawScore).not.toBeNull();
-    // Buoc 16: co thanh phan Ho so + bang chung ho so (chua ai khai -> null / rong); co NO_PROFILE van loc cho toi buoc 18 (§17.9)
+    // Buoc 16: co thanh phan Ho so + bang chung ho so (chua ai khai -> null / rong); buoc 18: co NO_PROFILE ra API
     for (const c of res.body.data.candidates as (Cand & Record<string, unknown>)[]) {
       expect(Object.keys(c.components).sort()).toEqual(['availability', 'declared', 'experience', 'reliability']);
       expect((c.components as unknown as Record<string, { value: unknown }>).declared.value).toBeNull();
-      expect(c.flags).not.toContain('NO_PROFILE');
+      expect(c.flags).toContain('NO_PROFILE');
       expect(c.declaredEvidence).toEqual([]);
     }
   });
@@ -518,7 +518,7 @@ describe('GET assignment-suggestions - ghi AssignRun', () => {
     expect(logged.map((c) => c.userId)).toEqual(res.body.data.candidates.map((c: Cand) => c.user.id));
     expect(logged.map((c) => c.rank)).toEqual([1, 2, 3]);
     expect(Object.keys(logged[0]!.components).sort()).toEqual(['availability', 'declared', 'experience', 'reliability']);
-    // Nhat ky ghi DU co (ke ca NO_PROFILE - chi phan hoi API moi loc tam) va bang chung ho so (rong vi chua ai khai)
+    // Nhat ky ghi DU co (ke ca NO_PROFILE) va bang chung ho so (rong vi chua ai khai)
     expect(logged.every((c) => c.flags.includes('NO_PROFILE'))).toBe(true);
     expect(logged.every((c) => Array.isArray((c as unknown as { declaredEvidence: unknown }).declaredEvidence))).toBe(true);
     expect(logged[0]!.evidence.length).toBeGreaterThan(0);

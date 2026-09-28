@@ -22,7 +22,7 @@ vi.mock('../lib/api/assign', () => ({
   saveAssignProfile: mocks.saveAssignProfile,
 }));
 
-const DEFAULTS = { experience: 0.45, reliability: 0.3, availability: 0.25 };
+const DEFAULTS = { experience: 0.36, reliability: 0.24, availability: 0.2, declared: 0.2 };
 
 function weightsView(over: Partial<AssignWeightsView> = {}): AssignWeightsView {
   return {
@@ -44,7 +44,8 @@ function profileView(over: Partial<AssignProfile> = {}): AssignProfile {
 }
 
 const slider = (name: string) => screen.getByRole('slider', { name }) as HTMLInputElement;
-const sliderValues = () => [slider('Kinh nghiệm').value, slider('Độ tin cậy').value, slider('Khả dụng').value];
+const SLIDERS = ['Kinh nghiệm', 'Độ tin cậy', 'Khả dụng', 'Hồ sơ'];
+const sliderValues = () => SLIDERS.map((n) => slider(n).value);
 
 async function setup(opts: { canManage?: boolean; view?: AssignWeightsView; profile?: AssignProfile } = {}) {
   mocks.fetchAssignWeights.mockResolvedValue(opts.view ?? weightsView());
@@ -59,7 +60,7 @@ beforeEach(() => {
 });
 
 describe('AssignWeightsPanel - tải và hiển thị', () => {
-  it('đang tải -> "Đang tải…"; xong -> ba thanh trượt đúng 45 / 30 / 25 %, gọi API đúng không gian', async () => {
+  it('đang tải -> "Đang tải…"; xong -> BỐN thanh trượt đúng 36 / 24 / 20 / 20 %, gọi API đúng không gian', async () => {
     let resolveW!: (v: AssignWeightsView) => void;
     mocks.fetchAssignWeights.mockReturnValue(new Promise((r) => (resolveW = r)));
     mocks.fetchAssignProfile.mockResolvedValue(profileView());
@@ -67,14 +68,15 @@ describe('AssignWeightsPanel - tải và hiển thị', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Đang tải');
     await act(async () => resolveW(weightsView()));
     expect(await screen.findByText('Trọng số của nhóm')).toBeInTheDocument();
-    expect(sliderValues()).toEqual(['45', '30', '25']);
-    expect(screen.getByText('45%')).toBeInTheDocument();
-    expect(screen.getByText('30%')).toBeInTheDocument();
-    expect(screen.getByText('25%')).toBeInTheDocument();
+    expect(sliderValues()).toEqual(['36', '24', '20', '20']);
+    expect(screen.getByText('36%')).toBeInTheDocument();
+    expect(screen.getByText('24%')).toBeInTheDocument();
+    expect(screen.getAllByText('20%')).toHaveLength(2);
+    expect(screen.getByText(/TỰ KHAI/)).toBeInTheDocument(); // chú thích thanh Hồ sơ
     expect(mocks.fetchAssignWeights).toHaveBeenCalledWith('w1');
     expect(mocks.fetchAssignProfile).toHaveBeenCalledWith('w1');
     // Thanh trượt có đủ giới hạn 5..70
-    for (const n of ['Kinh nghiệm', 'Độ tin cậy', 'Khả dụng']) {
+    for (const n of SLIDERS) {
       expect(slider(n)).toHaveAttribute('min', '5');
       expect(slider(n)).toHaveAttribute('max', '70');
     }
@@ -103,48 +105,52 @@ describe('AssignWeightsPanel - tải và hiển thị', () => {
     // Dang tai khong gian moi: du lieu cua khong gian cu KHONG duoc hien
     expect(screen.getByRole('status')).toHaveTextContent('Đang tải');
     expect(screen.queryByText('Trọng số của nhóm')).not.toBeInTheDocument();
-    mocks.fetchAssignWeights.mockResolvedValueOnce(weightsView({ workspaceId: 'w3', weights: { experience: 0.6, reliability: 0.2, availability: 0.2 } }));
+    mocks.fetchAssignWeights.mockResolvedValueOnce(weightsView({ workspaceId: 'w3', weights: { experience: 0.6, reliability: 0.2, availability: 0.1, declared: 0.1 } }));
     rerender(<AssignWeightsPanel workspaceId="w3" canManage />);
-    await waitFor(() => expect(sliderValues()).toEqual(['60', '20', '20']));
+    await waitFor(() => expect(sliderValues()).toEqual(['60', '20', '10', '10']));
     // Yêu cầu của w2 về muộn -> không ghi đè
-    await act(async () => resolveOld(weightsView({ workspaceId: 'w2', weights: { experience: 0.1, reliability: 0.1, availability: 0.8 } })));
-    expect(sliderValues()).toEqual(['60', '20', '20']);
+    await act(async () => resolveOld(weightsView({ workspaceId: 'w2', weights: { experience: 0.1, reliability: 0.1, availability: 0.4, declared: 0.4 } })));
+    expect(sliderValues()).toEqual(['60', '20', '10', '10']);
   });
 
   it('trọng số đã HỌC (lẻ) hiện làm tròn phần trăm nguyên, tổng 100', async () => {
-    await setup({ view: weightsView({ weights: { experience: 0.38333, reliability: 0.30111, availability: 0.31556 }, custom: true }) });
-    expect(sliderValues()).toEqual(['38', '30', '32']);
+    await setup({ view: weightsView({ weights: { experience: 0.306, reliability: 0.2445, availability: 0.253, declared: 0.1965 }, custom: true }) });
+    expect(sliderValues()).toEqual(['31', '24', '25', '20']);
   });
 });
 
 describe('AssignWeightsPanel - chỉnh và lưu trọng số (OWNER / ADMIN)', () => {
-  it('kéo một thanh -> hai thanh kia tự chia lại theo tỉ lệ, tổng luôn 100; chưa kéo thì Lưu bị khoá', async () => {
+  it('kéo một thanh -> BA thanh kia tự chia lại theo tỉ lệ, tổng luôn 100; kéo cả thanh Hồ sơ; chưa kéo thì Lưu bị khoá', async () => {
     await setup();
     const save = screen.getByRole('button', { name: 'Lưu trọng số' });
     expect(save).toBeDisabled();
     fireEvent.change(slider('Kinh nghiệm'), { target: { value: '60' } });
-    expect(sliderValues()).toEqual(['60', '22', '18']);
+    expect(sliderValues()).toEqual(['60', '15', '13', '12']);
     expect(save).toBeEnabled();
     fireEvent.change(slider('Khả dụng'), { target: { value: '5' } });
     const v = sliderValues().map(Number);
     expect(v[2]).toBe(5);
-    expect(v[0]! + v[1]! + v[2]!).toBe(100);
+    expect(v.reduce((a, b) => a + b, 0)).toBe(100);
     expect(Math.min(...v)).toBeGreaterThanOrEqual(5);
     expect(Math.max(...v)).toBeLessThanOrEqual(70);
+    fireEvent.change(slider('Hồ sơ'), { target: { value: '40' } });
+    const h = sliderValues().map(Number);
+    expect(h[3]).toBe(40);
+    expect(h.reduce((a, b) => a + b, 0)).toBe(100);
   });
 
   it('Lưu -> saveAssignWeights(ws, số thực tổng 1); thành công -> thông báo, giá trị theo máy chủ, Lưu khoá lại', async () => {
     await setup();
-    mocks.saveAssignWeights.mockResolvedValue(weightsView({ weights: { experience: 0.6, reliability: 0.22, availability: 0.18 }, custom: true, updatedAt: '2026-09-20T05:00:00.000Z' }));
+    mocks.saveAssignWeights.mockResolvedValue(weightsView({ weights: { experience: 0.6, reliability: 0.15, availability: 0.13, declared: 0.12 }, custom: true, updatedAt: '2026-09-20T05:00:00.000Z' }));
     fireEvent.change(slider('Kinh nghiệm'), { target: { value: '60' } });
     fireEvent.click(screen.getByRole('button', { name: 'Lưu trọng số' }));
     await waitFor(() => expect(mocks.saveAssignWeights).toHaveBeenCalledTimes(1));
     const [ws, body] = mocks.saveAssignWeights.mock.calls[0]!;
     expect(ws).toBe('w1');
-    expect(body).toEqual({ experience: 0.6, reliability: 0.22, availability: 0.18 });
-    expect(Math.abs(body.experience + body.reliability + body.availability - 1)).toBeLessThan(1e-12);
+    expect(body).toEqual({ experience: 0.6, reliability: 0.15, availability: 0.13, declared: 0.12 });
+    expect(Math.abs(body.experience + body.reliability + body.availability + body.declared - 1)).toBeLessThan(1e-12);
     expect(await screen.findByText('Đã lưu trọng số.')).toBeInTheDocument();
-    expect(sliderValues()).toEqual(['60', '22', '18']);
+    expect(sliderValues()).toEqual(['60', '15', '13', '12']);
     expect(screen.getByRole('button', { name: 'Lưu trọng số' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Hoàn tác' })).not.toBeInTheDocument();
   });
@@ -155,16 +161,16 @@ describe('AssignWeightsPanel - chỉnh và lưu trọng số (OWNER / ADMIN)', (
     fireEvent.change(slider('Kinh nghiệm'), { target: { value: '60' } });
     fireEvent.click(screen.getByRole('button', { name: 'Lưu trọng số' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Không lưu được trọng số.');
-    expect(sliderValues()).toEqual(['60', '22', '18']);
+    expect(sliderValues()).toEqual(['60', '15', '13', '12']);
     expect(screen.getByRole('button', { name: 'Lưu trọng số' })).toBeEnabled();
   });
 
   it('"Hoàn tác" trả bản nháp về giá trị đã lưu và biến mất', async () => {
     await setup();
     fireEvent.change(slider('Khả dụng'), { target: { value: '50' } });
-    expect(sliderValues()).not.toEqual(['45', '30', '25']);
+    expect(sliderValues()).not.toEqual(['36', '24', '20', '20']);
     fireEvent.click(screen.getByRole('button', { name: 'Hoàn tác' }));
-    expect(sliderValues()).toEqual(['45', '30', '25']);
+    expect(sliderValues()).toEqual(['36', '24', '20', '20']);
     expect(screen.queryByRole('button', { name: 'Hoàn tác' })).not.toBeInTheDocument();
     expect(mocks.saveAssignWeights).not.toHaveBeenCalled();
   });
@@ -172,10 +178,11 @@ describe('AssignWeightsPanel - chỉnh và lưu trọng số (OWNER / ADMIN)', (
 
 describe('AssignWeightsPanel - đặt lại mặc định', () => {
   it('bấm -> hộp xác nhận (chưa gọi API); "Đặt lại" -> resetAssignWeights, hiện giá trị mới; "Huỷ" thì không gọi', async () => {
-    await setup({ view: weightsView({ weights: { experience: 0.3, reliability: 0.3, availability: 0.4 }, custom: true, feedbackCount: 14 }) });
+    await setup({ view: weightsView({ weights: { experience: 0.3, reliability: 0.3, availability: 0.2, declared: 0.2 }, custom: true, feedbackCount: 14 }) });
     fireEvent.click(screen.getByRole('button', { name: 'Đặt lại mặc định' }));
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent('số lượt phản hồi về 0');
+    expect(dialog).toHaveTextContent('Trọng số về 36% / 24% / 20% / 20% và số lượt phản hồi về 0');
+    expect(dialog).toHaveTextContent('gom đủ 10 phản hồi');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Huỷ' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(mocks.resetAssignWeights).not.toHaveBeenCalled();
@@ -184,8 +191,8 @@ describe('AssignWeightsPanel - đặt lại mặc định', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Đặt lại mặc định' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Đặt lại' }));
     await waitFor(() => expect(mocks.resetAssignWeights).toHaveBeenCalledWith('w1'));
-    expect(await screen.findByText(/Đã đặt lại 45 \/ 30 \/ 25/)).toBeInTheDocument();
-    expect(sliderValues()).toEqual(['45', '30', '25']);
+    expect(await screen.findByText('Đã đặt lại 36% / 24% / 20% / 20% và bắt đầu đếm phản hồi từ đầu.')).toBeInTheDocument();
+    expect(sliderValues()).toEqual(['36', '24', '20', '20']);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     // Đã về mặc định và 0 phản hồi -> không còn gì để đặt lại
     expect(screen.getByRole('button', { name: 'Đặt lại mặc định' })).toBeDisabled();
@@ -199,7 +206,7 @@ describe('AssignWeightsPanel - đặt lại mặc định', () => {
   });
 
   it('đặt lại thất bại -> lỗi, hộp xác nhận đóng', async () => {
-    await setup({ view: weightsView({ custom: true, weights: { experience: 0.5, reliability: 0.3, availability: 0.2 } }) });
+    await setup({ view: weightsView({ custom: true, weights: { experience: 0.5, reliability: 0.3, availability: 0.1, declared: 0.1 } }) });
     mocks.resetAssignWeights.mockRejectedValue(new Error('x'));
     fireEvent.click(screen.getByRole('button', { name: 'Đặt lại mặc định' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Đặt lại' }));
@@ -211,12 +218,12 @@ describe('AssignWeightsPanel - đặt lại mặc định', () => {
 describe('AssignWeightsPanel - thành viên thường (chỉ xem)', () => {
   it('thanh trượt bị khoá; không có nút Lưu / Hoàn tác / Đặt lại; có ghi chú; cấu hình CỦA MÌNH vẫn sửa được', async () => {
     await setup({ canManage: false });
-    for (const n of ['Kinh nghiệm', 'Độ tin cậy', 'Khả dụng']) expect(slider(n)).toBeDisabled();
+    for (const n of SLIDERS) expect(slider(n)).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Lưu trọng số' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Đặt lại mặc định' })).not.toBeInTheDocument();
     expect(screen.getByText(/Chỉ chủ hoặc quản trị viên của không gian mới chỉnh được trọng số\./)).toBeInTheDocument();
     expect(screen.getByLabelText('Số thẻ chồng lấn tối đa')).toBeEnabled();
-    expect(sliderValues()).toEqual(['45', '30', '25']);
+    expect(sliderValues()).toEqual(['36', '24', '20', '20']);
   });
 });
 
@@ -236,21 +243,21 @@ describe('AssignWeightsPanel - tự học, số liệu phản hồi, lịch sử
     expect(screen.getByText(/\(75%\)/)).toBeInTheDocument();
   });
 
-  it('lịch sử: nhãn Tự học / Chỉnh tay, ba giá trị %, số phản hồi; không có thì không hiện khung', async () => {
+  it('lịch sử: nhãn Tự học / Chỉnh tay, bốn giá trị % (mốc cũ trước khi có Hồ sơ: ba giá trị, không bịa HS), số phản hồi', async () => {
     const { unmount } = await setup();
     expect(screen.queryByText('Lịch sử thay đổi trọng số')).not.toBeInTheDocument();
     unmount();
     await setup({
       view: weightsView({
         history: [
-          { id: 'h2', at: '2026-09-20T05:00:00.000Z', weights: { experience: 0.4, reliability: 0.3, availability: 0.3 }, feedbackCount: 10, source: 'LEARNED', runId: 'r1' },
-          { id: 'h1', at: '2026-09-19T05:00:00.000Z', weights: { experience: 0.5, reliability: 0.3, availability: 0.2 }, feedbackCount: 0, source: 'MANUAL', runId: null },
+          { id: 'h2', at: '2026-09-20T05:00:00.000Z', weights: { experience: 0.4, reliability: 0.3, availability: 0.2, declared: 0.1 }, feedbackCount: 10, source: 'LEARNED', runId: 'r1' },
+          { id: 'h1', at: '2026-09-19T05:00:00.000Z', weights: { experience: 0.5, reliability: 0.3, availability: 0.2, declared: null }, feedbackCount: 0, source: 'MANUAL', runId: null },
         ],
       }),
     });
     expect(screen.getByText('Lịch sử thay đổi trọng số')).toBeInTheDocument();
     // Nhãn phải đúng với TỪNG dòng (không chỉ "có cả hai nhãn đâu đó")
-    const learned = within(screen.getByText('KN 40% · TC 30% · KD 30%').closest('li')!);
+    const learned = within(screen.getByText('KN 40% · TC 30% · KD 20% · HS 10%').closest('li')!);
     expect(learned.getByText('Tự học')).toBeInTheDocument();
     expect(learned.queryByText('Chỉnh tay')).not.toBeInTheDocument();
     expect(learned.getByText('· phản hồi #10')).toBeInTheDocument();
