@@ -6,7 +6,9 @@
 > nghĩa, con số và quy tắc ở đây là chuẩn mà code và test phải khớp. Đổi hợp
 > đồng thì sửa tài liệu này trước, ghi lý do vào nhật ký cuối file.
 >
-> Trạng thái: **bước 0 — chỉ có tài liệu, chưa có code.** Lộ trình ở §13.
+> Trạng thái: **xong bước 0–1** (tài liệu hợp đồng + lõi thuần: ý định/tham số, khoảng thời
+> gian, so khớp tên, bộ luật B0, câu nối tiếp). Chưa có API, CSDL hay LLM. Lộ trình ở §17,
+> nhật ký cuối file.
 
 ---
 
@@ -115,11 +117,14 @@ Phẳng, **không dùng `null` trong enum** (dùng `"NONE"`/`""`) — cùng ki�
     "intent": { "type": "string", "enum": ["MY_TASKS", "MY_PRIORITIES", "MEMBER_TASKS", "TEAM_SUMMARY", "TEAM_WORKLOAD", "UNSUPPORTED", "NONE"] },
     "period": { "type": "string", "enum": ["TODAY", "TOMORROW", "THIS_WEEK", "NEXT_WEEK", "LAST_WEEK", "NEXT_7_DAYS", "NONE"] },
     "focus":  { "type": "string", "enum": ["OPEN", "OVERDUE", "DONE", "BLOCKED", "NONE"] },
-    "member": { "type": "string", "maxLength": 80 }
+    "member": { "type": "string" }
   }
 }
 ```
 
+(Mỗi trường còn có `description` ngắn; xem `INTENT_JSON_SCHEMA` trong `chat.intent.ts`.)
+Không dùng `maxLength` vì không chắc nhà cung cấp nào cũng nhận — **Zod** mới là cửa kiểm
+soát thật: `.strict()`, `member` tối đa 80 ký tự; có test đối chiếu hai bên.
 Phản hồi không khớp lược đồ (sau Zod) → lỗi `INVALID_SHAPE`, xử lý như LLM thất bại (§10).
 
 ### 4.4 Tham số nào áp dụng cho ý định nào
@@ -230,7 +235,7 @@ và nút câu hỏi gợi ý để xem đầy đủ.
 |---|---|---|---|
 | `MY_TASKS` + focus bất kỳ | tổng khớp; trong đó quá hạn | thẻ khớp | — |
 | `MY_PRIORITIES` | quá hạn / hạn hôm nay / hạn trong 3 ngày / bị chặn | việc đang mở **không** bị chặn, kèm nhãn lý do (§6.6) | "Cần gỡ chặn" (thẻ `BLOCKED`) |
-| `MEMBER_TASKS` + `NONE` | đang mở; quá hạn; hoàn thành tuần này | thẻ đang mở của người đó | đã xong trong tuần này |
+| `MEMBER_TASKS` + `NONE` | đang mở; quá hạn; hoàn thành trong kỳ | thẻ đang mở của người đó (không lọc ngày) | đã xong trong kỳ (mặc định tuần này; kỳ tương lai → tuần này) |
 | `MEMBER_TASKS` + focus X | tổng khớp | thẻ của người đó khớp X | — |
 | `TEAM_SUMMARY` + `NONE` | hoàn thành trong kỳ; đang mở; quá hạn; bị chặn; chưa giao chưa xong | — | đã hoàn thành; quá hạn; bị chặn |
 | `TEAM_SUMMARY` + focus X | tổng khớp | thẻ của nhóm khớp X | — |
@@ -328,16 +333,27 @@ Mọi vai trò đều bị giới hạn bởi quyền đọc bảng (§7.1).
 
 ### 8.2 So khớp tên
 
-1. Chuẩn hoá: `normalizeText` rồi chữ thường (giữ dấu); bản không dấu = `foldText(normalizeText(...))`.
-2. Bỏ từ xưng hô **đứng trước một tên**: anh, chị, em, bạn, cô, chú, thầy, bác, bé ("chị Lan" → "Lan").
-3. "tôi", "mình", "tớ", "em" **đứng một mình** (không có tên theo sau) → chính người hỏi → chuyển sang ý định `MY_*` tương ứng.
-4. So **nguyên từ** (không so tiền tố ký tự — "An" không khớp "Anh"):
-   - Câu hỏi **có dấu** ở bất kỳ đâu → so bản có dấu; câu gõ hoàn toàn không dấu → so bản không dấu.
-   - Khớp **toàn bộ tên** thì ưu tiên; nếu không, khớp **đuôi tên** (các từ cuối liên tiếp, ví dụ "Lan", "Thị Lan").
-5. Bộ luật chỉ coi một cụm là tên người khi có **dấu hiệu ngữ cảnh**: "của X", "X đang…",
-   "X làm…", "X xong…", "X có…", "việc X", "còn X". Nhờ vậy "tuần sau" không thành
-   "Tuấn", "ngày mai" không thành "Mai", "năm nay" không thành "Nam", "an toàn" không
-   thành "An" (có test riêng cho từng cặp).
+1. Chuẩn hoá: `normalizeText` (NFC — chuỗi NFD cho cùng kết quả) rồi tách thành các **từ**;
+   mỗi từ giữ bản chữ thường có dấu và bản không dấu (`foldText`).
+2. Bỏ từ xưng hô **đứng trước một tên**: anh, chị, em, bạn, cô, chú, thầy, bác, bé, ông ("chị Lan" → "Lan").
+3. Người hỏi tự nhắc mình: "tôi", "mình", "tớ", "em", "bản thân", "chính tôi" → chuyển sang ý định
+   `MY_*` tương ứng (`applyFollowUp`). Riêng "minh" **không dấu** do LLM trả về được coi là **tên** "Minh".
+4. So **nguyên từ** (không so tiền tố ký tự — "An" không khớp "Anh"), **theo từng cặp từ**:
+   hai từ đều có dấu → so bản có dấu ("tuần" ≠ "Tuấn"); một bên không dấu → so bản không dấu
+   (gõ "tuan" vẫn tìm được "Tuấn"; tên lưu không dấu "Tuan" khớp cả "Tuấn" lẫn "tuần" → hỏi lại).
+5. Chuỗi phải là **đuôi tên** (các từ cuối liên tiếp: "Lan", "Thị Lan", "Nguyễn Thị Lan").
+   Nhiều người khớp → hỏi lại, **trừ khi** chuỗi có ≥ 2 từ và trùng **đúng cả tên** của đúng
+   một người (gõ họ tên đầy đủ là có chủ đích: "Trần Lan" chọn "Trần Lan", không hỏi về "Nguyễn Trần Lan").
+6. Bộ luật (B0) chỉ coi một cụm trong câu là tên người khi có **dấu hiệu ngữ cảnh**:
+   - từ đứng trước là "của, cho, với, còn" hoặc từ xưng hô; hoặc từ đứng sau là "đang, làm, xong,
+     có, đã, còn, nhận, giữ, thì, bị, sắp, hiện, vẫn, được, cần, phải, nên";
+   - hoặc cả câu chỉ là một tên ("Lan?"); hoặc tên **viết hoa giữa câu** ("Tuần này Lan thế nào?").
+   - Loại trừ trước: cụm thời gian ("tuần sau", "năm nay", "tháng này", "3 tuần", "ngày/sáng/tối/đêm
+     mai"); "mình/tôi/tớ" gõ có dấu; "minh/toi" khi **cả câu** gõ không dấu (trừ "Minh" viết hoa giữa
+     câu); từ xưng hô đứng một mình ("anh ấy" không phải tên "Tuấn Anh").
+   - Nhiều cụm hợp lệ → lấy cụm **dài nhất**, rồi **sớm nhất**.
+
+   Có test riêng cho từng cặp dễ nhầm: tuần/Tuấn, mai/Mai, năm/Nam, an toàn/An, tháng/Thắng, mình/Minh.
 
 ### 8.3 Kết quả
 
@@ -387,9 +403,33 @@ Sau một câu hỏi lại (chọn người / chọn workspace), phiên giữ `p
 
 ### 10.1 Bộ luật (B0) — `chat.rules.ts`
 
-Hàm thuần: `(câu hỏi, danh sách người, hôm nay) → {intent, period, focus, member}`.
-Từ khoá so trên bản không dấu, **có ranh giới từ**, mọi phép lặp có cận trên
-(không `.*`, không `RegExp(` dựng từ chuỗi người dùng). Tên người: §8.2 bước 5.
+Hàm thuần `parseByRules(câu hỏi, danh sách người) → {intent, period, focus, member}` (không cần
+"hôm nay" vì `period` là mã enum; khoảng ngày tính sau ở `chat.period.ts`). Câu cắt ở 500 ký tự.
+
+- Tách từ rồi so **cụm từ theo từng từ** trên bản không dấu — không regex ghép chuỗi, không `.*`.
+  Từ dễ nhầm khi bỏ dấu chỉ khớp khi gõ **đúng dấu** (đổi/đợi/đội, gán/gần, mời/mới, bận/bạn,
+  lương/lượng, huỷ/Huy, thẻ/thế, đội…); gõ không dấu thì dùng cụm hai từ ("doi han") hoặc bỏ qua.
+- Thứ tự: (1) cụm thời gian — chiếm từ, nhiều cụm thì lấy cụm **nhắc trước**; "sắp đến hạn" đồng
+  thời là focus `OPEN`; (2) tình trạng — phủ định trước ("chưa xong" = `OPEN`), nhiều tình trạng →
+  `NONE`, trừ `OPEN` + (`OVERDUE`|`BLOCKED`) → cái cụ thể hơn; (3) tên người (§8.2 bước 6);
+  (4) người hỏi tự nhắc mình; (5) "mai" đứng một mình (không phải tên ai) = `TOMORROW`.
+- Quyết định ý định theo **thứ tự ưu tiên**:
+
+| # | Điều kiện | Kết quả |
+|---|---|---|
+| 1 | Hỏi thông tin ngoài phạm vi (email, số điện thoại, mật khẩu, địa chỉ, lương, hồ sơ, CV, kỹ năng) hoặc có động từ thao tác (tạo, thêm, xoá, sửa, đổi, chuyển, gán, mời, huỷ, giao — trừ "được/chưa/đã/bị/đang giao" —, đánh dấu, cập nhật, đặt hạn…) | `UNSUPPORTED` (mọi tham số `null`) |
+| 2 | Hỏi lượng việc giữa các người ("ai" + nhiều/ít/bận/rảnh/quá tải/ôm; "mọi người" + bao nhiêu/số việc/đang giữ; "khối lượng", "phân bổ", "nhiều việc nhất") | `TEAM_WORKLOAD` |
+| 3 | Hỏi ưu tiên ("ưu tiên", "nên làm", "làm gì trước", "gấp nhất"…) | `MEMBER_TASKS` nếu có tên người, ngược lại `MY_PRIORITIES` |
+| 4 | Có dấu hiệu nối tiếp ("còn …", "thế còn / vậy còn …" ở đầu câu, "… thì sao" ở cuối câu), **không** có từ chỉ việc hay từ chỉ nhóm, **có** ít nhất một tham số | `NONE` (người hỏi tự nhắc mình → `member = "tôi"`) |
+| 5 | Có tên người | `MEMBER_TASKS` |
+| 6 | Có từ chỉ nhóm ("nhóm", "team", "đội", "dự án", "bảng này", "mọi người", "thành viên", "chưa giao"…; "tiến độ/tổng kết/báo cáo/tình hình" chỉ khi người hỏi không tự nhắc mình) | `TEAM_SUMMARY` |
+| 7 | Người hỏi tự nhắc mình, **hoặc** có từ chỉ việc ("việc", "task", "deadline", "hạn chót", "nhiệm vụ", "thẻ"), **hoặc** có tình trạng | `MY_TASKS` |
+| 8 | Chỉ có khoảng thời gian ("tuần sau?") | `NONE` |
+| 9 | Còn lại | `UNSUPPORTED` |
+
+Giới hạn đã biết của bộ luật (đo ở §14, không sửa bằng tay cho từng câu): câu không nói "tôi"
+hay "nhóm" được hiểu là việc của tôi; "anh ấy / chị ấy" không nhận diện được người; cả câu gõ
+không dấu thì "minh" là "mình"; "năm nay", "tháng này", "3 tuần nữa" chưa hỗ trợ (`period = null`).
 
 ### 10.2 LLM (B1) — `chat.llm.ts`
 
@@ -534,8 +574,10 @@ Client **không** gửi vai trò, danh tính hay id người được nhắc.
   các tên Tuấn, Mai, Nam, An, Bình.
 - Câu nối tiếp mang **ngữ cảnh vàng** của lượt trước (không lấy từ kết quả nhánh), để
   lỗi một lượt không lan sang lượt sau.
-- **Nhãn vàng** = kết quả cuối sau `applyFollowUp` và nhận diện người:
+- **Nhãn vàng** = **truy vấn hiệu lực** sau `applyFollowUp` → `resolveSlots` (§4.4) và nhận diện người:
   `{ intent, period, focus, memberUserId | null }`; câu có tên trùng thì nhãn vàng là "hỏi lại".
+  So sau `resolveSlots` để tham số "không quan trọng" (ví dụ `period` của `TEAM_WORKLOAD`) không
+  làm sai lệch điểm; `ignoredSlots` được chấm riêng.
 - Chia cố định theo id **dev ~30 / test ~60** trước khi chạy; đóng băng bằng sha256.
 
 ### 14.3 Ba nhánh
@@ -627,8 +669,8 @@ Mỗi bước một commit; bắt đầu khi được giao "làm bước N đi".
 | Bước | Nội dung | Trạng thái |
 |---|---|---|
 | 0 | Tài liệu hợp đồng này | **xong** |
-| 1 | Lõi thuần: `chat.intent`, `chat.period`, `chat.rules`, `chat.followup` + test canh giữ | chưa |
-| 2 | Phạm vi, danh sách người, nhận diện tên + test CSDL phân quyền | chưa |
+| 1 | Lõi thuần: `chat.intent`, `chat.period`, `chat.members` (so khớp tên — chuyển lên từ bước 2 vì bộ luật cần), `chat.rules`, `chat.followup` + test canh giữ | **xong** |
+| 2 | Phạm vi (`chat.scope`): bảng đọc được, danh sách người lấy từ CSDL, trưởng nhóm + test CSDL phân quyền và nhận diện tên trên dữ liệu thật | chưa |
 | 3 | Truy vấn, nhãn ưu tiên, dựng câu trả lời + test đối chiếu số liệu, > 200 thẻ | chưa |
 | 4 | Phiên, dịch vụ, API, `chatLimiter` — chạy trọn vẹn **không cần LLM** | chưa |
 | 5 | Lớp LLM (tham số `format` cho `callLlm`, luật gộp, ngân sách) + nhận xét tổng kết | chưa |
@@ -658,3 +700,50 @@ chốt ngày 28/09. Các điểm được chốt thêm khi viết (so với `CHA
   tách tên khỏi "tải" của module phân công.
 - Phạm vi `BOARD` dùng danh sách người của **bảng** (có cả khách của bảng), không phải của workspace.
 - `DONE` với kỳ ở tương lai → bỏ qua kỳ, dùng tuần này.
+
+### Đã xong — Bước 1: lõi thuần (28/09/2026)
+
+**Tệp** (`backend/src/modules/chat/`, đều là hàm thuần — không DB, không mạng, không đọc đồng hồ):
+
+| Tệp | Nội dung |
+|---|---|
+| `chat.intent.ts` | Hằng số ý định/tham số, `INTENT_JSON_SCHEMA` (§4.3), `parseLlmIntent` (Zod `.strict()`, đổi `NONE`/`""` → `null`, không ném lỗi), `resolveSlots` (§4.4, §5.2) |
+| `chat.period.ts` | `periodRange(period, now)` → `[từ, đến)`, `vnToday`, `vnDayStart`; tệp **duy nhất** import `ai.service`/`ai.apply` |
+| `chat.members.ts` | `tokenize`, `sameWord`, `matchMember` (ONE/MANY/NONE), `findNameSpans`, `isSelfReference` (§8.2–8.3) — chuyển lên từ bước 2 vì bộ luật cần |
+| `chat.rules.ts` | `parseByRules(câu hỏi, danh sách người)` — nhánh B0 (§10.1) |
+| `chat.followup.ts` | `applyFollowUp(parsed, ngữ cảnh trước)` (§9.2) + người hỏi tự nhắc mình |
+
+**Test** (`backend/test/chat.*.test.ts`, 6 tệp): hợp đồng lược đồ ↔ Zod; bảng `resolveSlots`
+đủ 5 ý định; khoảng ngày theo bảng §5.1, biên 16:59:59.999Z / 17:00Z, Chủ nhật/Thứ Hai, qua năm,
+năm nhuận + 400 thời điểm ngẫu nhiên (tính chất: tuần bắt đầu 00:00 Thứ Hai giờ VN, dài đúng 7 ngày…);
+so khớp tên (đuôi tên, xưng hô, trùng tên, tên lưu không dấu, giới hạn); ~70 câu mẫu cho bộ luật
++ bảng từ dễ nhầm tên + tương đương có dấu/không dấu/NFD + tính chất trên 3000 câu ngẫu nhiên;
+bảng câu nối tiếp; test đọc mã nguồn (không `fetch`/`RegExp(`/`.*`/giờ địa phương/`console`/
+`process.env`, tệp thuần không import CSDL/dịch vụ, không ký tự vô hình).
+
+**Cài lỗi**: 78 phép trên 5 tệp nguồn → lần đầu lọt 9 (M5, M12, M13, R6, R7, R9, R31, R33, R34),
+**đều là lỗ thật của test** (không có phép tương đương) → bổ sung ca → **78/78 bị bắt**, mã nguồn
+khôi phục nguyên vẹn (so từng byte).
+
+**Lỗi thật tìm ra khi thăm dò bộ luật (đã sửa trước khi viết `expect`)**:
+1. "Minh đang làm gì?" bị hiểu là "mình" → "minh"/"toi" không dấu chỉ là người hỏi khi **cả câu** không dấu.
+2. "mình có việc gì" (có dấu) vẫn khớp tên "Minh" lưu không dấu → "mình/tôi/tớ" có dấu không bao giờ là tên.
+3. "hạn" là từ chỉ việc làm "Vậy còn quá hạn?" không còn là câu nối tiếp → chỉ tính "hạn chót".
+4. Câu có dấu hiệu nối tiếp nhưng không có tham số ("còn gì nữa không?") trả `NONE` rỗng → đi tiếp các luật sau.
+
+**Chốt thêm khi code** (đã sửa các mục tương ứng ở trên): bộ luật không cần "hôm nay" (§10.1); câu
+"còn tôi?" → `NONE` + `member = "tôi"`, `applyFollowUp` đổi sang ý định `MY_*`; ngữ cảnh phiên lưu
+`memberUserId` (không lưu tên gõ); so dấu **theo từng cặp từ** (§8.2 bước 4); luật "họ tên đầy đủ ≥ 2 từ"
+(§8.2 bước 5); `MY_PRIORITIES` + "hôm nay" không báo bỏ qua; nhãn vàng đánh giá là truy vấn **sau**
+`resolveSlots` (§14.2); lược đồ JSON bỏ `maxLength` (Zod kiểm).
+
+**Bài học**:
+- Luật loại trừ ("tuần sau" không phải Tuấn, "đêm mai" không phải Mai…) **chỉ có tác dụng khi có dấu
+  hiệu tên đứng cạnh** ("của năm nay", "đêm mai **có**…"); câu không có dấu hiệu đã bị luật ngữ cảnh loại
+  sẵn → test phải dựng đúng cặp "dấu hiệu + cụm thời gian" thì mới chứng minh được từng luật (R7, R9, R33).
+- Hai tầng cùng canh một việc (cụm thời gian đã chiếm từ / luật "đầu tuần + từ bổ nghĩa") → mỗi tầng cần
+  một ca chỉ nó canh ("tuần **vừa** qua": "vừa" không nằm trong danh sách từ bổ nghĩa).
+- Kiểm tra "từ gõ có dấu khác dạng" chỉ lộ ra với từ có cùng bản bỏ dấu ("chán"/"chặn", "tới"/"tôi").
+
+**Bước 2 cần**: `chat.scope.ts` (bảng đọc được, danh sách người lấy từ CSDL, trưởng nhóm) + test CSDL;
+chạy lại bảng từ dễ nhầm tên với danh sách người lấy từ CSDL thật.
