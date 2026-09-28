@@ -859,7 +859,7 @@ Khung khác với dự kiến ban đầu ở ba điểm, đều có lý do đo �
 | **14** | Mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy | Mã băm đóng băng cũ giữ nguyên |
 | **15** | Quét trên hạt giống dev → chốt `d` → chạy xác nhận trên 4001–4020 | Bảng số liệu phần ba |
 | **16** | CSDL + kho dữ liệu + service | Gợi ý thật có thành phần Hồ sơ |
-| 17 | API hồ sơ + CV (lưu tệp riêng tư, trích chữ, quyền tải) | Tải/xoá/tải về CV qua API |
+| **17** | API hồ sơ + CV (lưu tệp riêng tư, trích chữ, quyền tải) | Tải/xoá/tải về CV qua API |
 | 18 | Giao diện: trang Hồ sơ, thanh trượt thứ 4, bằng chứng Hồ sơ | Dùng được trong sản phẩm |
 | 19 | Chạy lại đánh giá lớp 2 + cập nhật tài liệu, chương | Số liệu lớp 2 với thành phần mới |
 
@@ -1160,17 +1160,21 @@ vẽ 3 đường cho tới lúc chuyển. `AssignRun`: `algorithmVersion` mới;
   `X-Content-Type-Options: nosniff`, `Cache-Control: no-store` (mẫu `attachment.serve.ts`).
 - `cvText` chỉ trả cho chủ CV. Người xem gợi ý (người sửa được thẻ) thấy cụm kỹ năng / tiêu đề công việc đã khớp, không
   bao giờ thấy chữ trong CV.
-- Xoá CV = xoá tệp trên đĩa + `cvText` + các cột `cv*`; xoá tài khoản cũng vậy. Có giới hạn tốc độ tải lên.
+- Xoá CV = xoá tệp trên đĩa + `cvText` + các cột `cv*`. Có giới hạn tốc độ tải lên (10 lần / người / 10 phút).
+- (Bước 17) Tắt "dùng cho gợi ý" → **người khác không tải được CV** (chính chủ vẫn tải) — suy từ §17.2 "tắt = coi như không có hồ sơ".
+- (Bước 17) **Xoá tài khoản**: ứng dụng CHƯA có chức năng này. Xoá người dùng ở CSDL thì dòng hồ sơ (kể cả chữ CV) bị xoá dây chuyền,
+  nhưng **tệp CV trên đĩa còn lại** — chức năng xoá tài khoản (nếu làm) phải gọi `removeCvFile` trước khi xoá dòng.
 - `allowCrossWorkspace` vẫn chỉ nói về **lịch sử**; hồ sơ tự khai là dữ liệu người dùng tự đưa ra để dùng ở mọi nhóm.
 
-### 17.9 API và giao diện (dự kiến, bước 16–18)
+### 17.9 API và giao diện (đã cài ở bước 16–18; chi tiết trong nhật ký)
 
 - `GET/PUT /api/me/assign-profile` → `{ useForAssign, skillsText, workItems: [{ id, title, description }], cv: { fileName,
   size, uploadedAt } | null, cvText | null }`; `PUT` kiểm bằng zod theo giới hạn §17.2.
 - `POST /api/me/assign-profile/cv` (multipart `file`) → lưu tệp + trả `{ cv, text, truncated }` để người dùng sửa;
   `DELETE /api/me/assign-profile/cv`; `GET /api/me/assign-profile/cv` (tải bản của mình).
 - `GET /api/users/:userId/assign-profile/cv` — cho trưởng nhóm (§17.8).
-- Gợi ý (`assignment-suggestions`, `assignment-plan`): thêm thành phần `declared`, `declaredEvidence`, cờ `NO_PROFILE`.
+- Gợi ý (`assignment-suggestions`, `assignment-plan`): thêm thành phần `declared`, `declaredEvidence`, cờ `NO_PROFILE`; gợi ý lớp 1
+  có thêm `cvAvailable` (người hỏi tải được CV của ứng viên đó không — bước 17).
 - Giao diện: mục **"Hồ sơ kỹ năng"** ở trang Hồ sơ cá nhân (`ProfilePage.tsx`): công tắc, ô kỹ năng, danh sách công việc
   (thêm/xoá/sửa), tải lên / xoá / tải về CV, ô chữ trích từ CV để sửa. `AssignWeightsPanel`: thanh trượt thứ 4 —
   **`rebalance` / `toPct` trong `frontend/src/lib/assignWeights.ts` phải viết lại cho N khoá** (bản hiện tại chia phần
@@ -1245,7 +1249,7 @@ băng đầu vào; mục chỉ gồm từ ngoài kho → `declared = 0`, không 
 | **14** | Mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy (W2, hồ sơ trong `snapshotAsOf`) | mới `scripts/simDeclared.ts`, `simReplay.ts`, `evalAssignRun.ts`, `evalAssignStats.ts` + test |
 | **15** | Quét 9801–9820 → chốt `d` (một commit hằng số) → chạy xác nhận 4001–4020 → báo cáo | mới `scripts/evalDeclared*.ts`, `backend/eval-declared-result.md` |
 | **16** | CSDL + kho dữ liệu + service: migration, nâng cấp trọng số khi đọc, `AssignRun` v2, nạp hồ sơ vào chấm | `schema.prisma`, migration mới, `assign.repo.ts`, `assign.service.ts` + test API |
-| 17 | API hồ sơ + CV: lưu tệp riêng tư, trích chữ, quyền tải, xoá, xoá theo tài khoản | `config/upload.ts`, route/controller/service mới, `app.ts` + test |
+| **17** | API hồ sơ + CV: lưu tệp riêng tư, trích chữ, quyền tải, xoá, xoá theo tài khoản | `config/upload.ts`, route/controller/service mới, `app.ts` + test |
 | 18 | Giao diện | `ProfilePage.tsx`, `AssignWeightsPanel.tsx`, `lib/assignWeights.ts`, `lib/assignLabels.ts`, `AssignSuggestPanel.tsx`, `AssignPlanModal.tsx`, `types/assign.ts`, `lib/api/*` + test |
 | 19 | Chạy lại đánh giá lớp 2 với thành phần mới; cập nhật tài liệu + chương | `evalPlan*.ts`, `ASSIGN_MODULE.md` |
 
@@ -2618,3 +2622,55 @@ dừng bất thường phải chạy khô trước khi làm gì khác — bộ k
 Suite backend 90 tệp / 1070 test xanh; `tsc` + `eslint` sạch.
 
 **Tiếp theo**: bước 17 — API hồ sơ tự khai + CV (lưu tệp riêng tư, trích chữ, tải về có quyền, xoá).
+
+### Đã xong — Bước 17: API hồ sơ tự khai + CV (28/09/2026)
+
+**Kế hoạch**: module mới `backend/src/modules/declaredProfile/` (schema / service / controller / routes) theo §17.9; tệp CV ở thư mục
+riêng `uploads/cv/`; tải về có kiểm quyền theo mẫu `attachment.serve.ts`; giới hạn tốc độ tải lên; test tích hợp qua HTTP trên CSDL
+thật + tiến trình con trích chữ thật.
+
+**API** (đúng §17.9):
+- `GET /api/me/assign-profile` — chưa khai → hồ sơ rỗng, công tắc **bật**. `PUT` — zod đúng giới hạn §17.2 (kỹ năng ≤ 2000, ≤ 30 công
+  việc, tên 1–200 sau khi cắt khoảng trắng, mô tả ≤ 1000, chữ CV ≤ 20 000 = `MAX_INPUT_TEXT_CHARS` dùng chung với module AI); **đủ bốn
+  trường, thiếu trường nào cũng 400**. Mục công việc mới được cấp mã `randomUUID`, gửi lại kèm mã thì giữ mã.
+- `POST /api/me/assign-profile/cv` (multipart `file`, dùng lại `uploadAiDocument`: bộ nhớ, ≤ 5 MB, chỉ `.pdf`/`.docx`) — **trích chữ
+  trước** bằng `extractDocument` (nội dung phải khớp đuôi: PDF đặt tên `.docx`, tệp `.exe` đổi tên, ảnh… → 400 và **không ghi tệp nào**);
+  đọc được mới ghi tệp `<uuid>.<đuôi theo loại đã kiểm>`; lưu dòng; **xoá tệp cũ sau khi** dòng mới đã lưu; ghi CSDL lỗi → **dọn tệp vừa
+  ghi**. Trả `{ cv, text, truncated, profile }` — chữ để người dùng sửa rồi `PUT` lại. Tên hiển thị chỉ lấy phần tên (bỏ đường dẫn),
+  ≤ 200 ký tự; tên trên đĩa không phụ thuộc tên gốc.
+- `DELETE /api/me/assign-profile/cv` — xoá tệp trên đĩa (chờ xoá xong mới trả lời) + chữ CV + mọi cột `cv*`; kỹ năng / công việc giữ
+  nguyên; chữ CV gõ tay (không có tệp) cũng xoá; tệp đã mất trên đĩa vẫn xoá được (200).
+- `GET /api/me/assign-profile/cv` và `GET /api/users/:userId/assign-profile/cv` — luôn `attachment` (tên UTF-8), Content-Type suy từ đuôi
+  của **tên lưu** (máy chủ đặt), `nosniff`, `no-store`. Tệp không bao giờ phục vụ tĩnh (test cả `/uploads/cv/…`, `/uploads/%63v/…`,
+  `/uploads/avatars/../cv/…` → 404).
+- Quyền tải CV người khác: **một nguồn duy nhất** `managedAmong` — người hỏi là OWNER/ADMIN (dòng thành viên chưa rời) của một không gian
+  **chưa xoá** mà chủ CV là thành viên (chưa rời) hoặc chủ sở hữu. Không quyền / không có CV / tệp mất → **cùng 404** (không lộ ai có CV).
+- `cvUploadLimiter`: 10 lần / người / 10 phút, tính cả lần lỗi, đặt trước multer.
+
+**Ba điểm tôi tự quyết khi cài — cần bạn biết** (không đổi quyết định đã duyệt, nhưng là chi tiết §17 chưa ghi):
+1. **Tắt "dùng cho gợi ý" thì người khác không tải được CV** (chính chủ vẫn tải được). Suy từ §17.2 "tắt → coi như không có hồ sơ";
+   ngược lại thì trưởng nhóm vẫn tải được CV của người đã tắt — trái với kỳ vọng tự nhiên của công tắc.
+2. Gợi ý (`assignment-suggestions`) có thêm cờ **`cvAvailable`** cho từng ứng viên: người HỎI tải được CV đó không (cùng luật với tải
+   về, trừ bước kiểm tệp trên đĩa) — để giao diện bước 18 chỉ hiện nút "Tải CV" khi bấm vào sẽ được.
+3. **"Xoá tài khoản cũng xoá CV" mới đúng MỘT NỬA**: ứng dụng hiện **chưa có chức năng xoá tài khoản**; nếu xoá người dùng ở CSDL thì dòng
+   hồ sơ (kể cả chữ CV) bị xoá dây chuyền (test ở bước 16), nhưng **tệp CV trên đĩa còn lại**. Khi thêm chức năng xoá tài khoản phải gọi
+   `removeCvFile` trước khi xoá dòng. Không được viết trong luận văn là "xoá tài khoản xoá tệp CV".
+
+Người dùng chỉ là thành viên **bảng** (không phải thành viên không gian) thì trưởng nhóm không tải được CV của họ — đúng chữ §17.8
+("không gian mà chủ CV là thành viên"), có test.
+
+**Kiểm chứng**: `assign.profileapi.test.ts` (14 ca, dọn tệp CV sinh ra sau mỗi ca): hồ sơ rỗng mặc định, lưu / giữ mã, mọi giới hạn ở biên
+(đúng bằng → 200, vượt 1 → 400, thiếu từng trường → 400); hồ sơ vừa lưu dùng ngay trong gợi ý, tắt công tắc → không dùng; tải `.docx`
+(so byte tệp trên đĩa và tệp tải về, đủ bốn tiêu đề), `.pdf`, thay CV xoá tệp cũ, 6 loại tệp xấu → 400 không ghi gì; xoá CV; tên hiển
+thị; dọn tệp khi CSDL lỗi (lỗi THẬT: khoá ngoại — xem bài học); giới hạn tốc độ; ma trận quyền (chủ, OWNER, ADMIN → 200; MEMBER, người
+ngoài, OWNER không gian khác, người không có CV, id không tồn tại → 404; chưa đăng nhập → 401; tắt công tắc; tệp mất); `canDownloadCv`
+(rời nhóm, không gian đã xoá, chủ sở hữu không có dòng thành viên, người không có không gian nào, chủ CV rời nhóm); chữ CV là nguồn khớp
+nhưng không lộ ra; `cvAvailable`. Trước khi cài lỗi, tự soát và thêm 4 ca cho các nhánh chưa test nào chạm (tên tệp có đường dẫn / quá dài, dọn tệp khi CSDL lỗi, giới hạn tốc độ, xoá chữ CV gõ tay + xoá khi tệp đã mất) và 3 ca "thiếu trường". Cài lỗi **48 phép** (dịch vụ 23; tiêu đề tải về / route / giới hạn tốc độ / đường dẫn tệp / `cvAvailable` 15; zod 10): lần đầu **47/48** — lọt S3 "API không trả chữ CV cho chính chủ" (test chỉ kiểm chữ trong kết quả tải lên và trong CSDL) → thêm kiểm `profile.cvText` và `GET` → **48/48**. Hai phép tôi đoán là tương đương (bỏ `requireAuth`) hoá ra bị bắt đúng: controller không tự đọc cookie nên không ai được nhận diện, và giới hạn tốc độ chuyển sang tính theo IP.
+
+**Bài học**: (1) `vi.spyOn(prisma.userAssignProfile, 'upsert')` để giả lỗi CSDL làm **hỏng mọi lần gọi `upsert` sau đó trong cùng tệp**
+(delegate của Prisma 7 là proxy — `mockRestore` không trả lại đúng hàm) → 3 ca vốn xanh bỗng đỏ; đổi sang lỗi CSDL thật (người dùng không
+tồn tại → vi phạm khoá ngoại sau khi tệp đã ghi). (2) Bản nháp test giả định "PDF đặt tên `.docx` được lưu thành `.pdf`" — sai:
+`extractDocument` bắt nội dung **khớp đuôi**; đọc mã trước khi viết kỳ vọng.
+Suite backend 91 tệp / 1084 test xanh; `tsc` + `eslint` sạch; không còn tệp CV rác sau suite.
+
+**Tiếp theo**: bước 18 — giao diện (trang Hồ sơ, thanh trượt thứ 4, nhãn, bằng chứng Hồ sơ, nút tải CV) + bỏ bộ lọc `NO_PROFILE`.

@@ -5,6 +5,7 @@
 import { AppError } from '../../utils/AppError';
 import { assertCardAccess } from '../card/card.service';
 import { assertListAccess } from '../list/list.service';
+import { cvDownloadableOf } from '../declaredProfile/declaredProfile.service';
 import { assertWorkspaceAccess, assertWorkspaceManage } from '../workspace/workspace.service';
 import {
   createRun,
@@ -116,6 +117,8 @@ export interface Suggestion {
   components: CandidateScore['components'];
   /** Toi da 3 muc ho so tu khai khop nhat (§17.4): cum ky nang / tieu de cong viec; muc CV luon title = null. */
   declaredEvidence: DeclaredEvidence[];
+  /** Nguoi HOI tai duoc tep CV cua ung vien nay (co tep + co quyen - declaredProfile.service > cvDownloadableOf). */
+  cvAvailable: boolean;
   fit: number;
   evidenceMass: number;
   load: number;
@@ -154,9 +157,10 @@ export async function suggestForCard(userId: string, cardId: string, now: Date =
   const candidateUsers = await readCandidates(board);
   const candidateIds = candidateUsers.map((u) => u.id);
 
-  const [{ cards, memberships, reopened, profiles, weights, declared }, viewable] = await Promise.all([
+  const [{ cards, memberships, reopened, profiles, weights, declared }, viewable, cvOk] = await Promise.all([
     readScoringInputs(board.workspaceId, candidateIds),
     readViewableBoardIds(userId, board.workspaceId),
+    cvDownloadableOf(userId, candidateIds),
   ]);
 
   const snapshot = buildSnapshot({
@@ -195,6 +199,7 @@ export async function suggestForCard(userId: string, cardId: string, now: Date =
       confidenceLevel: r.confidenceLevel,
       components: r.components,
       declaredEvidence: r.declaredEvidence,
+      cvAvailable: cvOk.has(r.userId),
       fit: r.fit,
       evidenceMass: r.evidenceMass,
       load: r.load,

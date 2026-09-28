@@ -45,6 +45,7 @@ import {
   workspaceAssignRoutes,
   workspaceProfileRoutes,
 } from './modules/assign/assign.routes';
+import { meAssignProfileRoutes, userCvRoutes } from './modules/declaredProfile/declaredProfile.routes';
 import notificationRoutes from './modules/notification/notification.routes';
 import searchRoutes from './modules/search/search.routes';
 import unsplashRoutes from './modules/unsplash/unsplash.routes';
@@ -99,6 +100,8 @@ export function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/workspaces/:workspaceId/assignment-weights', workspaceAssignRoutes);
   app.use('/api/workspaces/:workspaceId/assignment-profile', workspaceProfileRoutes);
+  app.use('/api/me/assign-profile', meAssignProfileRoutes);
+  app.use('/api/users/:userId/assign-profile/cv', userCvRoutes);
   app.use('/api/workspaces', workspaceRoutes);
   app.use('/api/activities', activityRoutes);
   app.use('/api/boards/:boardId/lists', boardListRoutes);

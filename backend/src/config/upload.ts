@@ -303,3 +303,32 @@ export function removeBoardBackgroundFile(publicPath: string | null): void {
     // File co the da bi xoa truoc do -> bo qua
   });
 }
+
+// ===================== CV CUA HO SO TU KHAI (goi y phan cong, buoc 17) =====================
+
+// Du lieu ca nhan NHAY CAM: thu muc RIENG, KHONG BAO GIO mount static (xem ghi chu UPLOAD_ROOT o tren). Tep chi di qua
+// declaredProfile.controller.ts (kiem quyen, luon tai xuong). Nhan tep bang uploadAiDocument (bo nho) - chi ghi xuong day SAU khi
+// trich chu thanh cong; ten tren dia = UUID + duoi theo LOAI DA KIEM (khong lay tu ten nguoi dung).
+export const CV_DIR = path.join(UPLOAD_ROOT, 'cv');
+fs.mkdirSync(CV_DIR, { recursive: true });
+
+const CV_EXT_TO_TRUSTED_MIME: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+};
+
+/** Duong dan tuyet doi cua 1 tep CV tu ten luu (path.basename chan ../). */
+export function cvDiskPath(storedName: string): string {
+  return path.join(CV_DIR, path.basename(storedName));
+}
+
+/** Content-Type tin cay suy tu duoi cua ten LUU (may chu dat); duoi la -> octet-stream. */
+export function trustedCvContentType(storedName: string): string {
+  return CV_EXT_TO_TRUSTED_MIME[path.extname(storedName).toLowerCase()] ?? 'application/octet-stream';
+}
+
+/** Xoa 1 tep CV (bo qua neu khong con). Cho xong moi tra ve - de "xoa CV" xoa that truoc khi bao thanh cong. */
+export async function removeCvFile(storedName: string | null): Promise<void> {
+  if (!storedName) return;
+  await fs.promises.unlink(cvDiskPath(storedName)).catch(() => {});
+}

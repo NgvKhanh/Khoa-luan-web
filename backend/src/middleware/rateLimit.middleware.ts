@@ -115,6 +115,19 @@ export const assignPlanLimiter = rateLimit({
   message: TOO_MANY,
 });
 
+/**
+ * Tai CV cua ho so tu khai (goi y phan cong): trich chu bang tien trinh con nhu aiExtractLimiter + ghi tep xuong dia: 10 lan / user /
+ * 10 phut. Dat TRUOC multer.
+ */
+export const cvUploadLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: byUser,
+  message: TOO_MANY,
+});
+
 /** Ap dung ke hoach thanh bang that (khong goi LLM, nhe hon): 30 lan / user / 10 phut. */
 export const aiApplyLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
