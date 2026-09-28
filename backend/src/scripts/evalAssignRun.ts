@@ -180,7 +180,8 @@ export function planDecisions(data: SimDataset, minDay: number): PlannedDecision
 }
 
 /** The chua duoc quyet dinh: chua ai nhan, chua xong - khong anh huong lich su hay tai cua ai. */
-const blank = (c: SimCard): SimCard => ({
+/** Xoa trang mot the (khong nguoi nhan, khong ket qua) - dung cho the gioi "nhom moi" (W2) o ca lop 1 lan lop 2 (evalPlanBatches). */
+export const blankCard = (c: SimCard): SimCard => ({
   ...c,
   assigneeKey: '',
   done: false,
@@ -275,7 +276,7 @@ export function runArm(data: SimDataset, makeArm: () => Arm, opts: RunOptions): 
     ...data,
     cards:
       mutable || opts.coldStart
-        ? data.cards.map((c) => (decidedKeys.has(c.key) && mutable) || (opts.coldStart && c.assignedDay < minDay) ? blank(c) : c)
+        ? data.cards.map((c) => (decidedKeys.has(c.key) && mutable) || (opts.coldStart && c.assignedDay < minDay) ? blankCard(c) : c)
         : data.cards,
   };
 

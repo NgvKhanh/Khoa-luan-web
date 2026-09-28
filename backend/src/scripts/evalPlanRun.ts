@@ -14,7 +14,7 @@ import {
   runGreedyBatch,
   type PlanArmRow,
 } from './evalPlanArms';
-import { cutBatches, type PlanBatch } from './evalPlanBatches';
+import { cutBatches, type BatchOptions, type PlanBatch } from './evalPlanBatches';
 import { gini, maxShare, mean } from './evalAssignStats';
 import { DEFAULT_LOAD_PENALTY, onTimeProbability, type SimDataset } from './simGenerator';
 
@@ -185,9 +185,10 @@ export function runPlanArmOnDataset(
   data: SimDataset,
   armId: PlanArmId,
   batchDays: readonly number[],
-  k: number
+  k: number,
+  opts: BatchOptions = {}
 ): PlanBatchSummary | null {
-  const batches = cutBatches(data, batchDays, k);
+  const batches = cutBatches(data, batchDays, k, opts);
   if (batches.length === 0) return null;
   const summaries = batches.map((b) => summarizeBatch(scoreRows(runArmOnBatch(b, armId), b), b.poolKeys));
   return meanSummaries(summaries);

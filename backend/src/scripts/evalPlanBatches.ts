@@ -13,8 +13,10 @@
 //
 // DOC ky nang an (topic, skillAt) - CHI nam trong scripts/, module assign/ khong bao gio import tep nay.
 
+import type { DeclaredItem } from '../modules/assign/assign.declared';
 import type { PlanCard } from '../modules/assign/assign.plan';
-import { LEGACY_WEIGHTS_V1, type CandidateInput, type ScoreContext } from '../modules/assign/assign.score';
+import { LEGACY_WEIGHTS_V1, type CandidateInput, type ScoreContext, type Weights } from '../modules/assign/assign.score';
+import { blankCard } from './evalAssignRun';
 import { assignablePool, skillAt, type SimCard, type SimDataset, type SimPerson } from './simGenerator';
 import { simDate, snapshotAsOf } from './simReplay';
 
@@ -42,11 +44,21 @@ export interface PlanBatch {
   bestSkill(cardId: string): number;
 }
 
+/** Buoc 19: tuy chon cua mot dot. Khong truyen gi = dung nhu buoc 9 (so lieu da cong bo tai hien tung chu so). */
+export interface BatchOptions {
+  /** Muc ho so tu khai da cat san theo khoa nguoi (simDeclared.ts) - dua vao anh chup (ung vien co khoa `declared`). */
+  declared?: ReadonlyMap<string, readonly DeclaredItem[]>;
+  /** Bo trong so cua bo cham; mac dinh LEGACY_WEIGHTS_V1 (bo cua buoc 9). */
+  weights?: Weights;
+  /** The gioi W2 "nhom moi": xoa trang moi the giao TRUOC ngay quyet dinh -> khong ai co lich su hay tai luc bat dau dot. */
+  coldStart?: boolean;
+}
+
 /**
  * Cat mot dot K the: lay K the co `assignedDay >= day` SOM NHAT (theo ngay giao, roi khoa - tat dinh), giu nguyen do
  * dai ke hoach cua tung the (han - ngay giao goc). Tra `null` neu khong du K the (het lich su) hoac ho boi < 3 nguoi.
  */
-export function cutBatch(data: SimDataset, day: number, k: number): PlanBatch | null {
+export function cutBatch(data: SimDataset, day: number, k: number, opts: BatchOptions = {}): PlanBatch | null {
   if (!Number.isInteger(day) || day < 0) throw new RangeError('cutBatch: day phai la so nguyen >= 0');
   if (!Number.isInteger(k) || k < 1) throw new RangeError('cutBatch: k phai la so nguyen >= 1');
 
@@ -73,8 +85,9 @@ export function cutBatch(data: SimDataset, day: number, k: number): PlanBatch | 
   if (pool.length < 3) return null;
 
   const batchKeys = new Set(picked.map((c) => c.key));
-  const rest: SimDataset = { ...data, cards: data.cards.filter((c) => !batchKeys.has(c.key)) };
-  const snap = snapshotAsOf(rest, day, 10, pool.map((p) => ({ key: p.key, capacity: p.capacity })), null);
+  const restCards = data.cards.filter((c) => !batchKeys.has(c.key));
+  const rest: SimDataset = { ...data, cards: opts.coldStart ? restCards.map((c) => (c.assignedDay < day ? blankCard(c) : c)) : restCards };
+  const snap = snapshotAsOf(rest, day, 10, pool.map((p) => ({ key: p.key, capacity: p.capacity })), null, opts.declared);
 
   const simCardById = new Map(picked.map((c) => [c.key, c]));
   const peopleByKey = new Map<string, SimPerson>(pool.map((p) => [p.key, p]));
@@ -93,7 +106,7 @@ export function cutBatch(data: SimDataset, day: number, k: number): PlanBatch | 
     cards,
     candidates: snap.candidates,
     // Ghim bo trong so cua buoc 9 (§17.6): so lieu da cong bo tai hien dung khi mac dinh cua san pham doi
-    ctx: { idf: snap.idf, now: snap.now, groupOnTimeRate: snap.mu, weights: LEGACY_WEIGHTS_V1 },
+    ctx: { idf: snap.idf, now: snap.now, groupOnTimeRate: snap.mu, weights: opts.weights ?? LEGACY_WEIGHTS_V1 },
     poolKeys: pool.map((p) => p.key).sort(cmpStr),
     skillOf,
     bestSkill,
@@ -101,10 +114,10 @@ export function cutBatch(data: SimDataset, day: number, k: number): PlanBatch | 
 }
 
 /** Cat nhieu dot (moi `day` mot dot cung cỡ `k`), bo qua nhung ngay khong du du lieu. */
-export function cutBatches(data: SimDataset, batchDays: readonly number[], k: number): PlanBatch[] {
+export function cutBatches(data: SimDataset, batchDays: readonly number[], k: number, opts: BatchOptions = {}): PlanBatch[] {
   const out: PlanBatch[] = [];
   for (const day of batchDays) {
-    const b = cutBatch(data, day, k);
+    const b = cutBatch(data, day, k, opts);
     if (b) out.push(b);
   }
   return out;

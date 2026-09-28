@@ -861,7 +861,7 @@ Khung khác với dự kiến ban đầu ở ba điểm, đều có lý do đo �
 | **16** | CSDL + kho dữ liệu + service | Gợi ý thật có thành phần Hồ sơ |
 | **17** | API hồ sơ + CV (lưu tệp riêng tư, trích chữ, quyền tải) | Tải/xoá/tải về CV qua API |
 | **18** | Giao diện: trang Hồ sơ, thanh trượt thứ 4, bằng chứng Hồ sơ | Dùng được trong sản phẩm |
-| 19 | Chạy lại đánh giá lớp 2 + cập nhật tài liệu, chương | Số liệu lớp 2 với thành phần mới |
+| **19** | Chạy lại đánh giá lớp 2 + cập nhật tài liệu, chương | Số liệu lớp 2 với thành phần mới |
 
 Mức 2 (học trọng số) nằm rải: ghi phản hồi ở bước 5, học ở bước 6, đo ở bước 7.
 
@@ -1231,6 +1231,10 @@ trên hạt giống mới **4001–4020** với cấu hình đã chốt; không 
 **Câu phải viết trong luận văn**: kết quả phụ thuộc giả định người ta khai trung thực tới đâu và từ khai trùng từ của
 thẻ tới đâu — nên báo **đường cong**, không một con số; và vẫn là thế giới mô phỏng (§7).
 
+**Kết quả đã chạy**: lớp 1 — `backend/eval-declared-result.md` (bước 15: **1/4 tiêu chí đạt**, chỉ P4); lớp 2 —
+`backend/eval-plan-declared-result.md` (bước 19, mô tả: W1 không đổi đo được; W2 việc tập trung hơn, đúng hạn +0,019 nhưng KTC chứa 0).
+Tóm tắt và cách đọc trung thực ở nhật ký hai bước này.
+
 ### 17.11 Bất biến cần test
 
 §14 mục 6–11. Thêm các phép thử: tính tay `declared` trên ví dụ nhỏ; hoán vị thứ tự mục / ứng viên không đổi kết quả; đóng
@@ -1251,7 +1255,7 @@ băng đầu vào; mục chỉ gồm từ ngoài kho → `declared = 0`, không 
 | **16** | CSDL + kho dữ liệu + service: migration, nâng cấp trọng số khi đọc, `AssignRun` v2, nạp hồ sơ vào chấm | `schema.prisma`, migration mới, `assign.repo.ts`, `assign.service.ts` + test API |
 | **17** | API hồ sơ + CV: lưu tệp riêng tư, trích chữ, quyền tải, xoá, xoá theo tài khoản | `config/upload.ts`, route/controller/service mới, `app.ts` + test |
 | **18** | Giao diện | `ProfilePage.tsx`, `AssignWeightsPanel.tsx`, `lib/assignWeights.ts`, `lib/assignLabels.ts`, `AssignSuggestPanel.tsx`, `AssignPlanModal.tsx`, `types/assign.ts`, `lib/api/*` + test |
-| 19 | Chạy lại đánh giá lớp 2 với thành phần mới; cập nhật tài liệu + chương | `evalPlan*.ts`, `ASSIGN_MODULE.md` |
+| **19** | Chạy lại đánh giá lớp 2 với thành phần mới; cập nhật tài liệu + chương | `evalPlan*.ts`, `ASSIGN_MODULE.md` |
 
 Độ lan đã ước lượng: khoảng 14 tệp test backend (vd `assign.api`, `assign.planapi`, `assign.score`, `assign.evalarms`,
 `assign.evalleader`, `assign.learn`, `assign.weights`) và ~10 tệp frontend phải sửa theo 4 khoá. Việc đang dở chưa commit
@@ -2719,3 +2723,52 @@ mốc cũ). Trước khi cài lỗi, tự soát thêm 2 ca: cơ sở tỉ lệ v
 Backend: sửa test theo cờ `NO_PROFILE` nay hiện ra; cài lỗi 3/3 (đưa lại bộ lọc ở từng chỗ: gợi ý, người được chọn của lớp 2, xếp hạng của lớp 2); 5 tệp test API liên quan 82/82 xanh; `tsc` + `eslint` sạch. Suite backend đầy đủ chạy lại ở bước 19.
 
 **Tiếp theo**: bước 19 — chạy lại đánh giá lớp 2 với thành phần Hồ sơ.
+
+### Đã xong — Bước 19: đánh giá lại lớp 2 (chia việc cả đợt) khi có thành phần Hồ sơ (28/09/2026)
+
+**Kế hoạch**: cho bộ cắt đợt của bước 9 nhận tuỳ chọn (`BatchOptions`: hồ sơ tự khai, bộ trọng số, thế giới "nhóm mới"), không truyền
+gì thì y như bước 9; chạy trên đúng 20 hạt giống lớp 2 (3001–3020 — bước 9 chỉ dùng để **mô tả**, không chọn tham số nào), đúng các đợt
+(ngày 90 / 150 / 210, K = 12), hồ sơ sinh theo cấu hình mặc định đã đăng ký (§17.10); so "3 thành phần như bước 9" với "4 thành phần như
+sản phẩm từ bước 16 (mặc định mới + hồ sơ)" cho cách chia đang cài và phương án "phạt 10 điểm" còn treo. Báo cáo:
+**`backend/eval-plan-declared-result.md`** (`npx tsx src/scripts/evalPlanDeclared.ts --out=…`, ~10 giây; không thêm lệnh npm vì
+`package.json` đang có dòng dở của phiên khác; JSON thô không commit — `.gitignore` sẵn `/eval-plan-*.json`).
+
+**Không phải kiểm định**: §17.10 chỉ ghi "Gini lớp 2 (bước 19)" trong nhóm chỉ số *phụ*, không có tiêu chí đạt / không đạt cho lớp 2 —
+báo cáo chỉ đọc khoảng tin cậy có chứa 0 hay không.
+
+**Kết quả** (20 hạt giống, bootstrap cặp 95%, 4 thành phần − 3 thành phần):
+
+| Thế giới | Cách chia | Δ người nhiều nhất | Δ Gini | Δ P(đúng hạn) |
+|---|---|---|---|---|
+| W1 (có lịch sử) | đang cài | +0,006 [−0,007; +0,019] | +0,012 [−0,012; +0,039] | −0,003 [−0,009; +0,003] |
+| W1 | phạt 10 điểm | −0,003 [−0,014; +0,008] | −0,009 [−0,026; +0,008] | +0,001 [−0,008; +0,010] |
+| W2 (nhóm mới) | đang cài | **+0,018 [+0,010; +0,026]** | **+0,034 [+0,018; +0,051]** | +0,019 [−0,002; +0,040] |
+| W2 | phạt 10 điểm | **+0,021 [+0,014; +0,028]** | **+0,034 [+0,024; +0,045]** | +0,016 [−0,005; +0,036] |
+
+**Đọc kết quả — trung thực**:
+- **W1**: thêm Hồ sơ **không đổi được gì đo được** ở lớp 2 (cả mức tập trung lẫn đúng hạn) — khớp bước 15 (P1 ở lớp 1: +0,009, KTC chứa 0).
+  Số "3 thành phần" trùng từng chữ số với bước 9 (35,3% / 0,313 / 0,493).
+- **W2**: Hồ sơ làm việc **tập trung hơn** (có ý nghĩa: người nhiều nhất +1,8 điểm %, Gini +0,034) — vì không có hồ sơ thì trong nhóm mới
+  **ai cũng hoà điểm**, việc chia theo tải gần như vòng tròn (Gini 0,101); có hồ sơ thì bộ chấm bắt đầu phân biệt người. Đổi lại P(đúng
+  hạn) nhích **+0,019 nhưng KTC chứa 0** (chưa phân biệt được) — cùng chiều bước 15 (P2: +0,006, KTC chứa 0). Không được viết "Hồ sơ làm
+  chia việc tốt hơn"; được viết "trong nhóm mới, Hồ sơ đổi chia-đều-mù thành chia-có-phân-biệt, đúng hạn có xu hướng dương nhưng chưa
+  phân biệt được, việc tập trung hơn một chút".
+- **Phạt 10 điểm** (quyết định còn treo từ bước 9) không đổi kết luận khi có Hồ sơ: ở W1 vẫn giảm mạnh người nhiều nhất (35,8% → 28,6%)
+  với P(đúng hạn) gần như không đổi (0,490 → 0,489).
+
+**Bất biến kiểm bằng test** (`assign.evalplandeclared.test.ts`, 12 ca): không truyền tuỳ chọn = y như bước 9 (trọng số LEGACY, ứng
+viên không có khoá `declared`); có hồ sơ thì mỗi ứng viên mang đúng mục của mình, không đổi lịch sử / tải / thẻ; W2 không ai có lịch sử
+dùng được hay thẻ đang mở nhưng thẻ tương lai **không** bị xoá (chỉ thẻ giao trước ngày quyết định; thẻ giao cùng ngày ngoài đợt vẫn là tải
+— ép bằng K = 1); nhánh "đang cài" trên đợt có hồ sơ vẫn **đúng bằng** gọi thẳng `planAssignments()`; 3 thành phần ở W1 = đúng số của
+bước 9; **"4 thành phần mà chưa ai khai" chia việc y như 3 thành phần** (bất biến §17.6, cả hai thế giới); bảng báo cáo neo đúng ô.
+Chạy lại `eval:plan` (bước 9) sau khi sửa bộ cắt đợt: báo cáo **trùng từng byte** trừ dòng ngày chạy (cùng mã băm dữ liệu `72ccdf33…`).
+
+**Suýt sai**: test đầu cho W2 đòi `history` rỗng và đỏ — tưởng là rò rỉ tương lai, hoá ra `snapshotAsOf` **cố ý** đưa cả thẻ xong sau
+thời điểm chụp vào `history` để kiểm rằng bộ chấm tự bỏ (chú thích có sẵn); sửa test thành "không có lịch sử **dùng được**".
+Cài lỗi **13 phép**: lần đầu 12/13 — lọt "xoá trắng cả thẻ giao đúng ngày quyết định" (chỉ khác khi có thẻ ngoài đợt giao cùng ngày, hiếm
+với K = 12) → thêm ca K = 1 → **13/13**.
+Suite backend 92 tệp / 1096 test xanh (lần chạy đầy đủ này phủ cả thay đổi backend của bước 18); `tsc` + `eslint` sạch.
+
+**Lộ trình 10–19 đã xong.** Việc còn treo (không thuộc lộ trình, cần bạn quyết): báo GVHD việc đảo quyết định §2 (tự khai); DROP /
+NEUTRAL cho ba thành phần lịch sử; đổi mặc định lớp 2 sang phạt 10 điểm (bước 19 không đổi kết luận của bước 9); `d` = 0,20 hay để Hồ sơ ở
+mức sàn 0,05 cho tới khi có số liệu thật (bước 15: 1/4 tiêu chí đạt).
