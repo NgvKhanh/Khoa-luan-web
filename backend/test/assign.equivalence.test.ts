@@ -4,7 +4,7 @@
 // neu tang doc CSDL lam meo bat ky thu gi (bo sot bang da luu tru, dem nham the, lech mo lai...) thi test nay vo.
 import { describe, expect, it } from 'vitest';
 import { prisma } from '../src/config/prisma';
-import { LEGACY_WEIGHTS_V1, rankCandidates } from '../src/modules/assign/assign.score';
+import { DEFAULT_WEIGHTS, rankCandidates } from '../src/modules/assign/assign.score';
 import { suggestForCard, type SuggestionResult } from '../src/modules/assign/assign.service';
 import { DEFAULT_SIM, generateSimulation, type SimCard } from '../src/scripts/simGenerator';
 import { snapshotAsOf } from '../src/scripts/simReplay';
@@ -31,8 +31,8 @@ async function compareOne(seed: SeedResult, ownerId: string, c: SimCard, now: Da
   const ranked = rankCandidates(
     { id: c.key, title: c.title, description: c.description, startDate: at(c.assignedDay), dueDate: at(c.dueDay, 23, 59) },
     ref.candidates,
-    // Tu buoc 11 den buoc 16 dich vu cham bang ba trong so da luu + Ho so = 0 (§17.6): cung bo o day de so TUNG BIT
-    { idf: ref.idf, now: ref.now, groupOnTimeRate: ref.mu, weights: LEGACY_WEIGHTS_V1 }
+    // Cau hinh san pham tu buoc 16: mac dinh moi (co Ho so) + thieu du lieu theo thanh phan (mac dinh cua bo cham = cua dich vu)
+    { idf: ref.idf, now: ref.now, groupOnTimeRate: ref.mu, weights: DEFAULT_WEIGHTS }
   );
 
   expect(db.groupOnTimeRate).toBe(ref.mu);
@@ -46,10 +46,8 @@ async function compareOne(seed: SeedResult, ownerId: string, c: SimCard, now: Da
     expect(got.rawScore, label).toBe(want.rawScore);
     expect(got.confidence, label).toBe(want.confidence);
     expect(got.confidenceLevel, label).toBe(want.confidenceLevel);
-    // Tu buoc 12 bo cham co them thanh phan Ho so + co NO_PROFILE; API giu dang ba thanh phan cho toi buoc 18 (§17.9)
-    const { declared: wantDeclared, ...wantLegacy } = want.components;
-    expect(got.components, label).toEqual(wantLegacy);
-    expect(wantDeclared.value, label).toBeNull(); // dich vu chua nap ho so (buoc 16)
+    expect(got.components, label).toEqual(want.components);
+    expect(want.components.declared.value, label).toBeNull(); // bo mo phong khong ai khai ho so
     expect([got.load, got.capacity, got.fit, got.evidenceMass], label).toEqual([want.load, want.capacity, want.fit, want.evidenceMass]);
     expect(want.flags, label).toContain('NO_PROFILE');
     expect(got.flags, label).toEqual(want.flags.filter((f) => f !== 'NO_PROFILE'));

@@ -16,6 +16,7 @@ import {
   readFeedbackStats,
   readMemberships,
   readPlanCards,
+  readDeclaredProfiles,
   readProfiles,
   readReopenedCardIds,
   readViewableBoardIds,
@@ -25,47 +26,45 @@ import {
   readWorkspaceCards,
   saveWeights,
   saveWorkProfile,
+  type HistoryWeights,
   type RunRow,
   type StoredProfile,
   type StoredWeights,
 } from './assign.repo';
+import { declaredItems, type DeclaredEvidence, type DeclaredItem } from './assign.declared';
 import { LEARN_ETA, LEARN_MIN_FEEDBACK, type LearnReason } from './assign.learn';
 import { PLAN_MAX_CARDS, PLAN_VERSION, planAssignments, urgencyOrder } from './assign.plan';
 import { MAX_PARALLEL_LIMIT } from './assign.schema';
 import {
   DEFAULT_MAX_PARALLEL,
+  DEFAULT_WEIGHTS,
   rankCandidates,
   type CandidateScore,
   type ConfidenceLevel,
   type Flag,
+  type MissingPolicy,
+  type ComponentKey,
   type OutcomeKind,
+  type Weights,
 } from './assign.score';
 import { buildSnapshot } from './assign.snapshot';
-// Tu buoc 11 den buoc 16 (§17.6): CSDL va API van luu / tra BA trong so; khi cham, gan Ho so = 0 (pinLegacy) -> ket qua y nhu truoc
-import {
-  LEGACY_DEFAULT_WEIGHTS,
-  isLegacyDefault,
-  legacyWeightIssues,
-  pinLegacy,
-  sameLegacyWeights,
-  type LegacyWeights,
-} from './assign.weights';
+import { isDefaultWeights, sameWeights, weightIssues } from './assign.weights';
 
 // Hai lua chon cua bo cham duoc ghi RO o day (khong dua vao mac dinh cua assign.score.ts) de mot lan ai do doi
 // mac dinh thi nhat ky khong noi doi: phien ban thuat toan luon mo ta dung thu da chay.
 const NORMALIZE = 'MINMAX' as const;
-const MISSING = 'DROP' as const;
-export const ALGORITHM_VERSION = `knn-tfidf-v1/${NORMALIZE.toLowerCase()}/${MISSING.toLowerCase()}`;
+// Buoc 16 (§17.5): thieu du lieu THEO THANH PHAN - bo thanh phan lich su thieu (DROP), nguoi khong khai ho so nhan trung binh (NEUTRAL)
+const MISSING: Readonly<Record<ComponentKey, MissingPolicy>> = {
+  experience: 'DROP',
+  reliability: 'DROP',
+  availability: 'DROP',
+  declared: 'NEUTRAL',
+};
+export const ALGORITHM_VERSION = `knn-tfidf-v2/${NORMALIZE.toLowerCase()}/${MISSING.experience.toLowerCase()}+decl-${MISSING.declared.toLowerCase()}`;
 
-// TAM (buoc 12 -> buoc 18, §17.9): giao dien chua biet thanh phan Ho so va co NO_PROFILE (flagLabel khong co nhanh cho no -> nhan
-// trong), dich vu cung chua nap ho so (buoc 16) -> phan hoi va nhat ky giu DUNG dang ba thanh phan nhu truoc.
-type LegacyComponents = Pick<CandidateScore['components'], 'experience' | 'reliability' | 'availability'>;
-const legacyComponents = (c: CandidateScore['components']): LegacyComponents => ({
-  experience: c.experience,
-  reliability: c.reliability,
-  availability: c.availability,
-});
-const legacyFlags = (flags: readonly Flag[]): Flag[] => flags.filter((f) => f !== 'NO_PROFILE');
+// TAM (buoc 12 -> buoc 18, §17.9): giao dien chua co nhan cho co NO_PROFILE (flagLabel khong co nhanh cho no -> nhan trong) -> loc
+// khoi phan hoi cho toi buoc 18. Thanh phan Ho so va bang chung ho so thi DA tra ve (giao dien bo qua khoa la).
+const visibleFlags = (flags: readonly Flag[]): Flag[] => flags.filter((f) => f !== 'NO_PROFILE');
 
 /**
  * Moi thu bo cham can doc cua mot khong gian (dung chung cho goi y mot the va chia ca danh sach): the, lien ket the-nguoi,
@@ -73,19 +72,22 @@ const legacyFlags = (flags: readonly Flag[]): Flag[] => flags.filter((f) => f !=
  * nhom: lui ve mac dinh.
  */
 async function readScoringInputs(workspaceId: string, candidateIds: readonly string[]) {
-  const [cards, memberships, reopened, profiles, stored] = await Promise.all([
+  const [cards, memberships, reopened, profiles, stored, declaredProfiles] = await Promise.all([
     readWorkspaceCards(workspaceId),
     readMemberships(workspaceId, candidateIds),
     readReopenedCardIds(workspaceId),
     readProfiles(workspaceId, candidateIds),
     readWeights(workspaceId),
+    readDeclaredProfiles(candidateIds),
   ]);
-  let weights: LegacyWeights = { ...LEGACY_DEFAULT_WEIGHTS };
+  let weights: Weights = { ...DEFAULT_WEIGHTS };
   if (stored) {
-    if (legacyWeightIssues(stored.weights).length === 0) weights = stored.weights;
+    if (weightIssues(stored.weights).length === 0) weights = stored.weights;
     else console.warn(`[assign] trong so cua khong gian ${workspaceId} khong hop le, dung mac dinh`);
   }
-  return { cards, memberships, reopened, profiles, weights };
+  // Cat muc ho so MOT lan cho moi nguoi (tach tu la phan dat nhat - lop 2 cham lai ca nhom cho moi the)
+  const declared = new Map<string, DeclaredItem[]>([...declaredProfiles].map(([id, p]) => [id, declaredItems(p)]));
+  return { cards, memberships, reopened, profiles, weights, declared };
 }
 
 // ===================== Goi y cho mot the =====================
@@ -111,7 +113,9 @@ export interface Suggestion {
   rawScore: number | null;
   confidence: number;
   confidenceLevel: ConfidenceLevel;
-  components: LegacyComponents;
+  components: CandidateScore['components'];
+  /** Toi da 3 muc ho so tu khai khop nhat (§17.4): cum ky nang / tieu de cong viec; muc CV luon title = null. */
+  declaredEvidence: DeclaredEvidence[];
   fit: number;
   evidenceMass: number;
   load: number;
@@ -128,7 +132,7 @@ export interface SuggestionResult {
   card: { id: string; title: string; boardId: string; workspaceId: string };
   algorithmVersion: string;
   generatedAt: Date;
-  weights: LegacyWeights & { custom: boolean };
+  weights: Weights & { custom: boolean };
   /** `muy` cua nhom, null neu chua the nao co han. */
   groupOnTimeRate: number | null;
   candidateCount: number;
@@ -150,7 +154,7 @@ export async function suggestForCard(userId: string, cardId: string, now: Date =
   const candidateUsers = await readCandidates(board);
   const candidateIds = candidateUsers.map((u) => u.id);
 
-  const [{ cards, memberships, reopened, profiles, weights }, viewable] = await Promise.all([
+  const [{ cards, memberships, reopened, profiles, weights, declared }, viewable] = await Promise.all([
     readScoringInputs(board.workspaceId, candidateIds),
     readViewableBoardIds(userId, board.workspaceId),
   ]);
@@ -163,11 +167,12 @@ export async function suggestForCard(userId: string, cardId: string, now: Date =
     candidateIds,
     targetCardId: card.id,
     now,
+    declared,
   });
   const ranked = rankCandidates(
     { id: card.id, title: card.title, description: card.description, startDate: card.startDate, dueDate: card.dueDate },
     snapshot.candidates,
-    { idf: snapshot.idf, now, groupOnTimeRate: snapshot.mu, weights: pinLegacy(weights), normalize: NORMALIZE, missing: MISSING }
+    { idf: snapshot.idf, now, groupOnTimeRate: snapshot.mu, weights, normalize: NORMALIZE, missing: MISSING }
   );
 
   const userById = new Map(candidateUsers.map((u) => [u.id, u]));
@@ -188,12 +193,13 @@ export async function suggestForCard(userId: string, cardId: string, now: Date =
       rawScore: r.rawScore,
       confidence: r.confidence,
       confidenceLevel: r.confidenceLevel,
-      components: legacyComponents(r.components),
+      components: r.components,
+      declaredEvidence: r.declaredEvidence,
       fit: r.fit,
       evidenceMass: r.evidenceMass,
       load: r.load,
       capacity: r.capacity,
-      flags: legacyFlags(r.flags),
+      flags: visibleFlags(r.flags),
       assigned: assignedIds.has(r.userId),
       evidence: r.evidence.map((e) => ({
         cardId: e.cardId,
@@ -227,13 +233,16 @@ export async function suggestForCard(userId: string, cardId: string, now: Date =
         confidenceLevel: r.confidenceLevel,
         load: r.load,
         capacity: r.capacity,
-        flags: legacyFlags(r.flags),
+        flags: r.flags,
         components: {
           experience: { value: r.components.experience.value, scaled: r.components.experience.scaled, share: r.components.experience.share },
           reliability: { value: r.components.reliability.value, scaled: r.components.reliability.scaled, share: r.components.reliability.share },
           availability: { value: r.components.availability.value, scaled: r.components.availability.scaled, share: r.components.availability.share },
+          declared: { value: r.components.declared.value, scaled: r.components.declared.scaled, share: r.components.declared.share },
         },
         evidence: r.evidence.map((e) => ({ cardId: e.cardId, sim: e.sim, weight: e.weight, outcome: e.outcome })),
+        // Nhu bang chung the: KHONG chep chu (cum ky nang / tieu de cong viec la du lieu rieng cua nguoi do), chi ma muc + do giong
+        declaredEvidence: r.declaredEvidence.map((e) => ({ kind: e.kind, itemId: e.itemId, sim: e.sim })),
       })),
       candidateCount: ranked.length,
       topUserId: top.score !== null ? top.userId : null,
@@ -246,7 +255,7 @@ export async function suggestForCard(userId: string, cardId: string, now: Date =
     card: { id: card.id, title: card.title, boardId: board.id, workspaceId: board.workspaceId },
     algorithmVersion: ALGORITHM_VERSION,
     generatedAt: now,
-    weights: { ...weights, custom: !isLegacyDefault(weights) },
+    weights: { ...weights, custom: !isDefaultWeights(weights) },
     groupOnTimeRate: snapshot.mu,
     candidateCount: ranked.length,
     candidates,
@@ -262,7 +271,7 @@ export interface PlanPick {
   rawScore: number | null;
   confidence: number;
   confidenceLevel: ConfidenceLevel;
-  components: LegacyComponents;
+  components: CandidateScore['components'];
   load: number;
   capacity: number;
   flags: Flag[];
@@ -291,7 +300,7 @@ export interface PlanResult {
   algorithmVersion: string;
   planVersion: string;
   generatedAt: Date;
-  weights: LegacyWeights & { custom: boolean };
+  weights: Weights & { custom: boolean };
   groupOnTimeRate: number | null;
   people: PlanPerson[];
   /** Tong so the chua co nguoi nhan trong danh sach (co the nhieu hon so dong: xem `truncated`). */
@@ -314,16 +323,16 @@ export async function planForList(userId: string, listId: string, now: Date = ne
 
   const candidateUsers = await readCandidates(board);
   const candidateIds = candidateUsers.map((u) => u.id);
-  const [planCards, { cards, memberships, reopened, profiles, weights }] = await Promise.all([
+  const [planCards, { cards, memberships, reopened, profiles, weights, declared }] = await Promise.all([
     readPlanCards(list.id),
     readScoringInputs(board.workspaceId, candidateIds),
   ]);
 
-  const snapshot = buildSnapshot({ cards, memberships, reopened, profiles, candidateIds, targetCardId: null, now });
+  const snapshot = buildSnapshot({ cards, memberships, reopened, profiles, candidateIds, targetCardId: null, now, declared });
   const plan = planAssignments({
     cards: urgencyOrder(planCards).slice(0, PLAN_MAX_CARDS),
     candidates: snapshot.candidates,
-    ctx: { idf: snapshot.idf, now, groupOnTimeRate: snapshot.mu, weights: pinLegacy(weights), normalize: NORMALIZE, missing: MISSING },
+    ctx: { idf: snapshot.idf, now, groupOnTimeRate: snapshot.mu, weights, normalize: NORMALIZE, missing: MISSING },
   });
 
   const userById = new Map(candidateUsers.map((u) => [u.id, u]));
@@ -345,10 +354,10 @@ export async function planForList(userId: string, listId: string, now: Date = ne
             rawScore: pick.rawScore,
             confidence: pick.confidence,
             confidenceLevel: pick.confidenceLevel,
-            components: legacyComponents(pick.components),
+            components: pick.components,
             load: pick.load,
             capacity: pick.capacity,
-            flags: legacyFlags(pick.flags),
+            flags: visibleFlags(pick.flags),
           }
         : null,
       ranking: row.ranked.map((r) => ({
@@ -357,7 +366,7 @@ export async function planForList(userId: string, listId: string, now: Date = ne
         score: r.score,
         load: r.load,
         capacity: r.capacity,
-        flags: legacyFlags(r.flags),
+        flags: visibleFlags(r.flags),
       })),
     };
   });
@@ -374,7 +383,7 @@ export async function planForList(userId: string, listId: string, now: Date = ne
     algorithmVersion: ALGORITHM_VERSION,
     planVersion: PLAN_VERSION,
     generatedAt: now,
-    weights: { ...weights, custom: !isLegacyDefault(weights) },
+    weights: { ...weights, custom: !isDefaultWeights(weights) },
     groupOnTimeRate: snapshot.mu,
     people,
     totalUnassigned: planCards.length,
@@ -402,7 +411,7 @@ export interface OutcomeResult {
   /** So luot phan hoi cua nhom sau luot nay. */
   feedbackCount?: number;
   /** Trong so cua nhom sau luot nay. */
-  weights?: LegacyWeights;
+  weights?: Weights;
 }
 
 /**
@@ -473,7 +482,8 @@ export const WEIGHT_HISTORY_LIMIT = 20;
 export interface WeightHistoryEntry {
   id: string;
   at: Date;
-  weights: LegacyWeights;
+  /** Dong truoc buoc 16: `declared` = null. */
+  weights: HistoryWeights;
   /** So luot phan hoi cua nhom LUC DO. */
   feedbackCount: number;
   /** LEARNED = do hoc tu mot luot phan hoi (co runId); MANUAL = chinh tay hoac dat lai. */
@@ -483,8 +493,8 @@ export interface WeightHistoryEntry {
 
 export interface WorkspaceWeightsView {
   workspaceId: string;
-  weights: LegacyWeights;
-  defaults: LegacyWeights;
+  weights: Weights;
+  defaults: Weights;
   /** Khac mac dinh. */
   custom: boolean;
   feedbackCount: number;
@@ -502,13 +512,13 @@ async function viewOf(workspaceId: string, stored: StoredWeights | null): Promis
     readWeightHistory(workspaceId, WEIGHT_HISTORY_LIMIT),
     readFeedbackStats(workspaceId),
   ]);
-  const weights: LegacyWeights = stored ? { ...stored.weights } : { ...LEGACY_DEFAULT_WEIGHTS };
+  const weights: Weights = stored && weightIssues(stored.weights).length === 0 ? { ...stored.weights } : { ...DEFAULT_WEIGHTS };
   const feedbackCount = stored?.feedbackCount ?? 0;
   return {
     workspaceId,
     weights,
-    defaults: { ...LEGACY_DEFAULT_WEIGHTS },
-    custom: !isLegacyDefault(weights),
+    defaults: { ...DEFAULT_WEIGHTS },
+    custom: !isDefaultWeights(weights),
     feedbackCount,
     updatedAt: stored?.updatedAt ?? null,
     learning: { minFeedback: LEARN_MIN_FEEDBACK, eta: LEARN_ETA, active: feedbackCount >= LEARN_MIN_FEEDBACK },
@@ -531,26 +541,26 @@ export async function getWorkspaceWeights(userId: string, workspaceId: string): 
 }
 
 /** Chi OWNER/ADMIN cua khong gian. Kiem tra CHAT (khong tu sua ngam); dat giong het gia tri hien tai thi khong ghi gi. */
-export async function setWorkspaceWeights(userId: string, workspaceId: string, input: LegacyWeights): Promise<WorkspaceWeightsView> {
+export async function setWorkspaceWeights(userId: string, workspaceId: string, input: Weights): Promise<WorkspaceWeightsView> {
   await assertWorkspaceManage(userId, workspaceId);
-  const issues = legacyWeightIssues(input);
+  const issues = weightIssues(input);
   if (issues.length > 0) {
     throw new AppError(`Trong so khong hop le: ${issues.map((i) => i.message).join('; ')}`, 400);
   }
-  const next: LegacyWeights = { experience: input.experience, reliability: input.reliability, availability: input.availability };
+  const next: Weights = { experience: input.experience, reliability: input.reliability, availability: input.availability, declared: input.declared };
   const current = await readWeights(workspaceId);
-  if (sameLegacyWeights(current?.weights ?? LEGACY_DEFAULT_WEIGHTS, next)) return viewOf(workspaceId, current);
+  if (sameWeights(current?.weights ?? DEFAULT_WEIGHTS, next)) return viewOf(workspaceId, current);
   return viewOf(workspaceId, await saveWeights(workspaceId, next));
 }
 
-/** Dat lai 0,45 / 0,30 / 0,25 va dua so luot phan hoi ve 0 (quy tac "du 10 luot moi hoc" ap dung lai). */
+/** Dat lai mac dinh (0,36 / 0,24 / 0,20 / Ho so 0,20) va dua so luot phan hoi ve 0 (quy tac "du 10 luot moi hoc" ap dung lai). */
 export async function resetWorkspaceWeights(userId: string, workspaceId: string): Promise<WorkspaceWeightsView> {
   await assertWorkspaceManage(userId, workspaceId);
   const current = await readWeights(workspaceId);
-  if (!current || (isLegacyDefault(current.weights) && current.feedbackCount === 0)) {
+  if (!current || (isDefaultWeights(current.weights) && current.feedbackCount === 0)) {
     return viewOf(workspaceId, current);
   }
-  return viewOf(workspaceId, await saveWeights(workspaceId, LEGACY_DEFAULT_WEIGHTS, { resetCount: true }));
+  return viewOf(workspaceId, await saveWeights(workspaceId, DEFAULT_WEIGHTS, { resetCount: true }));
 }
 
 // ===================== Ho so lam viec ca nhan =====================

@@ -13,7 +13,9 @@ import { learningDecision, parseRunCandidates, type LearnReason } from './assign
 import type { PlanCard } from './assign.plan';
 import type { SnapshotCard, SnapshotMembership, SnapshotProfile } from './assign.snapshot';
 // Tu buoc 11 den buoc 16 (§17.6): bang trong so chi co BA cot - doc/ghi ba khoa, gan Ho so = 0 khi dua vao bo hoc
-import { pinLegacy, toLegacy, type LegacyWeights } from './assign.weights';
+import type { DeclaredProfile, DeclaredWorkItem } from './assign.declared';
+import { DEFAULT_WEIGHTS, type Weights } from './assign.score';
+import { legacyWeightIssues, upgradeLegacyWeights, weightIssues } from './assign.weights';
 
 export interface BoardRef {
   id: string;
@@ -31,7 +33,7 @@ export interface CandidateUser {
 export type WorkspaceCard = SnapshotCard & { boardId: string };
 
 export interface StoredWeights {
-  weights: LegacyWeights;
+  weights: Weights;
   feedbackCount: number;
   updatedAt: Date;
 }
@@ -180,14 +182,33 @@ export async function readViewableBoardIds(userId: string, workspaceId: string):
 
 // ---------- Trong so ----------
 
-const toStored = (r: {
+interface WeightColumns {
   wExperience: number;
   wReliability: number;
   wAvailability: number;
-  feedbackCount: number;
-  updatedAt: Date;
-}): StoredWeights => ({
-  weights: { experience: r.wExperience, reliability: r.wReliability, availability: r.wAvailability },
+  wDeclared: number | null;
+}
+
+/**
+ * Dong CSDL -> bo bon trong so (§17.8). Dong truoc buoc 16 (`wDeclared` = null) duoc NANG CAP khi doc bang upgradeLegacyWeights
+ * - khong quy doi bang SQL. Bo ba cu hong (sua tay trong CSDL) -> tra ve bo KHONG hop le (Ho so = NaN) de dich vu lui ve mac dinh
+ * nhu truoc, khong nem loi.
+ */
+export function weightsOfRow(r: WeightColumns): Weights {
+  const w3 = { experience: r.wExperience, reliability: r.wReliability, availability: r.wAvailability };
+  if (r.wDeclared !== null) return { ...w3, declared: r.wDeclared };
+  return legacyWeightIssues(w3).length === 0 ? upgradeLegacyWeights(w3) : { ...w3, declared: Number.NaN };
+}
+
+const columnsOf = (w: Weights) => ({
+  wExperience: w.experience,
+  wReliability: w.reliability,
+  wAvailability: w.availability,
+  wDeclared: w.declared,
+});
+
+const toStored = (r: WeightColumns & { feedbackCount: number; updatedAt: Date }): StoredWeights => ({
+  weights: weightsOfRow(r),
   feedbackCount: r.feedbackCount,
   updatedAt: r.updatedAt,
 });
@@ -217,27 +238,25 @@ async function lockedWeightsRow(tx: Tx, workspaceId: string) {
  */
 export async function saveWeights(
   workspaceId: string,
-  weights: LegacyWeights,
+  weights: Weights,
   opts: { resetCount?: boolean } = {}
 ): Promise<StoredWeights> {
   return prisma.$transaction(async (tx) => {
     const existing = await lockedWeightsRow(tx, workspaceId);
-    const values = {
-      wExperience: weights.experience,
-      wReliability: weights.reliability,
-      wAvailability: weights.availability,
-      feedbackCount: opts.resetCount ? 0 : existing.feedbackCount,
-    };
+    const values = { ...columnsOf(weights), feedbackCount: opts.resetCount ? 0 : existing.feedbackCount };
     const row = await tx.workspaceAssignWeights.update({ where: { workspaceId }, data: values });
     await tx.assignWeightHistory.create({ data: { workspaceId, ...values, runId: null } });
     return toStored(row);
   });
 }
 
+/** Trong so trong mot dong lich su: dong truoc buoc 16 co `declared` = null (khong nang cap - lich su giu dung nhu luc do). */
+export type HistoryWeights = Omit<Weights, 'declared'> & { declared: number | null };
+
 export interface WeightHistoryRow {
   id: string;
   createdAt: Date;
-  weights: LegacyWeights;
+  weights: HistoryWeights;
   feedbackCount: number;
   /** Luot goi y gay ra thay doi; null = chinh tay hoac dat lai. */
   runId: string | null;
@@ -253,7 +272,7 @@ export async function readWeightHistory(workspaceId: string, limit: number): Pro
   return rows.map((r) => ({
     id: r.id,
     createdAt: r.createdAt,
-    weights: { experience: r.wExperience, reliability: r.wReliability, availability: r.wAvailability },
+    weights: { experience: r.wExperience, reliability: r.wReliability, availability: r.wAvailability, declared: r.wDeclared },
     feedbackCount: r.feedbackCount,
     runId: r.runId,
   }));
@@ -294,7 +313,7 @@ export interface LearnOutcome {
   /** So luot phan hoi cua nhom SAU luot nay. */
   feedbackCount: number;
   /** Trong so cua nhom SAU luot nay. */
-  weights: LegacyWeights;
+  weights: Weights;
   learning: { learned: boolean; reason: LearnReason };
 }
 
@@ -319,23 +338,20 @@ export async function decideAndLearn(
     if (won.count !== 1) return null;
 
     const current = await lockedWeightsRow(tx, run.workspaceId);
-    const currentWeights = toStored(current).weights;
+    // Dong hong (sua tay) -> hoc tu mac dinh, giong bo cham (dich vu cung lui ve mac dinh khi cham)
+    const stored = weightsOfRow(current);
+    const currentWeights = weightIssues(stored).length === 0 ? stored : { ...DEFAULT_WEIGHTS };
     const feedbackCount = current.feedbackCount + 1;
     const decision = learningDecision({
-      weights: pinLegacy(currentWeights),
+      weights: currentWeights,
       feedbackCount,
       topUserId: run.topUserId,
       chosenUserId,
       candidates: parseRunCandidates(run.candidates),
     });
-    // Ho so = 0 khong bi bo hoc dong toi (chi chinh ba thanh phan lich su) nen cat ve ba khoa khong mat gi
-    const next = decision.learn ? toLegacy(decision.next) : currentWeights;
-    const values = {
-      wExperience: next.experience,
-      wReliability: next.reliability,
-      wAvailability: next.availability,
-      feedbackCount,
-    };
+    const next = decision.learn ? decision.next : currentWeights;
+    // Luon ghi du bon cot: dong cu duoc nang cap ngay o luot phan hoi dau tien sau buoc 16
+    const values = { ...columnsOf(next), feedbackCount };
     await tx.workspaceAssignWeights.update({ where: { workspaceId: run.workspaceId }, data: values });
     if (decision.learn) {
       await tx.assignWeightHistory.create({ data: { workspaceId: run.workspaceId, ...values, runId: run.id } });
@@ -343,6 +359,37 @@ export async function decideAndLearn(
     }
     return { feedbackCount, weights: next, learning: { learned: decision.learn, reason: decision.reason } };
   });
+}
+
+// ---------- Ho so tu khai (UserAssignProfile, buoc 16) ----------
+
+const isStr = (x: unknown): x is string => typeof x === 'string';
+
+/** workItems (JSON) -> danh sach cong viec; muc hong bi bo (khong nem loi - mot dong hong khong duoc lam mat goi y). */
+export function parseWorkItems(json: unknown): DeclaredWorkItem[] {
+  if (!Array.isArray(json)) return [];
+  const out: DeclaredWorkItem[] = [];
+  for (const raw of json) {
+    if (typeof raw !== 'object' || raw === null) continue;
+    const { title, description } = raw as Record<string, unknown>;
+    if (!isStr(title)) continue;
+    out.push({ title, description: isStr(description) ? description : null });
+  }
+  return out;
+}
+
+/** Ho so tu khai cua cac ung vien DA BAT "dung cho goi y" (theo userId). Ai tat / chua khai -> khong co trong ban do. */
+export async function readDeclaredProfiles(userIds: readonly string[]): Promise<Map<string, DeclaredProfile>> {
+  const map = new Map<string, DeclaredProfile>();
+  if (userIds.length === 0) return map;
+  const rows = await prisma.userAssignProfile.findMany({
+    where: { userId: { in: [...userIds] }, useForAssign: true },
+    select: { userId: true, skillsText: true, workItems: true, cvText: true },
+  });
+  for (const r of rows) {
+    map.set(r.userId, { skillsText: r.skillsText, workItems: parseWorkItems(r.workItems), cvText: r.cvText });
+  }
+  return map;
 }
 
 // ---------- Ho so lam viec ca nhan (MemberWorkProfile) ----------

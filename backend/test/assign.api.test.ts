@@ -191,7 +191,7 @@ describe('GET assignment-suggestions - cham diem tren du lieu that', () => {
     const d = res.body.data;
     expect(d.algorithmVersion).toBe(ALGORITHM_VERSION);
     expect(d.card).toEqual({ id: target.id, title: TITLE_TARGET, boardId: w.boardId, workspaceId: w.wsId });
-    expect(d.weights).toEqual({ experience: 0.45, reliability: 0.3, availability: 0.25, custom: false });
+    expect(d.weights).toEqual({ experience: 0.36, reliability: 0.24, availability: 0.2, declared: 0.2, custom: false });
     expect(d.groupOnTimeRate).toBe(1);
     expect(d.candidateCount).toBe(3);
 
@@ -215,11 +215,12 @@ describe('GET assignment-suggestions - cham diem tren du lieu that', () => {
     expect(alice.components.availability.value).toBe(1);
     expect(alice.score).not.toBeNull();
     expect(alice.rawScore).not.toBeNull();
-    // Tu buoc 12 den buoc 18 (§17.9): API van dung BA thanh phan, khong co co NO_PROFILE, khong co bang chung ho so
+    // Buoc 16: co thanh phan Ho so + bang chung ho so (chua ai khai -> null / rong); co NO_PROFILE van loc cho toi buoc 18 (§17.9)
     for (const c of res.body.data.candidates as (Cand & Record<string, unknown>)[]) {
-      expect(Object.keys(c.components).sort()).toEqual(['availability', 'experience', 'reliability']);
+      expect(Object.keys(c.components).sort()).toEqual(['availability', 'declared', 'experience', 'reliability']);
+      expect((c.components as unknown as Record<string, { value: unknown }>).declared.value).toBeNull();
       expect(c.flags).not.toContain('NO_PROFILE');
-      expect(c).not.toHaveProperty('declaredEvidence');
+      expect(c.declaredEvidence).toEqual([]);
     }
   });
 
@@ -508,7 +509,7 @@ describe('GET assignment-suggestions - ghi AssignRun', () => {
       decidedAt: null,
       learned: false,
     });
-    expect(run.weights).toEqual({ experience: 0.45, reliability: 0.3, availability: 0.25 });
+    expect(run.weights).toEqual({ experience: 0.36, reliability: 0.24, availability: 0.2, declared: 0.2 });
     expect(run.latencyMs).not.toBeNull();
     expect(run.latencyMs!).toBeGreaterThanOrEqual(0);
     expect(run.latencyMs!).toBeLessThan(15_000);
@@ -516,8 +517,10 @@ describe('GET assignment-suggestions - ghi AssignRun', () => {
     const logged = run.candidates as unknown as { userId: string; rank: number; components: Record<string, unknown>; evidence: { cardId: string }[]; flags: string[] }[];
     expect(logged.map((c) => c.userId)).toEqual(res.body.data.candidates.map((c: Cand) => c.user.id));
     expect(logged.map((c) => c.rank)).toEqual([1, 2, 3]);
-    expect(Object.keys(logged[0]!.components).sort()).toEqual(['availability', 'experience', 'reliability']);
-    expect(logged.every((c) => !c.flags.includes('NO_PROFILE'))).toBe(true);
+    expect(Object.keys(logged[0]!.components).sort()).toEqual(['availability', 'declared', 'experience', 'reliability']);
+    // Nhat ky ghi DU co (ke ca NO_PROFILE - chi phan hoi API moi loc tam) va bang chung ho so (rong vi chua ai khai)
+    expect(logged.every((c) => c.flags.includes('NO_PROFILE'))).toBe(true);
+    expect(logged.every((c) => Array.isArray((c as unknown as { declaredEvidence: unknown }).declaredEvidence))).toBe(true);
     expect(logged[0]!.evidence.length).toBeGreaterThan(0);
     expect(Object.keys(logged[0]!.evidence[0]!).sort()).toEqual(['cardId', 'outcome', 'sim', 'weight']);
 
@@ -549,15 +552,15 @@ describe('GET assignment-suggestions - ghi AssignRun', () => {
 // ===================== Trong so =====================
 
 describe('GET/PUT/DELETE /api/workspaces/:id/assignment-weights', () => {
-  it('GET: mac dinh 0,45/0,30/0,25 khi chua chinh (khong tao dong); moi thanh vien xem duoc; nguoi ngoai 403; khong ton tai 404; chua dang nhap 401', async () => {
+  it('GET: mac dinh 0,36/0,24/0,20/0,20 khi chua chinh (khong tao dong); moi thanh vien xem duoc; nguoi ngoai 403; khong ton tai 404; chua dang nhap 401', async () => {
     const w = await wsWorld();
     for (const u of [w.owner, w.admin, w.member]) {
       const res = await getW(u, w.wsId);
       expect(res.status, u.name).toBe(200);
       expect(res.body.data).toEqual({
         workspaceId: w.wsId,
-        weights: { experience: 0.45, reliability: 0.3, availability: 0.25 },
-        defaults: { experience: 0.45, reliability: 0.3, availability: 0.25 },
+        weights: { experience: 0.36, reliability: 0.24, availability: 0.2, declared: 0.2 },
+        defaults: { experience: 0.36, reliability: 0.24, availability: 0.2, declared: 0.2 },
         custom: false,
         feedbackCount: 0,
         updatedAt: null,
@@ -574,43 +577,46 @@ describe('GET/PUT/DELETE /api/workspaces/:id/assignment-weights', () => {
 
   it('PUT: OWNER va ADMIN duoc, MEMBER va nguoi ngoai 403; luu dung + ghi 1 dong lich su (runId null); GET thay gia tri moi', async () => {
     const w = await wsWorld();
-    expect((await putW(w.member, w.wsId, W(0.5, 0.3, 0.2))).status).toBe(403);
-    expect((await putW(w.outsider, w.wsId, W(0.5, 0.3, 0.2))).status).toBe(403);
-    expect((await putW(null, w.wsId, W(0.5, 0.3, 0.2))).status).toBe(401);
+    expect((await putW(w.member, w.wsId, W(0.4, 0.3, 0.2, 0.1))).status).toBe(403);
+    expect((await putW(w.outsider, w.wsId, W(0.4, 0.3, 0.2, 0.1))).status).toBe(403);
+    expect((await putW(null, w.wsId, W(0.4, 0.3, 0.2, 0.1))).status).toBe(401);
     expect(await prisma.workspaceAssignWeights.count()).toBe(0);
 
-    const res = await putW(w.admin, w.wsId, W(0.5, 0.3, 0.2));
+    const res = await putW(w.admin, w.wsId, W(0.4, 0.3, 0.2, 0.1));
     expect(res.status).toBe(200);
-    expect(res.body.data.weights).toEqual({ experience: 0.5, reliability: 0.3, availability: 0.2 });
+    expect(res.body.data.weights).toEqual({ experience: 0.4, reliability: 0.3, availability: 0.2, declared: 0.1 });
     expect(res.body.data.custom).toBe(true);
     expect(res.body.data.updatedAt).not.toBeNull();
 
     const row = await prisma.workspaceAssignWeights.findUniqueOrThrow({ where: { workspaceId: w.wsId } });
-    expect([row.wExperience, row.wReliability, row.wAvailability, row.feedbackCount]).toEqual([0.5, 0.3, 0.2, 0]);
+    expect([row.wExperience, row.wReliability, row.wAvailability, row.wDeclared, row.feedbackCount]).toEqual([0.4, 0.3, 0.2, 0.1, 0]);
     const hist = await prisma.assignWeightHistory.findMany({ where: { workspaceId: w.wsId } });
     expect(hist).toHaveLength(1);
-    expect(hist[0]).toMatchObject({ wExperience: 0.5, wReliability: 0.3, wAvailability: 0.2, feedbackCount: 0, runId: null });
+    expect(hist[0]).toMatchObject({ wExperience: 0.4, wReliability: 0.3, wAvailability: 0.2, wDeclared: 0.1, feedbackCount: 0, runId: null });
 
     const seen = await getW(w.member, w.wsId);
-    expect(seen.body.data.weights).toEqual({ experience: 0.5, reliability: 0.3, availability: 0.2 });
+    expect(seen.body.data.weights).toEqual({ experience: 0.4, reliability: 0.3, availability: 0.2, declared: 0.1 });
     expect(seen.body.data.custom).toBe(true);
 
     // OWNER cung duoc
-    expect((await putW(w.owner, w.wsId, W(0.4, 0.4, 0.2))).status).toBe(200);
+    expect((await putW(w.owner, w.wsId, W(0.35, 0.35, 0.2, 0.1))).status).toBe(200);
     expect(await prisma.assignWeightHistory.count()).toBe(2);
   });
 
   it('PUT sai -> 400 kem loi tung truong, KHONG ghi gi (am / qua tran / qua san / tong khac 1 / thieu truong / chuoi / mang)', async () => {
     const w = await wsWorld();
     const bad: [string, unknown, string][] = [
-      ['am', W(-0.1, 0.6, 0.5), 'experience'],
-      ['qua tran 0,71', W(0.71, 0.2, 0.09), 'experience'],
-      ['qua san 0,04', W(0.5, 0.46, 0.04), 'availability'],
-      ['tong 0,9', W(0.3, 0.3, 0.3), 'sum'],
-      ['tong 1,2', W(0.4, 0.4, 0.4), 'sum'],
-      ['thieu truong', { experience: 0.5, reliability: 0.5 }, 'availability'],
-      ['chuoi', W('0.5', 0.3, 0.2), 'experience'],
-      ['null', W(null, 0.3, 0.2), 'experience'],
+      ['am', W(-0.1, 0.6, 0.4, 0.1), 'experience'],
+      ['qua tran 0,71', W(0.71, 0.1, 0.09, 0.1), 'experience'],
+      ['qua san 0,04', W(0.5, 0.36, 0.04, 0.1), 'availability'],
+      ['Ho so qua san 0,04', W(0.4, 0.3, 0.26, 0.04), 'declared'],
+      ['Ho so qua tran 0,71', W(0.1, 0.1, 0.09, 0.71), 'declared'],
+      ['tong 0,9', W(0.3, 0.3, 0.2, 0.1), 'sum'],
+      ['tong 1,2', W(0.4, 0.4, 0.3, 0.1), 'sum'],
+      ['thieu truong', { experience: 0.5, reliability: 0.3, declared: 0.2 }, 'availability'],
+      ['thieu Ho so (giao dien cu ba thanh truot)', { experience: 0.45, reliability: 0.3, availability: 0.25 }, 'declared'],
+      ['chuoi', W('0.4', 0.3, 0.2, 0.1), 'experience'],
+      ['null', W(null, 0.3, 0.2, 0.1), 'experience'],
     ];
     for (const [label, body, field] of bad) {
       const res = await putW(w.owner, w.wsId, body);
@@ -626,22 +632,22 @@ describe('GET/PUT/DELETE /api/workspaces/:id/assignment-weights', () => {
 
   it('PUT giong het gia tri hien tai (ke ca mac dinh khi chua co dong) KHONG ghi lich su; doi that thi ghi them', async () => {
     const w = await wsWorld();
-    expect((await putW(w.owner, w.wsId, W(0.45, 0.3, 0.25))).status).toBe(200);
+    expect((await putW(w.owner, w.wsId, W(0.36, 0.24, 0.2, 0.2))).status).toBe(200);
     expect(await prisma.workspaceAssignWeights.count()).toBe(0);
     expect(await prisma.assignWeightHistory.count()).toBe(0);
 
-    await putW(w.owner, w.wsId, W(0.5, 0.3, 0.2));
-    await putW(w.owner, w.wsId, W(0.5, 0.3, 0.2));
+    await putW(w.owner, w.wsId, W(0.4, 0.3, 0.2, 0.1));
+    await putW(w.owner, w.wsId, W(0.4, 0.3, 0.2, 0.1));
     expect(await prisma.assignWeightHistory.count()).toBe(1);
-    await putW(w.owner, w.wsId, W(0.6, 0.2, 0.2));
+    await putW(w.owner, w.wsId, W(0.5, 0.2, 0.2, 0.1));
     expect(await prisma.assignWeightHistory.count()).toBe(2);
   });
 
   it('PUT giu nguyen feedbackCount; DELETE dat lai mac dinh + dua feedbackCount ve 0 + ghi 1 dong lich su; goi lai khong ghi them', async () => {
     const w = await wsWorld();
-    await putW(w.owner, w.wsId, W(0.6, 0.2, 0.2));
+    await putW(w.owner, w.wsId, W(0.5, 0.2, 0.2, 0.1));
     await prisma.workspaceAssignWeights.update({ where: { workspaceId: w.wsId }, data: { feedbackCount: 7 } });
-    const put = await putW(w.owner, w.wsId, W(0.5, 0.3, 0.2));
+    const put = await putW(w.owner, w.wsId, W(0.4, 0.3, 0.2, 0.1));
     expect(put.body.data.feedbackCount).toBe(7);
     expect((await prisma.assignWeightHistory.findMany({ orderBy: { createdAt: 'asc' } })).map((h) => h.feedbackCount)).toEqual([0, 7]);
 
@@ -649,13 +655,13 @@ describe('GET/PUT/DELETE /api/workspaces/:id/assignment-weights', () => {
     expect((await delW(w.outsider, w.wsId)).status).toBe(403);
     const res = await delW(w.admin, w.wsId);
     expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ weights: { experience: 0.45, reliability: 0.3, availability: 0.25 }, custom: false, feedbackCount: 0 });
+    expect(res.body.data).toMatchObject({ weights: { experience: 0.36, reliability: 0.24, availability: 0.2, declared: 0.2 }, custom: false, feedbackCount: 0 });
 
     const row = await prisma.workspaceAssignWeights.findUniqueOrThrow({ where: { workspaceId: w.wsId } });
-    expect([row.wExperience, row.wReliability, row.wAvailability, row.feedbackCount]).toEqual([0.45, 0.3, 0.25, 0]);
+    expect([row.wExperience, row.wReliability, row.wAvailability, row.wDeclared, row.feedbackCount]).toEqual([0.36, 0.24, 0.2, 0.2, 0]);
     const hist = await prisma.assignWeightHistory.findMany({ orderBy: { createdAt: 'asc' } });
     expect(hist).toHaveLength(3);
-    expect(hist[2]).toMatchObject({ wExperience: 0.45, wReliability: 0.3, wAvailability: 0.25, feedbackCount: 0, runId: null });
+    expect(hist[2]).toMatchObject({ wExperience: 0.36, wReliability: 0.24, wAvailability: 0.2, wDeclared: 0.2, feedbackCount: 0, runId: null });
 
     await delW(w.owner, w.wsId);
     expect(await prisma.assignWeightHistory.count()).toBe(3);
@@ -670,20 +676,21 @@ describe('GET/PUT/DELETE /api/workspaces/:id/assignment-weights', () => {
   it('service TU kiem tra lai (rao ve cuoi, khong chi dua vao zod): gia tri sai nem 400, khong ghi; nguoi khong du quyen nem 403', async () => {
     const w = await wsWorld();
     const bad = [
-      { experience: 0.9, reliability: 0.05, availability: 0.05 },
-      { experience: Number.NaN, reliability: 0.5, availability: 0.5 },
-      { experience: 0.3, reliability: 0.3, availability: 0.3 },
+      { experience: 0.85, reliability: 0.05, availability: 0.05, declared: 0.05 },
+      { experience: Number.NaN, reliability: 0.4, availability: 0.4, declared: 0.2 },
+      { experience: 0.3, reliability: 0.3, availability: 0.3, declared: 0.3 },
+      { experience: 0.45, reliability: 0.3, availability: 0.25 } as never,
     ];
     for (const b of bad) {
       await expect(setWorkspaceWeights(w.owner.id, w.wsId, b)).rejects.toMatchObject({ statusCode: 400 });
     }
-    await expect(setWorkspaceWeights(w.member.id, w.wsId, { experience: 0.5, reliability: 0.3, availability: 0.2 })).rejects.toMatchObject({ statusCode: 403 });
+    await expect(setWorkspaceWeights(w.member.id, w.wsId, { experience: 0.4, reliability: 0.3, availability: 0.2, declared: 0.1 })).rejects.toMatchObject({ statusCode: 403 });
     await expect(resetWorkspaceWeights(w.member.id, w.wsId)).rejects.toMatchObject({ statusCode: 403 });
     await expect(getWorkspaceWeights(w.outsider.id, w.wsId)).rejects.toMatchObject({ statusCode: 403 });
     expect(await prisma.workspaceAssignWeights.count()).toBe(0);
-    // Gia tri hop le di qua, va ket qua tra ve chi gom ba khoa thiet ke (khong roi khoa la)
-    const ok = await setWorkspaceWeights(w.owner.id, w.wsId, { experience: 0.5, reliability: 0.3, availability: 0.2, extra: 9 } as never);
-    expect(ok.weights).toEqual({ experience: 0.5, reliability: 0.3, availability: 0.2 });
+    // Gia tri hop le di qua, va ket qua tra ve chi gom bon khoa thiet ke (khong roi khoa la)
+    const ok = await setWorkspaceWeights(w.owner.id, w.wsId, { experience: 0.4, reliability: 0.3, availability: 0.2, declared: 0.1, extra: 9 } as never);
+    expect(ok.weights).toEqual({ experience: 0.4, reliability: 0.3, availability: 0.2, declared: 0.1 });
   });
 
   it('DELETE khi chua co dong: 200 mac dinh, khong tao dong nao', async () => {
@@ -727,21 +734,21 @@ describe('GET/PUT/DELETE /api/workspaces/:id/assignment-weights', () => {
     const base = await top();
     expect(base.candidates.map((c) => c.user.id).sort()).toEqual(sorted([alice.id, bob.id]));
     expect(base.weights.custom).toBe(false);
-    expect(base.candidates[0]!.user.id).toBe(alice.id); // mac dinh: kinh nghiem 0,45 > kha dung 0,25
+    expect(base.candidates[0]!.user.id).toBe(alice.id); // mac dinh: kinh nghiem 0,36 > kha dung 0,20
     expect(base.candidates[0]!.flags).toContain('OVERLOADED');
 
-    expect((await putW(wsOwner, ws.id, W(0.05, 0.25, 0.7))).status).toBe(200);
+    expect((await putW(wsOwner, ws.id, W(0.05, 0.2, 0.7, 0.05))).status).toBe(200);
     const availHeavy = await top();
     expect(availHeavy.weights.custom).toBe(true);
     expect(availHeavy.weights.experience).toBe(0.05);
     expect(availHeavy.candidates[0]!.user.id).toBe(bob.id);
 
-    expect((await putW(wsOwner, ws.id, W(0.7, 0.25, 0.05))).status).toBe(200);
+    expect((await putW(wsOwner, ws.id, W(0.7, 0.2, 0.05, 0.05))).status).toBe(200);
     expect((await top()).candidates[0]!.user.id).toBe(alice.id);
 
     // Nhat ky ghi dung bo trong so LUC DO
     const runs = await prisma.assignRun.findMany({ orderBy: { createdAt: 'asc' } });
-    expect(runs.map((r) => (r.weights as { experience: number }).experience)).toEqual([0.45, 0.05, 0.7]);
+    expect(runs.map((r) => (r.weights as { experience: number }).experience)).toEqual([0.36, 0.05, 0.7]);
   });
 
   it('trong so luu hong trong CSDL khong lam hong goi y: lui ve mac dinh (custom = false) va canh bao', async () => {
@@ -752,10 +759,10 @@ describe('GET/PUT/DELETE /api/workspaces/:id/assignment-weights', () => {
       await prisma.workspaceAssignWeights.create({ data: { workspaceId: w.wsId, wExperience: -1, wReliability: 0, wAvailability: 0 } });
       const res = await suggest(w.owner, target.id);
       expect(res.status).toBe(200);
-      expect(res.body.data.weights).toEqual({ experience: 0.45, reliability: 0.3, availability: 0.25, custom: false });
+      expect(res.body.data.weights).toEqual({ experience: 0.36, reliability: 0.24, availability: 0.2, declared: 0.2, custom: false });
       expect(warn).toHaveBeenCalledTimes(1);
       const run = await prisma.assignRun.findUniqueOrThrow({ where: { id: res.body.data.runId } });
-      expect(run.weights).toEqual({ experience: 0.45, reliability: 0.3, availability: 0.25 }); // nhat ky ghi cai DA DUNG
+      expect(run.weights).toEqual({ experience: 0.36, reliability: 0.24, availability: 0.2, declared: 0.2 }); // nhat ky ghi cai DA DUNG
     } finally {
       warn.mockRestore();
     }
@@ -779,16 +786,16 @@ describe('POST /api/assignment/runs/:runId/outcome', () => {
       learned: false,
       learning: { learned: false, reason: 'ACCEPTED' },
       feedbackCount: 1,
-      weights: { experience: 0.45, reliability: 0.3, availability: 0.25 },
+      weights: { experience: 0.36, reliability: 0.24, availability: 0.2, declared: 0.2 },
     });
     expect(new Date(res.body.data.decidedAt).getTime()).toBeGreaterThan(Date.now() - 10_000);
 
     const run = await prisma.assignRun.findUniqueOrThrow({ where: { id: runId } });
     expect(run).toMatchObject({ chosenUserId: w.alice.id, accepted: true, learned: false });
     expect(run.decidedAt).not.toBeNull();
-    // Luot dau tien tao dong trong so (mac dinh) voi feedbackCount = 1; khong co dong lich su nao (chua doi gi)
+    // Luot dau tien tao dong trong so (mac dinh, nang cap khi doc va ghi du bon cot) voi feedbackCount = 1; khong co dong lich su nao
     const row = await prisma.workspaceAssignWeights.findUniqueOrThrow({ where: { workspaceId: w.wsId } });
-    expect([row.wExperience, row.wReliability, row.wAvailability, row.feedbackCount]).toEqual([0.45, 0.3, 0.25, 1]);
+    expect([row.wExperience, row.wReliability, row.wAvailability, row.wDeclared, row.feedbackCount]).toEqual([0.36, 0.24, 0.2, 0.2, 1]);
     expect(await prisma.assignWeightHistory.count()).toBe(0);
   });
 

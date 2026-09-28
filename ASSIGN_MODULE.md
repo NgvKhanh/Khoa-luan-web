@@ -858,7 +858,7 @@ Khung khác với dự kiến ban đầu ở ba điểm, đều có lý do đo �
 | **13** | Luật học trên các thành phần chung | Học vẫn chạy khi nhiều người chưa khai |
 | **14** | Mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy | Mã băm đóng băng cũ giữ nguyên |
 | **15** | Quét trên hạt giống dev → chốt `d` → chạy xác nhận trên 4001–4020 | Bảng số liệu phần ba |
-| 16 | CSDL + kho dữ liệu + service | Gợi ý thật có thành phần Hồ sơ |
+| **16** | CSDL + kho dữ liệu + service | Gợi ý thật có thành phần Hồ sơ |
 | 17 | API hồ sơ + CV (lưu tệp riêng tư, trích chữ, quyền tải) | Tải/xoá/tải về CV qua API |
 | 18 | Giao diện: trang Hồ sơ, thanh trượt thứ 4, bằng chứng Hồ sơ | Dùng được trong sản phẩm |
 | 19 | Chạy lại đánh giá lớp 2 + cập nhật tài liệu, chương | Số liệu lớp 2 với thành phần mới |
@@ -1244,7 +1244,7 @@ băng đầu vào; mục chỉ gồm từ ngoài kho → `declared = 0`, không 
 | **13** | Luật học trên thành phần chung; JSON cũ vẫn đọc được | `assign.learn.ts` + test |
 | **14** | Mô phỏng hồ sơ tự khai + tuỳ chọn bộ chạy (W2, hồ sơ trong `snapshotAsOf`) | mới `scripts/simDeclared.ts`, `simReplay.ts`, `evalAssignRun.ts`, `evalAssignStats.ts` + test |
 | **15** | Quét 9801–9820 → chốt `d` (một commit hằng số) → chạy xác nhận 4001–4020 → báo cáo | mới `scripts/evalDeclared*.ts`, `backend/eval-declared-result.md` |
-| 16 | CSDL + kho dữ liệu + service: migration, nâng cấp trọng số khi đọc, `AssignRun` v2, nạp hồ sơ vào chấm | `schema.prisma`, migration mới, `assign.repo.ts`, `assign.service.ts` + test API |
+| **16** | CSDL + kho dữ liệu + service: migration, nâng cấp trọng số khi đọc, `AssignRun` v2, nạp hồ sơ vào chấm | `schema.prisma`, migration mới, `assign.repo.ts`, `assign.service.ts` + test API |
 | 17 | API hồ sơ + CV: lưu tệp riêng tư, trích chữ, quyền tải, xoá, xoá theo tài khoản | `config/upload.ts`, route/controller/service mới, `app.ts` + test |
 | 18 | Giao diện | `ProfilePage.tsx`, `AssignWeightsPanel.tsx`, `lib/assignWeights.ts`, `lib/assignLabels.ts`, `AssignSuggestPanel.tsx`, `AssignPlanModal.tsx`, `types/assign.ts`, `lib/api/*` + test |
 | 19 | Chạy lại đánh giá lớp 2 với thành phần mới; cập nhật tài liệu + chương | `evalPlan*.ts`, `ASSIGN_MODULE.md` |
@@ -2568,3 +2568,53 @@ thường, W2 tốt nhất bị loại vì W1, chỉ `d = 0`, biên ± 1e−9 c�
 trên cùng thẻ; đường cong; người yếu nhất; DROP/NEUTRAL/ZERO; báo cáo neo đúng ô). Cài lỗi 25 phép: lần đầu **19/25** — 6 lỗ hổng test thật (hai ngưỡng của luật chọn `d` chưa có ca ĐÚNG BẰNG ngưỡng — ca ±1e−9 không thay được; tiêu chí "đạt" chưa có ca cận dưới đúng bằng ngưỡng; W3 mới kiểm phía đầy đủ-3; DROP / ZERO chưa kiểm; trọng số từng nhánh chưa kiểm) → vá, cả 6 bị bắt → **25/25**. Ca "W3 đo trên thẻ lạnh của chính nhánh" lúc đầu vẫn lọt vì ở hạt giống 9901 hai tập thẻ lạnh tình cờ cho cùng trung bình → kiểm cả hai hạt giống và đòi ít nhất một hạt giống phân biệt.
 
 **Tiếp theo**: bước 16 — CSDL (`wDeclared`, bảng `UserAssignProfile`) + nâng cấp trọng số cũ khi đọc + dịch vụ nạp hồ sơ vào bộ chấm.
+
+### Đã xong — Bước 16: CSDL + kho dữ liệu + dịch vụ cho thành phần Hồ sơ (28/09/2026)
+
+**Kế hoạch**: migration (`wDeclared` + bảng `UserAssignProfile`), đọc trọng số cũ thì **nâng cấp khi đọc** (không quy đổi bằng SQL),
+mọi lần ghi đủ bốn cột, dịch vụ nạp hồ sơ tự khai vào bộ chấm (gợi ý lớp 1 + chia việc lớp 2), `AssignRun` ghi thành phần Hồ sơ;
+gỡ nhóm hàm tạm "ba khoá" của bước 11 (`pinLegacy`, `toLegacy`, `legacyWeightIssues`… — `sameLegacyWeights`/`isLegacyDefault` xoá hẳn).
+
+**CSDL** (`20260928120000_assign_declared`, sinh bằng `prisma migrate diff --from-schema <schema HEAD> --to-schema … --script` rồi
+`migrate deploy`, §9): `wDeclared DOUBLE PRECISION NULL` ở `WorkspaceAssignWeights` và `AssignWeightHistory`; bảng `UserAssignProfile`
+(khoá chính `userId` → `User`, **xoá tài khoản xoá luôn hồ sơ**), `useForAssign` mặc định bật, `skillsText`, `workItems` (JSON), các cột
+`cv*` (bước 17 mới dùng; `cvStoredName` duy nhất). `NULL` ở `wDeclared` nghĩa là "dòng trước bước 16".
+
+**Kho dữ liệu** (`assign.repo.ts`): `weightsOfRow` — có `wDeclared` → giữ nguyên; `NULL` + bộ ba cũ hợp lệ → `upgradeLegacyWeights`
+(bằng mặc định cũ → **đúng** mặc định mới, test so bằng `toEqual`; khác → chiếu `((1−d)e, (1−d)r, (1−d)a, d)`); `NULL` + bộ ba hỏng
+(sửa tay) → Hồ sơ `NaN` để `weightIssues` bắt và dịch vụ lùi về mặc định (không ném lỗi, không trả `NaN`/`null` ra API). **Không sửa
+dòng cũ khi đọc** — CSDL giữ `NULL` tới lần ghi kế tiếp (test kiểm). `saveWeights` và luồng học ghi **đủ bốn cột**; lịch sử trọng số
+trả `declared: null` cho mốc cũ (vẽ đường hội tụ không bịa số). Học từ dòng hỏng: học từ mặc định, kết quả hợp lệ. `readDeclaredProfiles`
+chỉ đọc người **bật** "dùng cho gợi ý"; `parseWorkItems` bỏ phần tử hỏng (không phải đối tượng / không có tiêu đề chuỗi), mô tả không
+phải chuỗi → `null`.
+
+**Dịch vụ** (`assign.service.ts`): `MISSING` theo thành phần (DROP × 3 + **NEUTRAL** cho Hồ sơ, §17.5), `ALGORITHM_VERSION =
+'knn-tfidf-v2/minmax/drop+decl-neutral'`; cắt mục khai **một lần mỗi người** (`declaredItems`) rồi đưa qua `buildSnapshot` (thêm tham số
+`declared` tuỳ chọn — không truyền thì ứng viên không có khoá, giữ đúng hành vi cũ cho bộ đánh giá); gợi ý trả đủ bốn thành phần +
+`declaredEvidence` (tối đa 3; mục CV luôn `title: null`, chữ CV không bao giờ ra API); `AssignRun` ghi thành phần Hồ sơ và bằng chứng
+**chỉ `kind` + `itemId` + `sim`** (không chép cụm kỹ năng / tiêu đề công việc — như bằng chứng thẻ ở bước 5); cờ `NO_PROFILE` ghi
+đủ vào nhật ký nhưng **vẫn lọc khỏi phản hồi tới bước 18** (giao diện chưa có nhãn). Xem / đặt / đặt lại trọng số dùng bốn khoá và
+`DEFAULT_WEIGHTS` (0,36 / 0,24 / 0,20 / 0,20).
+
+**Lỗi tạm thời đã biết (tới bước 18)**: bảng trọng số ở giao diện vẫn ba thanh trượt → `PUT` thiếu `declared` bị **400** (có test ghi
+rõ; zod báo thiếu khoá, không phải lỗi tổng). Chỉnh tay trọng số trên giao diện hỏng cho tới bước 18; gợi ý / học vẫn chạy.
+
+**Sửa số kỳ vọng trong test cũ** (không phải đổi hành vi ngoài ý muốn): mặc định mới 0,36/0,24/0,20/0,20 làm các con số học trọng số
+tính tay đổi (vd lượt học thứ 10 → (0,31; 0,24; 0,25; 0,20) — Hồ sơ ngoài S nên giữ nguyên); test tranh chấp khoá ghi (0,5; 0,2; 0,1;
+0,2) → đọc lại (0,45; 0,2; 0,15; 0,2). Đối chiếu CSDL ↔ bộ nhớ (`assign.equivalence`) dùng mặc định mới và vẫn khớp từng con số.
+**Suýt sai**: `upgradeLegacyWeights(mặc định cũ)` cho `0.36000000000000004` → `isDefaultWeights` vẫn đúng (có dung sai) nhưng API trả
+số xấu và `toEqual` hỏng → nếu `sameWeights(out, DEFAULT_WEIGHTS)` thì trả **đúng** `DEFAULT_WEIGHTS`.
+
+**Kiểm chứng**: test mới `assign.declaredapi.test.ts` (11 ca: `weightsOfRow` / `parseWorkItems`; `ALGORITHM_VERSION`; `PUT` ba khoá → 400;
+nâng cấp khi đọc + dòng mặc định cũ + dòng hỏng; học từ dòng hỏng; hồ sơ thật vào gợi ý — người khai khớp có Hồ sơ + bằng chứng, CV
+không lộ chữ; tắt công tắc = không khai; `AssignRun` không chép chữ; **học đầu-cuối**: giao cho người có lịch sử thay người khai khớp →
+trọng số Hồ sơ giảm, thành phần ngoài S giữ nguyên; xoá tài khoản xoá hồ sơ; chia việc cũng nạp hồ sơ) + sửa `assign.api`,
+`assign.planapi`, `assign.learning`, `assign.equivalence`, `assign.weights`, `assignFixtures` (`W(e, r, a, d)`). Cài lỗi **23 phép**
+(kho dữ liệu 9, dịch vụ 11, zod / snapshot / nâng cấp 3): lần đầu **22/23** — lọt Z1 "`declared` tuỳ chọn trong zod" (vẫn 400 nhờ
+`weightIssues` nên không test nào thấy) → thêm ca kiểm mã lỗi zod `invalid_type` ở đúng khoá → **23/23**. Sự cố: lần chạy đầu bị ngắt
+đột ngột khi phép N1 đang cài vào `assign.snapshot.ts` → tệp **bị bỏ lại ở dạng đột biến** (thiếu dòng nạp hồ sơ); phát hiện nhờ chạy
+khô (`DRY=1` báo "REGEX KHÔNG KHỚP"), khôi phục tay, chạy khô lại cả ba nhóm khớp, rồi chạy lại nhóm. Bài học: sau MỌI lần bộ cài lỗi
+dừng bất thường phải chạy khô trước khi làm gì khác — bộ khôi phục chỉ chạy khi tiến trình thoát êm.
+Suite backend 90 tệp / 1070 test xanh; `tsc` + `eslint` sạch.
+
+**Tiếp theo**: bước 17 — API hồ sơ tự khai + CV (lưu tệp riêng tư, trích chữ, tải về có quyền, xoá).

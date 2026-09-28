@@ -134,7 +134,9 @@ export interface Cand {
   rawScore: number | null;
   confidence: number;
   confidenceLevel: string;
-  components: Record<'experience' | 'reliability' | 'availability', { value: number | null; weight: number; scaled: number | null; share: number }>;
+  components: Record<'experience' | 'reliability' | 'availability' | 'declared', { value: number | null; weight: number; scaled: number | null; share: number }>;
+  /** Buoc 16: muc ho so tu khai khop nhat (muc CV luon title = null). */
+  declaredEvidence: { kind: 'SKILL' | 'WORK' | 'CV'; itemId: string; title: string | null; sim: number }[];
   load: number;
   capacity: number;
   flags: string[];
@@ -197,7 +199,8 @@ export const delW = (u: TestUser | null, id: string) => {
   const r = agent().delete(wUrl(id));
   return u ? r.set('Cookie', u.cookie) : r;
 };
-export const W = (experience: unknown, reliability: unknown, availability: unknown) => ({ experience, reliability, availability });
+/** Bon trong so (buoc 16: API nhan du bon khoa). */
+export const W = (experience: unknown, reliability: unknown, availability: unknown, declared: unknown) => ({ experience, reliability, availability, declared });
 
 // ---------- Ghi nguoi duoc chon ----------
 

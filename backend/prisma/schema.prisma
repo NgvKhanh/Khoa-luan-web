@@ -150,6 +150,7 @@ model User {
   cardMembers            CardMember[]            @relation("CardMemberUser")
   assignedCardMembers    CardMember[]            @relation("CardMemberAssigner")
   workProfiles           MemberWorkProfile[]
+  assignProfile          UserAssignProfile?
   cardReminders          CardReminder[]
   watches                Watch[]
   createdBoardTemplates  BoardTemplate[]         @relation("BoardTemplateCreator")
@@ -863,6 +864,28 @@ model Activity {
 // (xoa khong gian lam viec thi cau hinh vo nghia), bang NHAT KY dung SetNull
 // (log phai song sot qua viec xoa bang/the/nguoi) - giong AiRun cua module AI.
 
+// Ho so TU KHAI cua 1 nguoi (buoc 16, ASSIGN_MODULE.md §17.2, §17.8): dung o MOI khong gian, sua o trang Ho so ca nhan.
+// Cascade theo nguoi dung (du lieu rieng - xoa tai khoan phai xoa theo). Tep CV nam o uploads/cv/<cvStoredName> (thu muc
+// RIENG, khong mount tinh); chi chu CV va OWNER/ADMIN khong gian chung tai duoc (buoc 17).
+model UserAssignProfile {
+  userId       String    @id
+  // Tat -> coi nhu khong co ho so (co NO_PROFILE)
+  useForAssign Boolean   @default(true)
+  skillsText   String    @default("")
+  // [{ id, title, description }] - toi da 30 muc (kiem o zod)
+  workItems    Json      @default("[]")
+  // Chu trich tu CV, nguoi dung da sua (<= 20 000 ky tu)
+  cvText       String?
+  cvFileName   String?
+  cvStoredName String?   @unique
+  cvSize       Int?
+  cvUploadedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 // Cau hinh lam viec cua 1 nguoi TRONG 1 khong gian lam viec. Khong bat buoc
 // phai co: thieu thi dung gia tri mac dinh trong code.
 model MemberWorkProfile {
@@ -896,6 +919,9 @@ model WorkspaceAssignWeights {
   wExperience   Float @default(0.45)
   wReliability  Float @default(0.30)
   wAvailability Float @default(0.25)
+  // Trong so thanh phan "Ho so" (buoc 16, ASSIGN_MODULE.md §17.8). NULL = dong truoc buoc 16: NANG CAP khi doc (upgradeLegacyWeights),
+  // KHONG quy doi bang SQL (0,05 x 0,8 < muc san -> dich vu se lang le lui ve mac dinh). Moi lan luu ghi du bon cot.
+  wDeclared     Float?
   // So luot phan hoi da nhan. Chi bat dau HOC tu luot thu 10 tro di, truoc do
   // chi ghi nhan (muc 1) de tranh vai luot dau keo trong so di lung tung.
   feedbackCount Int   @default(0)
@@ -916,6 +942,7 @@ model AssignWeightHistory {
   wExperience   Float
   wReliability  Float
   wAvailability Float
+  wDeclared     Float? // NULL = dong lich su truoc buoc 16 (duong hoi tu ve ba duong cho toi luc chuyen)
   feedbackCount Int // Day la luot phan hoi thu may
   runId         String? // Luot goi y gay ra thay doi nay (khong FK, xem AssignRun)
 

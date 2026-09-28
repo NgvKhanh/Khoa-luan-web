@@ -130,14 +130,11 @@ export function projectWithin(w: Weights, keys: readonly WeightKey[]): Weights {
   return out;
 }
 
-// ---------- TAM, buoc 11 -> buoc 16: CSDL va API van luu BA trong so (chua co cot wDeclared) ----------
+// ---------- Bo BA trong so kieu cu (khong co Ho so): doc dong CSDL truoc buoc 16 (nang cap khi doc) + bo danh gia buoc 7 ----------
 
 export const LEGACY_KEYS = ['experience', 'reliability', 'availability'] as const satisfies readonly WeightKey[];
 export type LegacyKey = (typeof LEGACY_KEYS)[number];
-/**
- * Bo ba trong so kieu cu (khong co Ho so): dang CSDL va API luu cho toi buoc 16; cung la ba thanh phan tu LICH SU - thu duy nhat bo
- * hoc (buoc 11) va truong nhom gia cua bo danh gia nhin thay.
- */
+/** Bo ba trong so kieu cu (khong co Ho so): dong CSDL truoc buoc 16; cung la ba thanh phan tu LICH SU ma truong nhom gia buoc 7 nhin. */
 export type LegacyWeights = Pick<Weights, LegacyKey>;
 
 /** Cat ve ba khoa de luu / tra ve qua API (bo Ho so). */
@@ -145,28 +142,20 @@ export function toLegacy(w: LegacyWeights): LegacyWeights {
   return { experience: w.experience, reliability: w.reliability, availability: w.availability };
 }
 
-/** Cham / hoc bang bo ba trong so dang luu: Ho so = 0 -> ket qua dung bang truoc buoc 11. */
+/** Bo ba -> bon khoa voi Ho so = 0 (ket qua cham dung bang truoc buoc 11 - dung o bo danh gia buoc 7). */
 export function pinLegacy(w: LegacyWeights): Weights {
   return { ...toLegacy(w), declared: 0 };
 }
 
-/** 0,45 / 0,30 / 0,25 - mac dinh cua CSDL / API cho toi buoc 16. */
+/** 0,45 / 0,30 / 0,25 - mac dinh truoc buoc 11 (cung la gia tri mac dinh cua cot CSDL: dong moi tao duoc nang cap khi doc). */
 export const LEGACY_DEFAULT_WEIGHTS: Readonly<LegacyWeights> = toLegacy(LEGACY_WEIGHTS_V1);
 
 export function legacyWeightIssues(w: Readonly<Partial<Record<LegacyKey, unknown>>>): WeightIssue[] {
   return weightIssues(w, LEGACY_KEYS);
 }
 
-export function sameLegacyWeights(a: LegacyWeights, b: LegacyWeights): boolean {
-  return sameOn(LEGACY_KEYS, a, b);
-}
-
-export function isLegacyDefault(w: LegacyWeights): boolean {
-  return sameLegacyWeights(w, LEGACY_DEFAULT_WEIGHTS);
-}
-
 /**
- * §17.8 - nang cap mot bo BA trong so cu (dong CSDL co wDeclared = null; noi vao dich vu o buoc 16) len bon khoa:
+ * §17.8 - nang cap mot bo BA trong so cu (dong CSDL co wDeclared = null, doc o assign.repo.ts) len bon khoa:
  * ((1 - d) e, (1 - d) r, (1 - d) a, d) roi chieu len tap hop le. Mot cong thuc cho moi truong hop: bo mac dinh cu cho DUNG bo mac dinh
  * moi (voi d = DEFAULT_DECLARED_WEIGHT) vi ho mac dinh chinh la cong thuc nay va diem do da hop le (phep chieu khong doi gi) - khong
  * can nhanh rieng "chua chinh". Bo cu phai hop le (dich vu kiem truoc, hong thi dung mac dinh); d trong [WEIGHT_MIN, WEIGHT_MAX].
@@ -178,8 +167,10 @@ export function upgradeLegacyWeights(w: LegacyWeights, d: number = DEFAULT_DECLA
     throw new RangeError(`d phai nam trong [${WEIGHT_MIN}, ${WEIGHT_MAX}]`);
   }
   const k = 1 - d;
-  return projectWithin(
+  const out = projectWithin(
     { experience: k * w.experience, reliability: k * w.reliability, availability: k * w.availability, declared: d },
     WEIGHT_KEYS
   );
+  // Buoc 16: lech mac dinh chi do lam tron (0,8 x 0,45 = 0,36000000000000004) -> tra DUNG hang so, de dong CSDL va giao dien hien 0,36
+  return sameWeights(out, DEFAULT_WEIGHTS) ? { ...DEFAULT_WEIGHTS } : out;
 }

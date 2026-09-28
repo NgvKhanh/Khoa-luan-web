@@ -13,6 +13,7 @@
 //  - mot dong hong (ngay khong hop le, suc chua khong hop le) bi bo chu khong nem loi: mot the loi khong
 //    duoc lam mat goi y cua ca nhom. Chi `now` khong hop le la loi lap trinh -> RangeError.
 
+import type { DeclaredItem } from './assign.declared';
 import type { HistoryCard } from './assign.profile';
 import { groupOnTimeRate, type CandidateInput, type OpenCard } from './assign.score';
 import { countTerms } from './assign.text';
@@ -57,6 +58,11 @@ export interface SnapshotInput {
   /** The dang cham; null = chua co the (vd xep ho). */
   targetCardId: string | null;
   now: Date;
+  /**
+   * Buoc 16: muc ho so tu khai DA CAT SAN (declaredItems) theo userId - chi nguoi bat "dung cho goi y". Khong truyen = khong ai co ho
+   * so (ung vien khong co khoa `declared`); co truyen ma thieu nguoi -> `declared: null` (NO_PROFILE).
+   */
+  declared?: ReadonlyMap<string, readonly DeclaredItem[]>;
 }
 
 export interface Snapshot {
@@ -134,6 +140,7 @@ export function buildSnapshot(input: SnapshotInput): Snapshot {
       // Suc chua khong hop le -> de bo cham dung mac dinh (bo cham nem loi neu nhan so <= 0)
       maxParallelCards: cap !== undefined && Number.isInteger(cap) && cap >= 1 ? cap : undefined,
       pausedUntil: profile?.pausedUntil ?? null,
+      ...(input.declared ? { declared: input.declared.get(userId) ?? null } : {}),
     });
   }
   return { idf, mu, candidates };

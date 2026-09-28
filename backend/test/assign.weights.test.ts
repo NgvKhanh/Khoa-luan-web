@@ -13,12 +13,10 @@ import {
   WEIGHT_MIN,
   WEIGHT_SUM_TOLERANCE,
   isDefaultWeights,
-  isLegacyDefault,
   legacyWeightIssues,
   pinLegacy,
   projectOnto,
   projectWithin,
-  sameLegacyWeights,
   sameWeights,
   toLegacy,
   upgradeLegacyWeights,
@@ -61,7 +59,7 @@ describe('hang so', () => {
   });
 });
 
-describe('weightIssues - ba khoa kieu cu (API / CSDL cho toi buoc 16): gia tri hop le', () => {
+describe('weightIssues - ba khoa kieu cu (dong CSDL truoc buoc 16): gia tri hop le', () => {
   it('bo mac dinh, cac bien [0,05; 0,70] va sai so cua tong deu duoc chap nhan', () => {
     expect(legacyWeightIssues(LEGACY_DEFAULT_WEIGHTS)).toEqual([]);
     expect(legacyWeightIssues(W(0.05, 0.25, 0.7))).toEqual([]);
@@ -213,20 +211,6 @@ describe('sameWeights / isDefaultWeights (bon khoa) va ban ba khoa kieu cu', () 
     expect(isDefaultWeights(W4(0.36, 0.24, 0.2, 0.2))).toBe(true);
     expect(isDefaultWeights(LEGACY_WEIGHTS_V1)).toBe(false);
     expect(isDefaultWeights(W4(0.36, 0.24, 0.25, 0.15))).toBe(false);
-  });
-
-  it('ba khoa kieu cu: sameLegacyWeights xet ca ba, bo qua Ho so; isLegacyDefault dung 0,45 / 0,30 / 0,25', () => {
-    const b3: LegacyWeights = { experience: 0.45, reliability: 0.3, availability: 0.25 };
-    expect(sameLegacyWeights(b3, { ...b3, experience: 0.45 + 5e-10 })).toBe(true);
-    for (const k of LEGACY_KEYS) {
-      expect(sameLegacyWeights(b3, { ...b3, [k]: b3[k] + 1e-8 }), k).toBe(false);
-      expect(sameLegacyWeights({ ...b3, [k]: b3[k] - 1e-8 }, b3), k).toBe(false);
-    }
-    expect(isLegacyDefault(b3)).toBe(true);
-    expect(isLegacyDefault(LEGACY_WEIGHTS_V1)).toBe(true);
-    expect(isLegacyDefault({ experience: 0.5, reliability: 0.3, availability: 0.2 })).toBe(false);
-    expect(isLegacyDefault({ experience: 0.45, reliability: 0.25, availability: 0.3 })).toBe(false);
-    expect(isLegacyDefault({ experience: 0.4, reliability: 0.35, availability: 0.25 })).toBe(false);
   });
 
   it('pinLegacy gan Ho so = 0 (ban moi); toLegacy cat ve dung ba khoa (bo khoa la)', () => {
@@ -395,7 +379,12 @@ describe('upgradeLegacyWeights - nang cap bo ba trong so cu len bon khoa (§17.8
   it('mac dinh cu -> DUNG mac dinh moi (isDefaultWeights), khong can nhanh rieng', () => {
     const up = upgradeLegacyWeights(LEGACY_DEFAULT_WEIGHTS);
     expect(isDefaultWeights(up)).toBe(true);
-    expect(near(up, DEFAULT_WEIGHTS, 1e-15)).toBe(true);
+    // DUNG hang so (khong phai 0,36000000000000004): dong CSDL va giao dien hien so tron; ban moi, khong chia se doi tuong
+    expect(up).toEqual(DEFAULT_WEIGHTS);
+    expect(up).not.toBe(DEFAULT_WEIGHTS);
+    // Bo gan mac dinh nhung KHAC hon sai so 1e-9 thi khong bi keo ve mac dinh
+    const close = upgradeLegacyWeights({ experience: 0.45 + 1e-7, reliability: 0.3 - 1e-7, availability: 0.25 });
+    expect(isDefaultWeights(close)).toBe(false);
   });
 
   it('bo da chinh: ((1 - d) e, (1 - d) r, (1 - d) a, d) khi con hop le; cham san thi chieu ca bo (tinh tay)', () => {

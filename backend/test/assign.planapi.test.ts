@@ -49,7 +49,7 @@ interface PlanBody {
     algorithmVersion: string;
     planVersion: string;
     generatedAt: string;
-    weights: { experience: number; reliability: number; availability: number; custom: boolean };
+    weights: { experience: number; reliability: number; availability: number; declared: number; custom: boolean };
     groupOnTimeRate: number | null;
     people: { user: { id: string; name: string; avatarUrl: string | null }; capacity: number; openCards: number; paused: boolean }[];
     totalUnassigned: number;
@@ -207,14 +207,14 @@ describe('POST .../assignment-plan - dang tra ve va rieng tu', () => {
     }
     expect(d.algorithmVersion).toBe(ALGORITHM_VERSION);
     expect(d.planVersion).toBe(PLAN_VERSION);
-    expect(d.weights).toEqual({ experience: 0.45, reliability: 0.3, availability: 0.25, custom: false });
+    expect(d.weights).toEqual({ experience: 0.36, reliability: 0.24, availability: 0.2, declared: 0.2, custom: false });
     expect(Number.isNaN(Date.parse(d.generatedAt))).toBe(false);
 
     const row = d.rows[0]!;
     expect(row.card.id).toBe(target.id);
     expect(row.assignee).not.toBeNull();
     expect(row.assignee!.user.id).toBe(w.alice.id); // co lich su giong the nay
-    expect(Object.keys(row.assignee!.components).sort()).toEqual(['availability', 'experience', 'reliability']);
+    expect(Object.keys(row.assignee!.components).sort()).toEqual(['availability', 'declared', 'experience', 'reliability']);
     // Tu buoc 12 den buoc 18 (§17.9): khong lo co NO_PROFILE (giao dien chua co nhan cho no)
     expect(row.assignee!.flags).not.toContain('NO_PROFILE');
     expect(row.ranking.every((r) => !r.flags.includes('NO_PROFILE'))).toBe(true);
@@ -243,13 +243,13 @@ describe('POST .../assignment-plan - dang tra ve va rieng tu', () => {
   it('trong so cua nhom LUU HONG trong CSDL khong lam hong ke hoach: lui ve mac dinh (nhu lop 1); trong so hop le duoc dung', async () => {
     const w = await world();
     await newTarget(w.listId);
-    await prisma.workspaceAssignWeights.create({ data: { workspaceId: w.wsId, wExperience: 0.9, wReliability: 0.9, wAvailability: 0.9 } });
+    await prisma.workspaceAssignWeights.create({ data: { workspaceId: w.wsId, wExperience: 0.9, wReliability: 0.9, wAvailability: 0.9, wDeclared: 0.2 } });
     const bad = await plan(w.owner, w.listId);
     expect(bad.status).toBe(200);
-    expect(body(bad).data.weights).toEqual({ experience: 0.45, reliability: 0.3, availability: 0.25, custom: false });
-    await prisma.workspaceAssignWeights.update({ where: { workspaceId: w.wsId }, data: { wExperience: 0.2, wReliability: 0.3, wAvailability: 0.5 } });
+    expect(body(bad).data.weights).toEqual({ experience: 0.36, reliability: 0.24, availability: 0.2, declared: 0.2, custom: false });
+    await prisma.workspaceAssignWeights.update({ where: { workspaceId: w.wsId }, data: { wExperience: 0.2, wReliability: 0.2, wAvailability: 0.5, wDeclared: 0.1 } });
     const good = await plan(w.owner, w.listId);
-    expect(body(good).data.weights).toEqual({ experience: 0.2, reliability: 0.3, availability: 0.5, custom: true });
+    expect(body(good).data.weights).toEqual({ experience: 0.2, reliability: 0.2, availability: 0.5, declared: 0.1, custom: true });
   });
 
   it('tat dinh: hai lan goi lien tiep cho cung nguoi chon, cung xep hang, diem gan bang nhau (chi generatedAt doi)', async () => {
@@ -415,11 +415,11 @@ describe('POST .../assignment-plan - doi chieu voi lop 1 (lan luot bam goi y so 
     expect(new Set(seq).size).toBeGreaterThanOrEqual(2);
   });
 
-  it('trong so cua nhom (thien ve kha dung 0,05 / 0,25 / 0,70): van trung lop 1, va viec duoc chia ra ba nguoi', async () => {
+  it('trong so cua nhom (thien ve kha dung 0,05 / 0,20 / 0,70 / Ho so 0,05): van trung lop 1, va viec duoc chia ra ba nguoi', async () => {
     const w = await team();
-    expect((await putW(w.owner, w.wsId, W(0.05, 0.25, 0.7))).status).toBe(200);
+    expect((await putW(w.owner, w.wsId, W(0.05, 0.2, 0.7, 0.05))).status).toBe(200);
     const preview = body(await plan(w.owner, w.listId)).data;
-    expect(preview.weights).toEqual({ experience: 0.05, reliability: 0.25, availability: 0.7, custom: true });
+    expect(preview.weights).toEqual({ experience: 0.05, reliability: 0.2, availability: 0.7, declared: 0.05, custom: true });
     const seq = await checkAgainstLayer1(w);
     expect(new Set(seq).size).toBe(3);
   });

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { legacyWeightIssues } from './assign.weights';
+import { weightIssues } from './assign.weights';
 
 // Zod cho REQUEST BODY cua module goi y phan cong. Quy tac khoang gia tri / tong = 1 nam o assign.weights.ts
 // (mot noi duy nhat, dung chung voi service va bo hoc trong so).
@@ -10,15 +10,16 @@ export const outcomeSchema = z.object({
 });
 export type OutcomeInput = z.infer<typeof outcomeSchema>;
 
-// Tu buoc 11 den buoc 16 (§17.6): API van nhan BA trong so (chua co thanh truot Ho so)
+// Tu buoc 16 (§17.6): bon trong so, du khoa (them Ho so)
 export const weightsSchema = z
   .object({
     experience: z.number(),
     reliability: z.number(),
     availability: z.number(),
+    declared: z.number(),
   })
   .superRefine((w, ctx) => {
-    for (const issue of legacyWeightIssues(w)) {
+    for (const issue of weightIssues(w)) {
       ctx.addIssue({ code: 'custom', message: issue.message, path: [issue.path] });
     }
   });
