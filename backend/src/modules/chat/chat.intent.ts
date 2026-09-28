@@ -9,6 +9,9 @@ import { z } from 'zod';
 export const MAX_QUESTION_CHARS = 500;
 /** Do dai toi da cua chuoi ten nguoi LLM tra ve. */
 export const MAX_MEMBER_CHARS = 80;
+/** Danh sach chinh phan trang 10 the; danh sach phu toi da 5 the (§6.3). */
+export const PAGE_SIZE = 10;
+export const SECTION_SIZE = 5;
 
 /** 5 y dinh tra loi duoc. */
 export const ANSWER_INTENTS = [

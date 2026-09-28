@@ -11,7 +11,14 @@ const sourceFiles = () => fs.readdirSync(ROOT).filter((f) => f.endsWith('.ts'));
 const read = (f: string) => stripComments(fs.readFileSync(path.join(ROOT, f), 'utf8'));
 
 /** Tep thuan: khong duoc keo CSDL / cau hinh / dich vu (bo danh gia chay khong can DB). */
-const PURE_FILES = ['chat.intent.ts', 'chat.members.ts', 'chat.rules.ts', 'chat.followup.ts'];
+const PURE_FILES = [
+  'chat.intent.ts',
+  'chat.members.ts',
+  'chat.rules.ts',
+  'chat.followup.ts',
+  'chat.priority.ts',
+  'chat.answer.ts',
+];
 
 // Cong cu ghi file co the doi chuoi thoat (backslash + u + 4 chu so) thanh KY TU THAT - NUL,
 // khoang trang do rong, dau to hop roi... Kiem ca tep nguon lan tep test cua chatbot.
@@ -51,11 +58,16 @@ describe('ky luat ma nguon module chatbot', () => {
   });
 
   it('tep thuan khong import CSDL / cau hinh / dich vu; chi chat.period duoc dung ai.service va ai.apply', () => {
+    const pureModules = new Set(PURE_FILES.map((f) => `./${f.replace(/\.ts$/, '')}`));
     for (const f of PURE_FILES) {
-      const imports = [...read(f).matchAll(/from\s+'([^']+)'/g)].map((m) => m[1]);
-      for (const spec of imports) {
-        const ok = spec === 'zod' || spec.startsWith('./chat.') || spec === '../ai/ai.rules' || spec === '../ai/ai.dates';
-        expect(ok, `${f} import ${spec}`).toBe(true);
+      for (const m of read(f).matchAll(/import\s+(type\s+)?[^;]*?from\s+'([^']+)'/g)) {
+        const typeOnly = m[1] !== undefined;
+        const spec = m[2];
+        // import type bi xoa luc chay -> lay kieu tu dau cung duoc (nhung van chi trong module chat)
+        const ok = typeOnly
+          ? spec.startsWith('./chat.')
+          : spec === 'zod' || pureModules.has(spec) || spec === '../ai/ai.rules' || spec === '../ai/ai.dates';
+        expect(ok, `${f} import ${typeOnly ? 'type ' : ''}${spec}`).toBe(true);
       }
     }
     for (const f of sourceFiles().filter((x) => x !== 'chat.period.ts')) {

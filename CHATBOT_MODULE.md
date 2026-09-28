@@ -6,9 +6,10 @@
 > nghĩa, con số và quy tắc ở đây là chuẩn mà code và test phải khớp. Đổi hợp
 > đồng thì sửa tài liệu này trước, ghi lý do vào nhật ký cuối file.
 >
-> Trạng thái: **xong bước 0–2** (tài liệu hợp đồng; lõi thuần: ý định/tham số, khoảng thời
-> gian, so khớp tên, bộ luật B0, câu nối tiếp; tầng phạm vi + quyền đọc + danh sách người trên
-> CSDL). Chưa có truy vấn công việc, API hay LLM. Lộ trình ở §17, nhật ký cuối file.
+> Trạng thái: **xong bước 0–3** (tài liệu hợp đồng; lõi thuần: ý định/tham số, khoảng thời
+> gian, so khớp tên, bộ luật B0, câu nối tiếp; tầng phạm vi + quyền đọc + danh sách người;
+> truy vấn số liệu + dựng câu trả lời theo mẫu). Chưa có API, phiên hội thoại hay LLM. Lộ
+> trình ở §17, nhật ký cuối file.
 
 ---
 
@@ -234,10 +235,10 @@ và nút câu hỏi gợi ý để xem đầy đủ.
 | intent + focus | Con số (facts) | Danh sách chính (phân trang) | Danh sách phụ (≤ 5) |
 |---|---|---|---|
 | `MY_TASKS` + focus bất kỳ | tổng khớp; trong đó quá hạn | thẻ khớp | — |
-| `MY_PRIORITIES` | quá hạn / hạn hôm nay / hạn trong 3 ngày / bị chặn | việc đang mở **không** bị chặn, kèm nhãn lý do (§6.6) | "Cần gỡ chặn" (thẻ `BLOCKED`) |
+| `MY_PRIORITIES` | tổng việc mở không bị chặn; trong đó quá hạn / hạn hôm nay / hạn trong 3 ngày; số việc bị chặn | việc đang mở **không** bị chặn, kèm nhãn lý do (§6.6) | "Cần gỡ chặn" (thẻ `BLOCKED`) |
 | `MEMBER_TASKS` + `NONE` | đang mở; quá hạn; hoàn thành trong kỳ | thẻ đang mở của người đó (không lọc ngày) | đã xong trong kỳ (mặc định tuần này; kỳ tương lai → tuần này) |
 | `MEMBER_TASKS` + focus X | tổng khớp | thẻ của người đó khớp X | — |
-| `TEAM_SUMMARY` + `NONE` | hoàn thành trong kỳ; đang mở; quá hạn; bị chặn; chưa giao chưa xong | — | đã hoàn thành; quá hạn; bị chặn |
+| `TEAM_SUMMARY` + `NONE` | hoàn thành trong kỳ (không có khi kỳ ở tương lai); đến hạn trong kỳ; đang mở; quá hạn; bị chặn; chưa giao chưa xong | — | đã hoàn thành (không có khi kỳ ở tương lai); quá hạn; bị chặn |
 | `TEAM_SUMMARY` + focus X | tổng khớp | thẻ của nhóm khớp X | — |
 | `TEAM_WORKLOAD` | chưa giao chưa xong; số lượt giao cho người ngoài danh sách | bảng theo người (§6.7) | — |
 
@@ -275,7 +276,10 @@ trước" một việc đang bị chặn.
   **một dòng** "N lượt giao cho người ngoài danh sách thành viên".
 - Chỉ **trưởng nhóm** (§7.3) thấy thêm hai cột: `maxParallelCards` và "tạm nghỉ đến"
   (`pausedUntil`, chỉ hiện khi còn trong tương lai), lấy từ `MemberWorkProfile` của
-  đúng workspace đó; người chưa có hồ sơ → "mặc định".
+  đúng workspace đó; người chưa có hồ sơ → "mặc định" (`capacity = null`). Với người không phải
+  trưởng nhóm, hai trường này **không có mặt** trong kết quả (không chỉ để trống).
+- Danh sách phụ "Đã hoàn thành" sắp **mới xong trước** (`completedAt` giảm dần); các danh sách
+  khác sắp theo hạn như danh sách chính.
 
 ## 7. Phạm vi và quyền
 
@@ -675,7 +679,7 @@ Mỗi bước một commit; bắt đầu khi được giao "làm bước N đi".
 | 0 | Tài liệu hợp đồng này | **xong** |
 | 1 | Lõi thuần: `chat.intent`, `chat.period`, `chat.members` (so khớp tên — chuyển lên từ bước 2 vì bộ luật cần), `chat.rules`, `chat.followup` + test canh giữ | **xong** |
 | 2 | Phạm vi (`chat.scope`): bảng đọc được, danh sách người lấy từ CSDL, trưởng nhóm + test CSDL phân quyền và nhận diện tên trên dữ liệu thật | **xong** |
-| 3 | Truy vấn, nhãn ưu tiên, dựng câu trả lời + test đối chiếu số liệu, > 200 thẻ | chưa |
+| 3 | Truy vấn, nhãn ưu tiên, dựng câu trả lời + test đối chiếu số liệu, > 200 thẻ | **xong** |
 | 4 | Phiên, dịch vụ, API, `chatLimiter` — chạy trọn vẹn **không cần LLM** | chưa |
 | 5 | Lớp LLM (tham số `format` cho `callLlm`, luật gộp, ngân sách) + nhận xét tổng kết | chưa |
 | 6 | Giao diện: nút Trợ lý, panel, bộ chọn phạm vi, hiển thị câu trả lời | chưa |
@@ -782,6 +786,46 @@ thừa trong `loadRoster` (`MY` luôn có `workspace = null`) thay vì viết te
 **Ghi nhận**: `listMyBoards` không có nhánh `ownerId` còn `listMyCards` (và chatbot) có — chỉ
 khác nhau với dữ liệu cũ thiếu dòng thành viên của chủ; có test ghi nhận chủ ý này.
 
-**Bước 3 cần**: `chat.queries.ts` (đếm + danh sách + `groupBy` theo người, dùng `liveCardWhere`
-ghép `AND`), `chat.priority.ts`, `chat.answer.ts`; test đối chiếu số liệu với phép đếm "ngây thơ"
-và `getWorkspaceOverview`, > 200 thẻ.
+### Đã xong — Bước 3: truy vấn số liệu + dựng câu trả lời (28/09/2026)
+
+**Tệp** (`backend/src/modules/chat/`):
+
+| Tệp | Nội dung |
+|---|---|
+| `chat.queries.ts` | `runQuery(ctx, truy vấn hiệu lực, {target, roster})` → `ListResult` (con số, danh sách chính 10 thẻ/trang sắp `dueDate asc nulls last, id`, danh sách phụ ≤ 5) hoặc `WorkloadResult` (dòng theo người bằng `cardMember.groupBy`, lượt giao cho người ngoài danh sách, chưa giao chưa xong, hồ sơ chỉ cho trưởng nhóm). Điều kiện luôn ghép `AND`; trường theo `select` tường minh (§6.3) |
+| `chat.priority.ts` | `priorityReason(dueDate, {now, tomorrow, day4})` — thuần, mốc truyền vào |
+| `chat.answer.ts` | `renderAnswer` + `renderClarifyMember` / `renderClarifyWorkspace` / `renderAskWho` / `renderMemberNotFound` / `renderUnsupported` — thuần, tiếng Việt có dấu; `ScopeInfo` tách khỏi điều kiện truy vấn |
+
+`PAGE_SIZE` / `SECTION_SIZE` chuyển vào `chat.intent.ts` để `chat.answer` (thuần) không kéo CSDL.
+`chat.guard.test.ts`: `chat.priority` và `chat.answer` thành tệp thuần; tệp thuần chỉ được import
+**giá trị** từ tệp thuần (import **kiểu** thì được lấy từ `chat.queries`).
+
+**Test**:
+- `chat.queries.test.ts` (6 ca, CSDL): **đối chiếu với phép đếm "ngây thơ"** — đọc lại toàn bộ CSDL
+  rồi lọc bằng vòng lặp JS theo đúng định nghĩa §6–§7 — trên 9 cặp (người hỏi × phạm vi) × (3 chủ thể
+  × 11 tổ hợp tình trạng/kỳ + 4 kỳ tổng quan) = 333 truy vấn: tổng, từng con số, **mọi thẻ qua mọi
+  trang**, cờ quá hạn, danh sách phụ; chốt chống "xanh giả" (mỗi tổ hợp đều có thẻ thật, > 5 danh sách
+  nhiều trang); 150 thẻ sinh tất định có thẻ nằm **đúng mốc** đầu khoảng; danh sách trường cho phép
+  (không mô tả / email / token, checklist x/y và người nhận đúng, tài khoản đã xoá không hiện tên);
+  nhãn ưu tiên đúng mốc 16:59:59.999Z / 17:00Z; 205 thẻ: 21 trang không trùng, phủ đủ, trang 22 rỗng;
+  số thẻ đang mở theo người khớp phép đếm, hồ sơ chỉ cho trưởng nhóm (không lẫn hồ sơ workspace khác,
+  tạm nghỉ đã qua không hiện); **khớp trang Tổng quan**: chưa xong = tổng − đã xong, quá hạn bằng nhau,
+  số bảng bằng nhau.
+- `chat.answer.test.ts` (7 ca, thuần): câu dẫn từng ý định + số 0; ưu tiên; con số / nhãn danh sách
+  phụ / ghi chú / gợi ý (gợi ý cho câu hỏi về một người **không chứa tên**); bảng theo người; **tính chất
+  trên 600 bộ số liệu ngẫu nhiên: mọi con số trong câu dẫn đều có trong số liệu đã tính**; hỏi lại /
+  không tìm thấy (không lộ sự tồn tại) / chưa hỗ trợ.
+
+**Cài lỗi**: 63 phép (40 truy vấn, 4 ưu tiên, 19 câu chữ) → lần đầu lọt 2 → thêm ca → **63/63**:
+Q39 (mục "Cần gỡ chặn" lấy cả thẻ bị chặn của người khác — dữ liệu mẫu chỉ có thẻ bị chặn của chính
+người hỏi), A16 (chưa có ca đúng 1 lượt giao cho người ngoài danh sách). Trước khi chạy đã tự thêm 5 ca
+mà đọc mã thấy test chưa phân biệt: thẻ đúng mốc đầu khoảng, thứ tự "mới xong trước", cờ quá hạn với
+thẻ đã xong, hồ sơ ở workspace khác, mặc định khi gọi `runQuery` không qua `resolveSlots`.
+
+**Bài học**: phép đếm "ngây thơ" viết bằng vòng lặp trên ảnh chụp CSDL là chốt chặn mạnh nhất cho
+tầng truy vấn — nó là test đầu tiên báo lỗi ở 26/40 phép cài lỗi truy vấn; nhưng nó chỉ mạnh bằng
+**dữ liệu sinh ra**: phép lọt đều do dữ liệu mẫu thiếu một kiểu thẻ (bị chặn của người khác), không do phép đếm sai.
+
+**Bước 4 cần**: `chat.session.ts`, `chat.service.ts` (nối: hiểu câu → câu nối tiếp → phạm vi → người →
+`resolveSlots` → `runQuery` → `renderAnswer`; các nhánh hỏi lại), `chat.schema.ts`, controller, routes,
+`chatLimiter`, gắn `/api/chat` vào `app.ts`; test API.
