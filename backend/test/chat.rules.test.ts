@@ -160,6 +160,13 @@ describe('parseByRules - cau hoi mau', () => {
       const r = parseByRules(q, TRAPS);
       expect([r.intent, r.member, r.period], q).toEqual(['MEMBER_TASKS', member, period]);
     }
+    // Ten nguoi chua tu khoa cua bo luat ("Trưởng Nhóm"): tu khoa dung mot minh khong la ten
+    const boss = [{ userId: 'boss', name: 'Trưởng Nhóm' }, { userId: 'viec', name: 'Lê Việc' }];
+    expect(parseByRules('Nhóm có việc nào quá hạn?', boss)).toEqual(P('TEAM_SUMMARY', null, 'OVERDUE'));
+    expect(parseByRules('Việc của tôi có gì?', boss)).toEqual(P('MY_TASKS'));
+    expect(parseByRules('Trưởng Nhóm có việc gì quá hạn?', boss)).toEqual(P('MEMBER_TASKS', null, 'OVERDUE', 'trưởng nhóm'));
+    expect(parseByRules('Lê Việc đang làm gì?', boss)).toEqual(P('MEMBER_TASKS', null, 'OPEN', 'lê việc'));
+
     // ten luu KHONG dau ("Tuan") co the la Tuấn/Tuân/Tuần... -> khop ca hai cach go, tang sau hoi lai
     expect(matchMember('tuan', TRAPS).kind).toBe('MANY');
     expect(matchMember('tuấn', TRAPS).kind).toBe('MANY');

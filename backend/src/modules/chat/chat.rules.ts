@@ -212,6 +212,12 @@ const TIME_MODS = new Set(['nay', 'sau', 'toi', 'truoc', 'qua', 'roi', 'kia', 'm
 const NUMBER_WORDS = new Set(['mot', 'hai', 'ba', 'bon', 'nam', 'sau', 'bay', 'tam', 'chin', 'muoi', 'may', 'vai']);
 const MAI_PREV = new Set(['ngay', 'sang', 'chieu', 'toi', 'trua', 'dem']);
 const SELF_FOLDS = new Set(['toi', 'minh', 'to', 'em']);
+/**
+ * Tu khoa cua chinh bo luat (nhom / viec / han...) dung MOT MINH khong bao gio la ten nguoi:
+ * nguoi ten "Trưởng Nhóm" khong duoc bien "Nhóm có việc nào quá hạn?" thanh cau hoi ve nguoi.
+ * Nhac ca ten nhieu tu ("Trưởng Nhóm có việc gì?") van nhan binh thuong.
+ */
+const KEYWORD_TOKENS = new Set(['nhom', 'team', 'viec', 'han', 'the', 'bang', 'workspace', 'moi', 'nguoi', 'ai', 'task', 'deadline', 'card']);
 const DIGITS_RE = /^[0-9]{1,4}$/;
 
 function isCapitalized(raw: string): boolean {
@@ -240,6 +246,7 @@ function acceptNameSpan(toks: Token[], s: number, e: number, questionPlain: bool
   if (single && (first.orig === 'mình' || first.orig === 'tôi' || first.orig === 'tớ')) return false;
   if (single && questionPlain && SELF_FOLDS.has(first.fold) && !capitalizedMid) return false;
   if (single && isHonorific(first) && !capitalizedMid && !(s === 0 && e === toks.length)) return false;
+  if (single && KEYWORD_TOKENS.has(first.fold)) return false;
 
   if (s === 0 && e === toks.length) return true; // ca cau chi la mot ten: "Lan?"
   if (prev && PRE_CUES.has(prev.fold)) return true;

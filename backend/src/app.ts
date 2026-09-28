@@ -38,6 +38,7 @@ import {
   recurringScheduleRoutes,
 } from './modules/card/recurringSchedule.routes';
 import { aiRoutes } from './modules/ai/ai.routes';
+import { chatRoutes } from './modules/chat/chat.routes';
 import {
   assignRunRoutes,
   cardAssignRoutes,
@@ -132,6 +133,7 @@ export function createApp() {
   app.use('/api/notifications', notificationRoutes);
   app.use('/api/unsplash', unsplashRoutes);
   app.use('/api/ai', aiRoutes);
+  app.use('/api/chat', chatRoutes);
   app.use('/api/public', publicBoardRoutes);
 
   // Khong khop route nao -> tra ve 404 dang JSON

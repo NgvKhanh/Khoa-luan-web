@@ -6,10 +6,10 @@
 > nghĩa, con số và quy tắc ở đây là chuẩn mà code và test phải khớp. Đổi hợp
 > đồng thì sửa tài liệu này trước, ghi lý do vào nhật ký cuối file.
 >
-> Trạng thái: **xong bước 0–3** (tài liệu hợp đồng; lõi thuần: ý định/tham số, khoảng thời
-> gian, so khớp tên, bộ luật B0, câu nối tiếp; tầng phạm vi + quyền đọc + danh sách người;
-> truy vấn số liệu + dựng câu trả lời theo mẫu). Chưa có API, phiên hội thoại hay LLM. Lộ
-> trình ở §17, nhật ký cuối file.
+> Trạng thái: **xong bước 0–4** — chatbot **chạy trọn vẹn qua API `/api/chat` bằng bộ luật**
+> (chưa có LLM, chưa có giao diện): hiểu câu (B0), câu nối tiếp, phạm vi + quyền đọc lại mỗi
+> lượt, nhận diện người + hỏi lại, truy vấn số liệu, câu trả lời theo mẫu, phiên hội thoại tạm,
+> "Xem thêm". Lộ trình ở §17, nhật ký cuối file.
 
 ---
 
@@ -305,7 +305,12 @@ hoặc bảng có `visibility = WORKSPACE` thuộc workspace mình đang là th�
 
 Phạm vi `MY` mà hỏi `MEMBER_TASKS`, `TEAM_SUMMARY`, `TEAM_WORKLOAD` → **hỏi lại**:
 "Bạn muốn xem trong workspace nào?" (nút chọn các workspace người dùng đang là
-thành viên). Quyền của workspace A không bao giờ dùng để xem workspace B.
+thành viên; chỉ có **một** workspace thì dùng luôn, không hỏi). Quyền của workspace A không
+bao giờ dùng để xem workspace B.
+
+Ở phạm vi `MY`, bộ luật nhận diện tên bằng danh sách người của **mọi** workspace người hỏi đang
+tham gia (`loadMyRoster`) — chỉ để biết "Lan" là tên người rồi hỏi lại chọn workspace; truy vấn
+thật luôn dùng danh sách của workspace được chọn.
 
 ### 7.3 Trưởng nhóm
 
@@ -358,7 +363,10 @@ Mọi vai trò đều bị giới hạn bởi quyền đọc bảng (§7.1).
    - hoặc cả câu chỉ là một tên ("Lan?"); hoặc tên **viết hoa giữa câu** ("Tuần này Lan thế nào?").
    - Loại trừ trước: cụm thời gian ("tuần sau", "năm nay", "tháng này", "3 tuần", "ngày/sáng/tối/đêm
      mai"); "mình/tôi/tớ" gõ có dấu; "minh/toi" khi **cả câu** gõ không dấu (trừ "Minh" viết hoa giữa
-     câu); từ xưng hô đứng một mình ("anh ấy" không phải tên "Tuấn Anh").
+     câu); từ xưng hô đứng một mình ("anh ấy" không phải tên "Tuấn Anh"); **từ khoá của chính bộ
+     luật** đứng một mình (nhóm, team, việc, hạn, thẻ, bảng, mọi, người, ai, task, deadline, card…) —
+     người tên "Trưởng Nhóm" không biến "Nhóm có việc nào quá hạn?" thành câu hỏi về người (nhắc cả
+     tên "Trưởng Nhóm có việc gì?" vẫn nhận).
    - Nhiều cụm hợp lệ → lấy cụm **dài nhất**, rồi **sớm nhất**.
 
    Có test riêng cho từng cặp dễ nhầm: tuần/Tuấn, mai/Mai, năm/Nam, an toàn/An, tháng/Thắng, mình/Minh.
@@ -382,8 +390,12 @@ biệt "không tồn tại" với "không có quyền" để không dò được
   hoặc id không tồn tại → coi như phiên mới (không báo lỗi làm lộ sự tồn tại).
 - Hết hạn sau **30 phút không hoạt động**; giới hạn **5 phiên/người**, **2000 phiên**
   toàn tiến trình (vượt thì bỏ phiên cũ nhất). Đồng hồ được tiêm vào để test.
-- Chỉ lưu: ý định, tham số, phạm vi, `userId` người đã chọn, câu hỏi lại đang chờ
-  (nếu có). **Không** lưu câu hỏi gốc, dữ liệu thẻ hay vai trò.
+- Chỉ lưu: ý định, tham số **người dùng đã nói** (trước khi điền mặc định), phạm vi, `userId`
+  người đã chọn, câu hỏi lại đang chờ (khi chờ chọn workspace thì giữ cả tên đã gõ để nhận
+  diện sau khi chọn), và truy vấn hiệu lực cuối (cho "Xem thêm"). **Không** lưu câu hỏi gốc,
+  dữ liệu thẻ hay vai trò.
+- Không đọc đồng hồ: mọi hàm nhận `nowMs` từ `chat.controller.ts` (tệp duy nhất của module đọc
+  đồng hồ) → test hết hạn bằng đồng hồ giả.
 - Máy chủ khởi động lại (hoặc `tsx watch` nạp lại) thì mất hết phiên → lượt sau
   trả `conversationReset: true`, giao diện báo "Trợ lý đã bắt đầu hội thoại mới".
 
@@ -542,10 +554,10 @@ Client **không** gửi vai trò, danh tính hay id người được nhắc.
 
 | Mã | Khi nào |
 |---|---|
-| 400 | Sai định dạng (Zod); `userId`/`workspaceId` ở `/choice` không thuộc lựa chọn đang chờ |
+| 400 | Sai định dạng (Zod, mọi object `strict`); `/choice`: "Lua chon khong hop le" (id không thuộc lựa chọn đang chờ / sai loại), "Khong co cau hoi lai nao dang cho"; `/more`: "Chua co cau tra loi nao de xem them" |
 | 401 | Chưa đăng nhập |
 | 403 | Không phải thành viên workspace; bảng chỉ xem được vì PUBLIC |
-| 404 | Không tìm thấy workspace/bảng; `/more` hoặc `/choice` với hội thoại không còn / không phải của mình (cùng một thông điệp) |
+| 404 | Không tìm thấy workspace/bảng; `/more` hoặc `/choice` với hội thoại không còn / không phải của mình (cùng một thông điệp "Hoi thoai da het han hoac khong ton tai, hay hoi lai"). Riêng `/messages` với mã như vậy thì **tạo phiên mới** + `conversationReset: true` |
 | 429 | Vượt `chatLimiter` |
 
 ## 13. Giao diện (tóm tắt hợp đồng)
@@ -680,7 +692,7 @@ Mỗi bước một commit; bắt đầu khi được giao "làm bước N đi".
 | 1 | Lõi thuần: `chat.intent`, `chat.period`, `chat.members` (so khớp tên — chuyển lên từ bước 2 vì bộ luật cần), `chat.rules`, `chat.followup` + test canh giữ | **xong** |
 | 2 | Phạm vi (`chat.scope`): bảng đọc được, danh sách người lấy từ CSDL, trưởng nhóm + test CSDL phân quyền và nhận diện tên trên dữ liệu thật | **xong** |
 | 3 | Truy vấn, nhãn ưu tiên, dựng câu trả lời + test đối chiếu số liệu, > 200 thẻ | **xong** |
-| 4 | Phiên, dịch vụ, API, `chatLimiter` — chạy trọn vẹn **không cần LLM** | chưa |
+| 4 | Phiên, dịch vụ, API, `chatLimiter` — chạy trọn vẹn **không cần LLM** | **xong** |
 | 5 | Lớp LLM (tham số `format` cho `callLlm`, luật gộp, ngân sách) + nhận xét tổng kết | chưa |
 | 6 | Giao diện: nút Trợ lý, panel, bộ chọn phạm vi, hiển thị câu trả lời | chưa |
 | 7 | Bộ đánh giá: bộ câu hỏi, 3 nhánh, chỉ số, báo cáo (chạy thử B0 không cần khoá) | chưa |
@@ -826,6 +838,45 @@ thẻ đã xong, hồ sơ ở workspace khác, mặc định khi gọi `runQuery
 tầng truy vấn — nó là test đầu tiên báo lỗi ở 26/40 phép cài lỗi truy vấn; nhưng nó chỉ mạnh bằng
 **dữ liệu sinh ra**: phép lọt đều do dữ liệu mẫu thiếu một kiểu thẻ (bị chặn của người khác), không do phép đếm sai.
 
-**Bước 4 cần**: `chat.session.ts`, `chat.service.ts` (nối: hiểu câu → câu nối tiếp → phạm vi → người →
-`resolveSlots` → `runQuery` → `renderAnswer`; các nhánh hỏi lại), `chat.schema.ts`, controller, routes,
-`chatLimiter`, gắn `/api/chat` vào `app.ts`; test API.
+### Đã xong — Bước 4: phiên + dịch vụ + API (29/09/2026)
+
+**Tệp mới** (`backend/src/modules/chat/`):
+
+| Tệp | Nội dung |
+|---|---|
+| `chat.session.ts` | `ChatSessionStore` (thuần, `nowMs` truyền vào): mã `randomUUID` gắn người dùng, hết hạn 30 phút không hoạt động (tính từ lần dùng cuối), ≤ 5 phiên/người, ≤ 2000 phiên — đầy thì bỏ phiên **dùng lâu nhất**; `scopeKeyOf`; kho dùng chung `chatSessions` |
+| `chat.service.ts` | `handleMessage` / `handleChoice` / `handleMore` / `getChatStatus`. Bộ "hiểu câu hỏi" **tiêm vào** (`Understand`; bước 4 = `understandByRules`) — nhận câu hỏi + danh sách người + ngữ cảnh, **không** nhận dữ liệu thẻ. Kiểm phạm vi **trước** khi mở phiên (sai quyền thì không để lại gì) |
+| `chat.schema.ts` | Zod `strict` cho 3 thân yêu cầu (câu hỏi 1..500 ký tự sau `trim`; `/choice` đúng một trong `userId` / `workspaceId`; `/more` trang ≥ 2) |
+| `chat.controller.ts` | Tệp **duy nhất** đọc đồng hồ (`now: new Date()`) |
+| `chat.routes.ts` | `GET /status`; `POST /messages`, `/messages/choice`, `/messages/more` — `requireAuth` → `chatLimiter` → `validateBody` |
+
+**Sửa**: `chat.scope.ts` thêm `loadMyRoster`; `rateLimit.middleware.ts` thêm `chatLimiter` (60/10 phút/người);
+`app.ts` gắn `/api/chat`; `chat.rules.ts` thêm luật "từ khoá của bộ luật đứng một mình không là tên".
+
+**Test**: `chat.session.test.ts` (3 ca, thuần — hạn tính từ lần dùng cuối, biên đúng 30 phút, bỏ phiên dùng lâu
+nhất theo người và toàn kho); `chat.api.test.ts` (10 ca, HTTP thật): 401 / 400 (kể cả gửi kèm `role`, `userId`);
+việc cá nhân → câu nối tiếp → "Xem thêm" (13 thẻ, 2 trang, không trùng) → đổi phạm vi thì mất ngữ cảnh + mất
+truy vấn cũ; trùng tên → "Ý bạn là ai?" → chọn sai / tự chọn mình / chọn lại → 400, chọn đúng → trả lời, câu nối
+tiếp giữ người, câu mới (kể cả câu chưa hỗ trợ) bỏ câu hỏi lại, người rời workspace giữa hai lượt → "không tìm thấy"
+(cả ở "Xem thêm"); phạm vi cá nhân hỏi nhóm / người → chọn workspace (một workspace thì dùng luôn); ngữ cảnh giữ
+tham số **người dùng đã nói** ("đã xong" → "còn chưa xong?" ra **mọi** việc chưa xong, không bị mặc định tuần này
+dính theo); trưởng nhóm thấy giới hạn song song, thành viên không; thu hồi quyền giữa hai lượt (cả ở "Xem thêm") →
+403; bảng PUBLIC 403, bảng lưu trữ 404, workspace khác 403; mã hội thoại của người khác → phiên mới +
+`conversationReset`, `/more` và `/choice` → 404, phiên của chủ vẫn nguyên; **không có `console` nào chứa câu hỏi**
+(kể cả khi 403 / 400); hết hạn phiên + khởi động lại bằng đồng hồ giả; bộ hiểu câu tiêm vào không thấy dữ liệu thẻ;
+thiếu tên → "Bạn muốn hỏi về ai?"; 61 lượt → 429, người khác không bị ảnh hưởng (ca cuối tệp).
+
+**Lỗi thật tìm ra**: bộ luật B0 hiểu "Nhóm có việc nào quá hạn?" thành câu hỏi về **người** khi trong nhóm có người
+tên "Trưởng Nhóm" (đuôi tên "Nhóm" + dấu hiệu "có" ngay sau) → luật mới ở §8.2 bước 6, có test riêng.
+
+**Cài lỗi**: 42 phép (22 dịch vụ, 9 phiên, 7 schema, 1 danh sách người phạm vi cá nhân, 2 giới hạn lượt, 1 luật từ
+khoá) → lần đầu lọt 1 (V9: bỏ "câu hỏi mới xoá câu hỏi lại đang chờ" — test chỉ gửi câu mới **được trả lời**, mà
+`answerQuestion` tự xoá lại; chỉ lộ ra khi câu mới **chưa hỗ trợ**) → thêm ca → **42/42**.
+
+**Kiểm trên máy chủ thật**: container backend (bind-mount + `tsx watch`) **không** tự nạp lại khi sửa tệp từ Windows
+(sự kiện đổi tệp không qua được bind-mount) → phải `docker restart taskflow-backend`; sau đó `/api/chat/*` trả 401
+khi chưa đăng nhập (route đã gắn).
+
+**Bước 5 cần**: tham số `format` cho `callLlm` (giữ mặc định lược đồ kế hoạch bảng, chạy lại toàn bộ test module
+AI), `chat.llm.ts` (prompt, parse, luật gộp B2, ngân sách chung 10 lượt/phút, timeout 8 giây, nhớ mức ép JSON),
+`chat.summary.ts` (nhận xét tổng kết + kiểm tra), thay `understandByRules` bằng bản lai, `getChatStatus` báo thật.

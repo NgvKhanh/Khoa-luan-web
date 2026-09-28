@@ -18,7 +18,10 @@ const PURE_FILES = [
   'chat.followup.ts',
   'chat.priority.ts',
   'chat.answer.ts',
+  'chat.session.ts',
 ];
+/** Tep DUY NHAT duoc doc dong ho; moi tang duoi nhan `now` qua tham so. */
+const CLOCK_FILE = 'chat.controller.ts';
 
 // Cong cu ghi file co the doi chuoi thoat (backslash + u + 4 chu so) thanh KY TU THAT - NUL,
 // khoang trang do rong, dau to hop roi... Kiem ca tep nguon lan tep test cua chatbot.
@@ -50,7 +53,8 @@ describe('ky luat ma nguon module chatbot', () => {
         /\.(get|set)(Date|Day|Month|FullYear|Hours|Minutes|Seconds|Milliseconds|TimezoneOffset)\s*\(/
       );
       expect(src, `${f} dung toLocale*String`).not.toMatch(/toLocale\w*String/);
-      expect(src, `${f} doc dong ho`).not.toMatch(/Date\.now\s*\(|new\s+Date\s*\(\s*\)|performance\.now/);
+      expect(src, `${f} doc dong ho`).not.toMatch(/Date\.now\s*\(|performance\.now/);
+      if (f !== CLOCK_FILE) expect(src, `${f} doc dong ho`).not.toMatch(/new\s+Date\s*\(\s*\)/);
       // §3: khong ghi log noi dung cau hoi / cau tra loi
       expect(src, `${f} co console`).not.toMatch(/\bconsole\./);
       expect(src, `${f} doc process.env`).not.toMatch(/process\.env/);
@@ -66,10 +70,16 @@ describe('ky luat ma nguon module chatbot', () => {
         // import type bi xoa luc chay -> lay kieu tu dau cung duoc (nhung van chi trong module chat)
         const ok = typeOnly
           ? spec.startsWith('./chat.')
-          : spec === 'zod' || pureModules.has(spec) || spec === '../ai/ai.rules' || spec === '../ai/ai.dates';
+          : spec === 'zod' ||
+            spec === 'node:crypto' ||
+            pureModules.has(spec) ||
+            spec === '../ai/ai.rules' ||
+            spec === '../ai/ai.dates';
         expect(ok, `${f} import ${typeOnly ? 'type ' : ''}${spec}`).toBe(true);
       }
     }
+    // Dong ho: chi controller; va controller phai that su la noi tao `now` cho dich vu
+    expect(read(CLOCK_FILE)).toMatch(/now:\s*new Date\(\)/);
     for (const f of sourceFiles().filter((x) => x !== 'chat.period.ts')) {
       expect(read(f), f).not.toMatch(/ai\.service|ai\.apply/);
     }

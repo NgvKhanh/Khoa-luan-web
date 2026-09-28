@@ -149,6 +149,17 @@ export async function loadRoster(scope: ResolvedScope): Promise<RosterMember[]> 
   return activeUsers(ids);
 }
 
+/**
+ * Danh sach nguoi dung de NHAN DIEN ten o pham vi MY: chu + thanh vien hien tai cua MOI khong
+ * gian nguoi hoi dang tham gia. Chi de bo luat biet "Lan" la ten nguoi roi hoi lai chon khong
+ * gian (§7.2) - truy van that van chi dung danh sach cua khong gian duoc chon. Chi o server.
+ */
+export async function loadMyRoster(userId: string): Promise<RosterMember[]> {
+  const wsIds = await memberWorkspaceIds(userId);
+  const people = await Promise.all(wsIds.map((id) => workspacePeople(id)));
+  return activeUsers(people.flat());
+}
+
 /** Lua chon khi hoi lai "Ban muon xem trong workspace nao?" (§7.2): khong gian nhom truoc, ca nhan sau. */
 export async function listChoosableWorkspaces(userId: string): Promise<ScopeWorkspace[]> {
   const ids = await memberWorkspaceIds(userId);

@@ -128,6 +128,20 @@ export const cvUploadLimiter = rateLimit({
   message: TOO_MANY,
 });
 
+/**
+ * Chatbot tro ly (moi POST /api/chat/*: hoi, tra loi cau hoi lai, xem them): 60 lan / user / 10 phut.
+ * Rieng luot goi LLM con bi ngan sach CHUNG cua ca tien trinh o chat.llm (buoc 5) - vuot thi
+ * chatbot tu dung bo luat, khong tra 429.
+ */
+export const chatLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 60,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: byUser,
+  message: TOO_MANY,
+});
+
 /** Ap dung ke hoach thanh bang that (khong goi LLM, nhe hon): 30 lan / user / 10 phut. */
 export const aiApplyLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
