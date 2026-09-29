@@ -20,3 +20,7 @@ node_modules
 
 # Du lieu tho khi chay danh gia thanh phan Ho so (src/scripts/evalDeclared.ts); bao cao .md thi COMMIT
 /eval-declared-*.json
+
+# Bo dem phan hoi tho cua LLM + du lieu tho khi chay danh gia chatbot (src/scripts/evaluateChat.ts); bao cao .md thi COMMIT
+/.chat-eval-cache
+/eval-chat-*.json

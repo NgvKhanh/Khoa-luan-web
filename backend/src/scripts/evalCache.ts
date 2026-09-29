@@ -11,7 +11,8 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { LlmMessages, LlmResult } from '../modules/ai/ai.llm';
-import type { Arm } from './evalArms';
+/** Ten nhanh / loai goi (module sinh bang: rule|hybrid|llm-only...; chatbot: chat-intent). */
+type Arm = string;
 
 export interface CacheInfo {
   arm: Arm;

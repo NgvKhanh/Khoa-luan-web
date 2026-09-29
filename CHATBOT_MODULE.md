@@ -6,11 +6,12 @@
 > nghĩa, con số và quy tắc ở đây là chuẩn mà code và test phải khớp. Đổi hợp
 > đồng thì sửa tài liệu này trước, ghi lý do vào nhật ký cuối file.
 >
-> Trạng thái: **xong bước 0–6** — chatbot chạy trọn vẹn qua API `/api/chat` và **giao diện** (nút
+> Trạng thái: **xong bước 0–7** — chatbot chạy trọn vẹn qua API `/api/chat` và **giao diện** (nút
 > Trợ lý trên Header, panel bên phải): hiểu câu bằng **bộ luật + LLM** (gộp B2; thiếu khoá / LLM lỗi /
 > hết ngân sách → bộ luật), câu nối tiếp, phạm vi + quyền đọc lại mỗi lượt, nhận diện người + hỏi lại,
 > truy vấn số liệu, câu trả lời theo mẫu, nhận xét AI cho tổng kết nhóm (có kiểm tra), phiên hội thoại
-> tạm, "Xem thêm". Còn: bộ đánh giá (bước 7–8), nghiệm thu (bước 9). Lộ trình ở §17, nhật ký cuối file.
+> tạm, "Xem thêm"; bộ đánh giá 3 nhánh đã dựng (B0 chạy thử trên tập dev). Còn: chạy chính thức với Gemini (bước 8),
+> nghiệm thu (bước 9). Lộ trình ở §17, nhật ký cuối file.
 
 ---
 
@@ -641,6 +642,18 @@ Client **không** gửi vai trò, danh tính hay id người được nhắc.
   So sau `resolveSlots` để tham số "không quan trọng" (ví dụ `period` của `TEAM_WORKLOAD`) không
   làm sai lệch điểm; `ignoredSlots` được chấm riêng.
 - Chia cố định theo id **dev ~30 / test ~60** trước khi chạy; đóng băng bằng sha256.
+- **Chốt khi dựng (bước 7)**: 98 câu / 8 nhóm (việc của tôi 13, ưu tiên 11, một thành viên 21, tổng kết nhóm 13, số
+  việc từng người 11, nối tiếp 14, ngoài phạm vi / thao tác 9, chèn lệnh 6); **dev = câu thứ 1, 4, 7… của mỗi nhóm**
+  (35 dev / 63 test, mỗi nhóm và cả 6 nhãn đều có ở hai tập); danh sách 12 người (`EVAL_ROSTER`) có "Nguyễn Thị Lan" /
+  "Trần Lan" và các tên trùng từ thường Tuấn, Mai, Nam, An, Bình, Minh, Thắng, Huy. Đánh giá ở phạm vi **một workspace**:
+  câu hỏi lại "workspace nào?" do phạm vi quyết định, không do hiểu câu → không nằm trong phép đo.
+- **Nhãn vàng** là một trong: truy vấn `{intent, period, focus, member, ignored}` ở dạng chuẩn (điểm bất động của
+  `resolveSlots` — có test), `UNSUPPORTED`, `ASK_WHO` (hỏi về một người mà không nêu tên), `CLARIFY_MEMBER` (kèm đúng tập
+  ứng viên), `MEMBER_NOT_FOUND`. Nhánh B1 có thêm kết quả `LLM_FAILED` (sai mọi trường).
+- Nhãn ý định cho macro-F1 / ma trận nhầm: `ASK_WHO`, `CLARIFY_MEMBER`, `MEMBER_NOT_FOUND` đều là `MEMBER_TASKS`;
+  `LLM_FAILED` là một cột dự đoán riêng (giảm recall, không cộng precision nhãn nào).
+- Đường xử lý của bộ đánh giá (`chatEvalCore.outcomeOf`) có test đối chiếu với `handleMessage` thật trên CSDL cho cả 98 câu
+  (bộ luật) + 12 kết quả hiểu câu kiểu LLM tiêm vào — hai bên phải cho cùng một kết quả.
 
 ### 14.3 Ba nhánh
 
@@ -657,7 +670,7 @@ quota gấp đôi, và phần chênh lệch chỉ do luật gộp. Không nhánh
 
 - Độ chính xác ý định; macro-F1 trên 6 nhãn; ma trận nhầm.
 - Khớp từng tham số (`period`, `focus`, người) và **khớp hoàn toàn** cả bốn trường.
-- Tỉ lệ hỏi lại đúng (câu trùng tên, câu thiếu workspace).
+- Tỉ lệ hỏi lại đúng (câu trùng tên, câu hỏi về một người mà không nêu tên; câu thiếu workspace không đo — xem §14.2).
 - Tỉ lệ lỗi LLM theo loại; độ trễ p50/p95; token vào/ra.
 - Khoảng tin cậy 95% bootstrap theo câu hỏi; chênh lệch **cặp** B1−B0 và B2−B1.
 
@@ -737,7 +750,7 @@ Mỗi bước một commit; bắt đầu khi được giao "làm bước N đi".
 | 4 | Phiên, dịch vụ, API, `chatLimiter` — chạy trọn vẹn **không cần LLM** | **xong** |
 | 5 | Lớp LLM (tham số `format` cho `callLlm`, luật gộp, ngân sách) + nhận xét tổng kết | **xong** |
 | 6 | Giao diện: nút Trợ lý, panel, bộ chọn phạm vi, hiển thị câu trả lời | **xong** |
-| 7 | Bộ đánh giá: bộ câu hỏi, 3 nhánh, chỉ số, báo cáo (chạy thử B0 không cần khoá) | chưa |
+| 7 | Bộ đánh giá: bộ câu hỏi, 3 nhánh, chỉ số, báo cáo (chạy thử B0 không cần khoá) | **xong** |
 | 8 | Chạy chính thức với Gemini thật (cần khoá API mới) | chưa |
 | 9 | Nghiệm thu theo §15, thử trên trình duyệt, cập nhật tài liệu | chưa |
 
@@ -1039,3 +1052,52 @@ không gian; bảng theo người có cột trưởng nhóm), hỏi lại trùng
   là bước không thay được — và mỗi lỗi tìm ra phải thành một test (đã làm) để không quay lại.
 - Câu gợi ý là **đầu vào** của hệ thống, không chỉ là chữ hiển thị: mọi chuỗi hệ thống tự đưa cho người dùng bấm phải đi
   qua đúng đường người dùng gõ.
+
+### Đã xong — Bước 7: bộ đánh giá (29/09/2026)
+
+**Tệp** (`backend/src/scripts/`, chạy bằng `npx tsx` — không thêm lệnh vào `package.json` vì tệp đó đang có dòng
+`seed:team` chưa commit của phiên khác):
+
+| Tệp | Nội dung |
+|---|---|
+| `chatEvalDataset.ts` | 98 câu có nhãn vàng (§14.2), `EVAL_ROSTER` 12 người, ngữ cảnh vàng cho câu nối tiếp, chia dev/test cố định |
+| `chatEvalCore.ts` | Hàm thuần: `outcomeOf` (đường xử lý chung — `applyFollowUp` → `resolveSlots` → nhận diện người), `armParse` / `runArm` (B0 luật; B1 LLM, lỗi → `LLM_FAILED`; B2 `mergeParsed`, lỗi → luật), `scoreItem` (ý định, thời gian, tình trạng, người, khớp hoàn toàn, tham số bỏ qua, hỏi lại), ma trận nhầm, macro-F1, điểm theo câu, KTC 95% bootstrap theo câu + so sánh cặp (dùng lại `evalAssignStats`) |
+| `chatEvalReport.ts` | Báo cáo markdown: tổng quan theo nhánh, so sánh cặp B1−B0 / B2−B1 / B2−B0, F1 theo nhãn, ma trận nhầm, theo nhóm câu / loại khó (gõ không dấu, nối tiếp, trùng tên, kỳ chưa hỗ trợ…), lớp LLM (lỗi theo loại, mức ép JSON, độ trễ p50/p95, token), danh sách câu sai |
+| `evaluateChat.ts` | Lệnh chạy: `--arm=B0|B1|B2|all --split=dev|test|all --runs --delay --items --out --cache-dir`; **một** lượt gọi LLM cho mỗi (câu, lần chạy) dùng chung cho B1 và B2; cấu hình = cấu hình sản phẩm (`defaultChatLlm`, timeout 8 giây, nhớ mức ép JSON); bộ đệm `.chat-eval-cache` (khoá gồm endpoint + model + lần chạy + nội dung prompt); gặp 429 thì dừng, báo cáo phần đã đủ ở mọi nhánh, thoát mã 2; ghi phiên bản bộ dữ liệu / prompt / luật (sha256 rút gọn) vào báo cáo |
+
+**Sửa**: `evalCache.ts` (tên nhánh là chuỗi — dùng chung cho chatbot), `backend/.gitignore` (`/.chat-eval-cache`,
+`/eval-chat-*.json`).
+
+**Test** `backend/test/chat.eval.test.ts` (13 ca): cấu trúc + chia tập; danh sách người (trùng "Lan", tên trùng từ thường
+nhận diện được); nhãn vàng ở **dạng chuẩn** (điểm bất động của `resolveSlots`), người / ứng viên / ngữ cảnh thuộc danh
+sách, cả 6 nhãn có ở hai tập; **không câu nào trùng ví dụ trong prompt**; **đóng băng sha256**; `outcomeOf` đủ 5 loại kết
+quả; ba nhánh; `scoreItem`; macro-F1 + ma trận nhầm tính tay (LLM lỗi giảm recall, không cộng precision); điểm theo câu,
+KTC tất định, so sánh cặp đúng dấu; báo cáo; tham số dòng lệnh; và **đường xử lý của bộ đánh giá trùng dịch vụ thật**:
+`outcomeOf(parseByRules(câu))` = kết quả `handleMessage` (CSDL thật, phạm vi workspace, ngữ cảnh vàng đặt vào phiên) cho
+cả 98 câu + 12 kết quả hiểu câu kiểu LLM tiêm vào (xưng hô, tên kèm "ơi", câu nối tiếp giữ / đổi người, tự nhắc mình, tên
+ở câu hỏi số việc…), có chốt đã đi qua đủ 5 loại kết quả.
+
+**Chạy thử B0 trên tập dev** (không cần khoá; tập test **chưa** chạy — để dành đúng một lần ở bước 8):
+
+| Chỉ số | B0 (35 câu dev) |
+|---|---|
+| Đúng ý định | 85,7% (30/35), macro-F1 0,856 |
+| Thời gian / tình trạng / người | 96,2% / 92,3% / 81,8% |
+| **Khớp hoàn toàn** | **82,9% (29/35)**, KTC 95% [68,6%; 94,3%] |
+| Tham số bỏ qua đúng / hỏi lại đúng | 100% (22/22) / 75% (3/4) |
+
+6 câu sai — 5 câu đã gắn nhãn "khó với luật" từ khi soạn: "việc nào cần làm **gấp**?" (không có "gấp nhất"), "**người
+đó** đang làm việc gì?" (không nêu tên → phải hỏi "ai?"), "**số việc của từng thành viên**" (thiếu cụm "mọi người"), "vậy
+**anh ấy** đã xong những gì?" (xưng hô không trỏ được người), câu chèn lệnh có chữ "TEAM_WORKLOAD" (từ "team" bị hiểu là
+nhóm); câu còn lại "tuần sau có những việc nào **đến hạn**?" (bộ luật không coi "đến hạn" là tình trạng chưa xong).
+Đây là đúng các giới hạn đã ghi ở §10.1 — bước 8 đo xem LLM (B1) và luật gộp (B2) bù được bao nhiêu.
+
+**Cài lỗi**: 33 phép (20 lõi chấm điểm, 6 báo cáo, 5 tham số dòng lệnh, 2 bộ dữ liệu) → lần đầu lọt 1 (E18: tỉ lệ tính cả ô
+"không áp dụng" vào mẫu số — chưa ca nào kiểm mẫu số của chỉ số người / hỏi lại / tham số bỏ qua) → thêm kỳ vọng → **33/33**.
+
+**Bài học**: phép đối chiếu "bộ đánh giá = sản phẩm" trên CSDL thật là chốt quan trọng nhất của bước này — nếu đường xử lý
+của bộ đánh giá lệch sản phẩm dù một chi tiết (thứ tự nhận diện người / điền mặc định, cách xử lý người đã chọn không còn
+trong danh sách…), mọi con số ở chương đánh giá sẽ đo một hệ thống không tồn tại. Phép đối chiếu phải đi qua **đủ mọi loại
+kết quả**, kể cả loại bộ luật không bao giờ sinh ra (nên có thêm kết quả kiểu LLM tiêm vào).
+
+**Toàn bộ test backend**: 107 tệp / 1192 test xanh (thêm 13); `tsc`, `eslint` sạch.
