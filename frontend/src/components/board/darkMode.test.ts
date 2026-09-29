@@ -1,10 +1,13 @@
 import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const DIR = join(process.cwd(), 'src/components/board');
-const FILES = readdirSync(DIR).filter(
-  (f) => f.endsWith('.tsx') && !f.endsWith('.test.tsx')
+// Vung bang + panel tro ly (CHATBOT_MODULE.md §13: tro ly ho tro che do toi).
+const DIRS = ['src/components/board', 'src/components/assistant'].map((d) => join(process.cwd(), d));
+const FILES = DIRS.flatMap((dir) =>
+  readdirSync(dir)
+    .filter((f) => f.endsWith('.tsx') && !f.endsWith('.test.tsx'))
+    .map((f) => join(dir, f))
 );
 
 /**
@@ -34,7 +37,7 @@ describe('Che do toi cua vung bang', () => {
   it('khong co doan class nao chua hai bien the dark: cung thuoc tinh', () => {
     const conflicts: string[] = [];
     for (const file of FILES) {
-      for (const run of classRuns(readFileSync(join(DIR, file), 'utf8'))) {
+      for (const run of classRuns(readFileSync(file, 'utf8'))) {
         if (!run.includes('dark:')) continue;
         const byKey = new Map<string, string[]>();
         for (const token of run.split(/\s+/)) {
@@ -44,7 +47,7 @@ describe('Che do toi cua vung bang', () => {
         }
         for (const [, tokens] of byKey) {
           if (tokens.length > 1) {
-            conflicts.push(`${file}: ${tokens.join(' vs ')}`);
+            conflicts.push(`${basename(file)}: ${tokens.join(' vs ')}`);
           }
         }
       }
@@ -54,10 +57,25 @@ describe('Che do toi cua vung bang', () => {
 
   it('cac be mat sang cua bang deu co mau tuong ung cho nen toi', () => {
     const missing = FILES.filter((file) => {
-      const src = readFileSync(join(DIR, file), 'utf8');
+      const src = readFileSync(file, 'utf8');
       const usesLightSurface = /\bbg-white\b(?!\/)|bg-\[#f1f2f4\]/.test(src);
       return usesLightSurface && !src.includes('dark:bg-slate-');
-    });
+    }).map((file) => basename(file));
     expect(missing).toEqual([]);
+  });
+
+  it('panel tro ly: MOI doan class co nen sang (bg-white) deu tu mang mau nen toi (khong dua vao cho khac trong tep)', () => {
+    const missing: string[] = [];
+    for (const file of FILES.filter((f) => f.includes('assistant'))) {
+      for (const run of classRuns(readFileSync(file, 'utf8'))) {
+        if (/(^|\s)bg-white(\s|$)/.test(run) && !/(^|\s)dark:bg-/.test(run)) missing.push(`${basename(file)}: ${run.trim().slice(0, 60)}`);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it('quet ca vung bang lan panel tro ly (chot chong "xanh gia" khi doi thu muc)', () => {
+    const names = FILES.map((f) => basename(f));
+    expect(names).toEqual(expect.arrayContaining(['CardModal.tsx', 'AssistantPanel.tsx', 'AnswerView.tsx', 'ScopePicker.tsx', 'AssistantButton.tsx']));
   });
 });

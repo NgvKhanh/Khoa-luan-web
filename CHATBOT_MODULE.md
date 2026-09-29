@@ -6,11 +6,11 @@
 > nghĩa, con số và quy tắc ở đây là chuẩn mà code và test phải khớp. Đổi hợp
 > đồng thì sửa tài liệu này trước, ghi lý do vào nhật ký cuối file.
 >
-> Trạng thái: **xong bước 0–5** — chatbot chạy trọn vẹn qua API `/api/chat`: hiểu câu bằng
-> **bộ luật + LLM** (gộp B2; thiếu khoá / LLM lỗi / hết ngân sách → bộ luật), câu nối tiếp, phạm vi
-> + quyền đọc lại mỗi lượt, nhận diện người + hỏi lại, truy vấn số liệu, câu trả lời theo mẫu,
-> nhận xét AI cho tổng kết nhóm (có kiểm tra), phiên hội thoại tạm, "Xem thêm". Chưa có giao
-> diện. Lộ trình ở §17, nhật ký cuối file.
+> Trạng thái: **xong bước 0–6** — chatbot chạy trọn vẹn qua API `/api/chat` và **giao diện** (nút
+> Trợ lý trên Header, panel bên phải): hiểu câu bằng **bộ luật + LLM** (gộp B2; thiếu khoá / LLM lỗi /
+> hết ngân sách → bộ luật), câu nối tiếp, phạm vi + quyền đọc lại mỗi lượt, nhận diện người + hỏi lại,
+> truy vấn số liệu, câu trả lời theo mẫu, nhận xét AI cho tổng kết nhóm (có kiểm tra), phiên hội thoại
+> tạm, "Xem thêm". Còn: bộ đánh giá (bước 7–8), nghiệm thu (bước 9). Lộ trình ở §17, nhật ký cuối file.
 
 ---
 
@@ -594,6 +594,22 @@ Client **không** gửi vai trò, danh tính hay id người được nhắc.
 - Bộ chọn phạm vi **Việc của tôi / Workspace / Bảng**; mặc định theo trang đang mở
   (trang bảng → Bảng; `/workspaces/:id` → Workspace; còn lại → Việc của tôi). Đổi phạm vi
   giữa hội thoại → lượt sau không kế thừa ngữ cảnh.
+  - Phạm vi chỉ **đi theo trang** khi hội thoại còn rỗng và người dùng chưa tự chọn; đã hỏi rồi thì
+    **giữ nguyên** (bấm liên kết thẻ sang trang bảng không được tự đổi phạm vi, nếu không câu nối tiếp
+    "còn tuần sau?" sẽ mất ngữ cảnh). "Hội thoại mới" → phạm vi lại theo trang.
+  - "Workspace" mặc định: workspace của trang, rồi workspace của bảng đang mở, rồi workspace đang
+    chọn ở Header. "Bảng" chỉ chọn được khi đang ở trang một bảng.
+- "Xem thêm" chỉ có ở **lượt mới nhất** (server chỉ nhớ truy vấn cuối); nút hỏi lại cũng chỉ bấm
+  được ở lượt mới nhất (câu hỏi mới huỷ câu hỏi lại đang chờ, §9.3).
+- Panel chưa mở lần nào thì không gọi API nào; `GET /status` gọi một lần khi mở lần đầu.
+- Esc đóng panel chỉ khi con trỏ đang ở trong panel **và** không có hộp thoại `aria-modal="true"` nào
+  khác đang mở; bấm ra ngoài không đóng. Bấm liên kết thẻ thì bỏ focus khỏi liên kết (thẻ mở ra nghe Esc
+  ở `document` — con trỏ còn trong panel thì Esc sẽ đóng panel thay vì đóng thẻ). Enter gửi,
+  Shift+Enter xuống dòng, Enter lúc bộ gõ tiếng Việt đang ghép chữ (IME) không gửi.
+- Lớp hiển thị: panel `z-[35]` — trên nội dung trang và lớp phủ `z-30`, **dưới** mọi menu / popover
+  `z-40` (menu tài khoản, "Tạo mới") và modal `z-50` (CardModal).
+- Giờ hiển thị (hạn, thời điểm truy vấn) theo **giờ Việt Nam**, khớp định nghĩa "hôm nay / tuần
+  này" của server (§5), không theo múi giờ máy người xem.
 - Mỗi câu trả lời hiện: dòng "Trợ lý hiểu là: …", phạm vi, thời điểm truy vấn, con số,
   danh sách thẻ (trạng thái, hạn, checklist x/y, liên kết), "Xem thêm", nút hỏi lại,
   câu hỏi gợi ý; nhận xét AI nằm ô riêng.
@@ -720,7 +736,7 @@ Mỗi bước một commit; bắt đầu khi được giao "làm bước N đi".
 | 3 | Truy vấn, nhãn ưu tiên, dựng câu trả lời + test đối chiếu số liệu, > 200 thẻ | **xong** |
 | 4 | Phiên, dịch vụ, API, `chatLimiter` — chạy trọn vẹn **không cần LLM** | **xong** |
 | 5 | Lớp LLM (tham số `format` cho `callLlm`, luật gộp, ngân sách) + nhận xét tổng kết | **xong** |
-| 6 | Giao diện: nút Trợ lý, panel, bộ chọn phạm vi, hiển thị câu trả lời | chưa |
+| 6 | Giao diện: nút Trợ lý, panel, bộ chọn phạm vi, hiển thị câu trả lời | **xong** |
 | 7 | Bộ đánh giá: bộ câu hỏi, 3 nhánh, chỉ số, báo cáo (chạy thử B0 không cần khoá) | chưa |
 | 8 | Chạy chính thức với Gemini thật (cần khoá API mới) | chưa |
 | 9 | Nghiệm thu theo §15, thử trên trình duyệt, cập nhật tài liệu | chưa |
@@ -960,3 +976,66 @@ khởi động lại — lần khởi động tới, chatbot sẽ gọi LLM bằ
   nhưng với danh sách tên thật thì gần như luôn kích hoạt — một bộ lọc luôn từ chối thì tương đương tắt tính năng.
 - "Nhớ mức ép JSON khi thất bại?" phải tách hai loại thất bại: nhà cung cấp **từ chối định dạng** (HTTP 400) khác với
   **mô hình trả sai hình dạng** (HTTP 200) — test đầu tiên của tôi kỳ vọng sai ở điểm này.
+
+### Đã xong — Bước 6: giao diện (29/09/2026)
+
+**Tệp mới** (`frontend/src/`):
+
+| Tệp | Nội dung |
+|---|---|
+| `types/chat.ts` | Kiểu của hợp đồng API §12 |
+| `lib/api/chat.ts` | `fetchChatStatus`, `sendChatMessage`, `sendChatChoice`, `fetchMoreAnswer` — chỉ gửi câu hỏi, phạm vi, mã hội thoại (`conversationId` rỗng thì không gửi khoá) |
+| `lib/chatText.ts` | Hàm thuần: dòng "Trợ lý hiểu là", phạm vi mặc định theo đường dẫn, liên kết thẻ, giờ **Việt Nam**, gộp trang "Xem thêm" (bỏ thẻ trùng), thông điệp lỗi có dấu theo mã HTTP (404 ở `/choice`, `/more` = hội thoại hết hạn) |
+| `context/AssistantContext.tsx` | Hội thoại (các lượt, mã hội thoại, phạm vi, trạng thái AI); đặt ở `ProtectedRoute` trên mọi layout; chưa mở panel thì không gọi API |
+| `components/assistant/AssistantButton.tsx` | Nút "Trợ lý" (`aria-expanded`) |
+| `components/assistant/AssistantPanel.tsx` | Panel portal ra body; "Chế độ cơ bản"; câu hỏi nhanh; ô nhập 500 ký tự; dòng thông báo dữ liệu gửi AI |
+| `components/assistant/ScopePicker.tsx` | Việc của tôi / Không gian (+ chọn không gian) / Bảng |
+| `components/assistant/AnswerView.tsx` | Một lượt hỏi – đáp: số liệu, thẻ (trạng thái, hạn / quá hạn, checklist x/y, người nhận, nhãn lý do), danh sách phụ, bảng theo người (cột quản lý chỉ khi server gửi), nhận xét AI ô riêng, nút hỏi lại, gợi ý |
+
+**Sửa**: `routes/ProtectedRoute.tsx` (gắn provider + panel), `components/Header.tsx` (nút giữa "Tạo mới" và chuông —
+**chỉ commit dòng của bước này**, 2 dòng phiên khác đang sửa dở trong tệp này không vào commit),
+`components/board/darkMode.test.ts` (quét cả `components/assistant/` + luật "mỗi đoạn class có `bg-white` tự mang
+`dark:bg-`" cho panel); backend `chat.answer.ts` (câu gợi ý, xem dưới).
+
+**Test** (frontend, 4 tệp mới + 1 mở rộng): `lib/api/chat.test.ts` (4), `lib/chatText.test.ts` (7),
+`components/assistant/AssistantPanel.test.tsx` (16 — mở/đóng, Esc trong/ngoài panel và khi có modal khác, phạm vi
+mặc định theo 3 loại trang + giữ phạm vi ở câu sau, tự chọn / đổi không gian, đang tải / kết quả đầy đủ / rỗng / lỗi
+429 · 403 · mất mạng, Enter / Shift+Enter / IME, câu hỏi nhanh + gợi ý, hỏi lại chọn người / chọn không gian, hỏi lại khi
+hội thoại hết hạn, "Xem thêm" (nối trang, chỉ lượt mới nhất, 404, người đã rời), bảng theo người trưởng nhóm / thành
+viên, nhận xét AI, bấm liên kết thẻ **đổi layout** mà hội thoại + phạm vi còn nguyên), `wiring.test.tsx` (4 —
+`ProtectedRoute` thật gắn trợ lý, chưa đăng nhập thì không có, thứ tự lớp z, vị trí nút trên Header). Backend
+`chat.answer.test.ts` +1: **mọi câu gợi ý và câu hỏi nhanh** đi qua bộ luật + câu nối tiếp ra đúng truy vấn nó hứa.
+Toàn bộ frontend: 38 tệp / 287 test xanh (trước bước: 34 / 254); `tsc -b` sạch. Toàn bộ backend: 106 tệp / 1179 test xanh.
+
+**Cài lỗi** (frontend): 73 phép → lần đầu lọt 6: T15 (bỏ `hourCycle: 'h23'` — Node vốn in 24 giờ với `en-GB`,
+**tương đương** ở môi trường test; giữ vì có trình duyệt in "24:00"), X16 (lấy `page` từ server thay vì `1` —
+**tương đương**, câu trả lời mới luôn là trang 1), và 4 lỗ thật của test → thêm ca → bắt được: N9 (Enter với ô toàn
+khoảng trắng), N11 (đang chờ trả lời mà gõ tiếp thì nút Gửi phải khoá), S6 (đã sang "Không gian" ở trang bảng vẫn
+quay lại "Bảng" được), D1 (test chế độ tối chỉ xét **cả tệp** nên lọt đoạn class thiếu nền tối). **71/73**, 2 tương đương.
+Hai chỗ sửa sau khi thử trình duyệt (bỏ focus liên kết, luật `aria-modal`) được kiểm bằng cài lỗi tay: gỡ ra thì test đỏ.
+
+**Thử trên trình duyệt thật** (Vite dev + backend Docker đang chạy mã bước 4 — `llmAvailable: false`, **không** gọi
+Gemini; tài khoản / nhóm / bảng / 20 thẻ thử `chat-demo-*@test.local` tạo bằng script tạm, **đã xoá hết** sau khi thử):
+đủ 4 nhóm câu hỏi (việc cá nhân + "Xem thêm" 13 thẻ không trùng; ưu tiên + "Cần gỡ chặn"; tổng kết nhóm qua hỏi lại chọn
+không gian; bảng theo người có cột trưởng nhóm), hỏi lại trùng tên "Lan", bấm liên kết thẻ từ trang chủ sang trang bảng
+(đổi layout — hội thoại 7 lượt còn nguyên, thẻ mở đè lên panel), khổ 375px chế độ tối (panel rộng hết, không cuộn ngang),
+đăng xuất thì panel + hội thoại mất theo. Mọi yêu cầu `/api/chat/*` đều 200.
+
+**Lỗi thật tìm ra khi thử trình duyệt (đã sửa, có test)**:
+1. **Esc đóng nhầm panel thay vì thẻ**: bấm liên kết thẻ trong panel → thẻ mở đè lên nhưng con trỏ còn ở liên kết trong
+   panel → Esc đóng panel, thẻ vẫn mở (CardModal nghe Esc ở `document`, panel đã chặn sự kiện). Sửa: bấm liên kết thì bỏ
+   focus; panel bỏ qua Esc khi có hộp thoại `aria-modal="true"` khác đang mở.
+2. **Panel che menu tài khoản / "Tạo mới"**: cùng `z-40`, panel vẽ sau nên nằm trên → không bấm được "Đăng xuất" khi panel
+   mở. Sửa: panel `z-[35]` (§13), test canh thứ tự lớp.
+3. **Câu gợi ý tự phá câu nối tiếp** (backend): nút "Còn việc quá hạn thì sao?" sau câu hỏi về Trần Lan bị bộ luật hiểu là
+   "việc **của bạn** quá hạn" — "việc" là từ chỉ việc nên luật 4 (§10.1) không coi là câu nối tiếp → mất người đang hỏi.
+   Sửa câu gợi ý thành "Còn quá hạn thì sao?"; bỏ "Việc nào chưa giao?" (chưa có danh sách thẻ chưa giao, chỉ ra bản tổng
+   kết) thay bằng "Nhóm có việc nào bị chặn?"; test mọi câu gợi ý + câu hỏi nhanh. (Máy chủ Docker vẫn chạy mã cũ nên
+   bản sửa này chưa thấy trên trình duyệt cho tới khi khởi động lại container.)
+
+**Bài học**:
+- Ba lỗi trên đều **không** lộ ra ở test đơn vị vì chúng nằm ở chỗ ghép hai phần: lớp z của hai thành phần khác nhau,
+  focus giữa panel và modal của trang bảng, câu chữ của tầng trả lời đi ngược vào tầng hiểu câu. Thử trên trình duyệt thật
+  là bước không thay được — và mỗi lỗi tìm ra phải thành một test (đã làm) để không quay lại.
+- Câu gợi ý là **đầu vào** của hệ thống, không chỉ là chữ hiển thị: mọi chuỗi hệ thống tự đưa cho người dùng bấm phải đi
+  qua đúng đường người dùng gõ.

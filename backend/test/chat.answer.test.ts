@@ -1,11 +1,14 @@
 // Dung cau tra loi theo mau + nhan uu tien (CHATBOT_MODULE.md §6.4, §6.6, §8.3, §12.2). Ham thuan.
 import { describe, expect, it } from 'vitest';
 import type { ChatFocus, ChatPeriod, ResolvedQuery } from '../src/modules/chat/chat.intent';
-import { CHAT_FOCUSES, CHAT_PERIODS, PAGE_SIZE } from '../src/modules/chat/chat.intent';
+import { CHAT_FOCUSES, CHAT_PERIODS, PAGE_SIZE, resolveSlots } from '../src/modules/chat/chat.intent';
+import { applyFollowUp, type FollowUpContext } from '../src/modules/chat/chat.followup';
 import { priorityReason } from '../src/modules/chat/chat.priority';
+import { parseByRules } from '../src/modules/chat/chat.rules';
 import type { ListResult, WorkloadResult } from '../src/modules/chat/chat.queries';
 import {
   MAX_CLARIFY_OPTIONS,
+  QUICK_QUESTIONS,
   renderAnswer,
   renderAskWho,
   renderClarifyMember,
@@ -13,6 +16,7 @@ import {
   renderMemberNotFound,
   renderUnsupported,
   scopeLabel,
+  SUGGESTIONS,
   type ChatAnswer,
   type ScopeInfo,
 } from '../src/modules/chat/chat.answer';
@@ -266,5 +270,60 @@ describe('hoi lai / khong ho tro / khong tim thay', () => {
     expect(un.suggestions).toHaveLength(4);
     expect(un.text).toContain('chưa tạo, sửa hay giao việc');
     for (const a of [c, w, who, nf, un]) expect([a.facts, a.cards, a.sections, a.generatedAt]).toEqual([[], [], [], NOW.toISOString()]);
+  });
+});
+
+describe('cau hoi goi y / cau hoi nhanh', () => {
+  // Loi tim thay khi thu tren trinh duyet (buoc 6): nut goi y "Còn việc quá hạn thì sao?" sau cau hoi ve
+  // Trần Lan bi bo luat hieu la "việc CỦA TÔI quá hạn" ("việc" la tu chi viec -> khong con la cau noi
+  // tiep) -> mat nguoi dang hoi. Moi cau goi y phai duoc bo luat hieu DUNG y dinh no hua.
+  it('moi cau goi y (sau tung loai cau tra loi) + cau hoi nhanh qua bo luat + cau noi tiep ra dung truy van', () => {
+    const roster = [
+      { userId: 'u-lan1', name: 'Nguyễn Thị Lan' },
+      { userId: 'u-lan2', name: 'Trần Lan' },
+    ];
+    type Want = { intent: ResolvedQuery['intent']; period: ChatPeriod | null; focus: ChatFocus | null; member: string | null };
+    const want = (intent: Want['intent'], focus: ChatFocus | null = null, period: ChatPeriod | null = null, member: string | null = null): Want => ({ intent, period, focus, member });
+    const rows: Array<[ResolvedQuery['intent'] | 'QUICK', string, Want]> = [
+      ['MY_TASKS', 'Hôm nay tôi nên xử lý gì trước?', want('MY_PRIORITIES')],
+      ['MY_TASKS', 'Việc nào của tôi quá hạn?', want('MY_TASKS', 'OVERDUE')],
+      ['MY_TASKS', 'Tuần này tôi đã xong những gì?', want('MY_TASKS', 'DONE', 'THIS_WEEK')],
+      ['MY_PRIORITIES', 'Việc nào của tôi sắp đến hạn?', want('MY_TASKS', 'OPEN', 'NEXT_7_DAYS')],
+      ['MY_PRIORITIES', 'Việc nào của tôi đang bị chặn?', want('MY_TASKS', 'BLOCKED')],
+      // noi tiep: GIU nguoi da chon o luot truoc
+      ['MEMBER_TASKS', 'Còn quá hạn thì sao?', want('MEMBER_TASKS', 'OVERDUE', null, 'u-lan2')],
+      ['MEMBER_TASKS', 'Còn tuần trước thì sao?', want('MEMBER_TASKS', null, 'LAST_WEEK', 'u-lan2')],
+      ['TEAM_SUMMARY', 'Nhóm có việc nào bị chặn?', want('TEAM_SUMMARY', 'BLOCKED')],
+      ['TEAM_SUMMARY', 'Ai đang có nhiều việc?', want('TEAM_WORKLOAD')],
+      ['TEAM_SUMMARY', 'Còn tuần trước thì sao?', want('TEAM_SUMMARY', null, 'LAST_WEEK')],
+      ['TEAM_WORKLOAD', 'Nhóm có việc nào quá hạn?', want('TEAM_SUMMARY', 'OVERDUE')],
+      ['TEAM_WORKLOAD', 'Nhóm có việc nào bị chặn?', want('TEAM_SUMMARY', 'BLOCKED')],
+      ['QUICK', 'Việc nào của tôi sắp đến hạn?', want('MY_TASKS', 'OPEN', 'NEXT_7_DAYS')],
+      ['QUICK', 'Hôm nay tôi nên xử lý gì trước?', want('MY_PRIORITIES')],
+      ['QUICK', 'Tuần này nhóm hoàn thành gì, còn vướng gì?', want('TEAM_SUMMARY', null, 'THIS_WEEK')],
+      ['QUICK', 'Ai đang có nhiều việc?', want('TEAM_WORKLOAD')],
+    ];
+    // bang phai phu DU moi cau dang dung (them cau goi y moi ma quen them vao day -> do)
+    const listed = (src: ResolvedQuery['intent'] | 'QUICK') => rows.filter((r) => r[0] === src).map((r) => r[1]);
+    for (const intent of Object.keys(SUGGESTIONS) as ResolvedQuery['intent'][]) expect(listed(intent), intent).toEqual([...SUGGESTIONS[intent]]);
+    expect(listed('QUICK')).toEqual([...QUICK_QUESTIONS]);
+
+    const wrong: unknown[] = [];
+    for (const [src, text, w] of rows) {
+      const prev: FollowUpContext | null =
+        src === 'QUICK' ? null : { intent: src, period: null, focus: null, memberUserId: src === 'MEMBER_TASKS' ? 'u-lan2' : null };
+      const fu = applyFollowUp(parseByRules(text, roster), prev);
+      if (fu.kind !== 'QUESTION') {
+        wrong.push({ src, text, got: fu.kind });
+        continue;
+      }
+      const r = resolveSlots(fu.question);
+      const got: Want = { intent: r.intent, period: r.period, focus: r.focus, member: fu.question.memberUserId };
+      if (JSON.stringify(got) !== JSON.stringify(w)) wrong.push({ src, text, got, want: w });
+    }
+    expect(wrong).toEqual([]);
+    // chot chong "xanh gia": cau cu thuc su hong
+    const old = applyFollowUp(parseByRules('Còn việc quá hạn thì sao?', roster), { intent: 'MEMBER_TASKS', period: null, focus: null, memberUserId: 'u-lan2' });
+    expect(old.kind === 'QUESTION' && old.question.intent).toBe('MY_TASKS');
   });
 });

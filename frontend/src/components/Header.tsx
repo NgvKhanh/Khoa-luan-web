@@ -9,6 +9,7 @@ import { searchCards, type SearchCard } from '../lib/api/card';
 import { createWorkspace } from '../lib/api/workspace';
 import { getErrorMessage } from '../lib/errorMessage';
 import type { Board } from '../types/board';
+import AssistantButton from './assistant/AssistantButton';
 import Avatar from './Avatar';
 import AiGenerateBoardModal from './board/AiGenerateBoardModal';
 import CreateBoardDialog from './board/CreateBoardDialog';
@@ -644,6 +645,7 @@ export default function Header() {
 
       <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
         <CreateBoardMenu />
+        <AssistantButton />
         <NotificationBell />
         <AccountMenu />
       </div>

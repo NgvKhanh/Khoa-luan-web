@@ -82,7 +82,8 @@ export function periodText(period: ChatPeriod): string {
   return PERIOD_TEXT[period];
 }
 
-const QUICK_QUESTIONS = [
+/** Cau hoi nhanh cho 4 nhom (giao dien co ban sao y). Moi cau co test di qua bo luat. */
+export const QUICK_QUESTIONS: readonly string[] = [
   'Việc nào của tôi sắp đến hạn?',
   'Hôm nay tôi nên xử lý gì trước?',
   'Tuần này nhóm hoàn thành gì, còn vướng gì?',
@@ -273,13 +274,19 @@ function listNotes(q: ResolvedQuery, memberName: string | null): string[] {
   return notes;
 }
 
-const SUGGESTIONS: Record<ResolvedQuery['intent'], string[]> = {
+/**
+ * Cau hoi goi y sau moi loai cau tra loi. Moi cau PHAI duoc bo luat hieu dung y dinh no hua (co
+ * test): "Còn việc quá hạn thì sao?" tung bi hieu la viec CUA TOI vi "việc" la tu chi viec - cau
+ * noi tiep khong duoc chua tu do (§10.1 luat 4).
+ */
+export const SUGGESTIONS: Readonly<Record<ResolvedQuery['intent'], readonly string[]>> = {
   MY_TASKS: ['Hôm nay tôi nên xử lý gì trước?', 'Việc nào của tôi quá hạn?', 'Tuần này tôi đã xong những gì?'],
   MY_PRIORITIES: ['Việc nào của tôi sắp đến hạn?', 'Việc nào của tôi đang bị chặn?'],
   // Cau noi tiep: ke thua nguoi da chon, khong can go (va khong gui) lai ten
-  MEMBER_TASKS: ['Còn việc quá hạn thì sao?', 'Còn tuần trước thì sao?'],
+  MEMBER_TASKS: ['Còn quá hạn thì sao?', 'Còn tuần trước thì sao?'],
   TEAM_SUMMARY: ['Nhóm có việc nào bị chặn?', 'Ai đang có nhiều việc?', 'Còn tuần trước thì sao?'],
-  TEAM_WORKLOAD: ['Nhóm có việc nào quá hạn?', 'Việc nào chưa giao?'],
+  // (bo "Việc nào chưa giao?": chua co danh sach the chua giao, chi ra ban tong ket nhom)
+  TEAM_WORKLOAD: ['Nhóm có việc nào quá hạn?', 'Nhóm có việc nào bị chặn?'],
 };
 
 function workloadAnswer(q: ResolvedQuery, r: WorkloadResult, scope: ScopeInfo, now: Date): ChatAnswer {
@@ -311,7 +318,7 @@ function workloadAnswer(q: ResolvedQuery, r: WorkloadResult, scope: ScopeInfo, n
     rows: r.rows,
     ignoredSlots: q.ignoredSlots,
     notes,
-    suggestions: SUGGESTIONS.TEAM_WORKLOAD,
+    suggestions: [...SUGGESTIONS.TEAM_WORKLOAD],
   };
 }
 
@@ -335,7 +342,7 @@ export function renderAnswer(input: {
     sections: result.sections.map((s) => ({ ...s, label: sectionLabel(s.key, q.intent, q.period) })),
     ignoredSlots: q.ignoredSlots,
     notes: listNotes(q, memberName),
-    suggestions: SUGGESTIONS[q.intent],
+    suggestions: [...SUGGESTIONS[q.intent]],
   };
 }
 

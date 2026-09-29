@@ -1,4 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import AssistantPanel from '../components/assistant/AssistantPanel';
+import { AssistantProvider } from '../context/AssistantContext';
 import { useAuth } from '../context/AuthContext';
 import { BoardsProvider } from '../context/BoardsContext';
 import { WorkspacesProvider } from '../context/WorkspacesContext';
@@ -34,10 +36,15 @@ export default function ProtectedRoute() {
     );
   }
 
+  // Tro ly o TREN cac layout: hoi thoai con nguyen khi doi tu MainLayout sang BoardViewLayout
+  // (bam lien ket the trong cau tra loi). Dang xuat -> ProtectedRoute unmount -> hoi thoai mat theo.
   return (
     <WorkspacesProvider>
       <BoardsProvider>
-        <Outlet />
+        <AssistantProvider>
+          <Outlet />
+          <AssistantPanel />
+        </AssistantProvider>
       </BoardsProvider>
     </WorkspacesProvider>
   );
