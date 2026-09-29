@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { env } from '../src/config/env';
 import { prisma } from '../src/config/prisma';
 import { buildPlan } from '../src/modules/ai/ai.build';
-import { callLlm, extractJsonObject, LLM_TEMPERATURE, type LlmConfig } from '../src/modules/ai/ai.llm';
+import { BOARD_PLAN_FORMAT, callLlm, extractJsonObject, LLM_TEMPERATURE, type LlmConfig } from '../src/modules/ai/ai.llm';
 import { buildLlmMessages, buildSystemPrompt, buildUserPrompt, EXAMPLE_DRAFT, EXAMPLE_LINES } from '../src/modules/ai/ai.prompt';
 import { analyzeText, summarizeLineDates, type PlanMode } from '../src/modules/ai/ai.rules';
 import { generatePlan, type AiConfig } from '../src/modules/ai/ai.service';
@@ -137,6 +137,46 @@ describe('callLlm: goi HTTP dung chuan OpenAI-compatible', () => {
       expect(r).toMatchObject({ ok: false, reason: 'HTTP_5XX', status });
       expect(calls).toHaveLength(1);
     }
+  });
+
+  it('tham so format (chatbot, CHATBOT_MODULE.md §10.4): ten + luoc do rieng; startMode bat dau giua thang; bo trong -> luoc do ke hoach bang', async () => {
+    const schema = { type: 'object', additionalProperties: false, required: ['x'], properties: { x: { type: 'string' } } };
+    const types = (cs: Call[]) => cs.map((c) => c.body.response_format?.type ?? 'none');
+
+    let calls = stubFetch(() => completion(GOOD));
+    let r = await callLlm(MSG, CFG, { name: 'chat_intent', schema });
+    expect(r).toMatchObject({ ok: true, formatMode: 'json_schema' });
+    expect(calls[0]!.body.response_format).toEqual({ type: 'json_schema', json_schema: { name: 'chat_intent', strict: true, schema } });
+
+    // bat dau o json_object: khong gui json_schema
+    calls = stubFetch(() => completion(GOOD));
+    r = await callLlm(MSG, CFG, { name: 'chat_intent', schema, startMode: 'json_object' });
+    expect(r).toMatchObject({ ok: true, formatMode: 'json_object' });
+    expect(calls.map((c) => c.body.response_format)).toEqual([{ type: 'json_object' }]);
+
+    // bat dau o json_object, 400 -> ha xuong none (khong quay lai json_schema)
+    calls = stubFetch((_c, n) => (n === 1 ? json(400, 'bad') : completion(GOOD)));
+    r = await callLlm(MSG, CFG, { name: 'chat_intent', schema, startMode: 'json_object' });
+    expect(r).toMatchObject({ ok: true, formatMode: 'none' });
+    expect(types(calls)).toEqual(['json_object', 'none']);
+
+    // bat dau o none: khong co response_format; 400 -> HTTP_4XX sau DUNG 1 lan goi
+    calls = stubFetch(() => json(400, 'bad'));
+    r = await callLlm(MSG, CFG, { name: 'chat_intent', schema, startMode: 'none' });
+    expect(r).toMatchObject({ ok: false, reason: 'HTTP_4XX', status: 400, formatMode: 'none' });
+    expect(calls).toHaveLength(1);
+    expect('response_format' in calls[0]!.body).toBe(false);
+
+    // startMode json_schema = ca thang
+    calls = stubFetch(() => json(400, 'bad'));
+    r = await callLlm(MSG, CFG, { name: 'chat_intent', schema, startMode: 'json_schema' });
+    expect(types(calls)).toEqual(['json_schema', 'json_object', 'none']);
+
+    // bo trong format -> hanh vi cu (luoc do ke hoach bang)
+    calls = stubFetch(() => completion(GOOD));
+    await callLlm(MSG, CFG);
+    expect(calls[0]!.body.response_format.json_schema).toEqual({ name: 'board_plan_draft', strict: true, schema: LLM_DRAFT_JSON_SCHEMA });
+    expect(BOARD_PLAN_FORMAT).toEqual({ name: 'board_plan_draft', schema: LLM_DRAFT_JSON_SCHEMA });
   });
 
   it('phan tich noi dung: rao ```json, loi dan truoc/sau, mang cac phan {text}; rong/khong-phai-JSON/mang -> loi co kieu; token bat thuong -> null', async () => {

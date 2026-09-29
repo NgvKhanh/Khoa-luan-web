@@ -85,6 +85,30 @@ describe('ky luat ma nguon module chatbot', () => {
     }
   });
 
+  it('chi chat.llm goi lop LLM; chat.llm / chat.summary khong keo CSDL, pham vi, truy van, dich vu (bo danh gia buoc 7 chay khong can DB)', () => {
+    const files = sourceFiles();
+    expect(files).toEqual(expect.arrayContaining(['chat.llm.ts', 'chat.summary.ts']));
+    for (const f of files) {
+      if (f === 'chat.llm.ts') continue;
+      expect(read(f), `${f} import ai.llm`).not.toMatch(/'\.\.\/ai\/ai\.llm'/);
+      expect(read(f), `${f} goi callLlm`).not.toMatch(/\bcallLlm\s*\(/);
+    }
+    expect(read('chat.llm.ts')).toMatch(/\bcallLlm\s*\(/);
+    // nhan xet chi di qua callChatLlm (ngan sach + nho muc ep JSON)
+    expect(read('chat.summary.ts')).toMatch(/\bcallChatLlm\s*\(/);
+
+    const pureModules = new Set(PURE_FILES.map((f) => `./${f.replace(/\.ts$/, '')}`));
+    const allowedValues = new Set(['zod', '../../config/env', '../ai/ai.llm', './chat.llm']);
+    for (const f of ['chat.llm.ts', 'chat.summary.ts']) {
+      for (const m of read(f).matchAll(/import\s+(type\s+)?[^;]*?from\s+'([^']+)'/g)) {
+        const typeOnly = m[1] !== undefined;
+        const spec = m[2];
+        const ok = typeOnly ? spec.startsWith('./chat.') || spec.startsWith('../ai/') : allowedValues.has(spec) || pureModules.has(spec);
+        expect(ok, `${f} import ${typeOnly ? 'type ' : ''}${spec}`).toBe(true);
+      }
+    }
+  });
+
   it('khong dung lai module phan cong (pham vi + truong du lieu khac chinh sach chatbot, §3.4 CHATBOT_PLAN)', () => {
     for (const f of sourceFiles()) expect(read(f), f).not.toMatch(/modules\/assign|\.\.\/assign\//);
     // Pham vi doc KHONG di qua assertBoardView (co nhanh PUBLIC) / isBoardParticipant (loai VIEWER)

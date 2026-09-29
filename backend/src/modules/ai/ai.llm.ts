@@ -42,6 +42,19 @@ export interface LlmMessages {
   user: string;
 }
 
+/**
+ * Luoc do JSON cho muc json_schema + muc bat dau cua thang ep JSON. Bo trong -> luoc do ke
+ * hoach bang, bat dau tu json_schema (hanh vi cu). Chatbot (CHATBOT_MODULE.md §10.4) truyen
+ * luoc do rieng va bat dau tu muc nha cung cap da chap nhan o luot truoc.
+ */
+export interface LlmFormat {
+  name: string;
+  schema: Record<string, unknown>;
+  startMode?: ResponseFormatMode;
+}
+
+export const BOARD_PLAN_FORMAT: LlmFormat = { name: 'board_plan_draft', schema: LLM_DRAFT_JSON_SCHEMA };
+
 export type LlmResult =
   | {
       ok: true;
@@ -123,18 +136,28 @@ function messageText(content: unknown): string {
   return '';
 }
 
-function responseFormatFor(mode: ResponseFormatMode): Record<string, unknown> | undefined {
+function responseFormatFor(mode: ResponseFormatMode, format: LlmFormat): Record<string, unknown> | undefined {
   if (mode === 'json_schema') {
     return {
       type: 'json_schema',
-      json_schema: { name: 'board_plan_draft', strict: true, schema: LLM_DRAFT_JSON_SCHEMA },
+      json_schema: { name: format.name, strict: true, schema: format.schema },
     };
   }
   if (mode === 'json_object') return { type: 'json_object' };
   return undefined;
 }
 
-export async function callLlm(messages: LlmMessages, cfg: LlmConfig = env.ai): Promise<LlmResult> {
+/** Cac muc cua thang tinh tu `start` tro xuong (khong co `start` -> ca thang). */
+function ladderFrom(start: ResponseFormatMode | undefined): readonly ResponseFormatMode[] {
+  const i = start === undefined ? 0 : RESPONSE_FORMAT_LADDER.indexOf(start);
+  return i <= 0 ? RESPONSE_FORMAT_LADDER : RESPONSE_FORMAT_LADDER.slice(i);
+}
+
+export async function callLlm(
+  messages: LlmMessages,
+  cfg: LlmConfig = env.ai,
+  format: LlmFormat = BOARD_PLAN_FORMAT
+): Promise<LlmResult> {
   const started = Date.now();
   const elapsed = () => Date.now() - started;
   const fail = (
@@ -153,7 +176,7 @@ export async function callLlm(messages: LlmMessages, cfg: LlmConfig = env.ai): P
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), cfg.timeoutMs);
   try {
-    for (const mode of RESPONSE_FORMAT_LADDER) {
+    for (const mode of ladderFrom(format.startMode)) {
       const body: Record<string, unknown> = {
         model: cfg.model,
         temperature: LLM_TEMPERATURE,
@@ -162,8 +185,8 @@ export async function callLlm(messages: LlmMessages, cfg: LlmConfig = env.ai): P
           { role: 'user', content: messages.user },
         ],
       };
-      const format = responseFormatFor(mode);
-      if (format) body.response_format = format;
+      const responseFormat = responseFormatFor(mode, format);
+      if (responseFormat) body.response_format = responseFormat;
 
       let res: Response;
       try {

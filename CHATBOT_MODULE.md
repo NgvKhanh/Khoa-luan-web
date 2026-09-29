@@ -6,10 +6,11 @@
 > nghĩa, con số và quy tắc ở đây là chuẩn mà code và test phải khớp. Đổi hợp
 > đồng thì sửa tài liệu này trước, ghi lý do vào nhật ký cuối file.
 >
-> Trạng thái: **xong bước 0–4** — chatbot **chạy trọn vẹn qua API `/api/chat` bằng bộ luật**
-> (chưa có LLM, chưa có giao diện): hiểu câu (B0), câu nối tiếp, phạm vi + quyền đọc lại mỗi
-> lượt, nhận diện người + hỏi lại, truy vấn số liệu, câu trả lời theo mẫu, phiên hội thoại tạm,
-> "Xem thêm". Lộ trình ở §17, nhật ký cuối file.
+> Trạng thái: **xong bước 0–5** — chatbot chạy trọn vẹn qua API `/api/chat`: hiểu câu bằng
+> **bộ luật + LLM** (gộp B2; thiếu khoá / LLM lỗi / hết ngân sách → bộ luật), câu nối tiếp, phạm vi
+> + quyền đọc lại mỗi lượt, nhận diện người + hỏi lại, truy vấn số liệu, câu trả lời theo mẫu,
+> nhận xét AI cho tổng kết nhóm (có kiểm tra), phiên hội thoại tạm, "Xem thêm". Chưa có giao
+> diện. Lộ trình ở §17, nhật ký cuối file.
 
 ---
 
@@ -470,35 +471,60 @@ LLM thành công:
 | `intent` | **LLM** | Ngữ nghĩa ("vướng", "kẹt", câu thao tác) là điểm mạnh của LLM; bộ luật dễ bắt nhầm "quá hạn" trong câu "xoá thẻ quá hạn" |
 | `period` | **Luật** nếu luật tìm thấy, ngược lại LLM | Từ chỉ thời gian là lớp đóng, bộ luật đọc tất định |
 | `focus` | **LLM** nếu khác `NONE`, ngược lại luật | Cần đọc nghĩa ("chưa xong", "đang kẹt") |
-| `member` | **Luật** nếu luật khớp được người trong danh sách, ngược lại chuỗi của LLM | Chỉ bộ luật nhìn thấy danh sách người |
+| `member` | **Luật** nếu luật khớp được người trong danh sách (một hoặc nhiều người) **hoặc** là người hỏi tự nhắc mình ("còn tôi?" → `"tôi"`), ngược lại chuỗi của LLM | Chỉ bộ luật nhìn thấy danh sách người |
 
 Sau gộp → `applyFollowUp` (§9.2) → nhận diện người (§8). Thứ tự này giống nhau ở cả ba nhánh.
+Kết quả trả về ghi `parser = "HYBRID"` khi LLM trả lời hợp lệ, `"RULE"` khi dùng nguyên bộ luật;
+`"LLM"` chỉ dùng cho nhánh B1 trong bộ đánh giá.
 
 ### 10.4 Giới hạn gọi LLM
 
 - **Ngân sách chung toàn tiến trình**: 10 lượt gọi / 60 giây trượt (khoá API dùng chung
   với module sinh bảng; gói free đo được bắt đầu 429 quanh 15 lượt/phút). Hết ngân
-  sách → dùng bộ luật, **không** trả 429 cho người dùng. Nhận xét §11 cũng tính vào
-  ngân sách và bị bỏ trước tiên khi thiếu.
-- Nhớ **mức ép JSON** nhà cung cấp đã chấp nhận (`formatMode` trong `LlmResult`) để
-  lượt sau bắt đầu từ mức đó, không tốn 3 request mỗi lượt. Cần thêm tuỳ chọn cho
-  `callLlm` (bước 5): `format { name, schema, startMode? }`, mặc định giữ nguyên hành
-  vi cũ (lược đồ kế hoạch bảng, bắt đầu từ `json_schema`).
+  sách → dùng bộ luật, **không** trả 429 cho người dùng. Đếm theo **lượt gọi `callLlm`**
+  (kể cả lượt lỗi — request vẫn tốn hạn mức của nhà cung cấp); thiếu khoá thì không tính.
+- Nhận xét §11 cũng tính vào ngân sách và bị bỏ **trước tiên** khi thiếu: chỉ gọi khi sau
+  lượt đó vẫn còn ≥ 3 lượt trống cho việc hiểu câu hỏi (`COMMENT_RESERVE = 3`).
+- Nhớ **mức ép JSON** nhà cung cấp đã chấp nhận (`formatMode` trong `LlmResult`) **theo tên
+  lược đồ** (`chat_intent`, `team_summary_comment`) để lượt sau bắt đầu từ mức đó, không tốn
+  3 request mỗi lượt. "Đã chấp nhận" = HTTP 200 (kể cả khi nội dung sai hình dạng — đó là lỗi
+  của câu trả lời, không phải của mức ép JSON); lỗi HTTP/mạng không ghi đè mức đã nhớ.
+  `callLlm` có tham số tuỳ chọn `format { name, schema, startMode? }`; bỏ trống thì giữ nguyên
+  hành vi cũ (lược đồ kế hoạch bảng, bắt đầu từ `json_schema`).
+- Timeout **8 giây** cố định (`CHAT_LLM_TIMEOUT_MS`), không theo `AI_TIMEOUT_MS` (30 giây) của
+  module sinh bảng. Cấu hình `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` đọc lại **mỗi lượt**.
 - Giới hạn theo người: `chatLimiter` **60 lượt POST / 10 phút** (gồm cả `/more`, `/choice`).
 
 ## 11. Nhận xét AI cho tổng kết nhóm
 
-Chỉ khi `TEAM_SUMMARY` + focus `NONE`, LLM sẵn sàng và còn ngân sách.
+Chỉ khi `TEAM_SUMMARY` + focus `NONE`, qua `POST /messages` (không qua `/choice`, `/more` —
+§12.1), **lượt hiểu câu vừa rồi dùng được LLM** (`parser ≠ RULE`: LLM vừa lỗi / quá giờ thì gọi
+lại cũng vô ích và người dùng phải đợi thêm tới 8 giây) và còn ngân sách (§10.4).
 
-- **Đầu vào** (JSON): nhãn kỳ ("tuần này"), loại phạm vi (workspace/bảng), và các con
-  số của §6.4. **Không** tên người, tên bảng, tiêu đề thẻ.
+- **Đầu vào** (JSON, `chat.summary.ts`): nhãn kỳ ("tuần này"), loại phạm vi ("một không gian
+  làm việc" / "một bảng"), và 6 con số của bản tổng kết §6.4 (hoàn thành trong kỳ — không có khi
+  kỳ ở tương lai —, chưa xong đến hạn trong kỳ, chưa xong, quá hạn, bị chặn, chưa giao chưa
+  xong). **Không** tên người, tên bảng, tiêu đề thẻ, câu hỏi.
 - **Đầu ra**: lược đồ `{ "comment": string }`, tối đa 300 ký tự, 2–3 câu, giọng trung tính.
-- **Kiểm tra trước khi hiện** (vi phạm bất kỳ → bỏ nhận xét, câu trả lời vẫn đủ số liệu):
-  - chứa chữ số không có trong tập số đã gửi;
-  - chứa số viết bằng chữ (một…mười, chục, trăm, nghìn) hoặc ký hiệu `%`;
-  - chứa một từ trùng tên người trong danh sách người (so nguyên từ, không dấu — chấp
-    nhận loại nhầm, ví dụ "an toàn" với người tên An);
-  - chứa liên kết, markdown, hoặc dài quá 300 ký tự.
+- **Kiểm tra trước khi hiện** (`validateComment`, hàm thuần; vi phạm bất kỳ → bỏ nhận xét, câu
+  trả lời vẫn đủ số liệu). Theo thứ tự:
+  1. sai hình dạng (Zod `strict`), rỗng, hoặc dài quá 300 **ký tự** (đếm theo ký tự, không theo đơn vị UTF-16);
+  2. markdown / liên kết / xuống dòng (`* # \` [ ] < > | _ ~ @`, tab, `http:`, `https:`, `www.`);
+  3. ký hiệu `%`;
+  4. chữ số không có trong tập số đã gửi (so nguyên dãy chữ số: `03` ≠ `3`), số thập phân (`2,5`),
+     hoặc ký tự số ngoài 0–9 (số La Mã, số Ả Rập…);
+  5. số viết bằng chữ: một, hai, ba, bốn, tư, năm, lăm, sáu, bảy, bẩy, tám, chín, mười, mươi, chục,
+     trăm, nghìn, ngàn, triệu, tỷ, tỉ, nửa (từ có dấu so bản có dấu — "hài" không phải "hai"; từ gõ
+     không dấu so bản không dấu);
+  6. **từ viết hoa giữa câu** (dấu hiệu tên riêng: LLM không được biết tên ai nên mọi tên đều là bịa;
+     đầu câu = đầu văn bản hoặc sau `. ! ? : …`);
+  7. từ **đầu câu** trùng một từ trong tên thành viên (so dấu theo §8.2) **và** có dấu hiệu tên: từ kế
+     tiếp là "đang, có, đã, cần…" (dấu hiệu tên của bộ luật) hoặc câu chỉ có một từ. Từ khoá của bộ
+     luật ("Nhóm", "Việc"…) đứng đầu câu không tính.
+- **Đổi so với bản đầu của hợp đồng** (chốt khi code bước 5): luật cũ "chứa một từ trùng tên người,
+  so nguyên từ không dấu" bị bỏ vì loại gần như **mọi** nhận xét của nhóm thật — tên Việt trùng từ
+  thường: "hoàn **thành**" / Thành, "**công** việc" / Công, "**tiến** độ" / Tiến, "tập **trung**" /
+  Trung, "ngày **mai**" / Mai, "**lại**" / Lại. Thay bằng luật 6 + 7 (có test cho từng cặp).
 - Giao diện hiện trong ô riêng **"Nhận xét của trợ lý (AI)"**, tách khỏi phần số liệu.
 
 ## 12. Hợp đồng API
@@ -693,7 +719,7 @@ Mỗi bước một commit; bắt đầu khi được giao "làm bước N đi".
 | 2 | Phạm vi (`chat.scope`): bảng đọc được, danh sách người lấy từ CSDL, trưởng nhóm + test CSDL phân quyền và nhận diện tên trên dữ liệu thật | **xong** |
 | 3 | Truy vấn, nhãn ưu tiên, dựng câu trả lời + test đối chiếu số liệu, > 200 thẻ | **xong** |
 | 4 | Phiên, dịch vụ, API, `chatLimiter` — chạy trọn vẹn **không cần LLM** | **xong** |
-| 5 | Lớp LLM (tham số `format` cho `callLlm`, luật gộp, ngân sách) + nhận xét tổng kết | chưa |
+| 5 | Lớp LLM (tham số `format` cho `callLlm`, luật gộp, ngân sách) + nhận xét tổng kết | **xong** |
 | 6 | Giao diện: nút Trợ lý, panel, bộ chọn phạm vi, hiển thị câu trả lời | chưa |
 | 7 | Bộ đánh giá: bộ câu hỏi, 3 nhánh, chỉ số, báo cáo (chạy thử B0 không cần khoá) | chưa |
 | 8 | Chạy chính thức với Gemini thật (cần khoá API mới) | chưa |
@@ -880,3 +906,57 @@ khi chưa đăng nhập (route đã gắn).
 **Bước 5 cần**: tham số `format` cho `callLlm` (giữ mặc định lược đồ kế hoạch bảng, chạy lại toàn bộ test module
 AI), `chat.llm.ts` (prompt, parse, luật gộp B2, ngân sách chung 10 lượt/phút, timeout 8 giây, nhớ mức ép JSON),
 `chat.summary.ts` (nhận xét tổng kết + kiểm tra), thay `understandByRules` bằng bản lai, `getChatStatus` báo thật.
+
+### Đã xong — Bước 5: lớp LLM + nhận xét tổng kết (29/09/2026)
+
+**Tệp**:
+
+| Tệp | Nội dung |
+|---|---|
+| `ai/ai.llm.ts` (sửa) | `callLlm(messages, cfg, format?)` — `LlmFormat { name, schema, startMode? }`; bỏ trống = `BOARD_PLAN_FORMAT` (hành vi cũ). `startMode` bắt đầu thang ép JSON giữa chừng |
+| `chat/chat.llm.ts` (mới) | Prompt §10.2 (định nghĩa, enum, **15 ví dụ** `PROMPT_EXAMPLES` phủ đủ 7 ý định, câu hỏi trong khung `<<<CAU_HOI … CAU_HOI>>>`, `< >` trong câu hỏi đổi thành `( )`); dòng ngữ cảnh chỉ có mã enum; `LlmBudget` (10 lượt / 60 giây trượt, `reserve`); `callChatLlm` (kiểm cấu hình → ngân sách → gọi từ mức ép JSON đã nhớ → nhớ mức); `requestLlmIntent` (nhánh B1); `mergeParsed` (B2, thuần); `understandHybrid`; `defaultChatLlm` (đọc `env.ai` mỗi lượt, timeout 8 giây); `chatLlmAvailable` |
+| `chat/chat.summary.ts` (mới) | `summaryPayload` (toàn bộ dữ liệu gửi LLM ở lượt nhận xét), `buildCommentMessages`, `validateComment` (thuần, §11), `requestSummaryComment` (chừa 3 lượt ngân sách) |
+| `chat/chat.service.ts` (sửa) | Bộ hiểu câu mặc định = `understandHybrid`; `ChatContext.llm` tiêm được; nhận xét cho `TEAM_SUMMARY` + focus `NONE` khi `parser ≠ RULE`, chỉ ở `/messages`; `getChatStatus` báo thật |
+| `chat/chat.answer.ts`, `chat/chat.rules.ts` (sửa) | `ChatAnswer.comment`, `periodText`; xuất `KEYWORD_TOKENS` / `POST_CUES` để bộ kiểm nhận xét dùng chung dấu hiệu tên với bộ luật |
+
+**Chốt thêm khi code** (đã sửa các mục tương ứng ở trên): luật gộp `member` tính cả "người hỏi tự nhắc mình" (§10.3);
+ngân sách đếm theo lượt gọi `callLlm`, nhận xét chừa 3 lượt, nhớ mức ép JSON theo tên lược đồ và khi HTTP 200 (§10.4);
+**đổi luật kiểm nhận xét** — luật "trùng tên, so không dấu" loại gần như mọi nhận xét vì tên Việt trùng từ thường
+("hoàn thành"/Thành, "công việc"/Công, "tiến độ"/Tiến…) → thay bằng "viết hoa giữa câu" + "đầu câu trùng tên kèm dấu
+hiệu" (§11); nhận xét chỉ khi lượt hiểu câu dùng được LLM, không qua `/choice` (§11).
+
+**Test** (fetch giả dùng chung `test/llmFake.ts`, chặn mọi URL ngoài `https://llm.test/`):
+- `ai.llm.test.ts` (+1 ca): tên + lược đồ riêng, `startMode` ở từng mức, bỏ trống = lược đồ kế hoạch bảng; **toàn bộ
+  15 ca cũ của lớp LLM module sinh bảng vẫn xanh**.
+- `chat.llm.test.ts` (9 ca, thuần + fetch giả): prompt đủ enum, ví dụ qua Zod và nằm nguyên văn trong prompt, phần hệ
+  thống không phụ thuộc câu hỏi; ngữ cảnh không lộ id người đã chọn; câu hỏi không thoát được khung; bảng luật gộp 12
+  dòng; ngân sách (biên đúng 60 giây, lượt bị từ chối không trừ, `reserve`); thành công → 1 request `chat_intent`,
+  thân request **không** có tên / id trong danh sách người; **15 kiểu thất bại × 2 nhánh** (thiếu khoá, hết ngân sách —
+  không gọi mạng —, 429, 401, 500, quá giờ, mất mạng, không phải JSON, rỗng, 5 kiểu sai hình dạng) → nguyên kết quả bộ
+  luật; nhớ mức ép JSON; `chatLlmAvailable` trùng `isLlmAvailable` trên 8 tổ hợp.
+- `chat.summary.test.ts` (7 ca): dữ liệu gửi đi đúng 6 con số + nhãn; 10 nhận xét hợp lệ được giữ dù nhóm có Thành,
+  Công, Tiến, Trung, Mai, An, "Trưởng Nhóm"; **41 ca loại**, mỗi ca vi phạm đúng một luật; tính chất trên 400 bộ số
+  ngẫu nhiên (đúng số thì qua, đổi một số / chèn tên thì bị loại); chừa ngân sách.
+- `chat.llm.api.test.ts` (5 ca, CSDL thật): thẻ có tiêu đề **chèn lệnh** + mô tả, tên bảng / danh sách / không gian, tên /
+  email / id thành viên **không** xuất hiện trong bất kỳ request nào gửi LLM (trong khi câu trả lời vẫn có thẻ đó); số
+  liệu gửi LLM = đúng con số của câu trả lời; nhận xét bị loại → câu trả lời **y hệt** chế độ cơ bản; LLM lỗi (500 /
+  429 / sai JSON) → y hệt chế độ cơ bản và không gọi nhận xét; `/choice`, `/more` không gọi LLM; không log nội dung;
+  HTTP `/status` báo đúng theo `env.ai` và không lộ khoá.
+- `chat.guard.test.ts`: chỉ `chat.llm` gọi `callLlm`; `chat.llm` / `chat.summary` không kéo CSDL / phạm vi / truy vấn
+  (bộ đánh giá bước 7 chạy không cần DB).
+
+**Cài lỗi**: 72 phép (5 `callLlm`, 30 `chat.llm`, 26 `chat.summary`, 10 nối vào dịch vụ, 1 nhãn kỳ) → lần đầu lọt 1 (V10:
+tắt nhận xét ở nhánh "phạm vi cá nhân, chỉ có **một** workspace thì dùng luôn" — mọi người dùng thử đều có ≥ 2 workspace
+vì tài khoản nào cũng có workspace cá nhân) → thêm ca người chỉ thuộc một workspace → **72/72**. Trước khi chạy đã tự soát
+ra 2 chỗ test yếu (đếm 300 ký tự bằng chữ `ệ` — 1 đơn vị UTF-16 nên không phân biệt `length` với số ký tự → đổi sang emoji;
+chưa có ca nhãn kỳ khác "tuần này") và gỡ một nhánh chết trong luật tên đầu câu (từ kế tiếp viết hoa đã bị luật "viết hoa
+giữa câu" chặn trước).
+
+**Toàn bộ test backend**: 106 tệp / 1178 test xanh (thêm 23); `tsc`, `eslint` sạch. Container `taskflow-backend` **chưa**
+khởi động lại — lần khởi động tới, chatbot sẽ gọi LLM bằng khoá đang có trong `backend/.env`.
+
+**Bài học**:
+- Luật an toàn viết trên giấy cần thử với **dữ liệu thật của người Việt** trước khi code: luật "trùng tên" đọc thì hợp lý
+  nhưng với danh sách tên thật thì gần như luôn kích hoạt — một bộ lọc luôn từ chối thì tương đương tắt tính năng.
+- "Nhớ mức ép JSON khi thất bại?" phải tách hai loại thất bại: nhà cung cấp **từ chối định dạng** (HTTP 400) khác với
+  **mô hình trả sai hình dạng** (HTTP 200) — test đầu tiên của tôi kỳ vọng sai ở điểm này.

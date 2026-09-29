@@ -203,7 +203,7 @@ function detectFocus(toks: Token[], periodUsed: boolean[], dueSoon: boolean): Ch
 // ===================== (3) Ten nguoi =====================
 
 const PRE_CUES = new Set(['cua', 'cho', 'voi', 'con', 'ban', 'anh', 'chi', 'em', 'co', 'chu', 'thay', 'bac', 'be', 'ong']);
-const POST_CUES = new Set([
+export const POST_CUES: ReadonlySet<string> = new Set([
   'dang', 'lam', 'xong', 'co', 'da', 'con', 'nhan', 'giu', 'thi', 'bi', 'sap', 'hien', 'van', 'duoc', 'can',
   'phai', 'nen',
 ]);
@@ -217,7 +217,7 @@ const SELF_FOLDS = new Set(['toi', 'minh', 'to', 'em']);
  * nguoi ten "Trưởng Nhóm" khong duoc bien "Nhóm có việc nào quá hạn?" thanh cau hoi ve nguoi.
  * Nhac ca ten nhieu tu ("Trưởng Nhóm có việc gì?") van nhan binh thuong.
  */
-const KEYWORD_TOKENS = new Set(['nhom', 'team', 'viec', 'han', 'the', 'bang', 'workspace', 'moi', 'nguoi', 'ai', 'task', 'deadline', 'card']);
+export const KEYWORD_TOKENS: ReadonlySet<string> = new Set(['nhom', 'team', 'viec', 'han', 'the', 'bang', 'workspace', 'moi', 'nguoi', 'ai', 'task', 'deadline', 'card']);
 const DIGITS_RE = /^[0-9]{1,4}$/;
 
 function isCapitalized(raw: string): boolean {

@@ -1,15 +1,17 @@
 // Dieu phoi mot luot hoi (CHATBOT_MODULE.md §3, §9, §12).
 //
-//   cau hoi -> hieu cau (tiem vao: bo luat o buoc 4, lai LLM o buoc 5) -> cau noi tiep
+//   cau hoi -> hieu cau (bo luat + LLM, gop B2; LLM loi -> bo luat) -> cau noi tiep
 //   -> kiem pham vi + quyen (DOC LAI moi luot) -> nhan dien nguoi -> tham so hieu luc
-//   -> truy van -> dung cau tra loi theo mau.
+//   -> truy van -> dung cau tra loi theo mau -> (chi tong ket nhom) nhan xet AI tu so dem.
 //
 // Quyen va pham vi luon doc lai tu CSDL (resolveScope / loadRoster), ke ca o /choice va
 // /more: phien chi giu y dinh, tham so, id nguoi da chon - khong giu quyen hay du lieu.
+// /choice va /more KHONG goi LLM (§12.1).
 // `now` do controller truyen vao (tep duy nhat doc dong ho). Khong ghi log noi dung.
 
 import { AppError } from '../../utils/AppError';
 import {
+  periodText,
   renderAnswer,
   renderAskWho,
   renderClarifyMember,
@@ -21,6 +23,7 @@ import {
 } from './chat.answer';
 import { applyFollowUp, type FollowUpContext } from './chat.followup';
 import { resolveSlots, type ChatFocus, type ChatIntent, type ChatPeriod, type FinalQuestion, type ParsedQuestion } from './chat.intent';
+import { chatLlmAvailable, defaultChatLlm, understandHybrid, type ChatLlmDeps } from './chat.llm';
 import { resolveMemberRef, type RosterMember } from './chat.members';
 import { runQuery } from './chat.queries';
 import { parseByRules } from './chat.rules';
@@ -33,15 +36,20 @@ import {
   type ResolvedScope,
 } from './chat.scope';
 import { scopeKeyOf, type ChatSessionState, type ChatSessionStore, type Parser } from './chat.session';
+import { requestSummaryComment } from './chat.summary';
 
-/** Bo "hieu cau hoi": nhan cau hoi + danh sach nguoi (chi o server) + ngu canh luot truoc. */
+/**
+ * Bo "hieu cau hoi": nhan cau hoi + danh sach nguoi (chi o server, KHONG gui LLM) + ngu canh
+ * luot truoc + thoi diem (cho ngan sach LLM). Khong bao gio nhan du lieu the.
+ */
 export type Understand = (
   question: string,
   roster: readonly RosterMember[],
-  prev: FollowUpContext | null
+  prev: FollowUpContext | null,
+  now: Date
 ) => Promise<{ parsed: ParsedQuestion; parser: Parser }>;
 
-/** Buoc 4: chi bo luat (nhanh B0). Buoc 5 thay bang ban gop luat + LLM. */
+/** Chi bo luat (nhanh B0). */
 export const understandByRules: Understand = async (question, roster) => ({
   parsed: parseByRules(question, roster),
   parser: 'RULE',
@@ -50,7 +58,10 @@ export const understandByRules: Understand = async (question, roster) => ({
 export interface ChatContext {
   now: Date;
   sessions: ChatSessionStore;
+  /** Mac dinh: bo luat + LLM (understandHybrid) voi `llm`. */
   understand?: Understand;
+  /** Mac dinh: cau hinh + ngan sach chung cua tien trinh (defaultChatLlm). */
+  llm?: ChatLlmDeps;
 }
 
 export interface Understood {
@@ -97,13 +108,15 @@ function understoodOf(q: FinalQuestion, parser: Parser, memberName: string | nul
 /**
  * Tra loi mot cau hoi da qua buoc noi tiep, trong pham vi da kiem quyen. Ghi ngu canh +
  * truy van cuoi vao phien; tao cau hoi lai (dat `pending`) khi can.
+ * `llm` = null -> khong goi LLM (tra loi cau hoi lai qua /choice, §12.1).
  */
 async function answerQuestion(
   session: ChatSessionState,
   scope: ResolvedScope,
   question: FinalQuestion,
   parser: Parser,
-  now: Date
+  now: Date,
+  llm: ChatLlmDeps | null
 ): Promise<{ understood: Understood; answer: ChatAnswer }> {
   const info = scopeInfoOf(scope);
 
@@ -112,7 +125,7 @@ async function answerQuestion(
     const options = await listChoosableWorkspaces(scope.userId);
     if (options.length === 1) {
       const only = await resolveScope(scope.userId, { kind: 'WORKSPACE', workspaceId: options[0].id });
-      return answerQuestion(session, only, question, parser, now);
+      return answerQuestion(session, only, question, parser, now, llm);
     }
     session.pending = {
       kind: 'WORKSPACE',
@@ -159,6 +172,15 @@ async function answerQuestion(
 
   const result = await runQuery({ scope, now, page: 1 }, resolved, { target, roster });
   const answer = renderAnswer({ query: resolved, scope: info, result, memberName: target?.name ?? null, now });
+
+  // Nhan xet AI (§11): chi tong ket nhom, chi khi luot nay LLM dung duoc (hieu cau khong phai
+  // lui ve bo luat) - LLM vua loi thi goi lai cung vo ich va nguoi dung phai doi them.
+  const kind = scope.kind;
+  if (llm && parser !== 'RULE' && kind !== 'MY' && resolved.intent === 'TEAM_SUMMARY' && resolved.focus === null && result.kind === 'LIST') {
+    const input = { periodLabel: periodText(resolved.period ?? 'THIS_WEEK'), scopeKind: kind, counts: result.counts };
+    const comment = await requestSummaryComment(llm, input, roster, now.getTime());
+    if (comment.ok) answer.comment = comment.comment;
+  }
 
   // Ngu canh cho cau noi tiep: tham so NGUOI DUNG da noi (truoc mac dinh) + nguoi da nhan dien
   session.context = {
@@ -208,8 +230,10 @@ export async function handleMessage(
   state.pending = null; // cau hoi moi bo cau hoi lai dang cho
 
   const roster = scope.kind === 'MY' ? await loadMyRoster(userId) : await loadRoster(scope);
-  const understand = ctx.understand ?? understandByRules;
-  const { parsed, parser } = await understand(input.message, roster, state.context);
+  const llm = ctx.llm ?? defaultChatLlm();
+  const understand: Understand =
+    ctx.understand ?? ((question, names, prev, now) => understandHybrid(question, names, prev, now.getTime(), llm));
+  const { parsed, parser } = await understand(input.message, roster, state.context, ctx.now);
   const fu = applyFollowUp(parsed, state.context);
 
   const base = { conversationId: id, ...(reset ? { conversationReset: true as const } : {}) };
@@ -220,7 +244,7 @@ export async function handleMessage(
       answer: renderUnsupported(scopeInfoOf(scope), ctx.now),
     };
   }
-  return { ...base, ...(await answerQuestion(state, scope, fu.question, parser, ctx.now)) };
+  return { ...base, ...(await answerQuestion(state, scope, fu.question, parser, ctx.now, llm)) };
 }
 
 /** Tra loi cau hoi lai (chon nguoi / chon khong gian) - KHONG goi LLM (§9.3). */
@@ -243,7 +267,7 @@ export async function handleChoice(
   const question: FinalQuestion =
     pending.kind === 'MEMBER' ? { ...pending.question, memberText: null, memberUserId: chosen } : pending.question;
   state.pending = null;
-  return { conversationId: input.conversationId, ...(await answerQuestion(state, scope, question, pending.parser, ctx.now)) };
+  return { conversationId: input.conversationId, ...(await answerQuestion(state, scope, question, pending.parser, ctx.now, null)) };
 }
 
 /** Trang tiep theo cua cau tra loi truoc - KHONG goi LLM, kiem lai pham vi va nguoi. */
@@ -286,7 +310,7 @@ export async function handleMore(
   };
 }
 
-/** Buoc 4 chua dung LLM; buoc 5 bao that. KHONG BAO GIO tra 503 vi thieu khoa. */
-export function getChatStatus(): { llmAvailable: boolean } {
-  return { llmAvailable: false };
+/** Co LLM hay khong (giao dien hien "Chế độ cơ bản"). KHONG BAO GIO tra 503 vi thieu khoa. */
+export function getChatStatus(deps: ChatLlmDeps = defaultChatLlm()): { llmAvailable: boolean } {
+  return { llmAvailable: chatLlmAvailable(deps.cfg) };
 }

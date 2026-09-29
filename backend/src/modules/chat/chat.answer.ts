@@ -37,6 +37,12 @@ export interface ClarifyOption {
   kind: 'USER' | 'WORKSPACE';
 }
 
+/** Nhan xet AI (chi tong ket nhom, §11): giao dien hien o o rieng, tach khoi so lieu. */
+export interface ChatComment {
+  text: string;
+  source: 'AI';
+}
+
 export interface ChatAnswer {
   kind: 'ANSWER' | 'CLARIFY' | 'UNSUPPORTED';
   text: string;
@@ -53,6 +59,8 @@ export interface ChatAnswer {
   notes: string[];
   clarify?: { question: string; options: ClarifyOption[] };
   suggestions: string[];
+  /** Chi co khi LLM viet duoc nhan xet qua kiem tra (chat.summary). */
+  comment?: ChatComment;
 }
 
 /** Toi da bay nhieu lua chon trong mot cau hoi lai. */
@@ -68,6 +76,11 @@ const PERIOD_TEXT: Record<ChatPeriod, string> = {
   LAST_WEEK: 'tuần trước',
   NEXT_7_DAYS: 'trong 7 ngày tới',
 };
+
+/** Nhan ky nhu cau tra loi dung ("tuần này") - cung nhan gui LLM o luot nhan xet. */
+export function periodText(period: ChatPeriod): string {
+  return PERIOD_TEXT[period];
+}
 
 const QUICK_QUESTIONS = [
   'Việc nào của tôi sắp đến hạn?',
