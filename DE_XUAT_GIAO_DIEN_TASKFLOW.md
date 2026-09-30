@@ -345,3 +345,16 @@ Dùng hai tài khoản demo từ `teamSeed.ts` trong hai cửa sổ trình duy�
 - Đổi thứ tự giai đoạn: board sống động và dashboard lên trước; trang giới thiệu chỉ còn rà soát.
 - Bỏ các câu về việc "chỉ tạo tài liệu" và rút gọn phần lặp lại.
 - Đưa phần thanh tiến độ trên thẻ bảng vào phạm vi (cần thêm số liệu tổng hợp ở backend).
+
+## Nhật ký triển khai (nhánh `giao-dien-nang-cap`, tách từ `skeleton` ngày 30/09/2026)
+
+| Bước | Nội dung | Commit |
+|---|---|---|
+| Nền | Commit phần đang sửa dở: trang giới thiệu ở `/`, đồng bộ màu trang xác thực, trang Hồ sơ, tài liệu này (nền: lint chỉ có cảnh báo có sẵn, build qua, 291/291 test qua) | `4002987`, `5388ed9`, `c7c31ec`, `91be437` |
+| 1a | Màu chủ đạo chàm thay xanh Trello: biến `primary`, `primary-hover`, `primary-soft`, `primary-ink` (hai biến sau tự đổi ở giao diện tối); thay khoảng 180 chỗ ở 43 file; nền ứng dụng `#f8fafc`. Kiểm tra bằng mắt: dashboard, board, hộp thoại thẻ ở sáng/tối | `2580d83` |
+| 1b | Hệ chuyển động trong `motion.css`: hộp thoại, menu/popover, đổi trang; chỉ hiệu ứng vào; tắt hết khi giảm chuyển động (có `motion.test.ts` bảo đảm). Đã đo: khung hình chạy thật (độ mờ 0 → 0,73 trong khoảng 120ms), kết thúc để lại `transform: none` | `adcf831` |
+| 1c | Skeleton thay "Đang tải…" ở danh sách bảng, dashboard, Thẻ của tôi, Mẫu, Hoạt động của tôi, board (tải bảng và tải danh sách) và hộp thoại thẻ; sửa lỗi ô chỉ số dashboard hiện "0" khi đang tải | `44b5df3` |
+
+Còn lại của giai đoạn 1: khoảng 20 chỗ "Đang tải…" nhỏ trong menu/panel và trang phụ (`CalendarPage`, `JoinBoardPage`, `WorkspaceSettingsPage`, `PublicBoardPage`, `NotificationSettingsPage`…), cho từng trang tự chọn chiều rộng trong `MainLayout`, trạng thái trống có minh họa. Giai đoạn 0 (ảnh đối chiếu lưu trong repo) chưa làm.
+
+Lưu ý khi kiểm tra: khung trình duyệt trong công cụ bật "giảm chuyển động", nên hiệu ứng được xác minh bằng cách ép bật tạm và đo, chưa xem được bằng mắt ở tốc độ thật.
