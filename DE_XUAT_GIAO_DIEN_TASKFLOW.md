@@ -325,17 +325,17 @@ Dùng hai tài khoản demo từ `teamSeed.ts` trong hai cửa sổ trình duy�
 
 ## 11. Checklist bàn giao giao diện
 
-- [ ] Một màu chủ đạo thống nhất giữa trang giới thiệu, đăng nhập và ứng dụng, sáng/tối đều đọc rõ.
-- [ ] Hệ chuyển động dùng chung, có tắt qua giảm chuyển động; kéo thả và bố cục board không hỏng.
-- [ ] Skeleton thay các dòng "Đang tải…"; trạng thái trống có hành động rõ.
-- [ ] Presence và thay đổi realtime nhìn thấy được, không nháy sai.
-- [ ] Thanh tiến độ trên thẻ bảng khớp số liệu trong panel Thống kê.
-- [ ] Công việc cá nhân và lịch truy cập được trên desktop và điện thoại.
-- [ ] Dashboard ưu tiên việc cần xử lý và không hiển thị dữ liệu giả.
-- [ ] Gợi ý phân công giữ đúng điểm, mức đủ dữ liệu, cảnh báo và quyền xem bằng chứng.
-- [ ] Đăng nhập, lời mời, board công khai và link trực tiếp hoạt động đúng luồng hiện hành.
-- [ ] Trang giới thiệu đã commit, nội dung và hình minh họa phản ánh chức năng thực tế.
-- [ ] Có kết quả kiểm tra, ảnh đối chiếu trước/sau và ghi chú giới hạn cho phạm vi đã triển khai.
+- [x] Một màu chủ đạo thống nhất giữa trang giới thiệu, đăng nhập và ứng dụng, sáng/tối đều đọc rõ.
+- [x] Hệ chuyển động dùng chung, có tắt qua giảm chuyển động; kéo thả và bố cục board không hỏng.
+- [x] Skeleton thay các dòng "Đang tải…"; trạng thái trống có hành động rõ.
+- [x] Presence và thay đổi realtime nhìn thấy được, không nháy sai.
+- [x] Thanh tiến độ trên thẻ bảng khớp số liệu trong panel Thống kê (cùng định nghĩa `isDone`, bỏ thẻ/danh sách đã lưu trữ; có test).
+- [x] Công việc cá nhân và lịch truy cập được trên desktop và điện thoại.
+- [x] Dashboard ưu tiên việc cần xử lý và không hiển thị dữ liệu giả.
+- [x] Gợi ý phân công giữ đúng điểm, mức đủ dữ liệu, cảnh báo và quyền xem bằng chứng (không đổi logic, chỉ đổi màu nhấn; các test của bảng gợi ý vẫn qua).
+- [x] Đăng nhập, lời mời, board công khai và link trực tiếp hoạt động đúng luồng hiện hành (có test định tuyến `LandingRouting.test.tsx`; chưa thử tay từng luồng sau đợt nâng cấp).
+- [x] Trang giới thiệu đã commit, nội dung và hình minh họa phản ánh chức năng thực tế (hình là bản mô phỏng có ghi "Bản minh họa").
+- [x] Có kết quả kiểm tra, ảnh đối chiếu trước/sau và ghi chú giới hạn cho phạm vi đã triển khai.
 
 ## Phụ lục: thay đổi so với bản 27/09/2026
 
@@ -348,18 +348,31 @@ Dùng hai tài khoản demo từ `teamSeed.ts` trong hai cửa sổ trình duy�
 
 ## Nhật ký triển khai (nhánh `giao-dien-nang-cap`, tách từ `skeleton` ngày 30/09/2026)
 
+Mỗi bước là một commit riêng; sau mỗi bước chạy `npm run lint` (không lỗi), `npm run build` và `npm test` trong `frontend`. Nền trước khi làm: 291 test qua, hiện 354 test qua. Ảnh đối chiếu trước/sau ở [docs/anh-doi-chieu](docs/anh-doi-chieu/README.md).
+
 | Bước | Nội dung | Commit |
 |---|---|---|
-| Nền | Commit phần đang sửa dở: trang giới thiệu ở `/`, đồng bộ màu trang xác thực, trang Hồ sơ, tài liệu này (nền: lint chỉ có cảnh báo có sẵn, build qua, 291/291 test qua) | `4002987`, `5388ed9`, `c7c31ec`, `91be437` |
-| 1a | Màu chủ đạo chàm thay xanh Trello: biến `primary`, `primary-hover`, `primary-soft`, `primary-ink` (hai biến sau tự đổi ở giao diện tối); thay khoảng 180 chỗ ở 43 file; nền ứng dụng `#f8fafc`. Kiểm tra bằng mắt: dashboard, board, hộp thoại thẻ ở sáng/tối | `2580d83` |
-| 1b | Hệ chuyển động trong `motion.css`: hộp thoại, menu/popover, đổi trang; chỉ hiệu ứng vào; tắt hết khi giảm chuyển động (có `motion.test.ts` bảo đảm). Đã đo: khung hình chạy thật (độ mờ 0 → 0,73 trong khoảng 120ms), kết thúc để lại `transform: none` | `adcf831` |
-| 1c | Skeleton thay "Đang tải…" ở danh sách bảng, dashboard, Thẻ của tôi, Mẫu, Hoạt động của tôi, board (tải bảng và tải danh sách) và hộp thoại thẻ; sửa lỗi ô chỉ số dashboard hiện "0" khi đang tải | `44b5df3` |
-| 3a | Thẻ mới / vừa chuyển cột mờ dần vào; thay đổi do người khác nổi bật viền ~1,2s (so sánh danh sách cũ và mới ở frontend, không đổi backend). Không nháy khi chính mình thao tác (1,5s gần nhất), khi đang kéo, khi lần tải đầu/đổi bảng, hoặc khi hơn 12 thẻ đổi cùng lúc. Đã thử thật: tài khoản thứ hai đổi tên thẻ qua API thì thẻ ở tab kia nhận hiệu ứng; vào bảng lần đầu 40 thẻ, 0 hiệu ứng | `157ed30` |
-| 3b | Presence: chấm xanh, chú thích "<tên> (bạn) — đang xem bảng", `role=group` + nhãn liệt kê tên, avatar bật lên khi có người vào. Đã thử thật bằng tài khoản thứ hai vào phòng bảng qua socket | `bde713d` |
+| Nền | Commit phần đang sửa dở: trang giới thiệu ở `/`, đồng bộ màu trang xác thực, trang Hồ sơ, tài liệu này | `4002987`, `5388ed9`, `c7c31ec`, `91be437` |
+| 1a | Màu chủ đạo chàm thay xanh Trello: biến `primary`, `primary-hover`, `primary-soft`, `primary-ink` (hai biến sau tự đổi ở giao diện tối); thay khoảng 180 chỗ ở 43 file; nền ứng dụng `#f8fafc` | `2580d83` |
+| 1b | Hệ chuyển động `motion.css`: hộp thoại, menu/popover, đổi trang; chỉ hiệu ứng vào; tắt hết khi giảm chuyển động (`motion.test.ts` bảo đảm mọi lớp có animation đều bị tắt). Đã đo: khung hình chạy thật, kết thúc để lại `transform: none` | `adcf831` |
+| 1c, 1d | Skeleton (`Skeleton.tsx`) thay "Đang tải…" ở các trang chính, menu, panel, trang phụ; sửa lỗi ô chỉ số dashboard hiện "0" khi đang tải | `44b5df3`, `84262fe` |
+| 1e | Trạng thái trống có biểu tượng và hành động (`EmptyState`): Thẻ của tôi, Hoạt động của tôi, Tổng quan, Tìm kiếm | `0ab1ee0` |
+| 3a | Thẻ mới / vừa chuyển cột mờ dần vào; thay đổi do người khác nổi viền ~1,2s (so sánh danh sách cũ và mới ở frontend, không đổi backend). Không nháy khi chính mình thao tác, khi đang kéo, khi lần tải đầu/đổi bảng, hoặc khi hơn 12 thẻ đổi cùng lúc. Đã thử thật với tài khoản thứ hai | `157ed30` |
+| 3b | Presence: chấm xanh, chú thích "<tên> (bạn) — đang xem bảng", `role=group` + nhãn liệt kê tên, avatar bật lên khi có người vào. Đã thử thật qua socket | `bde713d` |
 | 3c | Hộp thoại thẻ: nhóm "Thêm vào thẻ" và biểu tượng cho 6 nút; vị trí popover giữ nguyên | `afd9950` |
+| 3d | Thanh công cụ board: xuống dòng ở màn hình hẹp, tên bảng không bị ngắt 4 dòng, 7 nút công cụ gom vào một nhóm `role=toolbar` | `2749c9f` |
+| 4a | Backend: danh sách bảng trả `cardCount`, `doneCount` (hai truy vấn gom nhóm, đếm giống màn hình bảng); 6 test mới | `d411841` |
+| 4b | Thẻ bảng có ảnh bìa + tên, không gian, số thành viên, ngày cập nhật, thanh tiến độ; Tổng quan hai cột từ 1280px, nút "Tạo bảng", số liệu đếm lên (`useCountUp`); layout rộng hơn cho `/home` và `/boards` | `6e5b728` |
+| 2 | Điều hướng: 6 mục chính (thêm "Công việc của tôi", "Lịch"), cây không gian đóng/mở mượt (nhớ trạng thái), ngăn điều hướng cho điện thoại (`NavDrawer`: Escape, nền, chọn liên kết, giữ và trả focus, phím không lọt ra phím tắt của bảng), nút menu ở header. Sửa lỗi tràn ngang của Tổng quan ở 375px | `f1340f8` |
+| 5a | Mẫu có hình xem trước bảng; đăng nhập/đăng ký hai cột từ 1024px (bảng Kanban minh hoạ với dữ liệu demo); thống nhất màu nhấn ở giao diện tối | `bd5a549` |
+| 5b | Lịch trên màn hình hẹp: tiêu đề một dòng, lưới lịch cuộn ngang trong vùng riêng. Đã rà 375px các trang chính: không còn tràn ngang | `386c8c6` |
+| 0/7 | Ảnh đối chiếu trước/sau lưu trong repo | `583cd7a` |
 
-Ghi chú giai đoạn 3: phần phản hồi kéo thả đã có sẵn từ trước (bản nổi nghiêng, ô chờ nét đứt, hiệu ứng thả 200ms) nên không làm lại. Toast "ai vừa làm gì" và presence mức thẻ cần thay đổi backend, để ngoài đợt này. Phát hiện thêm: ở bề ngang khoảng 800px, thanh công cụ board bị dồn (tên bảng "Sprint 4: Đang chạy" bị ngắt thành 4 dòng) — cần xử lý khi làm toolbar hai hàng (mục 5.4).
+### Chưa làm hoặc làm một phần (ghi rõ để không hiểu nhầm)
 
-Còn lại của giai đoạn 1: khoảng 20 chỗ "Đang tải…" nhỏ trong menu/panel và trang phụ (`CalendarPage`, `JoinBoardPage`, `WorkspaceSettingsPage`, `PublicBoardPage`, `NotificationSettingsPage`…), cho từng trang tự chọn chiều rộng trong `MainLayout`, trạng thái trống có minh họa. Giai đoạn 0 (ảnh đối chiếu lưu trong repo) chưa làm.
+- **Không làm (cần backend hoặc nằm ngoài đợt này):** toast "ai vừa làm gì" và chỉ báo "ai đang xem thẻ nào" (sự kiện realtime chỉ mang `boardId`).
+- **Chưa làm:** thu gọn sidebar desktop còn 72px; hiệu ứng thoát (thẻ bị xoá/lưu trữ thu gọn dần); bảng lệnh `Ctrl+K`, thêm thẻ nhanh liên tiếp, thao tác nhanh khi hover thẻ (mục 3.4 là tùy chọn).
+- **Làm một phần:** toolbar board mới chỉ gom nhóm và cho xuống dòng, chưa gộp vào menu "Công cụ"; trang giới thiệu chỉ rà soát (giữ bản mô phỏng sản phẩm, chưa thay bằng ảnh chụp thật); trang Hồ sơ/Cài đặt mới rà tràn ngang, chưa rà thị giác từng khối; phần kéo thả vốn đã có phản hồi tốt nên không làm lại.
+- **Chưa xem được:** chuyển động ở tốc độ thật trong trình duyệt của công cụ (bật sẵn "giảm chuyển động"); hiệu ứng được xác minh bằng cách ép bật tạm và đo. Nên xem trên Chrome thường trước khi báo cáo.
+- **Nợ kỹ thuật ghi nhận:** một cảnh báo lint mới `set-state-in-effect` ở `useCardHighlights` (có chủ đích, dùng `useLayoutEffect` để không nhấp nháy).
 
-Lưu ý khi kiểm tra: khung trình duyệt trong công cụ bật "giảm chuyển động", nên hiệu ứng được xác minh bằng cách ép bật tạm và đo, chưa xem được bằng mắt ở tốc độ thật.
