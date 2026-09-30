@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { fetchMyCards, type MyCard } from '../lib/api/card';
 import { Skeleton, SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 import { getErrorMessage } from '../lib/errorMessage';
+import EmptyState from '../components/EmptyState';
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('vi-VN', {
@@ -88,9 +89,16 @@ export default function MyCardsPage() {
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : groups.length === 0 ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Bạn chưa được gán vào thẻ nào.
-        </p>
+        <EmptyState
+          icon="tasks"
+          title="Bạn chưa được gán vào thẻ nào."
+          description="Khi có người giao việc cho bạn, thẻ sẽ hiện ở đây, xếp theo hạn."
+          action={
+            <Link to="/boards" className="text-sm font-medium text-primary-ink hover:underline">
+              Xem các bảng
+            </Link>
+          }
+        />
       ) : (
         <div className="flex flex-col gap-5">
           {groups.map(({ bucket, items }) => (

@@ -12,6 +12,7 @@ import { fetchMyCards, type MyCard } from '../lib/api/card';
 import { getErrorMessage } from '../lib/errorMessage';
 import { useCountUp } from '../lib/useCountUp';
 import { getRecentBoards } from '../lib/recentBoards';
+import EmptyState from '../components/EmptyState';
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -247,9 +248,12 @@ export default function HomeDashboard() {
               <SkeletonRows rows={3} />
             </SkeletonRegion>
           ) : !hasAttention ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Không có thẻ nào sắp đến hạn. 🎉
-            </p>
+            <EmptyState
+              compact
+              icon="calendar"
+              title="Không có thẻ nào sắp đến hạn."
+              description="Việc gần hạn của bạn đã xử lý xong."
+            />
           ) : (
             <div className="flex flex-col gap-4">
               {DUE_GROUPS.map((g) => {
@@ -342,9 +346,7 @@ export default function HomeDashboard() {
               <SkeletonRows rows={5} />
             </SkeletonRegion>
           ) : activity.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Chưa có hoạt động nào.
-            </p>
+            <EmptyState compact icon="activity" title="Chưa có hoạt động nào." />
           ) : (
             <ul className="flex flex-col gap-2.5">
               {activity.map((a) => (

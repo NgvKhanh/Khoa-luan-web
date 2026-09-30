@@ -4,6 +4,7 @@ import { fetchMyActivity, type MyActivity } from '../lib/api/auth';
 import { statusLabel } from '../lib/cardStatus';
 import { SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 import { getErrorMessage } from '../lib/errorMessage';
+import EmptyState from '../components/EmptyState';
 
 function fmt(iso: string): string {
   return new Date(iso).toLocaleString('vi-VN', {
@@ -71,9 +72,11 @@ export default function MyActivityPage() {
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : items.length === 0 ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Chưa có hoạt động nào.
-        </p>
+        <EmptyState
+          icon="activity"
+          title="Chưa có hoạt động nào."
+          description="Những gì bạn làm trên các bảng sẽ được ghi lại ở đây."
+        />
       ) : (
         <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800">
           {items.map((a) => (

@@ -15,6 +15,8 @@ import { CARD_STATUS_ORDER, STATUS_META } from '../lib/cardStatus';
 import { getErrorMessage } from '../lib/errorMessage';
 import { logError } from '../lib/logError';
 import StatusBadge from '../components/board/StatusBadge';
+import EmptyState from '../components/EmptyState';
+import { SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('vi-VN', {
@@ -309,11 +311,15 @@ export default function SearchPage() {
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       {loading && !result ? (
-        <p className="text-sm text-slate-500">Đang tìm...</p>
+        <SkeletonRegion label="Đang tìm…">
+          <SkeletonRows rows={5} boxed />
+        </SkeletonRegion>
       ) : !result || result.items.length === 0 ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Không tìm thấy thẻ nào khớp bộ lọc.
-        </p>
+        <EmptyState
+          icon="search"
+          title="Không tìm thấy thẻ nào khớp bộ lọc."
+          description="Thử bỏ bớt điều kiện hoặc đổi từ khoá."
+        />
       ) : (
         <>
           <p className="text-xs text-slate-400">{result.total} kết quả</p>
