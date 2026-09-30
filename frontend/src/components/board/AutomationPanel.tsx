@@ -186,7 +186,7 @@ export default function AutomationPanel({ boardId, onClose }: Props) {
   }
 
   const field =
-    'w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-900';
+    'w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-900';
 
   return createPortal(
     <div
@@ -306,7 +306,7 @@ export default function AutomationPanel({ boardId, onClose }: Props) {
               <button
                 type="button"
                 onClick={() => setActions((cur) => [...cur, emptyAction()])}
-                className="self-start text-xs font-medium text-[#0c66e4] hover:underline"
+                className="self-start text-xs font-medium text-primary-ink hover:underline"
               >
                 + Thêm hành động
               </button>
@@ -316,7 +316,7 @@ export default function AutomationPanel({ boardId, onClose }: Props) {
               type="button"
               disabled={busy || !name.trim()}
               onClick={() => void submitCreate()}
-              className="w-full rounded-lg bg-[#0c66e4] py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+              className="w-full rounded-lg bg-primary py-1.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
             >
               Tạo luật
             </button>

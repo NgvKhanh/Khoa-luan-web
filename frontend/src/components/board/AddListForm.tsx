@@ -64,7 +64,7 @@ export default function AddListForm({ onAdd }: Props) {
         onChange={(e) => setName(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder="Nhập tên danh sách..."
-        className="w-full rounded border border-[#0c66e4] bg-white px-2 py-1.5 text-sm focus:outline-none dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
+        className="w-full rounded border border-primary bg-white px-2 py-1.5 text-sm focus:outline-none dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
       />
       {error && (
         <p className="mt-1 text-xs text-red-600 dark:text-red-400">{error}</p>
@@ -73,7 +73,7 @@ export default function AddListForm({ onAdd }: Props) {
         <button
           type="submit"
           disabled={isSubmitting || !name.trim()}
-          className="rounded bg-[#0c66e4] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+          className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
         >
           {isSubmitting ? 'Đang thêm...' : 'Thêm danh sách'}
         </button>

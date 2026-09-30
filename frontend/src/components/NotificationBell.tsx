@@ -261,7 +261,7 @@ export default function NotificationBell() {
                         type="button"
                         onClick={() => openItem(n)}
                         className={`flex w-full gap-3 border-b border-slate-100 px-4 py-3 text-left hover:bg-slate-50 ${
-                          n.isRead ? '' : 'bg-[#0c66e4]/[0.04]'
+                          n.isRead ? '' : 'bg-primary/[0.04]'
                         }`}
                       >
                         <span
@@ -279,7 +279,7 @@ export default function NotificationBell() {
                           </span>
                         </span>
                         {!n.isRead && (
-                          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#0c66e4]" />
+                          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
                         )}
                       </button>
                     </li>

@@ -217,7 +217,7 @@ export default function ListColumn({
               onBlur={saveName}
               onKeyDown={onKeyDown}
               onPointerDown={(e) => e.stopPropagation()}
-              className="w-full rounded border border-[#0c66e4] bg-white px-2 py-1 text-sm font-semibold text-[#172b4d] focus:outline-none dark:bg-slate-900 dark:text-slate-100"
+              className="w-full rounded border border-primary bg-white px-2 py-1 text-sm font-semibold text-slate-900 focus:outline-none dark:bg-slate-900 dark:text-slate-100"
             />
           </form>
         ) : (
@@ -228,7 +228,7 @@ export default function ListColumn({
               setDraft(list.name);
               setEditing(true);
             }}
-            className="flex-1 rounded px-2 py-1 text-left text-sm font-semibold text-[#172b4d] enabled:hover:bg-black/5 dark:text-slate-100 dark:enabled:hover:bg-white/10"
+            className="flex-1 rounded px-2 py-1 text-left text-sm font-semibold text-slate-900 enabled:hover:bg-black/5 dark:text-slate-100 dark:enabled:hover:bg-white/10"
           >
             {list.name}
           </button>

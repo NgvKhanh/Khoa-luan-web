@@ -45,7 +45,7 @@ function explain(err: unknown, fallback: string): string {
 }
 
 const field =
-  'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 focus:border-[#0c66e4] focus:outline-none focus:ring-1 focus:ring-[#0c66e4] disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100';
+  'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100';
 const label = 'mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300';
 
 type ConfirmAction = 'close' | 'back' | null;
@@ -390,7 +390,7 @@ export default function AiGenerateBoardModal({ onClose, onCreated, workspaceId: 
                         type="checkbox"
                         checked={skipWeekend}
                         onChange={(e) => setSkipWeekend(e.target.checked)}
-                        className="h-4 w-4 accent-[#0c66e4]"
+                        className="h-4 w-4 accent-primary"
                       />
                       Bỏ thứ Bảy, Chủ nhật khi xếp lịch
                     </label>
@@ -442,7 +442,7 @@ export default function AiGenerateBoardModal({ onClose, onCreated, workspaceId: 
                     type="button"
                     onClick={() => void generate()}
                     disabled={!canGenerate}
-                    className="rounded-lg bg-[#0c66e4] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0a5cd4] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {generating ? 'Đang phân tích...' : 'Tạo kế hoạch'}
                   </button>
@@ -461,7 +461,7 @@ export default function AiGenerateBoardModal({ onClose, onCreated, workspaceId: 
                     type="button"
                     onClick={() => void apply()}
                     disabled={locked || issues.length > 0}
-                    className="rounded-lg bg-[#0c66e4] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0a5cd4] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {applying ? 'Đang tạo bảng...' : `Tạo bảng (${selectedCount} thẻ)`}
                   </button>

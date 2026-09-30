@@ -275,7 +275,7 @@ export default function AssignPlanModal({ listId, listName, onClose, onApplied }
                   setState({ status: 'loading' });
                   setReloadKey((k) => k + 1);
                 }}
-                className="mt-1 font-medium text-[#0c66e4] hover:underline dark:text-sky-300"
+                className="mt-1 font-medium text-primary-ink hover:underline dark:text-sky-300"
               >
                 Thử lại
               </button>
@@ -333,7 +333,7 @@ export default function AssignPlanModal({ listId, listName, onClose, onApplied }
                 type="button"
                 onClick={() => void apply()}
                 disabled={applying || selection.length === 0}
-                className="rounded bg-[#0c66e4] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0055cc] disabled:opacity-50"
+                className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
               >
                 {applying ? 'Đang giao…' : `Áp dụng cho ${selection.length} thẻ`}
               </button>

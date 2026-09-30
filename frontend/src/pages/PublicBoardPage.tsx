@@ -77,7 +77,7 @@ export default function PublicBoardPage() {
           {user ? (
             <Link
               to="/boards"
-              className="rounded-lg bg-[#0c66e4] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4]"
+              className="rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-white hover:bg-primary-hover"
             >
               Về TaskFlow
             </Link>
@@ -85,7 +85,7 @@ export default function PublicBoardPage() {
             <Link
               to="/login"
               state={{ from: `/boards/${boardId}` }}
-              className="rounded-lg bg-[#0c66e4] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4]"
+              className="rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-white hover:bg-primary-hover"
             >
               Đăng nhập
             </Link>
@@ -102,7 +102,7 @@ export default function PublicBoardPage() {
           <p className="text-slate-600 dark:text-slate-300">
             {error ?? 'Không tìm thấy bảng này.'}
           </p>
-          <Link to="/login" state={{ from: `/boards/${boardId}` }} className="text-sm font-medium text-[#0c66e4] hover:underline">
+          <Link to="/login" state={{ from: `/boards/${boardId}` }} className="text-sm font-medium text-primary-ink hover:underline">
             Đăng nhập để xem thêm
           </Link>
         </div>
@@ -124,7 +124,7 @@ export default function PublicBoardPage() {
                   className="flex max-h-full w-[272px] shrink-0 flex-col rounded-xl bg-[#f1f2f4]/95 shadow-sm backdrop-blur-sm dark:bg-slate-800/95"
                 >
                   <div className="flex items-center gap-1 px-2 py-1.5">
-                    <span className="flex-1 truncate px-2 py-1 text-sm font-semibold text-[#172b4d] dark:text-slate-100">
+                    <span className="flex-1 truncate px-2 py-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                       {l.name}
                     </span>
                     <span className="shrink-0 px-1 text-xs text-slate-600 dark:text-slate-300">
@@ -137,7 +137,7 @@ export default function PublicBoardPage() {
                         key={c.id}
                         type="button"
                         onClick={() => setOpenCardId(c.id)}
-                        className="block w-full overflow-hidden rounded-lg bg-white text-left shadow-sm ring-1 ring-black/5 hover:ring-[#0c66e4]/50 dark:bg-slate-700"
+                        className="block w-full overflow-hidden rounded-lg bg-white text-left shadow-sm ring-1 ring-black/5 hover:ring-primary/50 dark:bg-slate-700"
                       >
                         {(c.coverImageUrl || c.coverColor) && (
                           <div
@@ -166,7 +166,7 @@ export default function PublicBoardPage() {
                             className={`text-sm ${
                               c.isDone
                                 ? 'text-slate-500 line-through dark:text-slate-400'
-                                : 'text-[#172b4d] dark:text-slate-100'
+                                : 'text-slate-900 dark:text-slate-100'
                             }`}
                           >
                             {c.title}
@@ -363,7 +363,7 @@ function PublicCardOverlay({
                         href={assetUrl(a.url)}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-sm text-[#0c66e4] hover:underline"
+                        className="text-sm text-primary-ink hover:underline"
                       >
                         {a.name}
                       </a>

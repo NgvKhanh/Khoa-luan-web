@@ -42,7 +42,7 @@ function Check({
       <span
         className={`grid h-4 w-4 shrink-0 place-items-center rounded border ${
           checked
-            ? 'border-[#0c66e4] bg-[#0c66e4] text-white'
+            ? 'border-primary bg-primary text-white'
             : 'border-slate-300 dark:border-slate-600'
         }`}
       >
@@ -130,7 +130,7 @@ export default function BoardFilterPanel({
             value={filter.keyword}
             onChange={(e) => set({ keyword: e.target.value })}
             placeholder="Nhập từ khoá..."
-            className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-sm focus:border-primary focus:outline-none"
           />
           <p className="pt-1 text-[11px] text-slate-500 dark:text-slate-400">
             Tìm trong tên và mô tả thẻ.

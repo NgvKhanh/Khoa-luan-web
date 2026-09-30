@@ -70,7 +70,7 @@ export default function ConfirmDialog({
             className={`rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-60 ${
               danger
                 ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-[#0c66e4] hover:bg-[#0a5cd4]'
+                : 'bg-primary hover:bg-primary-hover'
             }`}
           >
             {busy ? 'Đang xử lý...' : confirmLabel}

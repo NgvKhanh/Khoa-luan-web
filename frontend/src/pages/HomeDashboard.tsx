@@ -218,7 +218,7 @@ export default function HomeDashboard() {
         action={
           <Link
             to="/my-cards"
-            className="text-xs font-medium text-[#0c66e4] hover:underline"
+            className="text-xs font-medium text-primary-ink hover:underline"
           >
             Xem tất cả
           </Link>
@@ -343,7 +343,7 @@ export default function HomeDashboard() {
                       {' · '}
                       <Link
                         to={`/boards/${a.board.id}`}
-                        className="text-[#0c66e4] hover:underline"
+                        className="text-primary-ink hover:underline"
                       >
                         {a.board.name}
                       </Link>

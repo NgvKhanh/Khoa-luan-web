@@ -80,7 +80,7 @@ function RoleMenu({
               >
                 {r === 'ADMIN' ? 'Quản trị viên' : r === 'MEMBER' ? 'Thành viên' : 'Người xem'}
                 {member.role === r && (
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 text-[#0c66e4]" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 text-primary-ink" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M5 13l4 4L19 7" />
                   </svg>
                 )}
@@ -407,12 +407,12 @@ export default function BoardMembers({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Nhập địa chỉ email"
-                  className="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-[#0c66e4] focus:outline-none"
+                  className="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-primary focus:outline-none"
                 />
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value as AssignableRole)}
-                  className="rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-2 text-sm focus:border-[#0c66e4] focus:outline-none"
+                  className="rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-2 text-sm focus:border-primary focus:outline-none"
                 >
                   <option value="MEMBER">Thành viên</option>
                   <option value="ADMIN">Quản trị viên</option>
@@ -421,7 +421,7 @@ export default function BoardMembers({
                 <button
                   type="submit"
                   disabled={busy || !email.trim()}
-                  className="shrink-0 rounded-lg bg-[#0c66e4] px-4 py-2 text-sm font-medium text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+                  className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
                 >
                   {busy ? '...' : 'Chia sẻ'}
                 </button>
@@ -453,7 +453,7 @@ export default function BoardMembers({
                     <button
                       type="button"
                       onClick={copyLink}
-                      className="rounded px-2 py-1 text-[#0c66e4] hover:bg-[#0c66e4]/10"
+                      className="rounded px-2 py-1 text-primary-ink hover:bg-primary/10"
                     >
                       {copied ? 'Đã sao chép' : 'Sao chép'}
                     </button>
@@ -471,7 +471,7 @@ export default function BoardMembers({
                     type="button"
                     disabled={linkBusy}
                     onClick={handleCreateLink}
-                    className="shrink-0 rounded px-2 py-1 text-sm font-medium text-[#0c66e4] hover:bg-[#0c66e4]/10 disabled:opacity-50"
+                    className="shrink-0 rounded px-2 py-1 text-sm font-medium text-primary-ink hover:bg-primary/10 disabled:opacity-50"
                   >
                     {linkBusy ? '...' : 'Tạo liên kết'}
                   </button>
@@ -493,7 +493,7 @@ export default function BoardMembers({
                 onClick={() => setTab('members')}
                 className={`-mb-px border-b-2 py-2 font-medium ${
                   tab === 'members'
-                    ? 'border-[#0c66e4] text-[#0c66e4]'
+                    ? 'border-primary text-primary-ink'
                     : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}
               >
@@ -508,7 +508,7 @@ export default function BoardMembers({
                   onClick={() => setTab('requests')}
                   className={`-mb-px border-b-2 py-2 font-medium ${
                     tab === 'requests'
-                      ? 'border-[#0c66e4] text-[#0c66e4]'
+                      ? 'border-primary text-primary-ink'
                       : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                   }`}
                 >
@@ -619,7 +619,7 @@ export default function BoardMembers({
                         <button
                           type="button"
                           onClick={() => handleApprove(r)}
-                          className="shrink-0 rounded-lg bg-[#0c66e4] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0a5cd4]"
+                          className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover"
                         >
                           Đồng ý
                         </button>

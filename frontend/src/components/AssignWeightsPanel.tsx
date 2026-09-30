@@ -183,7 +183,7 @@ export default function AssignWeightsPanel({ workspaceId, canManage }: Props) {
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Gợi ý phân công</h2>
-        <button type="button" onClick={load} className="text-xs font-medium text-[#0c66e4] hover:underline">
+        <button type="button" onClick={load} className="text-xs font-medium text-primary-ink hover:underline">
           Làm mới
         </button>
       </div>
@@ -223,7 +223,7 @@ export default function AssignWeightsPanel({ workspaceId, canManage }: Props) {
                 onChange={(e) => setDraft(rebalance(draft, k, Number(e.target.value)))}
                 aria-label={COMPONENT_LABEL[k]}
                 aria-valuetext={`${draft[k]}%`}
-                className="min-w-0 flex-1 accent-[#0c66e4] disabled:opacity-60"
+                className="min-w-0 flex-1 accent-primary disabled:opacity-60"
               />
               <span className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100">{draft[k]}%</span>
             </div>
@@ -241,7 +241,7 @@ export default function AssignWeightsPanel({ workspaceId, canManage }: Props) {
               type="button"
               onClick={() => void saveWeights()}
               disabled={!dirty || busy !== null}
-              className="rounded-lg bg-[#0c66e4] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+              className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
             >
               Lưu trọng số
             </button>
@@ -349,7 +349,7 @@ export default function AssignWeightsPanel({ workspaceId, canManage }: Props) {
                 className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-slate-600"
               />
               {pauseDraft !== '' && (
-                <button type="button" onClick={() => setPauseDraft('')} className="text-xs font-medium text-[#0c66e4] hover:underline">
+                <button type="button" onClick={() => setPauseDraft('')} className="text-xs font-medium text-primary-ink hover:underline">
                   Bỏ tạm nghỉ
                 </button>
               )}
@@ -359,7 +359,7 @@ export default function AssignWeightsPanel({ workspaceId, canManage }: Props) {
             type="button"
             onClick={() => void saveProfile()}
             disabled={!profileDirty || !pauseValid || busy !== null}
-            className="rounded-lg bg-[#0c66e4] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+            className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
           >
             Lưu cấu hình
           </button>

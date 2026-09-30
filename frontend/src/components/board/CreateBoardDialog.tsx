@@ -190,7 +190,7 @@ export default function CreateBoardDialog({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Tìm ảnh (biển, núi, bầu trời...)"
-          className="mb-2 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+          className="mb-2 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-sm focus:border-primary focus:outline-none"
         />
 
         {photosError && (
@@ -219,7 +219,7 @@ export default function CreateBoardDialog({
                         setView('main');
                       }}
                       className={`relative h-16 overflow-hidden rounded-md bg-cover bg-center ring-offset-1 transition ${
-                        selected ? 'ring-2 ring-[#0c66e4]' : 'hover:opacity-90'
+                        selected ? 'ring-2 ring-primary' : 'hover:opacity-90'
                       }`}
                       style={{
                         backgroundImage: `url(${p.thumbUrl})`,
@@ -304,7 +304,7 @@ export default function CreateBoardDialog({
                 title={`Ảnh của ${p.attributionName} / Unsplash`}
                 onClick={() => pick(bgToImage(p))}
                 className={`relative h-10 overflow-hidden rounded-md bg-cover bg-center ${
-                  selected ? 'ring-2 ring-[#0c66e4] ring-offset-1' : ''
+                  selected ? 'ring-2 ring-primary ring-offset-1' : ''
                 }`}
                 style={{
                   backgroundImage: `url(${p.thumbUrl})`,
@@ -378,7 +378,7 @@ export default function CreateBoardDialog({
         onChange={(e) => setName(e.target.value)}
         onKeyDown={onNameKeyDown}
         placeholder="Nhập tên bảng..."
-        className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-2 text-sm focus:border-[#0c66e4] focus:outline-none focus:ring-1 focus:ring-[#0c66e4]"
+        className="w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
       />
       {!name.trim() && (
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -401,7 +401,7 @@ export default function CreateBoardDialog({
         <select
           value={workspaceId}
           onChange={(e) => setWorkspaceId(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-700 focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+          className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
         >
           {workspaces.length === 0 && <option value="">Đang tải...</option>}
           {workspaces.map((w) => (
@@ -417,7 +417,7 @@ export default function CreateBoardDialog({
       <button
         type="submit"
         disabled={submitting || !name.trim()}
-        className="mt-3 w-full rounded-lg bg-[#0c66e4] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0a5cd4] disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-3 w-full rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
         {submitting ? 'Đang tạo...' : 'Tạo mới'}
       </button>

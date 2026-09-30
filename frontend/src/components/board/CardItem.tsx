@@ -139,7 +139,7 @@ export default function CardItem({
           className={`break-words ${
             card.isDone
               ? 'text-slate-500 line-through dark:text-slate-400'
-              : 'text-[#172b4d] dark:text-slate-100'
+              : 'text-slate-900 dark:text-slate-100'
           }`}
         >
           {card.title}

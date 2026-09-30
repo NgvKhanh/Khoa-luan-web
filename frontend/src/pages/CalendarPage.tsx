@@ -123,7 +123,7 @@ function DayCell({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day:${dayKey}` });
   return (
-    <div ref={setNodeRef} className={isOver ? 'bg-[#e9f2ff] dark:bg-[#0c66e4]/20' : ''}>
+    <div ref={setNodeRef} className={isOver ? 'bg-primary-soft dark:bg-primary/20' : ''}>
       {children}
     </div>
   );
@@ -279,7 +279,7 @@ export default function CalendarPage() {
             onClick={() => setMode('month')}
             className={`rounded-l-lg px-2.5 py-1 ${
               mode === 'month'
-                ? 'bg-[#0c66e4] text-white'
+                ? 'bg-primary text-white'
                 : 'hover:bg-slate-100 dark:hover:bg-slate-700'
             }`}
           >
@@ -290,7 +290,7 @@ export default function CalendarPage() {
             onClick={() => setMode('week')}
             className={`rounded-r-lg px-2.5 py-1 ${
               mode === 'week'
-                ? 'bg-[#0c66e4] text-white'
+                ? 'bg-primary text-white'
                 : 'hover:bg-slate-100 dark:hover:bg-slate-700'
             }`}
           >
@@ -352,7 +352,7 @@ export default function CalendarPage() {
                   <div
                     className={`mb-1 text-right text-xs ${
                       key === todayKey
-                        ? 'font-bold text-[#0c66e4]'
+                        ? 'font-bold text-primary-ink'
                         : inMonth
                           ? 'text-slate-500'
                           : 'text-slate-300 dark:text-slate-600'

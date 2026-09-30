@@ -201,7 +201,7 @@ export default function CustomFieldsPanel({ boardId, onClose, onChanged }: Props
                         }
                       }}
                       placeholder="Thêm lựa chọn..."
-                      className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-xs focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-900"
+                      className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-xs focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-900"
                     />
                     <button
                       type="button"
@@ -227,12 +227,12 @@ export default function CustomFieldsPanel({ boardId, onClose, onChanged }: Props
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Tên trường (vd. Ưu tiên, Khách hàng...)"
-          className="mb-1.5 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-900"
+          className="mb-1.5 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-900"
         />
         <select
           value={type}
           onChange={(e) => setType(e.target.value as CustomFieldType)}
-          className="mb-1.5 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-900"
+          className="mb-1.5 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-900"
         >
           {(Object.keys(TYPE_LABEL) as CustomFieldType[]).map((t) => (
             <option key={t} value={t}>
@@ -251,7 +251,7 @@ export default function CustomFieldsPanel({ boardId, onClose, onChanged }: Props
                     setDraftOptions((cur) => cur.map((x, j) => (j === i ? e.target.value : x)))
                   }
                   placeholder={`Lựa chọn ${i + 1}`}
-                  className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-xs focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-900"
+                  className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-xs focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-900"
                 />
                 {draftOptions.length > 1 && (
                   <button
@@ -267,7 +267,7 @@ export default function CustomFieldsPanel({ boardId, onClose, onChanged }: Props
             <button
               type="button"
               onClick={() => setDraftOptions((cur) => [...cur, ''])}
-              className="self-start text-xs font-medium text-[#0c66e4] hover:underline"
+              className="self-start text-xs font-medium text-primary-ink hover:underline"
             >
               + Thêm lựa chọn
             </button>
@@ -278,7 +278,7 @@ export default function CustomFieldsPanel({ boardId, onClose, onChanged }: Props
           type="button"
           disabled={busy || !name.trim()}
           onClick={() => void submitCreate()}
-          className="w-full rounded-lg bg-[#0c66e4] py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+          className="w-full rounded-lg bg-primary py-1.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
         >
           Thêm trường
         </button>

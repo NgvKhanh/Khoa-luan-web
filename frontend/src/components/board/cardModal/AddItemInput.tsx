@@ -36,11 +36,11 @@ export function AddItemInput({
         onChange={(e) => setV(e.target.value)}
         onBlur={() => !v.trim() && setOpen(false)}
         placeholder="Thêm một mục..."
-        className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
+        className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-primary focus:outline-none"
       />
       <button
         type="submit"
-        className="rounded bg-[#0c66e4] px-3 text-sm font-medium text-white"
+        className="rounded bg-primary px-3 text-sm font-medium text-white"
       >
         Thêm
       </button>

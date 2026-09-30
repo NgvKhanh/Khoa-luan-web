@@ -60,7 +60,7 @@ export default function JoinBoardPage() {
             <p className="text-sm text-red-600">{error}</p>
             <Link
               to="/boards"
-              className="mt-4 inline-block rounded-lg bg-[#0c66e4] px-4 py-2 text-sm font-medium text-white hover:bg-[#0a5cd4]"
+              className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
             >
               Về trang chủ
             </Link>
@@ -86,7 +86,7 @@ export default function JoinBoardPage() {
                 <button
                   type="button"
                   onClick={() => navigate(`/boards/${preview.board.id}`)}
-                  className="mt-4 w-full rounded-lg bg-[#0c66e4] px-4 py-2 text-sm font-medium text-white hover:bg-[#0a5cd4]"
+                  className="mt-4 w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
                 >
                   Mở bảng
                 </button>
@@ -98,7 +98,7 @@ export default function JoinBoardPage() {
                 </p>
                 <Link
                   to="/boards"
-                  className="mt-4 inline-block text-sm font-medium text-[#0c66e4] hover:underline"
+                  className="mt-4 inline-block text-sm font-medium text-primary-ink hover:underline"
                 >
                   Về trang chủ
                 </Link>
@@ -115,7 +115,7 @@ export default function JoinBoardPage() {
                   type="button"
                   disabled={sending}
                   onClick={handleJoin}
-                  className="mt-4 w-full rounded-lg bg-[#0c66e4] px-4 py-2 text-sm font-medium text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+                  className="mt-4 w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
                 >
                   {sending ? 'Đang gửi...' : 'Xin tham gia'}
                 </button>

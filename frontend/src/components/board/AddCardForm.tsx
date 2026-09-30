@@ -75,14 +75,14 @@ export default function AddCardForm({ onAdd, open, onOpenChange }: Props) {
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder="Nhập nội dung cho thẻ này..."
-        className="w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 text-sm shadow-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
+        className="w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 text-sm shadow-sm focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
       />
       {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex items-center gap-2">
         <button
           type="submit"
           disabled={isSubmitting || !title.trim()}
-          className="rounded bg-[#0c66e4] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+          className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
         >
           {isSubmitting ? 'Đang thêm...' : 'Thêm thẻ'}
         </button>

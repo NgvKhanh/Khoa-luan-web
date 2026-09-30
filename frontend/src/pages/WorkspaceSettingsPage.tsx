@@ -255,7 +255,7 @@ export default function WorkspaceSettingsPage() {
     return (
       <div className="mx-auto max-w-3xl">
         <p className="text-sm text-red-600">{loadError}</p>
-        <Link to="/boards" className="mt-3 inline-block text-sm text-[#0c66e4] hover:underline">
+        <Link to="/boards" className="mt-3 inline-block text-sm text-primary-ink hover:underline">
           Về trang chủ
         </Link>
       </div>
@@ -270,7 +270,7 @@ export default function WorkspaceSettingsPage() {
       {/* Tieu de */}
       <div>
         <div className="flex items-center gap-3">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#0c66e4] text-lg font-bold text-white">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary text-lg font-bold text-white">
             {ws.name.slice(0, 1).toUpperCase()}
           </span>
           {editingName ? (
@@ -279,12 +279,12 @@ export default function WorkspaceSettingsPage() {
                 autoFocus
                 value={nameDraft}
                 onChange={(e) => setNameDraft(e.target.value)}
-                className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-lg font-semibold focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-800"
+                className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-lg font-semibold focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-800"
               />
               <button
                 type="submit"
                 disabled={busy}
-                className="rounded-lg bg-[#0c66e4] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
               >
                 Lưu
               </button>
@@ -313,7 +313,7 @@ export default function WorkspaceSettingsPage() {
                     setNameDraft(ws.name);
                     setEditingName(true);
                   }}
-                  className="text-xs font-medium text-[#0c66e4] hover:underline"
+                  className="text-xs font-medium text-primary-ink hover:underline"
                 >
                   Đổi tên
                 </button>
@@ -343,7 +343,7 @@ export default function WorkspaceSettingsPage() {
           <button
             type="button"
             onClick={loadOverview}
-            className="text-xs font-medium text-[#0c66e4] hover:underline"
+            className="text-xs font-medium text-primary-ink hover:underline"
           >
             Làm mới
           </button>
@@ -481,12 +481,12 @@ export default function WorkspaceSettingsPage() {
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               placeholder="Nhập địa chỉ email"
-              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-800"
+              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-800"
             />
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value as AssignableRole)}
-              className="rounded-lg border border-slate-300 px-2 py-2 text-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-800"
+              className="rounded-lg border border-slate-300 px-2 py-2 text-sm focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-800"
             >
               <option value="MEMBER">Thành viên</option>
               <option value="ADMIN">Quản trị viên</option>
@@ -494,7 +494,7 @@ export default function WorkspaceSettingsPage() {
             <button
               type="submit"
               disabled={busy || !inviteEmail.trim()}
-              className="shrink-0 rounded-lg bg-[#0c66e4] px-4 py-2 text-sm font-medium text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+              className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
             >
               Mời
             </button>
@@ -593,7 +593,7 @@ export default function WorkspaceSettingsPage() {
               <li key={b.id}>
                 <Link
                   to={`/boards/${b.id}`}
-                  className="flex items-center gap-3 rounded-lg border border-slate-200 p-2 hover:border-[#0c66e4] dark:border-slate-700"
+                  className="flex items-center gap-3 rounded-lg border border-slate-200 p-2 hover:border-primary dark:border-slate-700"
                 >
                   <span
                     className="h-8 w-12 shrink-0 rounded bg-cover bg-center"

@@ -38,7 +38,7 @@ export default function ChangePasswordPage() {
   }
 
   const field =
-    'mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100';
+    'mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100';
   const label =
     'mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300';
 
@@ -90,7 +90,7 @@ export default function ChangePasswordPage() {
           <button
             type="submit"
             disabled={busy || !current || !next || !confirm}
-            className="rounded-lg bg-[#0c66e4] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
           >
             {busy ? 'Đang đổi...' : 'Đổi mật khẩu'}
           </button>

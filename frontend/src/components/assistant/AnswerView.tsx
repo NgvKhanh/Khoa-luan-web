@@ -16,7 +16,7 @@ function CardRow({ card, refIso }: { card: ChatCard; refIso: string }) {
         // Bo focus khoi panel: the mo ra (CardModal, de len panel) nghe Esc o document - neu con tro
         // con o lien ket trong panel thi Esc se dong panel thay vi dong the
         onClick={(e) => e.currentTarget.blur()}
-        className="block rounded-lg border border-slate-200 bg-white px-3 py-2 transition hover:border-[#0c66e4]/50 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700/60"
+        className="block rounded-lg border border-slate-200 bg-white px-3 py-2 transition hover:border-primary/50 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700/60"
       >
         <span className="flex items-start gap-2">
           <span className="min-w-0 flex-1 text-sm font-medium text-slate-800 dark:text-slate-100">{card.title}</span>
@@ -88,7 +88,7 @@ function Suggestions({ items, disabled, onAsk }: { items: string[]; disabled: bo
           type="button"
           disabled={disabled}
           onClick={() => onAsk(q)}
-          className="rounded-full border border-slate-300 px-2.5 py-1 text-xs text-slate-600 transition hover:border-[#0c66e4] hover:text-[#0c66e4] disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:border-sky-400 dark:hover:text-sky-300"
+          className="rounded-full border border-slate-300 px-2.5 py-1 text-xs text-slate-600 transition hover:border-primary hover:text-primary-ink disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:border-sky-400 dark:hover:text-sky-300"
         >
           {q}
         </button>
@@ -200,7 +200,7 @@ function AnswerBody({
               type="button"
               disabled={!latest || busy}
               onClick={() => onChoose(o)}
-              className="rounded-full bg-[#0c66e4] px-3 py-1 text-xs font-medium text-white transition hover:bg-[#0055cc] disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {o.label}
             </button>
@@ -236,7 +236,7 @@ export default function AnswerView(props: {
   const { turn } = props;
   return (
     <li className="space-y-2">
-      <p className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-sm bg-[#0c66e4] px-3 py-1.5 text-sm text-white">{turn.question}</p>
+      <p className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-1.5 text-sm text-white">{turn.question}</p>
       <div className="rounded-2xl rounded-bl-sm border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/60">
         {turn.status === 'loading' && (
           <p role="status" className="text-sm text-slate-500 dark:text-slate-400">

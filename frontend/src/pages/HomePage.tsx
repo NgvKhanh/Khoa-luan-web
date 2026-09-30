@@ -208,7 +208,7 @@ export default function HomePage() {
                   </h1>
                   <Link
                     to={`/workspaces/${ws.id}`}
-                    className="text-xs font-medium text-[#0c66e4] hover:underline"
+                    className="text-xs font-medium text-primary-ink hover:underline"
                   >
                     Quản lý
                   </Link>

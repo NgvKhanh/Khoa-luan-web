@@ -103,7 +103,7 @@ import {
 const TOOLBAR_BTN_BASE =
   'grid h-8 w-8 shrink-0 place-items-center rounded transition-colors';
 const TOOLBAR_BTN = `${TOOLBAR_BTN_BASE} bg-white/25 text-white hover:bg-white/40`;
-const TOOLBAR_BTN_ON = `${TOOLBAR_BTN_BASE} bg-white text-[#0c66e4]`;
+const TOOLBAR_BTN_ON = `${TOOLBAR_BTN_BASE} bg-white text-primary-ink`;
 
 // Hieu ung khi tha: ban goc mo dan trong luc "ban noi" bay ve cho -> muot hon
 const dropAnimation: DropAnimation = {
@@ -680,7 +680,7 @@ export default function BoardPage() {
         </p>
         <Link
           to="/boards"
-          className="mt-2 inline-block text-sm font-medium text-[#0c66e4] hover:underline"
+          className="mt-2 inline-block text-sm font-medium text-primary-ink hover:underline"
         >
           ← Về danh sách bảng
         </Link>
@@ -897,7 +897,7 @@ export default function BoardPage() {
                 <path d="M3 5h18M6 12h12M10 19h4" />
               </svg>
               {filterOn && (
-                <span className="absolute -right-1 -top-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-[#0c66e4] px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                <span className="absolute -right-1 -top-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-white ring-2 ring-white">
                   {filterActiveCount(filter)}
                 </span>
               )}

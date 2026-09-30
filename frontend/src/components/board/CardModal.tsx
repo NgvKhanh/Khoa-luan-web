@@ -426,7 +426,7 @@ export default function CardModal({
                             void run(() => moveCard(card.id, { listId: l.id, position: 0 }));
                         }}
                         className={`block w-full truncate rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 ${
-                          l.id === card.listId ? 'font-semibold text-[#0c66e4]' : 'text-slate-700 dark:text-slate-200'
+                          l.id === card.listId ? 'font-semibold text-primary-ink' : 'text-slate-700 dark:text-slate-200'
                         }`}
                       >
                         {l.name}
@@ -439,7 +439,7 @@ export default function CardModal({
                           setMoveBoardId('');
                           setPanel('move-board');
                         }}
-                        className="block w-full truncate rounded px-2 py-1.5 text-left text-sm text-[#0c66e4] hover:bg-slate-100 dark:hover:bg-slate-700"
+                        className="block w-full truncate rounded px-2 py-1.5 text-left text-sm text-primary-ink hover:bg-slate-100 dark:hover:bg-slate-700"
                       >
                         Chuyển sang bảng khác…
                       </button>
@@ -458,7 +458,7 @@ export default function CardModal({
                       autoFocus
                       value={moveBoardId}
                       onChange={(e) => setMoveBoardId(e.target.value)}
-                      className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+                      className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
                     >
                       <option value="">Chọn bảng…</option>
                       {myBoards
@@ -480,7 +480,7 @@ export default function CardModal({
                           value={moveListId}
                           onChange={(e) => setMoveListId(e.target.value)}
                           disabled={moveLoadingLists || moveTargetLists.length === 0}
-                          className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none disabled:opacity-60"
+                          className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm focus:border-primary focus:outline-none disabled:opacity-60"
                         >
                           {moveTargetLists.length === 0 ? (
                             <option value="">
@@ -508,7 +508,7 @@ export default function CardModal({
                             moveCard(card.id, { listId: targetListId, position: 0 })
                           );
                         }}
-                        className="flex-1 rounded-lg bg-[#0c66e4] py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+                        className="flex-1 rounded-lg bg-primary py-1.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
                       >
                         Chuyển
                       </button>
@@ -552,7 +552,7 @@ export default function CardModal({
                               void run(() => updateCard(card.id, { status: st }));
                           }}
                           className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700 ${
-                            st === card.status ? 'font-semibold text-[#0c66e4]' : 'text-slate-700 dark:text-slate-200'
+                            st === card.status ? 'font-semibold text-primary-ink' : 'text-slate-700 dark:text-slate-200'
                           }`}
                         >
                           <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_META[st].dot}`} />
@@ -649,7 +649,7 @@ export default function CardModal({
                       rows={2}
                       value={copyTitle}
                       onChange={(e) => setCopyTitle(e.target.value)}
-                      className="mb-2 w-full resize-none rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+                      className="mb-2 w-full resize-none rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
                     />
                     <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">
                       Danh sách
@@ -657,7 +657,7 @@ export default function CardModal({
                     <select
                       value={copyListId}
                       onChange={(e) => setCopyListId(e.target.value)}
-                      className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+                      className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
                     >
                       {lists.map((l) => (
                         <option key={l.id} value={l.id}>
@@ -676,7 +676,7 @@ export default function CardModal({
                           })
                         );
                       }}
-                      className="w-full rounded-lg bg-[#0c66e4] py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4]"
+                      className="w-full rounded-lg bg-primary py-1.5 text-sm font-semibold text-white hover:bg-primary-hover"
                     >
                       Tạo thẻ
                     </button>
@@ -735,7 +735,7 @@ export default function CardModal({
                         }
                       }}
                       rows={1}
-                      className="w-full resize-none rounded border border-[#0c66e4] px-2 py-1 text-lg font-semibold text-slate-900 dark:text-slate-100 focus:outline-none"
+                      className="w-full resize-none rounded border border-primary px-2 py-1 text-lg font-semibold text-slate-900 dark:text-slate-100 focus:outline-none"
                     />
                   ) : (
                     <h2
@@ -771,7 +771,7 @@ export default function CardModal({
                     }}
                     className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium ${
                       card.isWatching
-                        ? 'bg-[#0c66e4]/10 text-[#0c66e4]'
+                        ? 'bg-primary/10 text-primary-ink'
                         : 'bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-200 dark:hover:bg-slate-600'
                     }`}
                   >
@@ -999,7 +999,7 @@ export default function CardModal({
                         value={clTitle}
                         onChange={(e) => setClTitle(e.target.value)}
                         onFocus={(e) => e.target.select()}
-                        className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+                        className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-sm focus:border-primary focus:outline-none"
                       />
                       {card.checklists.length > 0 && (
                         <>
@@ -1009,7 +1009,7 @@ export default function CardModal({
                           <select
                             value={clCopyFrom}
                             onChange={(e) => setClCopyFrom(e.target.value)}
-                            className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+                            className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
                           >
                             <option value="">(không có)</option>
                             {card.checklists.map((c) => (
@@ -1032,7 +1032,7 @@ export default function CardModal({
                             )
                           );
                         }}
-                        className="w-full rounded-lg bg-[#0c66e4] py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4]"
+                        className="w-full rounded-lg bg-primary py-1.5 text-sm font-semibold text-white hover:bg-primary-hover"
                       >
                         Thêm
                       </button>
@@ -1089,7 +1089,7 @@ export default function CardModal({
                               })
                             );
                           }}
-                          className="flex-1 rounded bg-[#0c66e4] py-1.5 text-sm font-medium text-white hover:bg-[#0a5cd4]"
+                          className="flex-1 rounded bg-primary py-1.5 text-sm font-medium text-white hover:bg-primary-hover"
                         >
                           Lưu
                         </button>
@@ -1180,7 +1180,7 @@ export default function CardModal({
                                   const v = e.target.value.trim();
                                   if (v !== (fv?.textValue ?? '')) save(v || null);
                                 }}
-                                className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
+                                className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-primary focus:outline-none"
                               />
                             ) : f.type === 'NUMBER' ? (
                               <input
@@ -1191,7 +1191,7 @@ export default function CardModal({
                                   const raw = e.target.value.trim();
                                   save(raw === '' ? null : Number(raw));
                                 }}
-                                className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
+                                className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-primary focus:outline-none"
                               />
                             ) : f.type === 'DATE' ? (
                               <input
@@ -1200,7 +1200,7 @@ export default function CardModal({
                                 onChange={(e) =>
                                   save(e.target.value ? new Date(e.target.value).toISOString() : null)
                                 }
-                                className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
+                                className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-primary focus:outline-none"
                               />
                             ) : f.type === 'CHECKBOX' ? (
                               <input
@@ -1212,7 +1212,7 @@ export default function CardModal({
                               <select
                                 value={fv?.optionId ?? ''}
                                 onChange={(e) => save(e.target.value || null)}
-                                className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
+                                className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-primary focus:outline-none"
                               >
                                 <option value="">(chưa chọn)</option>
                                 {f.options.map((o) => (
@@ -1253,7 +1253,7 @@ export default function CardModal({
                         value={descDraft}
                         onChange={(e) => setDescDraft(e.target.value)}
                         placeholder="**đậm**, *nghiêng*, - danh sách, [chữ](liên kết)..."
-                        className="w-full rounded-lg border border-slate-300 dark:border-slate-600 p-2 text-sm focus:border-[#0c66e4] focus:outline-none"
+                        className="w-full rounded-lg border border-slate-300 dark:border-slate-600 p-2 text-sm focus:border-primary focus:outline-none"
                       />
                       <div className="mt-2 flex gap-2">
                         <button
@@ -1264,7 +1264,7 @@ export default function CardModal({
                               updateCard(card.id, { description: descDraft.trim() || null })
                             );
                           }}
-                          className="rounded bg-[#0c66e4] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0a5cd4]"
+                          className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover"
                         >
                           Lưu
                         </button>
@@ -1576,7 +1576,7 @@ export default function CardModal({
                                       />
                                       <span className="flex-1 truncate">{m.user.name}</span>
                                       {it.assigneeId === m.userId && (
-                                        <svg viewBox="0 0 24 24" className="h-4 w-4 text-[#0c66e4]" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <svg viewBox="0 0 24 24" className="h-4 w-4 text-primary-ink" fill="none" stroke="currentColor" strokeWidth="2">
                                           <path d="M5 13l4 4L19 7" />
                                         </svg>
                                       )}
@@ -1609,7 +1609,7 @@ export default function CardModal({
                                           })
                                         );
                                       }}
-                                      className="flex-1 rounded bg-[#0c66e4] py-1 text-sm font-medium text-white hover:bg-[#0a5cd4]"
+                                      className="flex-1 rounded bg-primary py-1 text-sm font-medium text-white hover:bg-primary-hover"
                                     >
                                       Lưu
                                     </button>
@@ -1677,12 +1677,12 @@ export default function CardModal({
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
                       placeholder="Viết bình luận... (gõ @ để nhắc tên)"
-                      className="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-[#0c66e4] focus:outline-none"
+                      className="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-primary focus:outline-none"
                     />
                     {comment.trim() && (
                       <button
                         type="submit"
-                        className="shrink-0 rounded-lg bg-[#0c66e4] px-3 text-sm font-medium text-white hover:bg-[#0a5cd4]"
+                        className="shrink-0 rounded-lg bg-primary px-3 text-sm font-medium text-white hover:bg-primary-hover"
                       >
                         Gửi
                       </button>

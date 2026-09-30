@@ -129,7 +129,7 @@ export default function SearchPage() {
               <button
                 type="button"
                 onClick={() => applySavedFilter(f)}
-                className="font-medium hover:text-[#0c66e4]"
+                className="font-medium hover:text-primary-ink"
               >
                 {f.name}
               </button>
@@ -152,7 +152,7 @@ export default function SearchPage() {
           value={filters.q ?? ''}
           onChange={(e) => updateFilter('q', e.target.value || undefined)}
           placeholder="Từ khoá (tiêu đề, mô tả)..."
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-900"
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-900"
         />
 
         <div className="flex flex-wrap gap-2">
@@ -188,7 +188,7 @@ export default function SearchPage() {
             value={filters.labelName ?? ''}
             onChange={(e) => updateFilter('labelName', e.target.value || undefined)}
             placeholder="Tên nhãn..."
-            className="w-32 rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-900"
+            className="w-32 rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-900"
           />
 
           <label className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-600 dark:border-slate-600 dark:text-slate-300">
@@ -222,7 +222,7 @@ export default function SearchPage() {
                 }}
                 className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
                   on
-                    ? 'border-[#0c66e4] bg-[#0c66e4]/10 text-[#0c66e4] dark:text-blue-300'
+                    ? 'border-primary bg-primary/10 text-primary-ink dark:text-blue-300'
                     : 'border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700'
                 }`}
               >
@@ -271,7 +271,7 @@ export default function SearchPage() {
               <button
                 type="button"
                 onClick={() => setSavingName('')}
-                className="rounded-lg px-2 py-1 text-xs font-medium text-[#0c66e4] hover:underline"
+                className="rounded-lg px-2 py-1 text-xs font-medium text-primary-ink hover:underline"
               >
                 Lưu bộ lọc này
               </button>
@@ -289,7 +289,7 @@ export default function SearchPage() {
                   type="button"
                   disabled={busy || !savingName.trim()}
                   onClick={confirmSave}
-                  className="rounded-lg bg-[#0c66e4] px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
+                  className="rounded-lg bg-primary px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
                 >
                   Lưu
                 </button>
@@ -379,7 +379,7 @@ export default function SearchPage() {
                 type="button"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => p - 1)}
-                className="rounded-lg px-2 py-1 font-medium text-[#0c66e4] hover:underline disabled:text-slate-300 disabled:no-underline"
+                className="rounded-lg px-2 py-1 font-medium text-primary-ink hover:underline disabled:text-slate-300 disabled:no-underline"
               >
                 Trước
               </button>
@@ -390,7 +390,7 @@ export default function SearchPage() {
                 type="button"
                 disabled={!result.hasMore}
                 onClick={() => setPage((p) => p + 1)}
-                className="rounded-lg px-2 py-1 font-medium text-[#0c66e4] hover:underline disabled:text-slate-300 disabled:no-underline"
+                className="rounded-lg px-2 py-1 font-medium text-primary-ink hover:underline disabled:text-slate-300 disabled:no-underline"
               >
                 Sau
               </button>

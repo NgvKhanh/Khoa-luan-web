@@ -4,7 +4,7 @@ import { useWorkspaces } from '../context/WorkspacesContext';
 import { assetUrl } from '../lib/assets';
 
 const ACTIVE =
-  'flex items-center gap-3 rounded px-3 py-2 text-sm bg-[#e9f2ff] font-semibold text-[#0c66e4] dark:bg-[#0c66e4]/20';
+  'flex items-center gap-3 rounded px-3 py-2 text-sm bg-primary-soft font-semibold text-primary-ink dark:bg-primary/20';
 const INACTIVE =
   'flex items-center gap-3 rounded px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700';
 
@@ -115,7 +115,7 @@ export default function Sidebar() {
                 className={({ isActive }) =>
                   `flex items-center gap-2 rounded px-3 py-2 text-sm dark:text-slate-200 ${
                     isActive
-                      ? 'bg-[#e9f2ff] font-semibold text-[#0c66e4]'
+                      ? 'bg-primary-soft font-semibold text-primary-ink'
                       : 'text-slate-700 hover:bg-slate-100'
                   }`
                 }
@@ -143,11 +143,11 @@ export default function Sidebar() {
                 onClick={() => setCurrentWorkspaceId(w.id)}
                 className={`flex w-full items-center gap-3 rounded px-3 py-2 text-sm ${
                   isCurrent
-                    ? 'bg-[#e9f2ff] font-semibold text-[#0c66e4] dark:bg-[#0c66e4]/20'
+                    ? 'bg-primary-soft font-semibold text-primary-ink dark:bg-primary/20'
                     : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
-                <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-gradient-to-br from-[#8bbdd9] to-[#0c66e4] text-xs font-bold text-white">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-gradient-to-br from-[var(--brand-accent)] to-primary text-xs font-bold text-white">
                   {w.name.slice(0, 1).toUpperCase()}
                 </span>
                 <span className="flex-1 truncate text-left font-medium">
@@ -164,7 +164,7 @@ export default function Sidebar() {
                       className={({ isActive }) =>
                         `flex items-center gap-2 rounded px-2 py-1.5 text-sm ${
                           isActive
-                            ? 'bg-[#e9f2ff] font-semibold text-[#0c66e4] dark:bg-[#0c66e4]/20'
+                            ? 'bg-primary-soft font-semibold text-primary-ink dark:bg-primary/20'
                             : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
                         }`
                       }

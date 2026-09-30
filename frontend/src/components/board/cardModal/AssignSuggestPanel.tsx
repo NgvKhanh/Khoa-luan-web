@@ -169,7 +169,7 @@ export default function AssignSuggestPanel({ cardId, boardMembers, cardMemberIds
                   title="Điểm tương đối: chỉ so sánh giữa những người trong danh sách này cho đúng thẻ này"
                 >
                   <span className="h-1.5 flex-1 overflow-hidden rounded bg-slate-200 dark:bg-slate-600">
-                    <span className="block h-full rounded bg-[#0c66e4]" style={{ width: `${Math.max(0, Math.min(100, s.score))}%` }} />
+                    <span className="block h-full rounded bg-primary" style={{ width: `${Math.max(0, Math.min(100, s.score))}%` }} />
                   </span>
                   <span className="w-16 shrink-0 text-right text-[11px] text-slate-600 dark:text-slate-300">Phù hợp {Math.round(s.score)}</span>
                 </span>
@@ -219,7 +219,7 @@ export default function AssignSuggestPanel({ cardId, boardMembers, cardMemberIds
             aria-expanded={open}
             aria-label={`Vì sao gợi ý ${s.user.name}`}
             onClick={() => setExpanded(open ? null : s.user.id)}
-            className="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium text-[#0c66e4] hover:bg-slate-200 dark:text-sky-300 dark:hover:bg-slate-600"
+            className="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium text-primary-ink hover:bg-slate-200 dark:text-sky-300 dark:hover:bg-slate-600"
           >
             Vì sao? {open ? '▴' : '▾'}
           </button>
@@ -272,7 +272,7 @@ export default function AssignSuggestPanel({ cardId, boardMembers, cardMemberIds
   // cho người có quyền (máy chủ quyết định `cvAvailable`).
   function renderDeclared(s: AssignSuggestion) {
     const cv = s.cvAvailable ? (
-      <a href={userCvUrl(s.user.id)} download className="font-medium text-[#0c66e4] hover:underline dark:text-sky-300">
+      <a href={userCvUrl(s.user.id)} download className="font-medium text-primary-ink hover:underline dark:text-sky-300">
         Tải CV
       </a>
     ) : null;
@@ -342,7 +342,7 @@ export default function AssignSuggestPanel({ cardId, boardMembers, cardMemberIds
               setLoaded({ status: 'loading' });
               setReloadKey((k) => k + 1);
             }}
-            className="mt-1 font-medium text-[#0c66e4] hover:underline dark:text-sky-300"
+            className="mt-1 font-medium text-primary-ink hover:underline dark:text-sky-300"
           >
             Thử lại
           </button>
@@ -371,7 +371,7 @@ export default function AssignSuggestPanel({ cardId, boardMembers, cardMemberIds
               <p>
                 Trọng số nhóm: Kinh nghiệm {w.experience}% · Tin cậy {w.reliability}% · Khả dụng {w.availability}% · Hồ sơ {w.declared}%
                 {state.data.weights.custom ? ' (đã tuỳ chỉnh)' : ''}.{' '}
-                <Link to={`/workspaces/${state.data.card.workspaceId}`} className="font-medium text-[#0c66e4] hover:underline dark:text-sky-300">
+                <Link to={`/workspaces/${state.data.card.workspaceId}`} className="font-medium text-primary-ink hover:underline dark:text-sky-300">
                   Xem / chỉnh
                 </Link>
               </p>

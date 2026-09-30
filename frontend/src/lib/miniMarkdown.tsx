@@ -42,7 +42,7 @@ function renderInline(text: string, keyBase: string): ReactNode[] {
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[#0c66e4] hover:underline dark:text-sky-400"
+            className="text-primary-ink hover:underline dark:text-sky-400"
           >
             {m[10]}
           </a>

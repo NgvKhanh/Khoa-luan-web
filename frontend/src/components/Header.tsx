@@ -104,7 +104,7 @@ function WorkspaceSwitcher() {
                   )}
                 </span>
                 {w.id === currentWorkspaceId && (
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[#0c66e4]" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-primary-ink" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M5 13l4 4L19 7" />
                   </svg>
                 )}
@@ -138,14 +138,14 @@ function WorkspaceSwitcher() {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="Tên không gian mới"
-                className="mb-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-800"
+                className="mb-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-800"
               />
               {error && <p className="mb-1 text-xs text-red-600">{error}</p>}
               <div className="flex gap-1.5">
                 <button
                   type="submit"
                   disabled={busy || !newName.trim()}
-                  className="flex-1 rounded-lg bg-[#0c66e4] px-2 py-1.5 text-sm font-medium text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+                  className="flex-1 rounded-lg bg-primary px-2 py-1.5 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
                 >
                   {busy ? '...' : 'Tạo'}
                 </button>
@@ -162,7 +162,7 @@ function WorkspaceSwitcher() {
             <button
               type="button"
               onClick={() => setCreating(true)}
-              className={item + ' font-medium text-[#0c66e4]'}
+              className={item + ' font-medium text-primary-ink'}
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M12 5v14M5 12h14" />
@@ -300,7 +300,7 @@ function BoardSearch() {
           }
           if (e.key === 'Enter' && matches[0]) go(matches[0].id);
         }}
-        className="h-9 w-full rounded-lg border border-transparent bg-slate-100 pl-9 pr-9 text-sm text-slate-800 placeholder:text-slate-400 transition focus:border-[#0c66e4] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0c66e4]/25 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:bg-slate-800"
+        className="h-9 w-full rounded-lg border border-transparent bg-slate-100 pl-9 pr-9 text-sm text-slate-800 placeholder:text-slate-400 transition focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/25 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:bg-slate-800"
       />
       {q ? (
         <button
@@ -325,7 +325,7 @@ function BoardSearch() {
       {open && term && (
         <div className="absolute left-0 right-0 top-11 z-40 overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
           <div className="border-b border-slate-200 px-3 dark:border-slate-700">
-            <span className="inline-block border-b-2 border-[#0c66e4] py-2 text-sm font-medium text-[#0c66e4]">
+            <span className="inline-block border-b-2 border-primary py-2 text-sm font-medium text-primary-ink">
               Bảng
             </span>
           </div>
@@ -349,7 +349,7 @@ function BoardSearch() {
                 >
                   <Thumb board={b} />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm text-[#172b4d] dark:text-slate-100">
+                    <span className="block truncate text-sm text-slate-900 dark:text-slate-100">
                       {b.name}
                     </span>
                     <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
@@ -362,7 +362,7 @@ function BoardSearch() {
             <button
               type="button"
               onClick={seeAll}
-              className="px-3 py-2 text-sm font-medium text-[#0c66e4] hover:underline"
+              className="px-3 py-2 text-sm font-medium text-primary-ink hover:underline"
             >
               Tìm nâng cao "{q.trim()}"...
             </button>
@@ -391,7 +391,7 @@ function BoardSearch() {
                     style={{ backgroundColor: c.coverColor ?? c.list.board.color }}
                   />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm text-[#172b4d] dark:text-slate-100">
+                    <span className="block truncate text-sm text-slate-900 dark:text-slate-100">
                       {c.title}
                     </span>
                     <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
@@ -452,7 +452,7 @@ export function CreateBoardMenu() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-lg bg-[#0c66e4] px-2.5 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0a5cd4] hover:shadow sm:px-3"
+        className="flex items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-hover hover:shadow sm:px-3"
       >
         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
           <path d="M12 5v14M5 12h14" />
@@ -602,7 +602,7 @@ function AccountMenu() {
                   >
                     {THEME_LABEL[t]}
                     {theme === t && (
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 text-[#0c66e4]" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 text-primary-ink" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M5 13l4 4L19 7" />
                       </svg>
                     )}

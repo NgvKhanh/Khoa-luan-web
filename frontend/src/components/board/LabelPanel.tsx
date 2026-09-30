@@ -113,7 +113,7 @@ export default function LabelPanel({
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}
                 placeholder="Tên nhãn (tuỳ chọn)"
-                className="mb-2 w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
+                className="mb-2 w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-primary focus:outline-none"
               />
               <ColorGrid value={draftColor} onPick={setDraftColor} />
               <div className="mt-2 flex gap-2">
@@ -128,7 +128,7 @@ export default function LabelPanel({
                       })
                     )
                   }
-                  className="flex-1 rounded bg-[#0c66e4] py-1 text-xs font-semibold text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+                  className="flex-1 rounded bg-primary py-1 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
                 >
                   Lưu
                 </button>
@@ -190,7 +190,7 @@ export default function LabelPanel({
             value={draftName}
             onChange={(e) => setDraftName(e.target.value)}
             placeholder="Tên nhãn (tuỳ chọn)"
-            className="mb-2 w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-[#0c66e4] focus:outline-none"
+            className="mb-2 w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-primary focus:outline-none"
           />
           <ColorGrid value={draftColor} onPick={setDraftColor} />
           <div className="mt-2 flex gap-2">
@@ -205,7 +205,7 @@ export default function LabelPanel({
                   })
                 )
               }
-              className="flex-1 rounded bg-[#0c66e4] py-1 text-xs font-semibold text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+              className="flex-1 rounded bg-primary py-1 text-xs font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
             >
               Tạo nhãn
             </button>

@@ -135,7 +135,7 @@ export default function RecurringScheduleModal({ listId, boardId, onClose }: Pro
   }
 
   const field =
-    'w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-900';
+    'w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-900';
   const label = 'mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300';
 
   return createPortal(
@@ -263,7 +263,7 @@ export default function RecurringScheduleModal({ listId, boardId, onClose }: Pro
             <button
               type="submit"
               disabled={busy || !title.trim()}
-              className="rounded-lg bg-[#0c66e4] py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+              className="rounded-lg bg-primary py-1.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
             >
               {busy ? 'Đang tạo...' : 'Tạo lịch'}
             </button>

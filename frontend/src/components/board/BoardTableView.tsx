@@ -80,7 +80,7 @@ export default function BoardTableView({ lists, onOpenCard }: Props) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Tìm thẻ theo tên..."
-        className="mb-2 w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-800"
+        className="mb-2 w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-800"
       />
       <div className="min-h-0 flex-1 overflow-auto rounded-lg bg-white/90 shadow-sm dark:bg-slate-800/90">
         <table className="w-full border-collapse">

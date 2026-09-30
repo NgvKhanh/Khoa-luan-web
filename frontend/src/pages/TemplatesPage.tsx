@@ -113,7 +113,7 @@ export default function TemplatesPage() {
           <select
             value={targetWorkspaceId}
             onChange={(e) => setTargetWorkspaceId(e.target.value)}
-            className="flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+            className="flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
           >
             {workspaces.map((w) => (
               <option key={w.id} value={w.id}>
@@ -168,7 +168,7 @@ export default function TemplatesPage() {
                         type="button"
                         disabled={creating !== null}
                         onClick={() => handleUseUserTemplate(t)}
-                        className="rounded-lg bg-[#0c66e4] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+                        className="rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
                       >
                         {creating === t.id ? 'Đang tạo...' : 'Dùng mẫu này'}
                       </button>
@@ -232,7 +232,7 @@ export default function TemplatesPage() {
                       type="button"
                       disabled={creating !== null}
                       onClick={() => use(t)}
-                      className="rounded-lg bg-[#0c66e4] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4] disabled:opacity-50"
+                      className="rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-50"
                     >
                       {creating === t.id ? 'Đang tạo...' : 'Dùng mẫu này'}
                     </button>

@@ -80,7 +80,7 @@ export default function MyActivityPage() {
                 {a.board ? (
                   <Link
                     to={`/boards/${a.board.id}`}
-                    className="text-[#0c66e4] hover:underline"
+                    className="text-primary-ink hover:underline"
                   >
                     {a.board.name}
                   </Link>

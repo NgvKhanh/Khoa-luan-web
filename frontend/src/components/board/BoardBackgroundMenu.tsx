@@ -127,7 +127,7 @@ export default function BoardBackgroundMenu({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Tìm ảnh (biển, núi, bầu trời...)"
-            className="mb-2 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-sm focus:border-[#0c66e4] focus:outline-none"
+            className="mb-2 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-sm focus:border-primary focus:outline-none"
           />
 
           {(error || photosError) && (
@@ -165,7 +165,7 @@ export default function BoardBackgroundMenu({
                         }
                         className={`relative h-14 overflow-hidden rounded-md bg-cover bg-center transition disabled:opacity-50 ${
                           selected
-                            ? 'ring-2 ring-[#0c66e4] ring-offset-1'
+                            ? 'ring-2 ring-primary ring-offset-1'
                             : 'hover:opacity-90'
                         }`}
                         style={{

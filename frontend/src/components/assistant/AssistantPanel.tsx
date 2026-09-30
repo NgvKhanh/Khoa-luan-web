@@ -33,7 +33,7 @@ function Intro({ busy, onAsk }: { busy: boolean; onAsk: (q: string) => void }) {
             type="button"
             disabled={busy}
             onClick={() => onAsk(q)}
-            className="rounded-full border border-slate-300 px-3 py-1 text-left text-xs text-slate-700 transition hover:border-[#0c66e4] hover:text-[#0c66e4] disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:border-sky-400 dark:hover:text-sky-300"
+            className="rounded-full border border-slate-300 px-3 py-1 text-left text-xs text-slate-700 transition hover:border-primary hover:text-primary-ink disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:border-sky-400 dark:hover:text-sky-300"
           >
             {q}
           </button>
@@ -171,12 +171,12 @@ function PanelBody() {
             rows={2}
             aria-label="Câu hỏi cho trợ lý"
             placeholder="Hỏi về việc của bạn hoặc của nhóm…"
-            className="min-h-0 flex-1 resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#0c66e4] focus:ring-1 focus:ring-[#0c66e4] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+            className="min-h-0 flex-1 resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
           />
           <button
             type="submit"
             disabled={busy || draft.trim() === ''}
-            className="rounded-lg bg-[#0c66e4] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#0055cc] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             Gửi
           </button>

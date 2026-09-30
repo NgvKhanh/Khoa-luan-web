@@ -33,7 +33,7 @@ const MODE_LABEL: Record<PlanMode, string> = {
 };
 
 const field =
-  'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 focus:border-[#0c66e4] focus:outline-none focus:ring-1 focus:ring-[#0c66e4] disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100';
+  'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100';
 const smallLabel = 'mb-0.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400';
 
 function DateField({
@@ -116,7 +116,7 @@ function CardRow({
           checked={card.selected}
           disabled={disabled}
           onChange={(e) => onChange(setCardSelected(plan, card.ref, e.target.checked))}
-          className="mt-2 h-4 w-4 shrink-0 accent-[#0c66e4]"
+          className="mt-2 h-4 w-4 shrink-0 accent-primary"
         />
         <div className="min-w-0 flex-1">
           <input
@@ -288,7 +288,7 @@ export default function AiPlanEditor({ plan, onChange, issues, llmUsed, modeAuto
                 type="button"
                 disabled={disabled || list.cards.length === 0}
                 onClick={() => onChange(setListSelected(plan, listIndex, selected !== list.cards.length))}
-                className="shrink-0 rounded px-2 py-1 text-xs font-medium text-[#0c66e4] hover:bg-white disabled:opacity-50 dark:hover:bg-slate-800"
+                className="shrink-0 rounded px-2 py-1 text-xs font-medium text-primary-ink hover:bg-white disabled:opacity-50 dark:hover:bg-slate-800"
               >
                 {selected === list.cards.length ? 'Bỏ chọn hết' : 'Chọn hết'}
               </button>
