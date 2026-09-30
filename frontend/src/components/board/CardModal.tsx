@@ -54,6 +54,7 @@ import {
 } from '../../lib/api/customField';
 import { saveCardAsTemplate } from '../../lib/api/cardTemplate';
 import type { CustomField } from '../../types/customField';
+import { Skeleton, SkeletonRegion } from '../Skeleton';
 import { getErrorMessage } from '../../lib/errorMessage';
 import { logError } from '../../lib/logError';
 import { fetchBoardLists } from '../../lib/api/list';
@@ -384,10 +385,19 @@ export default function CardModal({
       }}
     >
       <div className="w-[760px] max-w-full rounded-xl bg-[#f4f5f7] shadow-2xl dark:bg-slate-900">
-        {loading || !card ? (
-          <p className="p-10 text-center text-sm text-slate-600 dark:text-slate-400">
-            {error ?? 'Đang tải...'}
-          </p>
+        {error && (loading || !card) ? (
+          <p className="p-10 text-center text-sm text-slate-600 dark:text-slate-400">{error}</p>
+        ) : loading || !card ? (
+          <SkeletonRegion label="Đang tải thẻ…" className="flex flex-col gap-4 p-6">
+            <Skeleton className="h-6 w-3/5" />
+            <Skeleton className="h-3 w-24" />
+            <div className="flex gap-2">
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-8 w-20" />
+            </div>
+            <Skeleton className="h-20 w-full" />
+          </SkeletonRegion>
         ) : (
           <>
             {/* Anh bia */}

@@ -12,6 +12,7 @@ import {
   deleteUserBoardTemplate,
   fetchUserBoardTemplates,
 } from '../lib/api/boardTemplate';
+import { Skeleton, SkeletonRegion } from '../components/Skeleton';
 import { getErrorMessage } from '../lib/errorMessage';
 import { logError } from '../lib/logError';
 import type { UserBoardTemplate } from '../types/boardTemplate';
@@ -193,7 +194,11 @@ export default function TemplatesPage() {
         Mẫu có sẵn
       </h2>
       {loading ? (
-        <p className="text-sm text-slate-500">Đang tải...</p>
+        <SkeletonRegion label="Đang tải mẫu…" className="grid gap-4 sm:grid-cols-2">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-44 rounded-xl" />
+          ))}
+        </SkeletonRegion>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {templates.map((t) => {

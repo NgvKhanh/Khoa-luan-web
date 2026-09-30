@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BoardCard from '../components/BoardCard';
+import { Skeleton, SkeletonBoardGrid, SkeletonRegion } from '../components/Skeleton';
 import AiGenerateBoardModal from '../components/board/AiGenerateBoardModal';
 import CreateBoardDialog from '../components/board/CreateBoardDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -169,7 +170,10 @@ export default function HomePage() {
       )}
 
       {isLoading ? (
-        <p className="text-sm text-slate-500">Đang tải...</p>
+        <SkeletonRegion label="Đang tải danh sách bảng…" className="flex flex-col gap-3">
+          <Skeleton className="h-4 w-44" />
+          <SkeletonBoardGrid count={8} />
+        </SkeletonRegion>
       ) : (
         <>
           {starred.length > 0 && (

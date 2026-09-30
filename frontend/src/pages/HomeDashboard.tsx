@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Avatar from '../components/Avatar';
+import { Skeleton, SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
 import { activityPhrase } from '../lib/activityText';
@@ -163,9 +164,9 @@ export default function HomeDashboard() {
 
   const stats = [
     { label: 'Bảng', value: boards.length, to: '/boards' },
-    { label: 'Thẻ được giao', value: assigned.length, to: '/my-cards' },
-    { label: 'Quá hạn', value: overdue, to: '/my-cards', danger: overdue > 0 },
-    { label: 'Đến hạn trong tuần', value: dueWeek, to: '/calendar' },
+    { label: 'Thẻ được giao', value: assigned.length, to: '/my-cards', fromCards: true },
+    { label: 'Quá hạn', value: overdue, to: '/my-cards', danger: overdue > 0, fromCards: true },
+    { label: 'Đến hạn trong tuần', value: dueWeek, to: '/calendar', fromCards: true },
   ];
 
   return (
@@ -203,7 +204,13 @@ export default function HomeDashboard() {
                   : 'text-slate-900 dark:text-slate-100'
               }`}
             >
-              {s.value}
+              {s.fromCards && loading ? (
+                <Skeleton className="h-8 w-10" />
+              ) : s.fromCards && error ? (
+                '–'
+              ) : (
+                s.value
+              )}
             </p>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
               {s.label}
@@ -225,7 +232,9 @@ export default function HomeDashboard() {
         }
       >
         {loading ? (
-          <p className="text-sm text-slate-400">Đang tải...</p>
+          <SkeletonRegion label="Đang tải thẻ cần chú ý…">
+            <SkeletonRows rows={3} />
+          </SkeletonRegion>
         ) : !hasAttention ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Không có thẻ nào sắp đến hạn. 🎉
@@ -315,7 +324,9 @@ export default function HomeDashboard() {
       {/* 4. Hoat dong gan day */}
       <Section title="Hoạt động gần đây">
         {loading ? (
-          <p className="text-sm text-slate-400">Đang tải...</p>
+          <SkeletonRegion label="Đang tải hoạt động gần đây…">
+            <SkeletonRows rows={5} />
+          </SkeletonRegion>
         ) : activity.length === 0 ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Chưa có hoạt động nào.

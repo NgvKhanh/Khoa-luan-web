@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchMyCards, type MyCard } from '../lib/api/card';
+import { Skeleton, SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 import { getErrorMessage } from '../lib/errorMessage';
 
 function fmtDate(iso: string): string {
@@ -80,7 +81,10 @@ export default function MyCardsPage() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-slate-500">Đang tải...</p>
+        <SkeletonRegion label="Đang tải thẻ của bạn…" className="flex flex-col gap-2">
+          <Skeleton className="h-3 w-28" />
+          <SkeletonRows rows={5} boxed />
+        </SkeletonRegion>
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : groups.length === 0 ? (

@@ -44,6 +44,7 @@ import ShortcutsHelp from '../components/board/ShortcutsHelp';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
+import { SkeletonColumns, SkeletonRegion } from '../components/Skeleton';
 import StarButton from '../components/StarButton';
 import type { BoardOutletContext } from '../layouts/BoardViewLayout';
 import {
@@ -664,7 +665,11 @@ export default function BoardPage() {
   }
 
   if (isLoading) {
-    return <div className="p-6 text-sm text-slate-500">Đang tải bảng...</div>;
+    return (
+      <SkeletonRegion label="Đang tải bảng…" className="overflow-hidden p-4">
+        <SkeletonColumns />
+      </SkeletonRegion>
+    );
   }
   if (error) {
     return <div className="p-6 text-sm text-red-600">{error}</div>;
@@ -1135,9 +1140,9 @@ export default function BoardPage() {
 
       {/* Hang cac danh sach */}
       {listsLoading ? (
-        <p className="m-4 w-fit rounded bg-white/80 px-3 py-2 text-sm text-slate-600">
-          Đang tải danh sách...
-        </p>
+        <SkeletonRegion label="Đang tải danh sách…" className="p-4">
+          <SkeletonColumns onColor />
+        </SkeletonRegion>
       ) : boardView === 'table' ? (
         <BoardTableView lists={displayLists} onOpenCard={setOpenCardId} />
       ) : (

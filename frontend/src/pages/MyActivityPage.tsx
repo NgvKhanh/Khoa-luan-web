@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchMyActivity, type MyActivity } from '../lib/api/auth';
 import { statusLabel } from '../lib/cardStatus';
+import { SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 import { getErrorMessage } from '../lib/errorMessage';
 
 function fmt(iso: string): string {
@@ -64,7 +65,9 @@ export default function MyActivityPage() {
       </h1>
 
       {loading ? (
-        <p className="text-sm text-slate-500">Đang tải...</p>
+        <SkeletonRegion label="Đang tải hoạt động…">
+          <SkeletonRows rows={6} boxed />
+        </SkeletonRegion>
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : items.length === 0 ? (

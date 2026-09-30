@@ -56,13 +56,45 @@
   animation: tf-fade-in var(--motion-page) ease-out;
 }
 
+/* Khung cho tai (skeleton): nen xam + dai sang chay ngang. Giam chuyen dong -> chi con khoi xam tinh. */
+:root {
+  --tf-skeleton-base: #e2e8f0;
+  --tf-skeleton-shine: rgb(255 255 255 / 0.6);
+}
+.dark {
+  --tf-skeleton-base: #334155;
+  --tf-skeleton-shine: rgb(255 255 255 / 0.08);
+}
+
+@keyframes tf-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+.tf-skeleton {
+  background-color: var(--tf-skeleton-base);
+  background-image: linear-gradient(90deg, transparent 0%, var(--tf-skeleton-shine) 50%, transparent 100%);
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: tf-shimmer 1.4s linear infinite;
+}
+/* Khung nam tren nen mau cua bang (anh/mau nen tuy nguoi dung chon) */
+.tf-skeleton.tf-skeleton-on-color {
+  background-color: rgb(255 255 255 / 0.28);
+}
+
 /* Nguoi dung chon giam chuyen dong: tat MOI hieu ung trang tri.
    Moi lop co "animation:" o tren phai duoc liet ke o day (co test kiem tra: motion.test.ts). */
 @media (prefers-reduced-motion: reduce) {
   .tf-overlay,
   .tf-overlay > *,
   .tf-menu-in,
-  .tf-page-in {
+  .tf-page-in,
+  .tf-skeleton {
     animation: none;
   }
 }
