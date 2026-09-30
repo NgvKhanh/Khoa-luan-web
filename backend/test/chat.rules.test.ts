@@ -116,6 +116,37 @@ describe('parseByRules - cau hoi mau', () => {
     for (const [q, expected] of cases) expect(parseByRules(q, ROSTER), q).toEqual(expected);
   });
 
+  it('tu vung bo sung sau khi chay tap dev (buoc 8): "gấp", "đến hạn", "từng thành viên"', () => {
+    const roster: RosterMember[] = [...ROSTER, { userId: 'tung', name: 'Nguyễn Sơn Tùng' }];
+    const cases: [string, ParsedQuestion][] = [
+      // "gấp" -> uu tien; "gặp" va "gap" khong dau dung mot minh KHONG phai uu tien
+      ['Việc nào cần làm gấp?', P('MY_PRIORITIES', null, 'OPEN')],
+      ['viec nao can lam gap', P('MY_PRIORITIES', null, 'OPEN')], // khong dau: chi nhan cum "làm gap"
+      ['Việc gấp của tôi', P('MY_PRIORITIES')],
+      ['Hôm nay tôi gặp ai?', P('MY_TASKS', 'TODAY')],
+      ['hom nay toi gap ai', P('MY_TASKS', 'TODAY')],
+      ['Tạo việc gấp cho Lan', P('UNSUPPORTED')], // thao tac van thang
+      // "đến hạn" = chua xong (khac "quá hạn")
+      ['Bảng này tuần sau có những việc nào đến hạn?', P('TEAM_SUMMARY', 'NEXT_WEEK', 'OPEN')],
+      ['viec nao cua toi den han hom nay', P('MY_TASKS', 'TODAY', 'OPEN')],
+      ['Việc nào chưa đến hạn?', P('MY_TASKS', null, 'OPEN')],
+      ['Lan có việc nào đến hạn không?', P('MEMBER_TASKS', null, 'OPEN', 'lan')],
+      ['Việc quá hạn hay đến hạn của tôi?', P('MY_TASKS', null, 'OVERDUE')], // cu the hon thang
+      ['Việc nào sắp đến hạn?', P('MY_TASKS', 'NEXT_7_DAYS', 'OPEN')], // van la cum thoi gian
+      // "từng người / từng thành viên / mỗi thành viên" nhu "mỗi người"
+      ['Số việc của từng thành viên là bao nhiêu?', P('TEAM_WORKLOAD')],
+      ['mỗi thành viên đang giữ bao nhiêu việc', P('TEAM_WORKLOAD', null, 'OPEN')],
+      ['So viec cua tung nguoi', P('TEAM_WORKLOAD')],
+      ['Từng người có bao nhiêu việc?', P('TEAM_WORKLOAD')],
+      ['Việc nào của từng người quá hạn?', P('TEAM_SUMMARY', null, 'OVERDUE')], // khong co tu chi so luong -> khong phai luong viec
+      // Ten "Tùng" trung "từng" khi bo dau: van la ten
+      ['Tùng đang làm gì?', P('MEMBER_TASKS', null, 'OPEN', 'tùng')],
+      ['Số việc của Tùng là bao nhiêu?', P('MEMBER_TASKS', null, null, 'tùng')],
+    ];
+    const wrong = cases.filter(([q, want]) => JSON.stringify(parseByRules(q, roster)) !== JSON.stringify(want)).map(([q]) => q);
+    expect(wrong).toEqual([]);
+  });
+
   it('tu de nham voi ten khi bo dau: tuần/Tuấn, mai/Mai, năm/Nam, an toàn/An, tháng/Thắng, mình/Minh', () => {
     const noMember: [string, ChatIntent, ChatPeriod | null][] = [
       ['Tuần sau tôi có việc gì?', 'MY_TASKS', 'NEXT_WEEK'],

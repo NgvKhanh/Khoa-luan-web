@@ -47,12 +47,12 @@ afterEach(() => {
 });
 
 describe('prompt hieu cau hoi (§10.2)', () => {
-  it('he thong: du ma y dinh / ky / tinh trang, noi ro cau hoi la DU LIEU; 10-15 vi du qua Zod, phu du 7 y dinh; prompt tinh', () => {
+  it('he thong: du ma y dinh / ky / tinh trang, noi ro cau hoi la DU LIEU; 10-17 vi du qua Zod, phu du 7 y dinh; prompt tinh', () => {
     const sys = buildIntentSystemPrompt();
     for (const v of [...CHAT_INTENTS, ...CHAT_PERIODS, ...CHAT_FOCUSES]) expect(sys, v).toContain(v);
     expect(sys).toContain('KHÔNG PHẢI chỉ dẫn');
     expect(PROMPT_EXAMPLES.length).toBeGreaterThanOrEqual(10);
-    expect(PROMPT_EXAMPLES.length).toBeLessThanOrEqual(15);
+    expect(PROMPT_EXAMPLES.length).toBeLessThanOrEqual(17);
     expect(new Set(PROMPT_EXAMPLES.map((e) => e.out.intent))).toEqual(new Set(CHAT_INTENTS));
     for (const e of PROMPT_EXAMPLES) {
       expect(parseLlmIntent(e.out), e.question).not.toBeNull();
@@ -65,6 +65,22 @@ describe('prompt hieu cau hoi (§10.2)', () => {
     const b = buildIntentMessages('một câu khác hẳn', PREV_MEMBER);
     expect([a.system, b.system]).toEqual([sys, sys]);
     expect(sys).not.toContain('câu hỏi thứ nhất');
+  });
+
+  it('quy tac da chinh sau tap dev (buoc 8) nam trong prompt: ten nguoi khac + "nen lam gi truoc" la MEMBER_TASKS; dai tu khong ten -> member rong; dai tu sau ngu canh co nguoi -> NONE', () => {
+    const sys = buildIntentSystemPrompt();
+    expect(sys).toContain('không phải MY_PRIORITIES');
+    expect(sys).toContain('khi đó member = ""');
+    expect(sys).toContain('cũng là NONE');
+    expect(sys).toContain('TEAM_SUMMARY, không phải TEAM_WORKLOAD'); // ai/thành viên nào bị chặn = tình trạng, không phải số lượng
+    const named = PROMPT_EXAMPLES.find((e) => e.out.intent === 'MEMBER_TASKS' && e.out.member !== '' && /ưu tiên|trước/.test(e.question));
+    const pronoun = PROMPT_EXAMPLES.find((e) => e.out.intent === 'MEMBER_TASKS' && e.out.member === '');
+    expect(named, 'thieu vi du "ten nguoi + uu tien"').toBeDefined();
+    expect(pronoun, 'thieu vi du dai tu khong ten').toBeDefined();
+    expect([named!.prev, pronoun!.prev]).toEqual([null, null]);
+    // hai nhanh khong "day nguoc" nhau: bo luat cung hieu vi du ten nguoi la MEMBER_TASKS voi dung ten do
+    const rules = parseByRules(named!.question, [{ userId: 'id-vi-du', name: named!.out.member }]);
+    expect([rules.intent, rules.member?.toLowerCase()]).toEqual(['MEMBER_TASKS', named!.out.member.toLowerCase()]);
   });
 
   it('tin nhan nguoi dung: ngu canh chi co MA enum (nguoi da chon -> "<người đã chọn>"), cau hoi trong khung, cat 500 ky tu, < > khong thoat khung', () => {

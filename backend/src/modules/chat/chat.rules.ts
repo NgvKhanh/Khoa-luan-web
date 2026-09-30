@@ -175,6 +175,7 @@ const FOCUS_RULES: readonly FocusRule[] = [
   { focus: 'OPEN', phrase: ['can', 'lam'] },
   { focus: 'OPEN', phrase: ['phai', 'lam'] },
   { focus: 'OPEN', phrase: ['chua', 'lam'] },
+  { focus: 'OPEN', phrase: ['den', 'han'] }, // "việc nào đến hạn tuần sau" ("sắp đến hạn" da la cum thoi gian)
 ];
 
 function detectFocus(toks: Token[], periodUsed: boolean[], dueSoon: boolean): ChatFocus | null {
@@ -344,6 +345,8 @@ const OUT_OF_SCOPE: readonly Phrase[] = [
 const PRIORITY: readonly Phrase[] = [
   ['uu', 'tien'],
   ['gap', 'nhat'],
+  [only('gấp')], // "cần làm gấp"; "gap" khong dau de nham voi "gặp" nen chi nhan them cum "làm gap"
+  ['lam', 'gap'],
   ['quan', 'trong', 'nhat'],
   ['bat', 'dau', 'tu'],
   ['lam', 'truoc'],
@@ -382,7 +385,7 @@ const WORKLOAD_ALONE: readonly Phrase[] = [
   ['it', 'viec', 'nhat'],
   ['qua', 'tai'],
 ];
-const EVERYONE: Phrase = ['moi', 'nguoi'];
+const EVERYONE: readonly Phrase[] = [['moi', 'nguoi'], ['moi', 'thanh', 'vien'], ['tung', 'nguoi'], ['tung', 'thanh', 'vien']];
 
 const TEAM_STRONG: readonly Phrase[] = [
   ['nhom'],
@@ -393,7 +396,7 @@ const TEAM_STRONG: readonly Phrase[] = [
   [d('bang', 'bảng'), 'nay'],
   ['workspace'],
   ['khong', 'gian'],
-  EVERYONE,
+  ...EVERYONE,
   ['thanh', 'vien'],
   ['chua', 'giao'],
   ['chua', 'duoc', 'giao'],
@@ -433,7 +436,7 @@ function detectWorkload(toks: Token[], blocked: boolean[]): boolean {
   if (hasAny(toks, WORKLOAD_ALONE, blocked)) return true;
   const hasAi = toks.some((t, i) => !blocked[i] && t.orig === 'ai');
   if (hasAi && hasAny(toks, WORKLOAD_WITH_AI, blocked)) return true;
-  return findPhrase(toks, EVERYONE, blocked) >= 0 && hasAny(toks, WORKLOAD_WITH_EVERYONE, blocked);
+  return hasAny(toks, EVERYONE, blocked) && hasAny(toks, WORKLOAD_WITH_EVERYONE, blocked);
 }
 
 /** "còn …", "thế còn …", "vậy còn …" o dau cau hoac "… thì sao" o cuoi cau. */

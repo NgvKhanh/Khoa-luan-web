@@ -6,12 +6,12 @@
 > nghĩa, con số và quy tắc ở đây là chuẩn mà code và test phải khớp. Đổi hợp
 > đồng thì sửa tài liệu này trước, ghi lý do vào nhật ký cuối file.
 >
-> Trạng thái: **xong bước 0–7** — chatbot chạy trọn vẹn qua API `/api/chat` và **giao diện** (nút
+> Trạng thái: **xong bước 0–8** — chatbot chạy trọn vẹn qua API `/api/chat` và **giao diện** (nút
 > Trợ lý trên Header, panel bên phải): hiểu câu bằng **bộ luật + LLM** (gộp B2; thiếu khoá / LLM lỗi /
 > hết ngân sách → bộ luật), câu nối tiếp, phạm vi + quyền đọc lại mỗi lượt, nhận diện người + hỏi lại,
 > truy vấn số liệu, câu trả lời theo mẫu, nhận xét AI cho tổng kết nhóm (có kiểm tra), phiên hội thoại
-> tạm, "Xem thêm"; bộ đánh giá 3 nhánh đã dựng (B0 chạy thử trên tập dev). Còn: chạy chính thức với Gemini (bước 8),
-> nghiệm thu (bước 9). Lộ trình ở §17, nhật ký cuối file.
+> tạm, "Xem thêm"; bộ đánh giá 3 nhánh đã **chạy chính thức với Gemini thật** (bước 8, kết quả ở §14.6: khớp
+> hoàn toàn trên tập test B0 84,1% / B1 95,2% / B2 93,7%). Còn: nghiệm thu (bước 9). Lộ trình ở §17, nhật ký cuối file.
 
 ---
 
@@ -432,7 +432,7 @@ Hàm thuần `parseByRules(câu hỏi, danh sách người) → {intent, period,
   Từ dễ nhầm khi bỏ dấu chỉ khớp khi gõ **đúng dấu** (đổi/đợi/đội, gán/gần, mời/mới, bận/bạn,
   lương/lượng, huỷ/Huy, thẻ/thế, đội…); gõ không dấu thì dùng cụm hai từ ("doi han") hoặc bỏ qua.
 - Thứ tự: (1) cụm thời gian — chiếm từ, nhiều cụm thì lấy cụm **nhắc trước**; "sắp đến hạn" đồng
-  thời là focus `OPEN`; (2) tình trạng — phủ định trước ("chưa xong" = `OPEN`), nhiều tình trạng →
+  thời là focus `OPEN`; (2) tình trạng — phủ định trước ("chưa xong" = `OPEN`; "đến hạn" không kèm "sắp" cũng là `OPEN`), nhiều tình trạng →
   `NONE`, trừ `OPEN` + (`OVERDUE`|`BLOCKED`) → cái cụ thể hơn; (3) tên người (§8.2 bước 6);
   (4) người hỏi tự nhắc mình; (5) "mai" đứng một mình (không phải tên ai) = `TOMORROW`.
 - Quyết định ý định theo **thứ tự ưu tiên**:
@@ -440,8 +440,8 @@ Hàm thuần `parseByRules(câu hỏi, danh sách người) → {intent, period,
 | # | Điều kiện | Kết quả |
 |---|---|---|
 | 1 | Hỏi thông tin ngoài phạm vi (email, số điện thoại, mật khẩu, địa chỉ, lương, hồ sơ, CV, kỹ năng) hoặc có động từ thao tác (tạo, thêm, xoá, sửa, đổi, chuyển, gán, mời, huỷ, giao — trừ "được/chưa/đã/bị/đang giao" —, đánh dấu, cập nhật, đặt hạn…) | `UNSUPPORTED` (mọi tham số `null`) |
-| 2 | Hỏi lượng việc giữa các người ("ai" + nhiều/ít/bận/rảnh/quá tải/ôm; "mọi người" + bao nhiêu/số việc/đang giữ; "khối lượng", "phân bổ", "nhiều việc nhất") | `TEAM_WORKLOAD` |
-| 3 | Hỏi ưu tiên ("ưu tiên", "nên làm", "làm gì trước", "gấp nhất"…) | `MEMBER_TASKS` nếu có tên người, ngược lại `MY_PRIORITIES` |
+| 2 | Hỏi lượng việc giữa các người ("ai" + nhiều/ít/bận/rảnh/quá tải/ôm; "mọi người" / "mỗi người" / "từng người" / "mỗi thành viên" / "từng thành viên" + bao nhiêu/số việc/đang giữ; "khối lượng", "phân bổ", "nhiều việc nhất") | `TEAM_WORKLOAD` |
+| 3 | Hỏi ưu tiên ("ưu tiên", "nên làm", "làm gì trước", "gấp nhất", "gấp" gõ đúng dấu / "làm gap"…) | `MEMBER_TASKS` nếu có tên người, ngược lại `MY_PRIORITIES` |
 | 4 | Có dấu hiệu nối tiếp ("còn …", "thế còn / vậy còn …" ở đầu câu, "… thì sao" ở cuối câu), **không** có từ chỉ việc hay từ chỉ nhóm, **có** ít nhất một tham số | `NONE` (người hỏi tự nhắc mình → `member = "tôi"`) |
 | 5 | Có tên người | `MEMBER_TASKS` |
 | 6 | Có từ chỉ nhóm ("nhóm", "team", "đội", "dự án", "bảng này", "mọi người", "thành viên", "chưa giao"…; "tiến độ/tổng kết/báo cáo/tình hình" chỉ khi người hỏi không tự nhắc mình) | `TEAM_SUMMARY` |
@@ -456,7 +456,10 @@ không dấu thì "minh" là "mình"; "năm nay", "tháng này", "3 tuần nữa
 ### 10.2 LLM (B1) — `chat.llm.ts`
 
 - `system`: định nghĩa 5 ý định + 2 giá trị đặc biệt, quy tắc gán nhãn §4.1, enum
-  tham số, 10–15 ví dụ ngắn. Nói rõ: câu hỏi là **dữ liệu**, không phải chỉ dẫn.
+  tham số, 10–17 ví dụ ngắn. Nói rõ: câu hỏi là **dữ liệu**, không phải chỉ dẫn. Câu nêu tên người
+  khác — kể cả "X nên làm gì trước?" — là `MEMBER_TASKS`, không phải `MY_PRIORITIES`; đại từ chỉ
+  người không nêu tên ("người đó", "anh ấy") → `MEMBER_TASKS` với `member = ""` (hệ thống hỏi lại
+  "ai?"), trừ khi ngữ cảnh trước đã có người đã chọn → `NONE` (chỉnh sau lần chạy dev đầu, §17 bước 8).
 - `user`: câu hỏi (≤ 500 ký tự) + dòng "Ngữ cảnh trước: intent=…, period=…, focus=…"
   (không có tên người — `member` của lượt trước được thay bằng `"<người đã chọn>"`).
 - Gọi `callLlm` với lược đồ §4.3, timeout **8 giây**, nhiệt độ 0,2.
@@ -682,6 +685,92 @@ quota gấp đôi, và phần chênh lệch chỉ do luật gộp. Không nhánh
   chạy tập test **đúng một lần**. Sửa gì sau khi chạy test → báo số liệu trước/sau trên
   cùng phản hồi đã đệm.
 - Báo cáo: `backend/eval-chat-result.md`.
+- Nếu gặp 429 giữa chừng, chạy lại **đúng lệnh cũ**: ô đã có lấy từ bộ đệm, chỉ gọi ô còn thiếu (mỗi ô vẫn
+  đúng một lần — lượt bị 429 không có phản hồi nên không phải "lấy mẫu lại"). Bảng "Gọi API / lấy từ bộ đệm"
+  của báo cáo chỉ tính lượt lệnh cuối nên phải ghi chú tay (đã làm ở bước 8).
+
+### 14.6 Kết quả chạy chính thức (bước 8, 29–30/09/2026)
+
+**Cấu hình**: `gemini-3.5-flash-lite` qua endpoint tương thích OpenAI, cấu hình sản phẩm (`defaultChatLlm`:
+timeout 8 giây, nhiệt độ 0,2, `json_schema` — được chấp nhận ở 100% lượt, chưa lần nào phải hạ mức), 3 lần chạy
+mỗi câu, nghỉ 4 giây giữa hai lượt gọi. Lệnh:
+`npx tsx src/scripts/evaluateChat.ts --arm=all --split=<dev|test> --runs=3 --delay=4000 --out=…`.
+
+**Quy trình §14.5 đã thực hiện** — chỉnh **chỉ trên dev** (35 câu), rồi đóng băng, rồi chạy tập test (63 câu):
+
+| Vòng (tập) | Prompt / luật | Thay đổi | B0 | B1 | B2 | Lượt LLM lỗi |
+|---|---|---|---|---|---|---|
+| 1 (dev) | `f27f3141b89b` / `425b54d579cd` | bản gốc bước 5–7 | 82,9% (29/35) | 92,4% (97/105) | 94,3% (99/105) | 2 TIMEOUT |
+| 2 (dev) | `f7c6923be82c` / `12c1f2bd0845` | prompt: tên người khác + "nên làm gì trước" = `MEMBER_TASKS`, đại từ không tên → `member = ""`; luật: "gấp", "đến hạn", "từng thành viên" | 91,4% (32/35) | 96,2% (101/105) | 97,1% (102/105) | 1 TIMEOUT |
+| 3 (dev) | `382ae898a4cc` / `c44cdfb39648` | prompt: hỏi *tình trạng* của người ("thành viên nào bị chặn?") = `TEAM_SUMMARY`, không phải `TEAM_WORKLOAD` | 91,4% (32/35) | 100% (105/105) | 100% (105/105) | 0 |
+| **test** | **`382ae898a4cc` / `c44cdfb39648`** (đóng băng) | không sửa gì sau khi thấy kết quả | 84,1% (53/63) | 95,2% (180/189) | 93,7% (177/189) | 0 |
+
+Số ở dòng dev **lạc quan** (chính dev được dùng để chỉnh): 100% ở vòng 3 không nói lên chất lượng thật; chênh
+dev → test (B1 100% → 95,2%, B2 100% → 93,7%) mới là mức khái quát hoá. Vòng 2 còn làm một câu đang đúng thành sai
+(D13: sửa quy tắc "tên người khác" khiến LLM xếp "Thành viên nào đang bị chặn việc?" sang `TEAM_WORKLOAD`) — vòng 3 sửa
+lại. **Bài học**: prompt nhạy với thay đổi nhỏ, sau mỗi lần chỉnh phải chạy lại **cả tập dev**, không chỉ câu vừa sửa.
+
+**Kết quả trên tập test** (`backend/eval-chat-result.md`; 63 câu × 3 lần = 189 lượt LLM, KTC 95% bootstrap theo câu):
+
+| Nhánh | Ý định | Macro-F1 | Thời gian | Tình trạng | Người | **Khớp hoàn toàn** [KTC 95%] |
+|---|---|---|---|---|---|---|
+| B0 (luật) | 87,3% (55/63) | 0,894 | 92,6% | 90,7% | 68,8% | **84,1%** (53/63) [74,6; 92,1] |
+| B1 (chỉ LLM) | 97,9% (185/189) | 0,983 | 96,3% | 96,3% | 91,7% | **95,2%** (180/189) [89,9; 99,5] |
+| B2 (lai) | 97,9% (185/189) | 0,983 | 94,4% | 94,4% | 85,4% | **93,7%** (177/189) [87,3; 98,4] |
+
+| So sánh cặp (khớp hoàn toàn) | Trung bình | KTC 95% | Số câu hơn / kém / bằng |
+|---|---|---|---|
+| B1 − B0 | +11,1 điểm % | [0,5; 21,7] | 10 / 3 / 50 |
+| B2 − B1 | −1,6 điểm % | [−4,8; 0,0] | 0 / 1 / 62 |
+| B2 − B0 | +9,5 điểm % | [−0,5; 20,1] | 9 / 3 / 51 |
+
+**Lớp LLM (189 lượt)**: 100% thành công (0 timeout, 0 `BAD_JSON`, 0 `INVALID_SHAPE`); độ trễ p50 / p95 = 1148 / 1611 ms;
+token vào / ra trung bình 1862 / 32 (một lượt cho mỗi câu). Ở 3 vòng dev có 3 / 315 lượt quá 8 giây (độ trễ p95 vòng 1 là
+6,6 giây, hai vòng sau 1,6 giây — phụ thuộc thời điểm); cả 3 lượt đó B1 tính là `LLM_FAILED`, còn B2 **lùi về bộ luật và
+vẫn đúng cả 3** — đây là lợi ích thật của nhánh lai.
+
+**Trả lời các câu hỏi §14.1**
+- **Q1** — LLM tốt hơn bộ luật: B1 − B0 = +11,1 điểm %, KTC 95% [0,5; 21,7] (không chứa 0 nhưng sát 0 vì chỉ 63 câu).
+  Chênh lệch nằm ở nhóm "khó với luật" (B0 14,3% → B1 95,2%, 7 câu) và câu nối tiếp (87,5% → 100%); câu ngoài phạm vi,
+  thao tác, không dấu, việc của tôi, số việc từng người: cả ba nhánh đều đạt 100%.
+- **Q2** — gộp luật + LLM **không hơn** chỉ LLM trên độ chính xác (B2 − B1 = −1,6 điểm %, KTC [−4,8; 0,0]): B2 kém B1
+  đúng một câu (C06). Lợi thế B2 nằm ở độ tin cậy khi LLM lỗi (đoạn trên), không ở độ chính xác. Xem "điểm yếu của luật gộp".
+- **Q3** — không có lỗi LLM nào ở tập test; ~1,9 nghìn token vào, ~30 ra mỗi câu. Gói miễn phí trả 429 sau khoảng 500
+  lượt trong một đêm chạy (3 vòng dev + tập test — nhiều khả năng là hạn mức request theo ngày, hồi sau 0h giờ Thái Bình
+  Dương = 14h giờ Việt Nam; chưa kiểm chứng chính thức); ngân sách 10 lượt/phút của sản phẩm (§10.4) thấp hơn nhiều.
+
+**Phân tích lỗi trên tập test** (danh sách đầy đủ ở cuối `eval-chat-result.md`)
+- **B0 — 10 câu sai**: (a) tên người / từ trùng tên — "Tuấn tuần này…" (C02), "Trần Lan tuần trước…" hai từ ở đầu câu
+  không có dấu hiệu nên chỉ nhận "Lan" → hỏi lại (C06), "Dự án có ổn không?" bị hiểu "án" là tên An (D09), người không có
+  trong danh sách (C15), tên nằm trong đoạn chèn lệnh (H05 — bộ luật không phân biệt chỉ dẫn với dữ liệu); (b) ngữ cảnh và
+  ngầm định — câu nối tiếp có chữ "việc" bị coi là câu mới (F05), không ngầm hiểu "chưa xong" khi hỏi việc của X tuần tới (C03);
+  (c) từ vựng — "sắp xếp thứ tự" (B08), câu không có từ chỉ việc (C09), "mình" làm câu báo cáo thành việc cá nhân (D05).
+- **B1 — 9 ô sai (4 câu)**: C12 "Minh đang giữ bao nhiêu việc?" bị đọc là việc của tôi (3/3 lần); C17 "Tiến độ của An ra sao?" và D06
+  "Những việc nào chưa được giao cho ai?" LLM điền tình trạng `OPEN` trong khi nhãn để trống (nhãn mơ hồ — 5 ô); C09 một lần
+  đọc "Bình dạo này thế nào?" thành ngoài phạm vi.
+- **B2 — 12 ô sai**: như B1 **cộng** C06 ×3 — luật gộp lấy chuỗi tên do bộ luật bắt được ("lan", khớp 2 người → hỏi lại) thay vì
+  "Trần Lan" của LLM (khớp đúng 1 người); ở C12 luật thấy "Minh" nhưng ý định lấy từ LLM (`MY_TASKS`) nên tên bị bỏ qua.
+- **Câu chèn lệnh (4 câu, 12 ô)**: B1 và B2 đều 100% — LLM coi phần chèn là dữ liệu; B0 75% (H05).
+- Loại "nhầm tên" (10 câu) vẫn khó nhất: B0 80%, B1 = B2 = 83,3%.
+
+**Điểm yếu của luật gộp §10.3 và hướng cải tiến (CHƯA làm — hậu nghiệm)**. Hai lỗi của B2 đến từ chính luật gộp:
+(V1) khi bộ luật thấy một tên **có trong danh sách** (không phải "tôi") mà LLM trả `MY_TASKS`/`MY_PRIORITIES` thì ý định nên
+là `MEMBER_TASKS`; (V2) khi bộ luật chỉ bắt được chuỗi tên khớp nhiều người còn chuỗi tên của LLM dài hơn, chứa chuỗi của luật
+và khớp đúng một người thì nên lấy chuỗi của LLM. Ước lượng trên **phản hồi đã đệm** (không gọi lại API; script tái dựng đúng B2 hiện tại 177/189 làm phép tự kiểm): V1 → 180/189 (95,2%, sửa C12); V2 → 180/189
+(95,2%, sửa C06); **V1 + V2 → 183/189 (96,8%, KTC [92,6; 100,0])**, cao hơn B1 (95,2%); trên dev không đổi (105/105).
+Đây là phân tích **sau khi thấy lỗi tập test** nên chỉ là đề xuất: muốn áp dụng phải kiểm lại trên câu hỏi mới (mở rộng
+bộ dữ liệu) và ghi rõ là chỉnh sau khi chạy test (§14.5); bước 8 giữ nguyên bản đóng băng.
+
+**Đe doạ độ tin cậy**
+1. Một người soạn câu hỏi, nhãn vàng, bộ luật **và** prompt; chia dev/test cố định trước và không sửa gì sau khi thấy test là chưa đủ để
+   loại bỏ thiên lệch của người soạn (tác giả biết loại câu khó với luật khi viết câu).
+2. Cỡ mẫu nhỏ: 63 câu test; 3 lần chạy không phải mẫu độc lập (KTC bootstrap theo câu). KTC của B1 − B0 sát 0.
+3. Nhãn mơ hồ ở trường `focus` (C17, D06): B1 và B2 mất 5 ô vì cách hiểu hợp lý khác nhãn quy ước.
+4. Số dev lạc quan (3 vòng chỉnh); dev → test cho thấy mức khái quát hoá.
+5. Một mô hình, một nhà cung cấp, gói miễn phí, chạy ở hai thời điểm (đêm 29→30/09 và chiều 30/09); độ trễ khác nhau theo thời điểm (p95 6,6 giây ở vòng 1 dev,
+   1,6 giây sau đó). Bộ đệm phản hồi thô cho phép chấm lại mà không gọi lại.
+6. Chỉ tiếng Việt, danh sách 12 người, phạm vi một workspace (câu hỏi lại "workspace nào?" nằm ngoài phép đo, §14.2).
+7. Tập test chạy nhiều lượt lệnh do 429 — mỗi ô đúng một lần (ghi chú đầu báo cáo).
 
 ## 15. Kiểm thử và điều kiện nghiệm thu
 
@@ -751,11 +840,11 @@ Mỗi bước một commit; bắt đầu khi được giao "làm bước N đi".
 | 5 | Lớp LLM (tham số `format` cho `callLlm`, luật gộp, ngân sách) + nhận xét tổng kết | **xong** |
 | 6 | Giao diện: nút Trợ lý, panel, bộ chọn phạm vi, hiển thị câu trả lời | **xong** |
 | 7 | Bộ đánh giá: bộ câu hỏi, 3 nhánh, chỉ số, báo cáo (chạy thử B0 không cần khoá) | **xong** |
-| 8 | Chạy chính thức với Gemini thật (cần khoá API mới) | chưa |
+| 8 | Chạy chính thức với Gemini thật: chỉnh prompt + luật trên dev (3 vòng), đóng băng, chạy tập test một lần, báo cáo `backend/eval-chat-result.md` | **xong** |
 | 9 | Nghiệm thu theo §15, thử trên trình duyệt, cập nhật tài liệu | chưa |
 
-**Việc của tác giả**: trước bước 8 xoá khoá API cũ đã lộ và tạo khoá mới trong
-`backend/.env`; báo GVHD về module AI thứ ba. Dòng `seed:team` đang sửa dở trong
+**Việc của tác giả**: bước 8 đã chạy bằng khoá mới trong `backend/.env` — nhớ xác nhận khoá cũ đã
+lộ đã bị xoá trên trang quản lý khoá của Google; báo GVHD về module AI thứ ba. Dòng `seed:team` đang sửa dở trong
 `backend/package.json` (phiên khác) không được commit cùng module này — bộ đánh giá
 chạy bằng `npx tsx` cho tới khi dòng đó được commit.
 
@@ -1101,3 +1190,49 @@ trong danh sách…), mọi con số ở chương đánh giá sẽ đo một h�
 kết quả**, kể cả loại bộ luật không bao giờ sinh ra (nên có thêm kết quả kiểu LLM tiêm vào).
 
 **Toàn bộ test backend**: 107 tệp / 1192 test xanh (thêm 13); `tsc`, `eslint` sạch.
+
+### Đã xong — Bước 8: chạy chính thức với Gemini thật (29–30/09/2026)
+
+Kết quả và phân tích đầy đủ ở **§14.6**; báo cáo tập test: `backend/eval-chat-result.md`; hai báo cáo dev để đối chiếu
+trước / sau chỉnh: `backend/eval-chat-dev-before.md` (vòng 1, bản gốc), `backend/eval-chat-dev.md` (vòng 3, bản đóng băng).
+
+**Việc đã làm**
+1. Khoá API trong `backend/.env` chạy được (không đọc, không in, không ghi khoá vào đâu). Chạy thử 1 câu, rồi tập dev 3 vòng × 35 câu × 3 lần.
+2. **Vòng 1 (dev, chưa chỉnh)**: B0 82,9% / B1 92,4% / B2 94,3%. Lỗi thật của LLM: "Lan nên làm gì trước?" bị đọc là việc của
+   *tôi* (`MY_PRIORITIES`, bỏ qua tên — 3/3 lần) và "Người đó đang làm việc gì?" bị xếp ngoài phạm vi thay vì hỏi lại "ai?" (3/3);
+   2 lượt quá 8 giây. Bộ luật thiếu 3 nhóm từ vựng: "gấp", "đến hạn", "từng thành viên".
+3. **Chỉnh** (chỉ dựa trên dev, không chép câu dev vào prompt): `chat.llm.ts` — mô tả `MY_PRIORITIES` / `MEMBER_TASKS` / `NONE` (tên
+   người khác + "nên làm gì trước" là `MEMBER_TASKS`; đại từ không tên → `member = ""`; đại từ sau ngữ cảnh có người → `NONE`),
+   thêm 2 ví dụ (15 → 17; test nới trần từ 15 lên 17, §10.2 sửa theo); `chat.rules.ts` — "gấp" (chỉ gõ đúng dấu, hoặc "làm gap";
+   "gap" trơn dễ nhầm "gặp"), "đến hạn" = chưa xong, "từng người / từng / mỗi thành viên" như "mọi người" (tên "Tùng" vẫn nhận
+   diện được). B0 trên dev 82,9% → 91,4% (không câu nào đang đúng thành sai).
+4. **Vòng 2**: B1 96,2% / B2 97,1%, nhưng D13 đang đúng thành sai (xem §14.6) → thêm một câu phân biệt hỏi *tình trạng* của người
+   với hỏi *số lượng* việc → **vòng 3**: B1 = B2 = 100% (lạc quan vì đã chỉnh trên dev). Dừng chỉnh ở đây — đóng băng prompt
+   `382ae898a4cc` và luật `c44cdfb39648`.
+5. Kiểm chứng trên mã đóng băng, **trước khi** chạm tập test: 2 test mới (`chat.rules.test.ts`: từ vựng mới + các câu dễ nhầm "gặp" /
+   "Tùng" / "quá hạn hay đến hạn"; `chat.llm.test.ts`: khoá các quy tắc prompt đã chỉnh + ví dụ tương ứng, và bộ luật cũng hiểu ví dụ
+   tên người là `MEMBER_TASKS`), cài lỗi **16/16** (`G1–G3`, `H1–H2`, `V1–V5` cho luật; `Q1–Q6` cho prompt), toàn bộ test
+   backend **107 tệp / 1194 test xanh**, `tsc` + `eslint` sạch.
+6. **Tập test chạy đúng một lần** (63 câu × 3 lần = 189 lượt): B0 84,1% / B1 95,2% / B2 93,7% khớp hoàn toàn; 0 lỗi LLM.
+   Gemini gói miễn phí trả 429 khi mới xong 176 ô (khoảng 500 lượt đã dùng trong đêm) → script dừng đúng thiết kế, phần đã chạy nằm
+   trong bộ đệm; chạy lại đúng lệnh cũ chiều 30/09 (sau khi hạn mức hồi) để hoàn tất 9 ô cuối. Không sửa gì sau khi thấy kết quả test.
+7. Thêm phân tích ngoài phép đo: B0 gốc và B0 sau chỉnh trên **cả 63 câu test** (tất định, không tốn API) — **81,0% → 84,1%**
+   (dev 82,9% → 91,4%): phần từ vựng thêm khái quát được nhưng ít hơn nhiều so với dev; và ước lượng cải tiến luật gộp (V1, V2 ở
+   §14.6, chưa làm mã).
+
+**Tệp sửa / thêm**: `backend/src/modules/chat/chat.llm.ts`, `chat.rules.ts`; `backend/test/chat.llm.test.ts`, `chat.rules.test.ts`;
+`CHATBOT_MODULE.md` (§10.1, §10.2, đầu tệp, §14.5–14.6, §17, nhật ký); `backend/eval-chat-dev-before.md`, `eval-chat-dev.md`,
+`eval-chat-result.md`.
+
+**Bài học**
+- **Prompt nhạy với thay đổi nhỏ**: sửa quy tắc "tên người khác" làm câu "Thành viên nào đang bị chặn việc?" đổi ý định. Sau mỗi
+  lần chỉnh chạy lại cả tập dev; cái giá là mỗi vòng dev tốn ~105 lượt gọi.
+- **Số dev không phải kết quả**: dev 100% → test 95,2% / 93,7%. Luôn báo số tập test, ghi rõ số dev là lạc quan.
+- **Luật gộp không tự động hơn LLM**: "ý định ← LLM, tên ← luật" tạo ra lỗi mà cả hai bên riêng lẻ không có (C06, C12); B2 chỉ hơn B1 ở
+  độ tin cậy khi LLM lỗi. Đây là kết quả trung thực cho chương đánh giá, không phải điều cần che.
+- **Hạn mức gói miễn phí là ràng buộc thật** (~500 lượt/đêm): khi chỉnh prompt dùng `--runs=1`, chỉ dùng `--runs=3` cho vòng chốt và tập
+  test; báo cáo "Gọi API / lấy từ bộ đệm" chỉ tính lượt lệnh cuối nên khi chạy nối tiếp phải ghi chú tay.
+- **Nhãn `focus` mơ hồ** ("tiến độ", "chưa được giao") làm B1/B2 mất 5 ô dù cách hiểu của LLM hợp lý — nên nêu rõ quy ước nhãn trong
+  §14.2 khi mở rộng bộ dữ liệu.
+
+**Toàn bộ test backend**: 107 tệp / 1194 test xanh (thêm 2); `tsc`, `eslint` sạch.
