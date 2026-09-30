@@ -107,6 +107,8 @@ const TOOLBAR_BTN_BASE =
   'grid h-8 w-8 shrink-0 place-items-center rounded transition-colors';
 const TOOLBAR_BTN = `${TOOLBAR_BTN_BASE} bg-white/25 text-white hover:bg-white/40`;
 const TOOLBAR_BTN_ON = `${TOOLBAR_BTN_BASE} bg-white text-primary-ink`;
+// Nút nằm trong nhóm công cụ (nền chung của nhóm), không có nền riêng
+const TOOLBAR_BTN_FLAT = `${TOOLBAR_BTN_BASE} text-white hover:bg-white/30`;
 
 // Hieu ung khi tha: ban goc mo dan trong luc "ban noi" bay ve cho -> muot hon
 const dropAnimation: DropAnimation = {
@@ -709,7 +711,7 @@ export default function BoardPage() {
   return (
     <div className="board-canvas flex h-full flex-col" style={canvasStyle}>
       {/* Thanh ten bang */}
-      <div className="flex shrink-0 items-center gap-2 bg-gradient-to-b from-black/35 to-black/5 px-4 py-2 backdrop-blur-sm">
+      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 bg-gradient-to-b from-black/35 to-black/5 px-4 py-2 backdrop-blur-sm">
         <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-white/20 text-white">
           <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor">
             <rect x="3" y="4" width="8" height="16" rx="1" />
@@ -735,7 +737,7 @@ export default function BoardPage() {
               setDraft(board.name);
               setEditing(true);
             }}
-            className="rounded px-2 py-1 text-lg font-bold text-white drop-shadow-sm enabled:hover:bg-white/20"
+            className="max-w-[calc(100vw-9rem)] truncate rounded px-2 py-1 text-lg font-bold text-white drop-shadow-sm enabled:hover:bg-white/20 sm:max-w-md"
           >
             {board.name}
           </button>
@@ -792,7 +794,7 @@ export default function BoardPage() {
               data-visibility-trigger
               onClick={() => setVisMenuOpen((v) => !v)}
               title="Khả năng hiển thị"
-              className="flex items-center gap-1 rounded bg-white/25 px-2 py-1 text-xs font-medium text-white hover:bg-white/40"
+              className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-white/25 px-2 py-1 text-xs font-medium text-white hover:bg-white/40"
             >
               {board.visibility === 'PUBLIC' ? (
                 <>
@@ -843,7 +845,7 @@ export default function BoardPage() {
               }
             }}
             title="Bất kỳ ai có liên kết này đều xem được, không cần đăng nhập"
-            className="flex items-center gap-1 rounded bg-white/25 px-2 py-1 text-xs font-medium text-white hover:bg-white/40"
+            className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-white/25 px-2 py-1 text-xs font-medium text-white hover:bg-white/40"
           >
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1" />
@@ -852,7 +854,7 @@ export default function BoardPage() {
           </button>
         )}
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-0.5 rounded bg-white/20 p-0.5">
             <button
               type="button"
@@ -876,174 +878,177 @@ export default function BoardPage() {
             </button>
           </div>
 
-          <div className="relative">
-            <button
-              type="button"
-              data-stats-trigger
-              onClick={() => setStatsOpen((v) => !v)}
-              title="Thống kê tiến độ"
-              aria-label="Thống kê tiến độ"
-              className={TOOLBAR_BTN}
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 20V10M12 20V4M20 20v-7" />
-              </svg>
-            </button>
-            {statsOpen && (
-              <BoardStatsPanel lists={lists} onClose={() => setStatsOpen(false)} />
+                    {/* Nhóm công cụ của bảng: thống kê, lọc, hoạt động, trường, tự động hoá, lưu trữ, ảnh nền */}
+          <div role="toolbar" aria-label="Công cụ của bảng" className="flex items-center gap-0.5 rounded-lg bg-white/15 p-0.5">
+  <div className="relative">
+              <button
+                type="button"
+                data-stats-trigger
+                onClick={() => setStatsOpen((v) => !v)}
+                title="Thống kê tiến độ"
+                aria-label="Thống kê tiến độ"
+                className={TOOLBAR_BTN_FLAT}
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M4 20V10M12 20V4M20 20v-7" />
+                </svg>
+              </button>
+              {statsOpen && (
+                <BoardStatsPanel lists={lists} onClose={() => setStatsOpen(false)} />
+              )}
+            </div>
+
+            <div className="relative">
+              <button
+                type="button"
+                data-filter-trigger
+                onClick={() => setFilterOpen((v) => !v)}
+                title="Lọc thẻ"
+                aria-label="Lọc thẻ"
+                className={`relative ${filterOn ? TOOLBAR_BTN_ON : TOOLBAR_BTN_FLAT}`}
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 5h18M6 12h12M10 19h4" />
+                </svg>
+                {filterOn && (
+                  <span className="absolute -right-1 -top-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                    {filterActiveCount(filter)}
+                  </span>
+                )}
+              </button>
+              {filterOpen && (
+                <BoardFilterPanel
+                  boardId={board.id}
+                  filter={filter}
+                  onChange={setFilter}
+                  boardMembers={members}
+                  onClose={() => setFilterOpen(false)}
+                />
+              )}
+            </div>
+
+            <div className="relative">
+              <button
+                type="button"
+                data-activity-trigger
+                onClick={() => setActivityOpen((v) => !v)}
+                title="Hoạt động"
+                aria-label="Hoạt động"
+                className={TOOLBAR_BTN_FLAT}
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 8v4l3 2" />
+                  <circle cx="12" cy="12" r="9" />
+                </svg>
+              </button>
+              {activityOpen && (
+                <BoardActivityMenu
+                  boardId={board.id}
+                  onClose={() => setActivityOpen(false)}
+                />
+              )}
+            </div>
+
+            {!readOnly && (
+              <div className="relative">
+                <button
+                  type="button"
+                  data-fields-trigger
+                  onClick={() => setFieldsMenuOpen((v) => !v)}
+                  title="Trường tùy chỉnh"
+                  aria-label="Trường tùy chỉnh"
+                  className={TOOLBAR_BTN_FLAT}
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="4" width="18" height="4" rx="1" />
+                    <rect x="3" y="10" width="18" height="4" rx="1" />
+                    <rect x="3" y="16" width="10" height="4" rx="1" />
+                  </svg>
+                </button>
+                {fieldsMenuOpen && (
+                  <CustomFieldsPanel
+                    boardId={board.id}
+                    onClose={() => setFieldsMenuOpen(false)}
+                    onChanged={reloadLists}
+                  />
+                )}
+              </div>
+            )}
+
+            {!readOnly && (
+              <div className="relative">
+                <button
+                  type="button"
+                  data-automation-trigger
+                  onClick={() => setAutomationOpen((v) => !v)}
+                  title="Tự động hoá"
+                  aria-label="Tự động hoá"
+                  className={TOOLBAR_BTN_FLAT}
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M13 3L4 14h7l-1 7 9-11h-7l1-7z" />
+                  </svg>
+                </button>
+                {automationOpen && (
+                  <AutomationPanel
+                    boardId={board.id}
+                    onClose={() => setAutomationOpen(false)}
+                  />
+                )}
+              </div>
+            )}
+
+            {!readOnly && (
+              <div className="relative">
+                <button
+                  type="button"
+                  data-archive-trigger
+                  onClick={() => setArchiveOpen((v) => !v)}
+                  title="Mục đã lưu trữ"
+                  aria-label="Mục đã lưu trữ"
+                  className={TOOLBAR_BTN_FLAT}
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="4" width="18" height="4" rx="1" />
+                    <path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8M10 12h4" />
+                  </svg>
+                </button>
+                {archiveOpen && (
+                  <BoardArchiveMenu
+                    boardId={board.id}
+                    onClose={() => setArchiveOpen(false)}
+                    onChanged={reloadLists}
+                  />
+                )}
+              </div>
+            )}
+
+            {!readOnly && (
+              <div className="relative">
+                <button
+                  type="button"
+                  data-bg-trigger
+                  onClick={() => setBgMenuOpen((v) => !v)}
+                  title="Hình nền"
+                  aria-label="Hình nền"
+                  className={TOOLBAR_BTN_FLAT}
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <circle cx="9" cy="10" r="2" />
+                    <path d="M21 16l-5-5-4 4-2-2-4 4" />
+                  </svg>
+                </button>
+                {bgMenuOpen && (
+                  <BoardBackgroundMenu
+                    board={board}
+                    onChanged={patchBoard}
+                    onClose={() => setBgMenuOpen(false)}
+                  />
+                )}
+              </div>
             )}
           </div>
-
-          <div className="relative">
-            <button
-              type="button"
-              data-filter-trigger
-              onClick={() => setFilterOpen((v) => !v)}
-              title="Lọc thẻ"
-              aria-label="Lọc thẻ"
-              className={`relative ${filterOn ? TOOLBAR_BTN_ON : TOOLBAR_BTN}`}
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 5h18M6 12h12M10 19h4" />
-              </svg>
-              {filterOn && (
-                <span className="absolute -right-1 -top-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-white ring-2 ring-white">
-                  {filterActiveCount(filter)}
-                </span>
-              )}
-            </button>
-            {filterOpen && (
-              <BoardFilterPanel
-                boardId={board.id}
-                filter={filter}
-                onChange={setFilter}
-                boardMembers={members}
-                onClose={() => setFilterOpen(false)}
-              />
-            )}
-          </div>
-
-          <div className="relative">
-            <button
-              type="button"
-              data-activity-trigger
-              onClick={() => setActivityOpen((v) => !v)}
-              title="Hoạt động"
-              aria-label="Hoạt động"
-              className={TOOLBAR_BTN}
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 8v4l3 2" />
-                <circle cx="12" cy="12" r="9" />
-              </svg>
-            </button>
-            {activityOpen && (
-              <BoardActivityMenu
-                boardId={board.id}
-                onClose={() => setActivityOpen(false)}
-              />
-            )}
-          </div>
-
-          {!readOnly && (
-            <div className="relative">
-              <button
-                type="button"
-                data-fields-trigger
-                onClick={() => setFieldsMenuOpen((v) => !v)}
-                title="Trường tùy chỉnh"
-                aria-label="Trường tùy chỉnh"
-                className={TOOLBAR_BTN}
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="4" width="18" height="4" rx="1" />
-                  <rect x="3" y="10" width="18" height="4" rx="1" />
-                  <rect x="3" y="16" width="10" height="4" rx="1" />
-                </svg>
-              </button>
-              {fieldsMenuOpen && (
-                <CustomFieldsPanel
-                  boardId={board.id}
-                  onClose={() => setFieldsMenuOpen(false)}
-                  onChanged={reloadLists}
-                />
-              )}
-            </div>
-          )}
-
-          {!readOnly && (
-            <div className="relative">
-              <button
-                type="button"
-                data-automation-trigger
-                onClick={() => setAutomationOpen((v) => !v)}
-                title="Tự động hoá"
-                aria-label="Tự động hoá"
-                className={TOOLBAR_BTN}
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M13 3L4 14h7l-1 7 9-11h-7l1-7z" />
-                </svg>
-              </button>
-              {automationOpen && (
-                <AutomationPanel
-                  boardId={board.id}
-                  onClose={() => setAutomationOpen(false)}
-                />
-              )}
-            </div>
-          )}
-
-          {!readOnly && (
-            <div className="relative">
-              <button
-                type="button"
-                data-archive-trigger
-                onClick={() => setArchiveOpen((v) => !v)}
-                title="Mục đã lưu trữ"
-                aria-label="Mục đã lưu trữ"
-                className={TOOLBAR_BTN}
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="4" width="18" height="4" rx="1" />
-                  <path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8M10 12h4" />
-                </svg>
-              </button>
-              {archiveOpen && (
-                <BoardArchiveMenu
-                  boardId={board.id}
-                  onClose={() => setArchiveOpen(false)}
-                  onChanged={reloadLists}
-                />
-              )}
-            </div>
-          )}
-
-          {!readOnly && (
-            <div className="relative">
-              <button
-                type="button"
-                data-bg-trigger
-                onClick={() => setBgMenuOpen((v) => !v)}
-                title="Hình nền"
-                aria-label="Hình nền"
-                className={TOOLBAR_BTN}
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="4" width="18" height="16" rx="2" />
-                  <circle cx="9" cy="10" r="2" />
-                  <path d="M21 16l-5-5-4 4-2-2-4 4" />
-                </svg>
-              </button>
-              {bgMenuOpen && (
-                <BoardBackgroundMenu
-                  board={board}
-                  onChanged={patchBoard}
-                  onClose={() => setBgMenuOpen(false)}
-                />
-              )}
-            </div>
-          )}
 
           {/* canManageBoard co the true du readOnly=true (vd ADMIN khong gian
               xem 1 bang PUBLIC ma chua la thanh vien truc tiep -> khong sua
