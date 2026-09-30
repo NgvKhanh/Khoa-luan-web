@@ -17,6 +17,31 @@ import { getErrorMessage } from '../lib/errorMessage';
 import { logError } from '../lib/logError';
 import type { UserBoardTemplate } from '../types/boardTemplate';
 
+// Hình xem trước bảng mẫu: nền màu của mẫu, mỗi cột một khung, mỗi thẻ ví dụ (tối đa 3) một thanh
+function TemplatePreview({ color, lists }: { color: string; lists: { name: string; cards: unknown[] }[] }) {
+  const widths = ['100%', '82%', '92%'];
+  return (
+    <div
+      aria-hidden="true"
+      className="flex h-24 items-start gap-1.5 overflow-hidden px-3 pt-3"
+      style={{ backgroundColor: color }}
+    >
+      {lists.slice(0, 4).map((l) => (
+        <div key={l.name} className="flex min-w-0 flex-1 flex-col gap-1 rounded-md bg-white/70 p-1.5 dark:bg-slate-900/60">
+          <span className="h-1.5 w-2/3 rounded-full bg-slate-500/50" />
+          {Array.from({ length: Math.min(3, l.cards.length) }, (_, i) => (
+            <span
+              key={i}
+              className="block h-3 rounded bg-white shadow-sm dark:bg-slate-700"
+              style={{ width: widths[i] }}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function TemplatesPage() {
   const navigate = useNavigate();
   const { upsertBoard } = useBoards();
@@ -140,7 +165,7 @@ export default function TemplatesPage() {
                   key={t.id}
                   className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800"
                 >
-                  <div className="h-2" style={{ backgroundColor: t.color }} />
+                  <TemplatePreview color={t.color} lists={t.lists} />
                   <div className="flex flex-1 flex-col p-4">
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                       {t.name}
@@ -208,7 +233,7 @@ export default function TemplatesPage() {
                 key={t.id}
                 className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800"
               >
-                <div className="h-2" style={{ backgroundColor: t.color }} />
+                <TemplatePreview color={t.color} lists={t.lists} />
                 <div className="flex flex-1 flex-col p-4">
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {t.name}
