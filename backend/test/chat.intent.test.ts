@@ -2,12 +2,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   ANSWER_INTENTS,
+  CATALOG_INTENTS,
   CHAT_FOCUSES,
   CHAT_INTENTS,
   CHAT_PERIODS,
   INTENT_JSON_SCHEMA,
   MAX_MEMBER_CHARS,
   isAnswerIntent,
+  isCatalogIntent,
   isFuturePeriod,
   parseLlmIntent,
   resolveSlots,
@@ -19,20 +21,22 @@ describe('luoc do gui LLM khop voi Zod', () => {
   it('khoa, enum va rang buoc cua INTENT_JSON_SCHEMA trung hang so; khong co null / maxLength', () => {
     const s = INTENT_JSON_SCHEMA;
     expect(s.additionalProperties).toBe(false);
-    expect([...s.required].sort()).toEqual(['focus', 'intent', 'member', 'period']);
-    expect(Object.keys(s.properties).sort()).toEqual(['focus', 'intent', 'member', 'period']);
+    expect([...s.required].sort()).toEqual(['column', 'focus', 'intent', 'member', 'period', 'target']);
+    expect(Object.keys(s.properties).sort()).toEqual(['column', 'focus', 'intent', 'member', 'period', 'target']);
     expect(s.properties.intent.enum).toEqual([...CHAT_INTENTS]);
     expect(s.properties.period.enum).toEqual([...CHAT_PERIODS, 'NONE']);
     expect(s.properties.focus.enum).toEqual([...CHAT_FOCUSES, 'NONE']);
     expect(s.properties.member.type).toBe('string');
+    expect([s.properties.target.type, s.properties.column.type]).toEqual(['string', 'string']);
     const text = JSON.stringify(s);
     expect(text).not.toContain('null');
     expect(text).not.toContain('maxLength');
     expect(text).not.toContain('anyOf');
 
-    // 5 y dinh tra loi + 2 gia tri dac biet, khong trung
+    // 5 y dinh tra loi + 4 y dinh danh muc (§18) + 2 gia tri dac biet, khong trung
     expect(new Set(CHAT_INTENTS).size).toBe(CHAT_INTENTS.length);
-    expect(CHAT_INTENTS.filter((i) => !isAnswerIntent(i))).toEqual(['UNSUPPORTED', 'NONE']);
+    expect(CHAT_INTENTS.filter((i) => !isAnswerIntent(i))).toEqual([...CATALOG_INTENTS, 'UNSUPPORTED', 'NONE']);
+    expect(CHAT_INTENTS.filter(isCatalogIntent)).toEqual([...CATALOG_INTENTS]);
     expect(ANSWER_INTENTS.every(isAnswerIntent)).toBe(true);
     expect(CHAT_PERIODS.filter(isFuturePeriod)).toEqual(['TOMORROW', 'NEXT_WEEK', 'NEXT_7_DAYS']);
   });

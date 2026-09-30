@@ -48,6 +48,14 @@ export function describeOutcome(o: Outcome): string {
       return [o.intent, o.focus ?? '–', o.period ?? '–', o.member ?? '–'].join(' · ') + (o.ignored.length > 0 ? ` (bỏ qua ${o.ignored.join(', ')})` : '');
     case 'CLARIFY_MEMBER':
       return `hỏi lại: ${o.candidates.join(', ')}`;
+    case 'CATALOG':
+      return `${o.intent} · ${o.target ?? '–'} · ${o.column ?? '–'}`;
+    case 'CLARIFY_TARGET':
+      return `${o.intent} · hỏi lại bảng/không gian: ${o.candidates.join(', ')}`;
+    case 'TARGET_NOT_FOUND':
+      return `${o.intent} · không tìm thấy (${o.what})`;
+    case 'ASK_WORKSPACE':
+      return `${o.intent} · hỏi "không gian nào?"`;
     case 'LLM_FAILED':
       return `LLM lỗi (${o.reason})`;
     default:
@@ -71,7 +79,9 @@ export function buildChatReport(
   meta: ChatReportMeta,
   byArm: ReadonlyMap<ArmId, readonly ScoredRun[]>,
   items: readonly ChatEvalItem[],
-  llmObs: readonly LlmCallObs[]
+  llmObs: readonly LlmCallObs[],
+  /** Id cac cau cua vong 1 (hoi quy): co thi bao cao them bang "cau cu / cau danh muc moi". */
+  legacyIds: ReadonlySet<string> = new Set()
 ): string {
   const ids = items.map((i) => i.id);
   const arms = meta.arms.filter((a) => byArm.has(a));
@@ -112,6 +122,7 @@ export function buildChatReport(
       pct(s.period),
       pct(s.focus),
       pct(s.member),
+      pct(s.target),
       `${pct(s.full)}${ci ? ` [${fmtPct(ci.lo)}; ${fmtPct(ci.hi)}]` : ''}`,
       pct(s.ignored),
       pct(s.clarify),
@@ -119,7 +130,10 @@ export function buildChatReport(
     ]);
   }
   out.push(
-    mdTable(['Nhánh', 'Ý định', 'Macro-F1', 'Thời gian', 'Tình trạng', 'Người', 'Khớp hoàn toàn [KTC 95%]', 'Tham số bỏ qua', 'Hỏi lại đúng', 'LLM lỗi'], rows)
+    mdTable(
+      ['Nhánh', 'Ý định', 'Macro-F1', 'Thời gian', 'Tình trạng', 'Người', 'Bảng / không gian / cột', 'Khớp hoàn toàn [KTC 95%]', 'Tham số bỏ qua', 'Hỏi lại đúng', 'LLM lỗi'],
+      rows
+    )
   );
 
   // ---- So sanh cap ----
@@ -158,12 +172,28 @@ export function buildChatReport(
 
   // ---- Theo nhom + nhan phu ----
   const groups = [...new Set(items.map((i) => i.group))];
-  out.push('', '## Khớp hoàn toàn theo nhóm câu hỏi', '');
   const fullOf = (arm: ArmId, keep: (i: ChatEvalItem) => boolean) => {
     const keepIds = new Set(items.filter(keep).map((i) => i.id));
     const runs = byArm.get(arm)!.filter((r) => keepIds.has(r.itemId));
     return runs.length === 0 ? '–' : `${fmtPct(runs.filter((r) => r.score.full).length / runs.length)} (${keepIds.size} câu)`;
   };
+  if (legacyIds.size > 0 && items.some((i) => legacyIds.has(i.id)) && items.some((i) => !legacyIds.has(i.id))) {
+    out.push('', '## Câu cũ (hồi quy) và câu danh mục mới', '');
+    out.push(
+      'Câu cũ (nhóm A–H) đã lộ ở vòng 1 nên chỉ là **hồi quy** (prompt đã đổi); số liệu chính của vòng 2 là câu danh mục mới (nhóm I–M).',
+      ''
+    );
+    out.push(
+      mdTable(
+        ['Bộ câu', ...arms],
+        [
+          ['câu cũ — hồi quy', ...arms.map((a) => fullOf(a, (i) => legacyIds.has(i.id)))],
+          ['câu mới — danh mục', ...arms.map((a) => fullOf(a, (i) => !legacyIds.has(i.id)))],
+        ]
+      )
+    );
+  }
+  out.push('', '## Khớp hoàn toàn theo nhóm câu hỏi', '');
   out.push(mdTable(['Nhóm', ...arms], groups.map((g) => [g, ...arms.map((a) => fullOf(a, (i) => i.group === g))])));
   const tags = [...new Set(items.flatMap((i) => i.tags))].sort();
   out.push('', '## Khớp hoàn toàn theo loại khó', '');

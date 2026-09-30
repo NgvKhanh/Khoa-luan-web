@@ -25,13 +25,18 @@ export async function sendChatMessage(input: {
   return res.data.data;
 }
 
-// POST /api/chat/messages/choice - tra loi cau hoi lai ("Ý bạn là ai?" / "không gian nào?"). Khong goi AI.
+// POST /api/chat/messages/choice - tra loi cau hoi lai ("Ý bạn là ai?" / "không gian nào?" / "bảng nào?"). Khong goi AI.
+// Gui DUNG MOT trong userId / workspaceId / targetId theo loai lua chon.
 export async function sendChatChoice(
   conversationId: string,
-  option: { kind: 'USER' | 'WORKSPACE'; id: string }
+  option: { kind: 'USER' | 'WORKSPACE' | 'TARGET'; id: string }
 ): Promise<ChatReply> {
   const body =
-    option.kind === 'USER' ? { conversationId, userId: option.id } : { conversationId, workspaceId: option.id };
+    option.kind === 'USER'
+      ? { conversationId, userId: option.id }
+      : option.kind === 'WORKSPACE'
+        ? { conversationId, workspaceId: option.id }
+        : { conversationId, targetId: option.id };
   const res = await api.post<{ data: ChatReply }>('/chat/messages/choice', body);
   return res.data.data;
 }

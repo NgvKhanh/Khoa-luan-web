@@ -175,7 +175,7 @@ describe('mot luot hoi day du (chua co LLM)', () => {
     expect(r7.body.data.answer.total).toBe(13);
 
     const r5 = await ask(u.lan1, 'Tạo thẻ mới cho Lan');
-    expect([r5.body.data.answer.kind, r5.body.data.answer.suggestions.length]).toEqual(['UNSUPPORTED', 4]);
+    expect([r5.body.data.answer.kind, r5.body.data.answer.suggestions.length]).toEqual(['UNSUPPORTED', 5]);
     const m5 = await more(u.lan1, r5.body.data.conversationId, 2);
     expect([m5.status, m5.body.message]).toEqual([400, 'Chua co cau tra loi nao de xem them']);
   });

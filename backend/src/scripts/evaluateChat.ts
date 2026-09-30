@@ -10,6 +10,7 @@
 //   --runs=N                so lan chay nhanh co LLM (1..10, mac dinh 1)
 //   --delay=MS              nghi giua 2 lan goi API that (mac dinh 4000 - goi free bat dau 429 quanh 15 luot/phut)
 //   --items=A01,C04         chi chay cac cau nay
+//   --part=all|legacy|new   legacy = 98 cau cua vong 1 (hoi quy), new = cau danh muc vong 2 (§18.6), mac dinh all
 //   --out=FILE              ghi bao cao markdown ra FILE va du lieu tho ra FILE.json
 //   --cache-dir=DIR         thu muc bo dem (mac dinh .chat-eval-cache)
 //
@@ -28,7 +29,7 @@ import { parseLlmIntent } from '../modules/chat/chat.intent';
 import { buildIntentMessages, buildIntentSystemPrompt, chatLlmAvailable, defaultChatLlm, INTENT_FORMAT } from '../modules/chat/chat.llm';
 import { parseByRules } from '../modules/chat/chat.rules';
 import { ARMS, runArm, scoreItem, type ArmId, type LlmParse, type ScoredRun } from './chatEvalCore';
-import { CHAT_EVAL_ITEMS, EVAL_ROSTER, type ChatEvalItem } from './chatEvalDataset';
+import { CHAT_EVAL_ITEMS, CHAT_EVAL_LEGACY_ITEMS, EVAL_ROSTER, evalEnvFor, type ChatEvalItem } from './chatEvalDataset';
 import { buildChatReport, type ChatReportMeta, type LlmCallObs } from './chatEvalReport';
 import { cacheKey, cacheRead, cacheWrite } from './evalCache';
 
@@ -38,6 +39,7 @@ interface Args {
   runs: number;
   delayMs: number;
   items: string[] | null;
+  part: 'all' | 'legacy' | 'new';
   out: string | null;
   cacheDir: string;
 }
@@ -54,7 +56,7 @@ export function parseArgs(argv: readonly string[]): Args {
     if (!m) fail(`khong hieu "${a}" (dung --ten=gia-tri)`);
     opts.set(m[1]!, m[2]!);
   }
-  const known = new Set(['arm', 'split', 'runs', 'delay', 'items', 'out', 'cache-dir']);
+  const known = new Set(['arm', 'split', 'runs', 'delay', 'items', 'part', 'out', 'cache-dir']);
   for (const k of opts.keys()) if (!known.has(k)) fail(`tham so la "--${k}"`);
 
   const armOpt = opts.get('arm') ?? 'B0';
@@ -76,7 +78,9 @@ export function parseArgs(argv: readonly string[]): Args {
     const ids = new Set(CHAT_EVAL_ITEMS.map((i) => i.id));
     for (const id of items) if (!ids.has(id)) fail(`khong co cau "${id}"`);
   }
-  return { arms, split, runs, delayMs, items, out: opts.get('out') ?? null, cacheDir: opts.get('cache-dir') ?? '.chat-eval-cache' };
+  const part = opts.get('part') ?? 'all';
+  if (part !== 'all' && part !== 'legacy' && part !== 'new') fail('--part phai la all|legacy|new');
+  return { arms, split, runs, delayMs, items, part, out: opts.get('out') ?? null, cacheDir: opts.get('cache-dir') ?? '.chat-eval-cache' };
 }
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 12);
@@ -85,7 +89,15 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /** Phien ban bo luat = dau van tay ma nguon cac tep quyet dinh ket qua hieu cau (ghi vao bao cao, §14.5). */
 function rulesVersion(): string {
   const dir = path.resolve(__dirname, '../modules/chat');
-  const files = ['chat.intent.ts', 'chat.members.ts', 'chat.rules.ts', 'chat.followup.ts', 'chat.llm.ts'];
+  const files = [
+    'chat.intent.ts',
+    'chat.members.ts',
+    'chat.entities.ts',
+    'chat.rules.ts',
+    'chat.followup.ts',
+    'chat.catalog.resolve.ts',
+    'chat.llm.ts',
+  ];
   return sha(files.map((f) => fs.readFileSync(path.join(dir, f), 'utf8').replace(/\r\n/g, '\n')).join('\n'));
 }
 
@@ -96,8 +108,12 @@ function prevOf(item: ChatEvalItem): FollowUpContext | null {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+  const legacyIds = new Set(CHAT_EVAL_LEGACY_ITEMS.map((i) => i.id));
   const items = CHAT_EVAL_ITEMS.filter(
-    (i) => (args.split === 'all' || i.split === args.split) && (args.items === null || args.items.includes(i.id))
+    (i) =>
+      (args.split === 'all' || i.split === args.split) &&
+      (args.items === null || args.items.includes(i.id)) &&
+      (args.part === 'all' || (args.part === 'legacy') === legacyIds.has(i.id))
   );
   const needLlm = args.arms.some((a) => a !== 'B0');
   const cfg = defaultChatLlm().cfg; // cung cau hinh san pham: env.ai + timeout 8 giay
@@ -138,9 +154,11 @@ async function main(): Promise<void> {
 
   outer: for (const item of items) {
     const prev = prevOf(item);
-    const rules = parseByRules(item.question, EVAL_ROSTER);
+    // pham vi + danh muc ten cua cau: chi bo luat va buoc nhan dien o server thay; KHONG vao thong diep gui LLM
+    const evalEnv = evalEnvFor(item);
+    const rules = parseByRules(item.question, EVAL_ROSTER, evalEnv.catalog);
     if (byArm.has('B0')) {
-      const pred = runArm('B0', rules, null, prev, EVAL_ROSTER);
+      const pred = runArm('B0', rules, null, prev, EVAL_ROSTER, evalEnv);
       byArm.get('B0')!.push({ itemId: item.id, run: 1, gold: item.gold, pred, score: scoreItem(item.gold, pred) });
     }
     if (!needLlm) continue;
@@ -171,7 +189,7 @@ async function main(): Promise<void> {
       });
       for (const arm of args.arms) {
         if (arm === 'B0') continue;
-        const pred = runArm(arm, rules, llm, prev, EVAL_ROSTER);
+        const pred = runArm(arm, rules, llm, prev, EVAL_ROSTER, evalEnv);
         byArm.get(arm)!.push({ itemId: item.id, run, gold: item.gold, pred, score: scoreItem(item.gold, pred) });
       }
     }
@@ -196,7 +214,7 @@ async function main(): Promise<void> {
     cacheHits,
     aborted,
   };
-  const report = buildChatReport(meta, byArm, done, llmObs.filter((o) => doneIds.has(o.itemId)));
+  const report = buildChatReport(meta, byArm, done, llmObs.filter((o) => doneIds.has(o.itemId)), legacyIds);
   console.log(report);
   if (args.out !== null) {
     fs.writeFileSync(args.out, report, 'utf8');

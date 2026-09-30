@@ -10,6 +10,7 @@ import {
   type ChatPeriod,
   type ParsedQuestion,
 } from '../src/modules/chat/chat.intent';
+import type { EntityCatalog } from '../src/modules/chat/chat.entities';
 import { matchMember, type RosterMember } from '../src/modules/chat/chat.members';
 import { parseByRules } from '../src/modules/chat/chat.rules';
 
@@ -147,6 +148,141 @@ describe('parseByRules - cau hoi mau', () => {
     expect(wrong).toEqual([]);
   });
 
+  it('danh muc truy van (buoc 10, §18): 4 y dinh moi + ten bang / khong gian / cot; cau gan giong GIU y dinh cu', () => {
+    const roster: RosterMember[] = [...ROSTER, { userId: 'khanh', name: 'Khánh' }];
+    const catalog: EntityCatalog = {
+      workspaces: [
+        { id: 'w1', name: 'Nhóm Demo' },
+        { id: 'w2', name: 'Không gian của Khánh' },
+      ],
+      boards: [
+        { id: 'b1', name: '1234', workspaceId: 'w2', workspaceName: 'Không gian của Khánh' },
+        { id: 'b2', name: 'khanh', workspaceId: 'w2', workspaceName: 'Không gian của Khánh' },
+        { id: 'b3', name: 'Kế hoạch Marketing ra mắt', workspaceId: 'w1', workspaceName: 'Nhóm Demo' },
+        { id: 'b4', name: 'Dự án Demo', workspaceId: 'w1', workspaceName: 'Nhóm Demo' },
+      ],
+      columns: [
+        { id: 'c1', name: 'Đang làm', boardId: 'b1' },
+        { id: 'c2', name: 'Cần làm', boardId: 'b1' },
+        { id: 'c3', name: 'Hoàn thành', boardId: 'b4' },
+      ],
+    };
+    const C = (intent: ChatIntent, target?: string, column?: string): ParsedQuestion => ({
+      ...P(intent),
+      ...(target === undefined ? {} : { target }),
+      ...(column === undefined ? {} : { column }),
+    });
+    const cases: [string, ParsedQuestion][] = [
+      // MY_BOARDS
+      ['Tôi đang ở trong bao nhiêu bảng?', C('MY_BOARDS')],
+      ['tôi có tổng cộng bao nhiêu bảng', C('MY_BOARDS')],
+      ['Tôi có những bảng nào?', C('MY_BOARDS')],
+      ['bảng của tôi', C('MY_BOARDS')],
+      ['Các bảng trong không gian Nhóm Demo', C('MY_BOARDS', 'Nhóm Demo')],
+      ['toi o bao nhieu bang', C('MY_BOARDS')], // khong dau
+      // MY_WORKSPACES
+      ['Tôi thuộc những không gian nào?', C('MY_WORKSPACES')],
+      ['Có bao nhiêu không gian?', C('MY_WORKSPACES')],
+      ['Không gian của tôi', C('MY_WORKSPACES')],
+      // MEMBER_LIST
+      ['Bảng 1234 có những ai?', C('MEMBER_LIST', '1234')],
+      ['Bảng này có bao nhiêu thành viên?', C('MEMBER_LIST')],
+      ['Không gian Nhóm Demo có bao nhiêu người?', C('MEMBER_LIST', 'Nhóm Demo')],
+      ['Trong bảng khanh có ai?', C('MEMBER_LIST', 'khanh')], // "khanh" la bang, khong phai nguoi (Khánh)
+      ['Danh sách thành viên của bảng Dự án Demo', C('MEMBER_LIST', 'Dự án Demo')],
+      // CARD_COUNTS
+      ['Bảng 1234 có bao nhiêu thẻ?', C('CARD_COUNTS', '1234')],
+      ['Cột Đang làm có mấy thẻ?', C('CARD_COUNTS', undefined, 'Đang làm')], // "Đang làm" la ten cot, khong phai tinh trang
+      ['Cột Đang làm của bảng 1234 có bao nhiêu thẻ?', C('CARD_COUNTS', '1234', 'Đang làm')],
+      ['Mỗi bảng có bao nhiêu thẻ?', C('CARD_COUNTS')],
+      ['bang 1234 co bao nhieu the', C('CARD_COUNTS', '1234')],
+      ['Bảng Kế hoạch Marketing có bao nhiêu thẻ?', C('CARD_COUNTS', 'Kế hoạch Marketing')], // phan dau cua ten
+      ['Không gian Nhóm Demo có bao nhiêu thẻ?', C('CARD_COUNTS', 'Nhóm Demo')],
+      // GAN GIONG: giu y dinh cu
+      ['Bảng này tuần sau có những việc nào đến hạn?', P('TEAM_SUMMARY', 'NEXT_WEEK', 'OPEN')],
+      ['Bảng nào bị chặn?', P('MY_TASKS', null, 'BLOCKED')],
+      ['Tôi có bao nhiêu thẻ chưa xong?', P('MY_TASKS', null, 'OPEN')],
+      ['Tôi có bao nhiêu thẻ ở bảng 1234?', P('MY_TASKS')], // "cua toi" + the = viec ca nhan
+      ['Khánh có bao nhiêu việc?', P('MEMBER_TASKS', null, null, 'khánh')],
+      ['Nhóm có việc nào quá hạn?', P('TEAM_SUMMARY', null, 'OVERDUE')],
+      ['Mỗi người đang giữ bao nhiêu việc?', P('TEAM_WORKLOAD', null, 'OPEN')],
+      ['Ai đang có nhiều việc?', P('TEAM_WORKLOAD')],
+      ['Thành viên nào đang bị chặn việc?', P('TEAM_SUMMARY', null, 'BLOCKED')],
+      ['Không gian này có việc nào quá hạn?', P('TEAM_SUMMARY', null, 'OVERDUE')],
+      ['Hôm nay tôi nên làm gì trước?', P('MY_PRIORITIES', 'TODAY')],
+      // ten KHONG co trong danh muc: bo luat DOAN ten (den tu khong the la ten) de tra loi "khong tim thay", khong bo qua ten
+      ['Bảng bí mật có bao nhiêu thẻ?', C('CARD_COUNTS', 'bí mật')],
+      ['Bảng bí mật có những ai?', C('MEMBER_LIST', 'bí mật')],
+      ['Không gian xyz có bao nhiêu người?', C('MEMBER_LIST', 'xyz')],
+      ['Cột Kiểm thử có mấy thẻ?', C('CARD_COUNTS', undefined, 'Kiểm thử')],
+      ['Trong bảng zzz có bao nhiêu thẻ?', C('CARD_COUNTS', 'zzz')],
+      // ten chi KHOP MOT PHAN DAU nhung con tu dinh theo -> la ten khac, KHONG doc thanh bang co ten bat dau giong nhau
+      ['Bảng Kế hoạch Quý 9 có bao nhiêu thẻ?', C('CARD_COUNTS', 'Kế hoạch Quý 9')],
+      ['Bảng Dự án Xyz có những ai?', C('MEMBER_LIST', 'Dự án Xyz')],
+      // ... con phan dau dung ranh gioi (het cau / tu ke tiep khong the la ten) thi la ten that
+      ['Bảng Dự án có những ai?', C('MEMBER_LIST', 'Dự án')],
+      ['Bảng Kế hoạch Marketing ra mắt', P('UNSUPPORTED')],
+      // ... nhung KHONG doan khi tu sau tu khoa la tu hoi / chi dinh / danh tu khac
+      ['Bảng nào có bao nhiêu thẻ?', C('CARD_COUNTS')],
+      ['Danh sách bảng của tôi', C('MY_BOARDS')],
+      ['Bảng này có bao nhiêu thẻ?', C('CARD_COUNTS')],
+      ['Bảng của tôi có bao nhiêu thẻ?', P('MY_TASKS')],
+      // ten bang DUNG + thoi gian ngay sau: thoi gian van duoc doc, bang ten la dau hieu hoi ve viec cua ca nhom
+      ['Bảng Kế hoạch Marketing ra mắt tuần này có việc nào đến hạn?', P('TEAM_SUMMARY', 'THIS_WEEK', 'OPEN')],
+      // "tôi" ket thuc ten dang doan (khong nuot vao ten khong gian)
+      ['Trong không gian Khánh tôi có bao nhiêu bảng?', C('MY_BOARDS', 'Khánh')],
+      // dem the kem "chua xong" / "da hoan thanh": van la cau dem the (cau tra loi co san ca hai so); chi khi co ten bang
+      ['Bảng 1234 còn bao nhiêu thẻ chưa xong?', C('CARD_COUNTS', '1234')],
+      ['Bảng 1234 có bao nhiêu thẻ đã hoàn thành?', C('CARD_COUNTS', '1234')],
+      ['Bảng này còn bao nhiêu thẻ chưa xong?', P('TEAM_SUMMARY', null, 'OPEN')], // khong co ten bang -> khong doan ra dem the
+      // "mỗi / mọi / từng không gian": hoi ve TUNG khong gian (bang khong gian da co so bang + so thanh vien)
+      ['Mỗi không gian có bao nhiêu thành viên?', C('MY_WORKSPACES')],
+      ['Cho biết mọi không gian làm việc tôi tham gia và số thành viên của từng cái', C('MY_WORKSPACES')],
+      // "không gian làm việc" la thuat ngu cua giao dien: "làm việc" khong la ten va khong la tu chi viec
+      ['Tôi đang ở những không gian làm việc nào?', C('MY_WORKSPACES')],
+      ['Các bảng trong không gian làm việc Nhóm Demo', C('MY_BOARDS', 'Nhóm Demo')],
+      // hai ten cung loai: ten KHOP danh muc thang ten chi doan (bo luat khong lay ten dau tien mot cach mu quang)
+      ['Bảng zzz có bao nhiêu thẻ ở bảng 1234?', C('CARD_COUNTS', '1234')],
+      // tu chi viec: khong phai cau danh muc ("Bảng 1234 có những việc nào?" hoi ve viec cua ca nhom)
+      ['Bảng 1234 có những việc nào?', P('TEAM_SUMMARY')],
+      // thao tac / ngoai pham vi van thang
+      ['Tạo bảng mới', P('UNSUPPORTED')],
+      ['Xoá cột Đang làm', P('UNSUPPORTED')],
+      ['Email của thành viên bảng 1234 là gì?', P('UNSUPPORTED')],
+    ];
+    const wrong = cases.filter(([q, want]) => JSON.stringify(parseByRules(q, roster, catalog)) !== JSON.stringify(want)).map(([q]) => q);
+    expect(wrong).toEqual([]);
+
+    // khong co danh muc: van nhan y dinh (tu khoa + cum so luong), chi khong lay duoc ten -> de LLM lo
+    expect(parseByRules('Bảng 1234 có bao nhiêu thẻ?', roster)).toEqual(P('CARD_COUNTS'));
+    expect(parseByRules('Trong bảng khanh có ai?', roster)).toEqual(P('MEMBER_LIST'));
+    // ... va "Đang làm" khi KHONG biet la ten cot thi la tinh trang (hanh vi cu, cau bo qua danh muc)
+    expect(parseByRules('Cột Đang làm có mấy thẻ?', roster).intent).not.toBe('CARD_COUNTS');
+    // cau khong co tu khoa dung truoc ten: bo luat khong doan ten ("abc co bao nhieu the" thuoc ve LLM)
+    expect(parseByRules('1234 có bao nhiêu thẻ?', roster, catalog)).not.toHaveProperty('target');
+    // ten thuc the khong bi doc thanh thoi gian / nguoi: bang ten "tuần này" hay "Lan"
+    const odd: EntityCatalog = {
+      workspaces: [],
+      boards: [
+        { id: 'b9', name: 'tuần này', workspaceId: 'w', workspaceName: 'W' },
+        { id: 'b8', name: 'Lan', workspaceId: 'w', workspaceName: 'W' },
+      ],
+      columns: [],
+    };
+    expect(parseByRules('Bảng tuần này có bao nhiêu thẻ?', roster, odd)).toEqual(C('CARD_COUNTS', 'tuần này'));
+    expect(parseByRules('Bảng Lan có những ai?', roster, odd)).toEqual(C('MEMBER_LIST', 'Lan'));
+
+    // ten bang BAT DAU bang chinh tu khoa ("Bảng công việc"): khong roi vao tu "việc" cua bo luat cau viec
+    const startsWithCue: EntityCatalog = {
+      workspaces: [{ id: 'w', name: 'công việc' }],
+      boards: [{ id: 'b', name: 'Bảng công việc', workspaceId: 'w', workspaceName: 'công việc' }],
+      columns: [],
+    };
+    expect(parseByRules('Bảng công việc có bao nhiêu thẻ?', roster, startsWithCue)).toEqual(C('CARD_COUNTS', 'Bảng công việc'));
+    expect(parseByRules('Bảng Bảng công việc có bao nhiêu thẻ?', roster, startsWithCue)).toEqual(C('CARD_COUNTS', 'Bảng công việc'));
+    expect(parseByRules('Không gian công việc có bao nhiêu thẻ?', roster, startsWithCue)).toEqual(C('CARD_COUNTS', 'công việc'));
+  });
+
   it('tu de nham voi ten khi bo dau: tuần/Tuấn, mai/Mai, năm/Nam, an toàn/An, tháng/Thắng, mình/Minh', () => {
     const noMember: [string, ChatIntent, ChatPeriod | null][] = [
       ['Tuần sau tôi có việc gì?', 'MY_TASKS', 'NEXT_WEEK'],
@@ -248,6 +384,8 @@ describe('parseByRules - cau hoi mau', () => {
       'hoàn', 'thành', 'bị', 'chặn', 'kẹt', 'vướng', 'nhóm', 'ai', 'nhiều', 'mọi', 'người', 'bao', 'nhiêu', 'nên',
       'làm', 'gì', 'ưu', 'tiên', 'còn', 'thì', 'sao', 'của', 'đang', 'có', 'không', 'tạo', 'giao', 'được', 'email',
       '7', 'bảy', 'Nguyễn', 'Thị', 'Bình', '?', ',', '!', '😀', '<script>', '...', '  ',
+      // danh muc truy van (buoc 10): tu don + cum de bo sinh cham duoc ca 4 y dinh moi
+      'bảng', 'cột', 'mấy', 'những', 'các', 'nào', 'thành viên', 'không gian', 'bao nhiêu bảng', 'bao nhiêu thẻ', 'bao nhiêu người', 'những ai',
     ];
     let seed = 42;
     const rand = (n: number) => {
@@ -273,6 +411,8 @@ describe('parseByRules - cau hoi mau', () => {
         expect(r.member, q).toBeNull();
       }
       if (r.intent === 'NONE') expect(r.period !== null || r.focus !== null || r.member !== null, q).toBe(true);
+      // 4 y dinh danh muc khong dung thoi gian / tinh trang / nguoi (§18.1)
+      if (['MY_BOARDS', 'MY_WORKSPACES', 'MEMBER_LIST', 'CARD_COUNTS'].includes(r.intent)) expect([r.period, r.focus, r.member], q).toEqual([null, null, null]);
       expect(parseByRules(q, ROSTER), q).toEqual(r);
     }
     expect((performance.now() - t0) / 3000).toBeLessThan(5);

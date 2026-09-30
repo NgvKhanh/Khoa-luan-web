@@ -34,7 +34,22 @@ export interface ChatSectionOut {
 export interface ClarifyOption {
   id: string;
   label: string;
-  kind: 'USER' | 'WORKSPACE';
+  /** USER: chon nguoi; WORKSPACE: chon khong gian de hoi; TARGET: chon bang / khong gian khi trung ten (§18). */
+  kind: 'USER' | 'WORKSPACE' | 'TARGET';
+}
+
+/** Mot dong cua bang ket qua danh muc (§18): `boardId` co -> dong la lien ket mo bang. */
+export interface ChatTableRow {
+  cells: (string | number)[];
+  boardId?: string;
+}
+
+/** Bang chung cua cau tra loi danh muc: toi da MAX_TABLE_ROWS dong, khong phan trang. */
+export interface ChatTable {
+  columns: string[];
+  rows: ChatTableRow[];
+  /** Tong so dong co that (>= rows.length neu bi cat). */
+  total: number;
 }
 
 /** Nhan xet AI (chi tong ket nhom, §11): giao dien hien o o rieng, tach khoi so lieu. */
@@ -55,6 +70,8 @@ export interface ChatAnswer {
   pageSize: number;
   sections: ChatSectionOut[];
   rows?: WorkloadRow[];
+  /** Chi cau tra loi danh muc (§18). */
+  table?: ChatTable;
   ignoredSlots: ChatSlot[];
   notes: string[];
   clarify?: { question: string; options: ClarifyOption[] };
@@ -82,12 +99,13 @@ export function periodText(period: ChatPeriod): string {
   return PERIOD_TEXT[period];
 }
 
-/** Cau hoi nhanh cho 4 nhom (giao dien co ban sao y). Moi cau co test di qua bo luat. */
+/** Cau hoi nhanh cho cac nhom (giao dien co ban sao y). Moi cau co test di qua bo luat. */
 export const QUICK_QUESTIONS: readonly string[] = [
   'Việc nào của tôi sắp đến hạn?',
   'Hôm nay tôi nên xử lý gì trước?',
   'Tuần này nhóm hoàn thành gì, còn vướng gì?',
   'Ai đang có nhiều việc?',
+  'Tôi đang ở bao nhiêu bảng?',
 ];
 
 const CHECKLIST_NOTE = 'Chưa tính các mục checklist được giao riêng cho từng người.';
@@ -96,7 +114,7 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function quote(s: string): string {
+export function quote(s: string): string {
   return `“${s}”`;
 }
 
@@ -108,7 +126,7 @@ export function scopeLabel(scope: ScopeInfo): string {
   return `Tính trên ${scope.boardCount} bảng bạn xem được.`;
 }
 
-function scopeWhere(scope: ScopeInfo): string {
+export function scopeWhere(scope: ScopeInfo): string {
   if (scope.kind === 'BOARD') return `bảng ${quote(scope.boardName ?? '')}`;
   if (scope.kind === 'WORKSPACE') return `không gian ${quote(scope.workspaceName ?? '')}`;
   return 'các bảng bạn xem được';
@@ -190,7 +208,7 @@ function ignoredNotes(q: ResolvedQuery): string[] {
   });
 }
 
-function base(scope: ScopeInfo, now: Date, kind: ChatAnswer['kind'], text: string): ChatAnswer {
+export function base(scope: ScopeInfo, now: Date, kind: ChatAnswer['kind'], text: string): ChatAnswer {
   return {
     kind,
     text,
@@ -390,7 +408,7 @@ export function renderUnsupported(scope: ScopeInfo, now: Date): ChatAnswer {
     scope,
     now,
     'UNSUPPORTED',
-    'Trợ lý hiện chỉ trả lời về việc của bạn, việc của một thành viên, tiến độ nhóm và số việc của từng người. Trợ lý chưa tạo, sửa hay giao việc được.'
+    'Trợ lý hiện chỉ trả lời về việc của bạn, việc của một thành viên, tiến độ nhóm, số việc của từng người, cùng số bảng, không gian, thành viên và số thẻ theo bảng hoặc cột. Trợ lý chưa tạo, sửa hay giao việc được.'
   );
   answer.suggestions = [...QUICK_QUESTIONS];
   return answer;

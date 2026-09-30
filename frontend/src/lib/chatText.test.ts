@@ -9,7 +9,9 @@ import {
   formatDate,
   formatDateTime,
   formatTime,
+  MAX_QUESTION_CHARS,
   parserText,
+  QUICK_QUESTIONS,
   remainingCards,
   sameScope,
   understoodText,
@@ -50,6 +52,27 @@ describe('chatText', () => {
     expect(understoodText({ ...u, intent: 'MY_PRIORITIES', focus: 'DONE', period: 'TODAY' })).toBe('nên làm gì trước · đã xong · hôm nay');
     expect(understoodText({ ...u, intent: 'UNSUPPORTED', focus: 'BLOCKED', period: 'TOMORROW' })).toBe('câu hỏi chưa hỗ trợ · bị chặn · ngày mai');
     expect([parserText('RULE'), parserText('HYBRID'), parserText('LLM')]).toEqual(['bộ luật', 'AI + bộ luật', 'AI']);
+  });
+
+  it('understoodText cho cau danh muc (§18): ten bang / khong gian / cot DA nhan dien; khong co ten thi chi con ten loai', () => {
+    const u = { intent: 'MY_BOARDS', period: null, focus: null, memberName: null, parser: 'RULE' } as const;
+    expect(understoodText(u)).toBe('các bảng của bạn');
+    expect(understoodText({ ...u, targetName: 'Kỹ thuật' })).toBe('các bảng của bạn · Kỹ thuật');
+    expect(understoodText({ ...u, intent: 'MY_WORKSPACES' })).toBe('các không gian của bạn');
+    expect(understoodText({ ...u, intent: 'MEMBER_LIST' })).toBe('thành viên');
+    expect(understoodText({ ...u, intent: 'MEMBER_LIST', targetName: 'Sprint 12' })).toBe('thành viên · Sprint 12');
+    expect(understoodText({ ...u, intent: 'CARD_COUNTS' })).toBe('số thẻ');
+    expect(understoodText({ ...u, intent: 'CARD_COUNTS', targetName: 'Sprint 12', columnName: 'Đang làm' })).toBe('số thẻ · Sprint 12 · cột Đang làm');
+    expect(understoodText({ ...u, intent: 'CARD_COUNTS', targetName: null, columnName: 'Xong' })).toBe('số thẻ · cột Xong');
+    // truong moi la tuy chon: phan hoi cu (khong co targetName / columnName) van dung
+    expect(understoodText({ intent: 'MY_TASKS', period: null, focus: 'OPEN', memberName: null, parser: 'RULE' })).toBe('việc của bạn · chưa xong');
+  });
+
+  it('QUICK_QUESTIONS: 5 cau, cau cuoi la cau danh muc; khong trung nhau; vua khung 500 ky tu', () => {
+    expect(QUICK_QUESTIONS).toHaveLength(5);
+    expect(QUICK_QUESTIONS[4]).toBe('Tôi đang ở bao nhiêu bảng?');
+    expect(new Set(QUICK_QUESTIONS).size).toBe(5);
+    for (const q of QUICK_QUESTIONS) expect(q.length).toBeLessThanOrEqual(MAX_QUESTION_CHARS);
   });
 
   it('defaultScopeFor: trang bang -> Bảng; /workspaces/:id (ke ca trang con) -> Không gian; con lai -> Việc của tôi', () => {

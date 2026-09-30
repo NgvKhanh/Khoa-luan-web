@@ -6,7 +6,7 @@
 > nghĩa, con số và quy tắc ở đây là chuẩn mà code và test phải khớp. Đổi hợp
 > đồng thì sửa tài liệu này trước, ghi lý do vào nhật ký cuối file.
 >
-> Trạng thái: **xong bước 0–9 — module hoàn tất và đã nghiệm thu (§15.1–15.2)** — chatbot chạy trọn vẹn qua API `/api/chat` và **giao diện** (nút
+> Trạng thái: **xong bước 0–10 — module hoàn tất, đã nghiệm thu (§15.1–15.2) và mở rộng "danh mục truy vấn" (§18)** — chatbot chạy trọn vẹn qua API `/api/chat` và **giao diện** (nút
 > Trợ lý trên Header, panel bên phải): hiểu câu bằng **bộ luật + LLM** (gộp B2; thiếu khoá / LLM lỗi /
 > hết ngân sách → bộ luật), câu nối tiếp, phạm vi + quyền đọc lại mỗi lượt, nhận diện người + hỏi lại,
 > truy vấn số liệu, câu trả lời theo mẫu, nhận xét AI cho tổng kết nhóm (có kiểm tra), phiên hội thoại
@@ -897,11 +897,152 @@ Mỗi bước một commit; bắt đầu khi được giao "làm bước N đi".
 | 7 | Bộ đánh giá: bộ câu hỏi, 3 nhánh, chỉ số, báo cáo (chạy thử B0 không cần khoá) | **xong** |
 | 8 | Chạy chính thức với Gemini thật: chỉnh prompt + luật trên dev (3 vòng), đóng băng, chạy tập test một lần, báo cáo `backend/eval-chat-result.md` | **xong** |
 | 9 | Nghiệm thu theo §15 (ma trận 20 ca, thêm 2 test đường thật), thử trên trình duyệt thật, cập nhật tài liệu | **xong** |
+| 10 | Mở rộng "danh mục truy vấn" (§18): 4 ý định mới — bảng của tôi, không gian của tôi, thành viên, đếm thẻ theo bảng / cột — kèm bộ đánh giá vòng 2 | **xong** |
 
 **Việc của tác giả**: bước 8 đã chạy bằng khoá mới trong `backend/.env` — nhớ xác nhận khoá cũ đã
 lộ đã bị xoá trên trang quản lý khoá của Google; báo GVHD về module AI thứ ba. Dòng `seed:team` đang sửa dở trong
 `backend/package.json` (phiên khác) không được commit cùng module này — bộ đánh giá
 chạy bằng `npx tsx` cho tới khi dòng đó được commit.
+
+## 18. Mở rộng bước 10: "danh mục truy vấn" (bảng, không gian, thành viên, đếm thẻ)
+
+**Lý do (yêu cầu của tác giả 30/09/2026)**: người dùng hỏi "tôi ở bao nhiêu bảng?", "có tổng cộng bao nhiêu bảng?" và
+mong trợ lý tra CSDL rồi trả lời — bản đầu chỉ trả lời về **thẻ**. Quyết định (4) "5 ý định" nay thành **9 ý định**.
+Quyết định (1) và (2) **giữ nguyên**: LLM chỉ hiểu câu hỏi (chọn dòng nào của danh mục + điền tham số); số liệu, danh sách
+và câu chữ do backend dựng bằng mẫu; **tên bảng / không gian / cột / người không bao giờ gửi cho LLM**. LLM **không** được viết
+truy vấn: mỗi dòng danh mục là một truy vấn cố định, chỉ đọc, kiểm quyền như §7.
+
+### 18.1 Bốn ý định mới (`CATALOG_INTENTS`)
+
+| intent | Ví dụ | `target` | `column` | Kết quả |
+|---|---|---|---|---|
+| `MY_BOARDS` | "Tôi ở bao nhiêu bảng?", "Có tổng cộng bao nhiêu bảng?", "Tôi có những bảng nào?", "Các bảng trong không gian X" | không gian (tuỳ chọn, chỉ ở phạm vi MY) | — | số bảng xem được + số bảng **tham gia trực tiếp**; bảng liệt kê |
+| `MY_WORKSPACES` | "Tôi thuộc những không gian nào?", "Vai trò của tôi ở mỗi không gian?" | — | — | bảng: không gian · vai trò của tôi · số bảng xem được · số thành viên |
+| `MEMBER_LIST` | "Bảng 1234 có những ai?", "Không gian X có bao nhiêu người?" | bảng **hoặc** không gian (mặc định theo phạm vi) | — | số người + danh sách **tên** và vai trò (không email) |
+| `CARD_COUNTS` | "Bảng 1234 có bao nhiêu thẻ?", "Cột Đang làm có mấy thẻ?", "Mỗi bảng có bao nhiêu thẻ?" | bảng (mặc định theo phạm vi) | tên cột (tuỳ chọn) | tổng / chưa xong / đã xong; bảng theo cột (một bảng) hoặc theo bảng (nhiều bảng) |
+
+Các ý định này **không** dùng `period`, `focus`, `member` (đưa vào `ignoredSlots` nếu người dùng có nói) và **không** nối tiếp
+(§9.2): sau câu trả lời loại này ngữ cảnh câu nối tiếp bị xoá, "còn tuần sau?" → chưa hỗ trợ. Có động từ thao tác vẫn là `UNSUPPORTED`.
+
+### 18.2 Tham số mới và lược đồ JSON
+
+`ParsedQuestion` thêm `target` và `column` (chuỗi **như người dùng gõ**, `null` = không nhắc; hai trường tuỳ chọn để mã cũ
+không phải sửa). Lược đồ gửi LLM thêm hai khoá bắt buộc `target`, `column` (chuỗi, `""` = không có — cùng kiểu `member`); Zod:
+`intent` nhận 9 giá trị + `UNSUPPORTED` + `NONE`, `target` / `column` ≤ 80 ký tự và **mặc định `""` nếu thiếu khoá**
+(chế độ `json_object` có thể bỏ sót khoá); `.strict()` vẫn từ chối khoá lạ. Luật gộp B2 (§10.3) thêm hai dòng: `target` và
+`column` lấy từ **bộ luật nếu tên luật bắt được KHỚP danh mục**, ngược lại chuỗi của LLM — cùng lý do với `member` (chỉ server thấy danh mục tên).
+Tên luật chỉ *đoán* (không khớp, §18.4) thì **LLM quyết định** (LLM nói không có tên → bỏ tên đoán); luật gộp nhận thêm tham số danh mục để phân biệt hai trường hợp.
+
+### 18.3 Phạm vi và định nghĩa
+
+| intent | Phạm vi MY | WORKSPACE(w) | BOARD(b) |
+|---|---|---|---|
+| `MY_BOARDS` | mọi bảng đọc được (§7.1); `target` = lọc theo không gian | bảng đọc được của w; `target` bị bỏ qua (ghi chú) | chính bảng b |
+| `MY_WORKSPACES` | mọi không gian tôi đang là thành viên | chỉ w | chỉ không gian của b |
+| `MEMBER_LIST` | có `target` → bảng / không gian đó; **không có → hỏi "không gian nào?"** (tái dùng §7.2) | `target` bảng của w, mặc định w | `target` = b (mặc định), hoặc không gian của b |
+| `CARD_COUNTS` | không `target` → một dòng **mỗi bảng** đọc được; `target` bảng → mỗi **cột** | như MY nhưng chỉ bảng của w | mỗi cột của b |
+
+- **Bảng "tham gia trực tiếp"** = chủ bảng hoặc `BoardMember` hiện tại (kể cả VIEWER); bảng chỉ xem được nhờ hiển thị
+  `WORKSPACE` thì tính vào "xem được" chứ không vào "tham gia". Bảng PUBLIC, đã xoá, lưu trữ: **không** xuất hiện (§7.1).
+- **Vai trò** hiển thị: bảng — Chủ bảng / Quản trị viên / Thành viên / Người xem; không gian — Chủ sở hữu / Quản trị viên / Thành viên.
+- **Thành viên** = chủ + `BoardMember`/`WorkspaceMember` **hiện tại**, bỏ tài khoản đã xoá; bảng hiển thị `WORKSPACE` thì ghi chú
+  "mọi thành viên không gian đều xem được". Chỉ tên và vai trò — **không email, không id**, không ảnh.
+- **Đếm thẻ**: thẻ "còn sống" (§6.1) trong cột/bảng "còn sống"; chưa xong = `!isDone`, đã xong = `isDone`, tổng = hai loại; đếm bằng
+  `groupBy` trên toàn bộ tập hợp lệ. Cột trùng tên trong một bảng: hiện từng cột.
+- Bảng kết quả tối đa **100 dòng**, không "Xem thêm" (có ghi chú "còn N dòng" khi cắt); mọi con số trong câu dẫn lấy từ số đã đếm (có test).
+- Quyền: mọi thứ đi qua `resolveScope` mỗi lượt; `target` chỉ khớp được **trong danh mục của phạm vi** (bảng đọc được, không
+  gian đang là thành viên) → không suy ra được sự tồn tại của bảng / không gian ngoài quyền ("Không tìm thấy “X” trong …").
+
+### 18.4 Nhận diện tên bảng / không gian / cột (`chat.entities.ts`, hàm thuần)
+
+- **Danh mục tên** (`EntityCatalog`) do server nạp mỗi lượt theo phạm vi và **không gửi LLM**: bảng (id, tên, không gian), không gian
+  (id, tên), cột (id, tên, bảng). Tối đa 500 bảng, 100 không gian, 3000 cột.
+- Khớp theo **từ** (cùng quy tắc §8.2: có dấu so có dấu, còn lại so không dấu), bỏ chữ mở đầu "bảng / không gian / cột / danh sách":
+  bậc 1 = trùng cả tên, bậc 2 = là **phần đầu** của tên, bậc 3 = nằm liên tiếp trong tên; lấy bậc cao nhất có kết quả — một → dùng;
+  nhiều → hỏi lại bằng nút (kind `TARGET`, nhãn "tên · không gian", tối đa 8); không → "Không tìm thấy”.
+- Bộ luật (B0) chỉ lấy tên khi có **từ khoá đứng ngay trước** ("bảng abc", "cột Đang làm", "không gian Nhóm A") và phần sau là
+  **phần đầu** của một tên trong danh mục. Câu không có từ khoá ("abc có bao nhiêu thẻ?") chỉ LLM hiểu được — giới hạn đã biết.
+- Bộ luật nhận ý định danh mục khi có cụm **số lượng / liệt kê** ("bao nhiêu", "mấy", "những", "các", "nào", "danh sách") + danh từ
+  ("bảng", "không gian", "thành viên", "người", "thẻ") và **không** có từ chỉ việc / tình trạng / thời gian (để không cướp câu "Bảng này
+  tuần sau có việc nào đến hạn?"). Bộ 98 câu đánh giá cũ phải cho **đúng kết quả cũ** ở B0 (có test hồi quy).
+- **Đoán tên khi không khớp (hoàn thiện sau khi thử trên API)**: sau từ khoá, nếu phần theo sau **không** là phần đầu của tên nào thì bộ luật
+  *đoán* tên là các từ liền sau (tối đa 12 từ, dừng ở từ kết thúc tên) và đặt vào `target` / `column` → câu trả lời "Không tìm thấy “…”"
+  thay vì im lặng bỏ tên và trả số của cả phạm vi (lỗi thật: "Bảng bí mật có bao nhiêu thẻ?" trả bảng đếm của mọi bảng). Tên đoán **không bao giờ**
+  là tên thật: luật gộp B2 (§18.2) để LLM quyết định, còn bộ luật đứng một mình (B0 / LLM lỗi) thì dùng chính tên đoán.
+- **Ranh giới tên**: phần khớp chỉ được coi là tên thật khi kết thúc ở *ranh giới* — hết câu, hoặc từ kế tiếp là **từ kết thúc tên**
+  (`NAME_END`: có, đang, bao, mấy, những, các, nào, gì, ai, này, kia, đó, của, hiện, ở, trong, thì, là, gồm, thuộc, cột, bảng, tôi, còn) hoặc bắt đầu cụm
+  thời gian / tình trạng (`SOFT_END`: hôm, ngày, tuần, tháng, sắp, quá, trễ, hạn, hoàn, xong, chưa). Còn từ dính theo → là **tên khác**, không được đọc thành
+  bảng có tên bắt đầu giống. **Lỗi thật do test API bắt được**: người không đọc được "A-rieng" hỏi "Bảng A-rieng có bao nhiêu thẻ?" nhận số của "A-chung"
+  (khớp phần đầu "A", bỏ rơi "rieng") — sai (không lộ dữ liệu, nhưng trả lời cho bảng khác). Từ **không thể mở đầu** một tên đoán (`NOT_A_NAME_START`:
+  từ kết thúc tên + "không", "thẻ", "danh sách", "thành viên", "người"…) để "bảng nào", "bảng này", "danh sách bảng của tôi" không bị đoán thành tên.
+- **Tên bắt đầu bằng chính từ khoá** ("Bảng công việc" là tên bảng): bộ luật thử cả từ khoá; `matchEntity` so cả bản gốc lẫn bản đã bỏ từ khoá (bản gốc
+  trùng cả tên → bậc 1). "không gian làm việc" là thuật ngữ của giao diện: "làm việc" thuộc từ khoá, không phải tên và không phải từ chỉ việc.
+- **"mỗi / mọi / từng không gian"** (không kèm tên) → `MY_WORKSPACES` (bảng đã có số bảng + số thành viên từng không gian).
+- **Ngoại lệ tình trạng**: "Bảng X còn bao nhiêu thẻ **chưa xong** / **đã hoàn thành**?" vẫn là `CARD_COUNTS` khi có tên bảng / không gian / cột
+  (câu trả lời có sẵn cả hai số); `focus` khác (quá hạn, bị chặn) hay thiếu tên thì giữ ý định cũ.
+- **Tên bảng / không gian khớp danh mục + từ chỉ việc / thời gian / tình trạng** ("Bảng X tuần này có việc nào đến hạn?") → hỏi về việc **cả nhóm**
+  (`TEAM_SUMMARY`); một cụm danh từ trơ trọi ("Bảng X") vẫn là chưa hỗ trợ.
+
+### 18.5 API và giao diện
+
+- `POST /messages/choice`: thêm `{ conversationId, targetId }` (chọn bảng / không gian khi trùng tên) — đúng **một** trong
+  `userId` / `workspaceId` / `targetId`; id phải thuộc lựa chọn đang chờ, ngoài ra "Lua chon khong hop le" như cũ.
+- `answer.table?: { columns: string[]; rows: { cells: (string | number)[]; boardId?: string }[]; total: number }` — bảng chung
+  cho câu trả lời danh mục (`boardId` → dòng là liên kết mở bảng); `answer.cards` rỗng, `answer.total` = 0 (không có "Xem thêm").
+- `understood` thêm `targetName` / `columnName` (đã nhận diện từ danh mục, không phải chuỗi gõ). `clarify.options[].kind` thêm `TARGET`.
+- Giao diện: hiện `table` (dòng có `boardId` là liên kết `/boards/:id`), dòng "Trợ lý hiểu là: …" cho 4 ý định mới, nút hỏi lại
+  bảng / không gian, thêm câu hỏi nhanh "Tôi đang ở bao nhiêu bảng?", câu "chưa hỗ trợ" nêu thêm bảng / không gian / thành viên / đếm thẻ.
+
+### 18.6 Đánh giá vòng 2 (đăng ký trước khi chạy)
+
+- **Bộ dữ liệu v2** = 98 câu cũ (**không đổi** — kiểm bằng sha256 riêng cho 98 câu đầu) + câu mới cho 4 nhóm và nhóm "gần giống" (câu về
+  bảng / thẻ nhưng thuộc ý định cũ hoặc ngoài phạm vi). Cùng luật chia: câu thứ 1, 4, 7… của **mỗi nhóm** là dev, còn lại là test.
+  Danh mục tên cố định (`EVAL_CATALOG`: bảng / không gian / cột, có tên trùng và tên trùng từ thường) đóng băng cùng bộ dữ liệu.
+- Nhãn vàng thêm loại: truy vấn danh mục `{ intent, target (id), column }`, "hỏi lại chọn bảng / không gian" (kèm tập ứng viên), "không tìm thấy
+  bảng / không gian". Macro-F1 thành **10 nhãn**.
+- **Tập test cũ (63 câu) đã lộ** ở bước 8 → ở vòng 2 chỉ dùng làm **hồi quy** (báo riêng, ghi rõ không còn "chưa thấy"); số liệu chính
+  của vòng 2 là **câu test mới** (chưa từng chạy). Prompt đổi (thêm 4 ý định) nên phải chạy lại cả câu cũ; tinh chỉnh chỉ trên dev, chạy
+  câu test mới đúng một lần.
+
+**Kết quả vòng 2 (30/09/2026)** — `gemini-3.5-flash-lite`, khoá trong `.env` (không in). Prompt `790951f255f0` (chỉnh **một dòng** trên tập dev: `MY_WORKSPACES` gồm cả câu hỏi
+về *từng / mọi* không gian), luật `78eb56a81ab5`, bộ dữ liệu `9ad0c146f990` (164 câu; 98 câu cũ giữ nguyên sha256 `966cbe7ae85a…`). Báo cáo: `backend/eval-chat2-dev-before.md` (trước chỉnh),
+`eval-chat2-dev.md` (sau chỉnh), `eval-chat2-partial.md` (tập test, **chưa hoàn tất** — xem dưới).
+
+| Tập | B0 (luật) | B1 (chỉ LLM) | B2 (lai) |
+|---|---|---|---|
+| **dev trước chỉnh** (59 câu × 1) | 94,9% | 94,9% (2 lượt TIMEOUT hạ tầng) | 98,3% (sai M10) |
+| **dev sau chỉnh** (đã chỉnh trên dev nên **lạc quan**) | 94,9% (56/59) | 100% | 100% |
+| **test — câu danh mục mới** (38 câu × 3: nhóm I–L đủ + 6/9 câu nhóm M) | 84,2% | **100%** | **100%** |
+| **test — câu cũ, hồi quy** (63 câu × 3) | 84,1% (đúng bằng vòng 1) | 93,1% (vòng 1: 95,2%) | 91,5% (vòng 1: 93,7%) |
+| test — 101 / 105 câu đã chạy đủ 3 lần (khớp hoàn toàn, KTC 95%) | 84,2% [77,2; 91,1] | 95,7% [91,4; 99,0] | 94,7% [90,1; 98,7] |
+
+- Trên câu danh mục mới LLM thắng luật: B1 − B0 ở nhóm này = +16 điểm % (B0 sai `I06` "board", `J05` "mấy nhóm", `J09`, `K05`, `K12`, `K14` — toàn câu ghi `kho-voi-luat`, cách nói xa từ khoá).
+  B0 vẫn đủ dùng khi không có LLM (84,2% trên câu mới) và **không trả lời nhầm bảng** (mọi tên không khớp đều thành "Không tìm thấy").
+- **Hồi quy nhẹ trên câu cũ** (−2,1 điểm % ở B1, −2,2 ở B2; khoảng tin cậy chồng nhau): lỗi mới duy nhất là `A08` "Trong 7 ngày tới tôi có bao nhiêu việc phải làm?" bị hiểu là `CARD_COUNTS` một lần / 3 —
+  ý định đếm thẻ mới hút câu "bao nhiêu việc"; các lỗi còn lại (`C06`, `C09`, `C12`, `C17`, `D06`) là đúng những lỗi đã ghi ở §14.6, không phải do bước 10.
+- **Chưa hoàn tất, còn 10 lượt**: tập test có 105 câu × 3 = 315 lượt; đã có **305 lượt / 102 câu** thì Gemini gói miễn phí trả 429 (hết hạn mức ngày, hồi khoảng 14:00 giờ Việt Nam) và các lần thử lại cách
+  nhau 1,5–3 phút đều 429. **Còn `M09` (lần 3), `M11`, `M12`, `M14`** (nhóm câu gần giống). Không sửa mã, luật, prompt hay câu hỏi trong lúc chờ; bộ đệm `.chat-eval-cache` giữ nguyên nên chạy lại đúng lệnh cũ chỉ gọi 10 lượt còn thiếu:
+  `npx tsx src/scripts/evaluateChat.ts --arm=all --split=test --runs=3 --delay=4000 --out=eval-chat2-result.md`. Số ở bảng trên là **tạm thời** (101/105 câu), sẽ thay bằng số của lần chạy đủ.
+- **Cách tính lỗi hạ tầng**: gần cuối tập dev và ở đầu tập test có nhiều lượt `TIMEOUT` 8 giây (nghi do kết nối giữ sống bị phía máy chủ đóng khi dừng 4,5 giây giữa hai lượt; khi dừng 3,5–4 giây gần như hết);
+  lượt lỗi hạ tầng **không** được đệm nên đã chạy lại tới khi có phản hồi thật — số "LLM lỗi" ở báo cáo chỉ đếm lần chạy cuối, nên chỉ tính được ~10–15% timeout ở lần chạy đầu bằng nhật ký tay.
+
+### 18.7 Thêm một loại dữ liệu mới về sau (quy trình 6 bước)
+
+1. Thêm tên vào `CATALOG_INTENTS` + mô tả 1–2 dòng và 1–2 ví dụ vào prompt; 2. thêm cụm từ vào bộ luật (nếu B0 cần hỗ trợ);
+3. viết truy vấn kiểm quyền + hàm dựng câu trả lời trong `chat.catalog.ts` / `chat.catalog.answer.ts`; 4. đăng ký vào bảng `CATALOG`;
+5. test: đối chiếu số đếm ngây thơ + quyền (thành viên / VIEWER / người ngoài / bảng riêng / xoá / lưu trữ) + câu trả lời; 6. thêm câu
+vào bộ đánh giá và đo lại. Không đổi luồng xử lý (`chat.service`).
+
+### 18.8 Hạn chế đã biết (ghi thẳng, không che)
+
+- **Từ khoá không giới hạn loại**: "không gian Marketing" khi cũng có bảng tên "Marketing" vẫn hỏi lại "bảng hay không gian?" (`trung-ten`); bộ luật không truyền
+  loại của từ khoá sang bước nhận diện. Cải tiến khả dĩ: mang loại từ khoá theo `target`.
+- **Chưa lọc theo bảng cho câu hỏi về việc**: "Bảng X tuần này có việc nào đến hạn?" được hiểu là tổng kết nhóm (đúng ý định) nhưng câu trả lời vẫn tính trên cả phạm vi
+  chứ không riêng bảng X — tên bảng chỉ dùng cho 4 ý định danh mục.
+- **Câu không có từ khoá trước tên** ("abc có bao nhiêu thẻ?") chỉ LLM hiểu được (đã ghi ở §18.4).
+- **Phạm vi cá nhân + câu về nhóm / người**: `MEMBER_TASKS` / `TEAM_*` phải chọn không gian trước (bộ đánh giá vòng 2 mô hình hoá đúng điều này bằng kết quả
+  `ASK_WORKSPACE`; vòng 1 luôn ở phạm vi WORKSPACE nên chưa có).
+- Bảng kết quả tối đa 100 dòng và không "Xem thêm" (ghi chú "Chỉ hiện N … đầu tiên trong tổng M").
 
 ---
 
@@ -1321,3 +1462,58 @@ Ma trận và kết quả đầy đủ ở **§15.1** (20 ca) và **§15.2** (th
 mở rộng bộ câu hỏi đánh giá trước rồi đo lại.
 
 **Toàn bộ test**: backend 108 tệp / 1196 test xanh; frontend 38 tệp / 291 test xanh.
+
+### Đã xong — Bước 10: danh mục truy vấn — bảng, không gian, thành viên, đếm thẻ (30/09/2026)
+
+**Yêu cầu của tác giả**: hỏi được "tôi đang ở bao nhiêu bảng?", "có tổng cộng bao nhiêu bảng?" và, về sau, "tất cả những gì có trong web" — trợ lý tra CSDL rồi trả lời.
+Quyết định giữ nguyên tinh thần §3: LLM **chỉ chọn dòng** của một **danh mục truy vấn cố định** (chỉ đọc, kiểm quyền như §7) và điền tham số; **không viết SQL**; số liệu và câu chữ do
+backend dựng; tên bảng / không gian / cột / người **không bao giờ gửi LLM**. Bước này làm nhóm đầu tiên (§18); các nhóm sau (nhãn, checklist, bình luận, thông báo…) thêm theo §18.7.
+
+**Tệp** (`backend/src/modules/chat/`)
+| Tệp | Nội dung |
+|---|---|
+| `chat.entities.ts` (mới, thuần) | danh mục tên (`EntityCatalog`), `matchEntity` 3 bậc, `longestPrefixAt`; so cả bản gốc lẫn bản đã bỏ từ khoá |
+| `chat.catalog.resolve.ts` (mới, thuần) | `resolveCatalogQuestion`: một câu hỏi + phạm vi + danh mục → **đã xác định / hỏi lại chọn / không tìm thấy** — dùng chung cho dịch vụ và bộ đánh giá |
+| `chat.catalog.ts` (mới, CSDL) | `loadCatalog(scope)` + 4 truy vấn (`myBoards`, `myWorkspaces`, `memberList`, `cardCounts`) + `answerCatalog`; luôn đi qua `scope.boardWhere` |
+| `chat.catalog.answer.ts` (mới, thuần) | mẫu câu trả lời + bảng, nút chọn, "không tìm thấy" |
+| sửa | `chat.intent` (4 ý định, `target` / `column`, lược đồ JSON), `chat.rules` (nhận diện tên sau từ khoá, đoán tên, ranh giới, 4 ý định), `chat.followup` (kết quả `CATALOG`), `chat.llm` (prompt +4 ý định +6 ví dụ, luật gộp nhận danh mục), `chat.answer` (`table`, kind `TARGET`, câu hỏi nhanh thứ 5), `chat.session`, `chat.schema` (`targetId`), `chat.service` (`answerCatalogQuestion`, `/choice` với `targetId`, hỏi không gian cho `MEMBER_LIST` ở phạm vi cá nhân) |
+
+**Giao diện**: `types/chat.ts`, `lib/api/chat.ts` (`sendChatChoice` kind `TARGET` → `targetId`), `lib/chatText.ts` (chữ cho 4 ý định + tên đã nhận diện, câu hỏi nhanh thứ 5),
+`AnswerView.tsx` (bảng chung, ô đầu là liên kết `/boards/:id` khi có `boardId`, số căn phải).
+
+**Test mới / mở rộng** (đối chiếu số đếm "ngây thơ" tính trên dữ liệu thô, không dùng lại `where` của sản phẩm)
+- `chat.catalog.test.ts` (22, CSDL): danh mục tên chỉ gồm đọc được (9 vai trò); `MY_BOARDS` (tổng / tham gia trực tiếp / vai trò); `MY_WORKSPACES` (số bảng xem được, số người không tính người đã rời / tài khoản xoá);
+  `MEMBER_LIST` (VIEWER, khách chỉ có ở bảng, chủ thiếu dòng thành viên); `CARD_COUNTS` (thẻ + cột + bảng lưu trữ / xoá không đếm, xem nhờ không gian, bảng PUBLIC / riêng không lọt vào, cột chỉ có ở bảng không đọc được → "không tìm thấy");
+  trùng tên → nút chọn; bảng không đọc được = "không tìm thấy" (kể cả gọi bằng id); không lộ email / id / mô tả / tiêu đề thẻ; tối đa 100 dòng; không ghi dữ liệu.
+- `chat.catalog.api.test.ts` (8, HTTP): 4 ý định qua HTTP; phạm vi bảng / không gian; nút chọn `TARGET` (chọn sai kiểu / ngoài danh sách / hai id → 400); thu hồi quyền giữa hai lượt; `MEMBER_LIST` ở phạm vi cá nhân → chọn không gian; sau câu danh mục không "Xem thêm", không nối tiếp.
+- `chat.catalog.resolve.test.ts` (8), `chat.entities.test.ts` (+1), `chat.followup.test.ts` (+1), `chat.rules.test.ts` (khối danh mục ~55 câu, câu gần giống giữ ý định cũ), `chat.llm.test.ts` (luật gộp `target` / `column`),
+  `chat.llm.api.test.ts` (+3: **thân request gửi LLM không chứa tên bảng / danh sách / không gian / thẻ / người từ danh mục**, LLM trích tên → server nhận diện, `/choice` không gọi LLM), `chat.guard.test.ts` (+1: danh mục chỉ đọc, không SQL thô, không email / mô tả / token),
+  frontend: `AssistantPanel.test.tsx` (+5), `chatText.test.ts` (+2), `api/chat.test.ts` (+1).
+
+**Bộ đánh giá vòng 2** (§18.6): 164 câu = 98 câu cũ **giữ nguyên từng byte** (sha256 `966cbe7ae85a…` không đổi) + 66 câu nhóm I–M, `EVAL_CATALOG` (3 không gian, 11 bảng, 34 cột), nhãn vàng thêm 4 loại kết quả,
+macro-F1 10 nhãn, phạm vi theo từng câu (`MY` / `WORKSPACE`). Ở B0: kết quả các câu cũ **giống hệt** trước bước 10 (so đầu ra `parseByRules` của mã ở `HEAD` với mã mới trên cả 98 câu, ba danh mục: 0 khác biệt; 13 câu sai đã biết vẫn sai đúng những câu đó).
+Có test đối chiếu `outcomeOf` với `handleMessage` thật trên CSDL dựng đúng theo `EVAL_CATALOG` cho cả 164 câu + 30 kết quả kiểu LLM tiêm vào.
+
+**Lỗi thật tìm được trong quá trình làm**
+1. *Trả lời cho bảng khác* (test API): "Bảng A-rieng có bao nhiêu thẻ?" (bảng người hỏi không đọc được) trả số của "A-chung" — bộ luật khớp "A" (phần đầu tên) rồi bỏ rơi "rieng". Không lộ dữ liệu nhưng sai câu trả lời → luật **ranh giới tên** + **đoán tên** (§18.4).
+2. *Im lặng bỏ tên*: "Bảng bí mật có bao nhiêu thẻ?" trả bảng đếm của mọi bảng → tên không khớp thì trả "Không tìm thấy" (đoán tên; luật gộp để LLM quyết định).
+3. *Tên trùng từ khoá*: bảng tên "BANG-BI-MAT" / "Bảng công việc" bị bỏ từ khoá khi so → không bao giờ trùng cả tên (bậc 1) và tranh với không gian → so cả bản gốc; thử cả từ khoá ở bộ luật.
+4. *Bộ đánh giá lệch dịch vụ* (test đối chiếu): thiếu mô hình "phạm vi cá nhân + câu về nhóm / người → hỏi không gian" → thêm kết quả `ASK_WORKSPACE`.
+5. Dev: "còn bao nhiêu thẻ chưa xong / đã hoàn thành" bị đọc là việc cá nhân; "bảng X tuần này có việc nào đến hạn?" mất cụm thời gian (tên nuốt "tuần"); "không gian làm việc" bị đọc là tên; "mỗi không gian có bao nhiêu thành viên?" → sửa luật (§18.4) và một dòng prompt.
+
+**Đo với Gemini thật** (`gemini-3.5-flash-lite`, khoá trong `.env`, không in): xem §18.6 — kết quả dev và tập test.
+
+**Cài lỗi**: backend **84 phép** (`C1–C26` truy vấn CSDL, `R*` nhận diện tên thuần, `E*` khớp tên, `U*` bộ luật, `S*` / `SC*` dịch vụ + schema, `L*` luật gộp, `F*` / `I1` nối tiếp + ý định, `V*` bộ đánh giá) — lần đầu lọt **16** (`C3 C6 C7 C9 C12 C15 C18 C23 C26 R2 R3 R4 U13 U15 S3 SC2`): **14 là lỗ thật của test** (thiếu dữ liệu: người đã rời bảng nhưng vẫn xem được nhờ không gian, bảng thiếu cột, chủ bị xoá tài khoản ở bảng và không gian, truy vấn tự kiểm quyền khi được đưa thực thể không đọc được, bậc khớp khi bảng và không gian cùng khớp một chuỗi, ngữ cảnh sau câu danh mục, hai tên cùng loại, từ chỉ việc chặn câu danh mục, trần 100 dòng của đếm thẻ) → thêm ca → **bắt hết**; **2 tương đương**: `C7` (`memberWorkspaceIds` đã loại không gian xoá nên điều kiện `workspace.deletedAt` ở truy vấn là lớp phòng thủ thừa) và `SC2` (id sai định dạng cũng bị dịch vụ từ chối 400 như `zod`) → **82 bắt + 2 tương đương**. Frontend **15/15** (`A1–A8` bảng + liên kết + căn số, `P1–P2` `targetId`, `T1–T5` chữ hiển thị + câu hỏi nhanh). Cả bốn loại kiểm tra đầu tiên bị lọt đều do **dữ liệu thử không có ca đó**, không phải do mã sai.
+
+**Bài học**
+- **Khớp phần đầu tên là con dao hai lưỡi**: cho phép gõ tắt ("Kế hoạch Marketing") nhưng nếu bỏ qua *phần còn lại của cụm người dùng gõ* thì trả lời cho bảng khác. Luôn kiểm tra ranh giới của phần khớp.
+- **Câu trả lời sai còn tệ hơn "không biết"**: khi không nhận diện được tên phải nói "không tìm thấy", không lặng lẽ đổi sang phạm vi rộng hơn.
+- **Test tương đương giữa bộ đánh giá và dịch vụ thật** bắt được cả một trạng thái (`ASK_WORKSPACE`) mà bộ câu cũ không bao giờ chạm tới — mỗi khi thêm loại kết quả phải thêm vào cả hai phía.
+- **Nhìn kết quả tập test làm hỏng tính "chưa thấy"**: test đối chiếu chạy cả 164 câu nên đã vô tình cho thấy B0 sai 4 câu test mới (J05, K05, K12, K14). Đã ghi lại, **không sửa luật sau đó**; lần sau chạy đối chiếu chỉ trên tập dev hoặc che kết quả.
+- **Bỏ việc "dò từng lỗi" của LLM bằng nhiều lệnh chồng nhau**: chạy hai tiến trình đánh giá cùng lúc / để tiến trình nền bị giết làm hỏng lượt đầu tiên; mỗi lệnh dài phải là *một* tác vụ nền duy nhất và không đặt nhiều bộ theo dõi.
+
+**Thử trình duyệt thật** (30/09, container khởi động lại, giao diện chạy sẵn): tài khoản thử + 3 không gian, 7 bảng (gồm bảng riêng của người khác, bảng công khai, hai bảng cùng tên "Website", cột đã lưu trữ). Hỏi "Tôi đang ở bao nhiêu bảng?" (5 bảng: 2 trực tiếp + 3 nhờ không gian — đúng số bảng trang chủ hiện), "Tôi thuộc những không gian nào?", "Bảng Website có bao nhiêu thẻ?" → nút chọn hai bảng → chọn → **9 thẻ, khớp thẻ trên trang bảng**, "Cột Đang làm có mấy thẻ?", "Bảng Sprint 12 có những ai?", "Bảng này có bao nhiêu thành viên?" (hỏi không gian rồi trả lời), "Bảng riêng của An có bao nhiêu thẻ?" và "Bảng bí mật…" (cùng trả "Không tìm thấy", không lộ bảng riêng có tồn tại), liên kết dòng bảng mở đúng bảng và giữ hội thoại, chế độ tối + khổ 375 px không lỗi. Gemini lúc đó đã hết hạn mức nên mọi câu hiểu bằng **bộ luật** ("hiểu bằng bộ luật") — cũng chứng minh đường lùi hoạt động. Sửa một lỗi nhỏ thấy được: dòng giới thiệu của panel chưa nhắc tới bảng / không gian. Dữ liệu thử đã xoá sạch (0 người dùng / không gian / bảng).
+
+**Toàn bộ test**: backend **114 tệp / 1268 test xanh** (gồm toàn bộ ai.*, assign.*, cardStatus.*), frontend **47 tệp / 361 test xanh**; `tsc`, `eslint` (backend), `oxlint` (chỉ cảnh báo có sẵn ở tệp không thuộc module), `tsc -b` (frontend) sạch.
+
+**Việc còn lại**: (1) **10 lượt Gemini** của tập test vòng 2 (§18.6) khi hạn mức hồi — chạy lại đúng lệnh ghi ở §18.6 rồi thay số tạm bằng số cuối trong §18.6 và `backend/eval-chat2-result.md`; (2) việc của tác giả như trước (xoá khoá API cũ đã lộ; báo GVHD); (3) các nhóm dữ liệu tiếp theo (nhãn, checklist, bình luận, thông báo, tự động hoá…) làm theo quy trình §18.7, mỗi nhóm một bước.

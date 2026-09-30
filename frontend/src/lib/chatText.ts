@@ -17,12 +17,13 @@ import type {
 /** API chan o 500 ky tu (sau khi cat khoang trang). */
 export const MAX_QUESTION_CHARS = 500;
 
-/** Nut cau hoi nhanh cho 4 nhom cau hoi. */
+/** Nut cau hoi nhanh: 4 nhom cau hoi ve viec + 1 cau ve bang (danh muc, §18). */
 export const QUICK_QUESTIONS = [
   'Việc nào của tôi sắp đến hạn?',
   'Hôm nay tôi nên xử lý gì trước?',
   'Tuần này nhóm hoàn thành gì, còn vướng gì?',
   'Ai đang có nhiều việc?',
+  'Tôi đang ở bao nhiêu bảng?',
 ];
 
 export const PRIVACY_NOTE = 'Chỉ câu hỏi (và số liệu tổng hợp) được gửi tới dịch vụ AI.';
@@ -36,6 +37,10 @@ const INTENT_TEXT: Record<ChatIntent, string> = {
   MEMBER_TASKS: 'việc của một thành viên',
   TEAM_SUMMARY: 'tiến độ nhóm',
   TEAM_WORKLOAD: 'số việc của từng người',
+  MY_BOARDS: 'các bảng của bạn',
+  MY_WORKSPACES: 'các không gian của bạn',
+  MEMBER_LIST: 'thành viên',
+  CARD_COUNTS: 'số thẻ',
   UNSUPPORTED: 'câu hỏi chưa hỗ trợ',
   NONE: 'câu hỏi chưa hỗ trợ',
 };
@@ -69,10 +74,15 @@ export const REASON_TEXT: Record<PriorityReason, string> = {
   LATER: 'Còn lại',
 };
 
-/** Dong "Trợ lý hiểu là: …" - vd "việc của Trần Lan · quá hạn". */
+/**
+ * Dong "Trợ lý hiểu là: …" - vd "việc của Trần Lan · quá hạn"; cau danh muc: "số thẻ · Sprint 12 · cột Đang làm"
+ * (ten bang / khong gian / cot la ten DA nhan dien tu danh muc cua server, khong phai chuoi nguoi dung go).
+ */
 export function understoodText(u: ChatUnderstood): string {
   const subject = u.intent === 'MEMBER_TASKS' && u.memberName ? `việc của ${u.memberName}` : INTENT_TEXT[u.intent];
   const parts = [subject];
+  if (u.targetName) parts.push(u.targetName);
+  if (u.columnName) parts.push(`cột ${u.columnName}`);
   if (u.focus) parts.push(FOCUS_TEXT[u.focus]);
   if (u.period) parts.push(PERIOD_TEXT[u.period]);
   return parts.join(' · ');

@@ -9,6 +9,8 @@ import { z } from 'zod';
 export const MAX_QUESTION_CHARS = 500;
 /** Do dai toi da cua chuoi ten nguoi LLM tra ve. */
 export const MAX_MEMBER_CHARS = 80;
+/** Do dai toi da cua chuoi ten bang / khong gian / cot LLM tra ve (§18.2). */
+export const MAX_TARGET_CHARS = 80;
 /** Danh sach chinh phan trang 10 the; danh sach phu toi da 5 the (§6.3). */
 export const PAGE_SIZE = 10;
 export const SECTION_SIZE = 5;
@@ -21,8 +23,13 @@ export const ANSWER_INTENTS = [
   'TEAM_SUMMARY',
   'TEAM_WORKLOAD',
 ] as const;
+/**
+ * 4 y dinh "danh muc truy van" (§18): bang / khong gian / thanh vien / dem the. Moi y dinh la mot truy van
+ * co dinh, chi doc, kiem quyen - LLM chi CHON dong nao va dien tham so, khong viet truy van.
+ */
+export const CATALOG_INTENTS = ['MY_BOARDS', 'MY_WORKSPACES', 'MEMBER_LIST', 'CARD_COUNTS'] as const;
 /** + UNSUPPORTED (ngoai pham vi / yeu cau thao tac) va NONE (cau chi bo sung tham so). */
-export const CHAT_INTENTS = [...ANSWER_INTENTS, 'UNSUPPORTED', 'NONE'] as const;
+export const CHAT_INTENTS = [...ANSWER_INTENTS, ...CATALOG_INTENTS, 'UNSUPPORTED', 'NONE'] as const;
 export const CHAT_PERIODS = [
   'TODAY',
   'TOMORROW',
@@ -34,6 +41,7 @@ export const CHAT_PERIODS = [
 export const CHAT_FOCUSES = ['OPEN', 'OVERDUE', 'DONE', 'BLOCKED'] as const;
 
 export type AnswerIntent = (typeof ANSWER_INTENTS)[number];
+export type CatalogIntent = (typeof CATALOG_INTENTS)[number];
 export type ChatIntent = (typeof CHAT_INTENTS)[number];
 export type ChatPeriod = (typeof CHAT_PERIODS)[number];
 export type ChatFocus = (typeof CHAT_FOCUSES)[number];
@@ -46,10 +54,23 @@ export interface ParsedQuestion {
   focus: ChatFocus | null;
   /** Ten nguoi NHU NGUOI DUNG GO (chua nhan dien); null = khong nhac ai. */
   member: string | null;
+  /** Ten bang / khong gian NHU NGUOI DUNG GO (chi cac y dinh danh muc, §18.2); vang mat = khong nhac. */
+  target?: string | null;
+  /** Ten cot / danh sach NHU NGUOI DUNG GO (chi CARD_COUNTS); vang mat = khong nhac. */
+  column?: string | null;
 }
 
 export function isAnswerIntent(intent: ChatIntent): intent is AnswerIntent {
   return (ANSWER_INTENTS as readonly string[]).includes(intent);
+}
+
+export function isCatalogIntent(intent: ChatIntent): intent is CatalogIntent {
+  return (CATALOG_INTENTS as readonly string[]).includes(intent);
+}
+
+/** Cau hoi cuoi sau buoc noi tiep: mot trong hai loai (3 loai tham so khac nhau). */
+export function isCatalogQuestion(q: FinalQuestion | CatalogQuestion): q is CatalogQuestion {
+  return isCatalogIntent(q.intent);
 }
 
 /** Ky nam hoan toan o tuong lai -> khong the co viec "da xong" trong ky (§5.2). */
@@ -66,7 +87,7 @@ export function isFuturePeriod(period: ChatPeriod): boolean {
 export const INTENT_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['intent', 'period', 'focus', 'member'],
+  required: ['intent', 'period', 'focus', 'member', 'target', 'column'],
   properties: {
     intent: {
       type: 'string',
@@ -87,15 +108,26 @@ export const INTENT_JSON_SCHEMA = {
       type: 'string',
       description: 'Ten nguoi duoc hoi toi, dung nhu trong cau hoi; chuoi rong neu khong co.',
     },
+    target: {
+      type: 'string',
+      description: 'Ten bang hoac khong gian duoc hoi toi (bo chu "bang", "khong gian"), dung nhu trong cau hoi; chuoi rong neu khong co.',
+    },
+    column: {
+      type: 'string',
+      description: 'Ten cot / danh sach duoc hoi toi (bo chu "cot"), dung nhu trong cau hoi; chuoi rong neu khong co.',
+    },
   },
 } as const;
 
+// target / column co mac dinh "" khi THIEU KHOA (che do json_object co the bo sot khoa); sai kieu van la loi.
 const llmIntentSchema = z
   .object({
     intent: z.enum(CHAT_INTENTS),
     period: z.enum([...CHAT_PERIODS, 'NONE']),
     focus: z.enum([...CHAT_FOCUSES, 'NONE']),
     member: z.string().max(MAX_MEMBER_CHARS),
+    target: z.string().max(MAX_TARGET_CHARS).default(''),
+    column: z.string().max(MAX_TARGET_CHARS).default(''),
   })
   .strict();
 
@@ -107,11 +139,16 @@ export function parseLlmIntent(raw: unknown): ParsedQuestion | null {
   const r = llmIntentSchema.safeParse(raw);
   if (!r.success) return null;
   const member = r.data.member.trim();
+  const target = r.data.target.trim();
+  const column = r.data.column.trim();
   return {
     intent: r.data.intent,
     period: r.data.period === 'NONE' ? null : r.data.period,
     focus: r.data.focus === 'NONE' ? null : r.data.focus,
     member: member === '' ? null : member,
+    // chi mang khoa khi co chuoi (cac ket qua cu khong doi hinh dang)
+    ...(target === '' ? {} : { target }),
+    ...(column === '' ? {} : { column }),
   };
 }
 
@@ -126,6 +163,17 @@ export interface FinalQuestion {
   memberText: string | null;
   /** Nguoi da nhan dien o luot truoc (ke thua qua phien). */
   memberUserId: string | null;
+}
+
+/** Cau hoi danh muc sau buoc noi tiep (§18): y dinh + ten go bang / khong gian / cot (chua nhan dien). */
+export interface CatalogQuestion {
+  intent: CatalogIntent;
+  /** Ten go bang / khong gian; null = khong nhac (dung pham vi). */
+  target: string | null;
+  /** Ten go cot (CARD_COUNTS); null = khong loc. */
+  column: string | null;
+  /** Id bang / khong gian nguoi dung DA CHON qua nut hoi lai (thay cho `target`); null = chua chon. */
+  targetId: string | null;
 }
 
 /** Truy van hieu luc: ap mac dinh + bo tham so khong ap dung. */

@@ -22,8 +22,9 @@ function Intro({ busy, onAsk }: { busy: boolean; onAsk: (q: string) => void }) {
   return (
     <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
       <p>
-        Trợ lý trả lời về việc của bạn, việc của một thành viên, tiến độ nhóm và số việc của từng người — dựa trên
-        các bảng bạn xem được. Trợ lý chỉ đọc, không tạo hay sửa việc.
+        Trợ lý trả lời về việc của bạn, việc của một thành viên, tiến độ nhóm và số việc của từng người, cùng các bảng,
+        không gian, thành viên và số thẻ theo bảng / cột — dựa trên các bảng bạn xem được. Trợ lý chỉ đọc, không tạo
+        hay sửa gì.
       </p>
       <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Thử hỏi:</p>
       <div className="flex flex-col items-start gap-1.5">

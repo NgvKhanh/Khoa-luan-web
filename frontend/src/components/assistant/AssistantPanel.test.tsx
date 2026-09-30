@@ -4,6 +4,7 @@ import { AxiosError, type AxiosResponse } from 'axios';
 import { MemoryRouter, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssistantProvider } from '../../context/AssistantContext';
+import { QUICK_QUESTIONS } from '../../lib/chatText';
 import type { ChatAnswer, ChatCard, ChatReply, ChatUnderstood } from '../../types/chat';
 import AssistantButton from './AssistantButton';
 import AssistantPanel from './AssistantPanel';
@@ -563,5 +564,146 @@ describe('AssistantPanel: giu hoi thoai khi doi trang', () => {
     await askQuestion('Bảng này thế nào?');
     await waitFor(() => expect(mocks.sendChatMessage).toHaveBeenCalledTimes(3));
     expect(mocks.sendChatMessage.mock.calls[2]![0]).toEqual({ message: 'Bảng này thế nào?', scope: { kind: 'BOARD', boardId: 'b1' }, conversationId: undefined });
+  });
+});
+
+describe('AssistantPanel: cau tra loi danh muc (§18)', () => {
+  const table = (over: Partial<NonNullable<ChatAnswer['table']>> = {}): NonNullable<ChatAnswer['table']> => ({
+    columns: ['Bảng', 'Không gian', 'Bạn là'],
+    rows: [
+      { cells: ['Kế hoạch Marketing', 'Nhóm A', 'Chủ bảng'], boardId: 'b1' },
+      { cells: ['Việc cá nhân', 'Cá nhân', 'Xem nhờ không gian'], boardId: 'b/2' },
+    ],
+    total: 2,
+    ...over,
+  });
+  const catalogAnswer = (over: Partial<ChatAnswer> = {}): Partial<ChatAnswer> => ({
+    text: 'Bạn xem được 2 bảng, trong đó bạn tham gia trực tiếp 1 bảng.',
+    facts: [{ key: 'total', label: 'Bảng xem được', value: 2 }],
+    cards: [],
+    total: 0,
+    notes: ['Chỉ tính bảng bạn có quyền đọc.'],
+    suggestions: ['Tôi thuộc những không gian nào?'],
+    table: table(),
+    ...over,
+  });
+
+  it('bang ket qua: tieu de cot, dong, o dau la lien ket mo bang (id duoc ma hoa), khong co danh sach viec / "Xem them"; bam lien ket doi trang va roi khoi panel', async () => {
+    mocks.sendChatMessage.mockResolvedValue(reply(catalogAnswer(), { intent: 'MY_BOARDS', period: null, focus: null }));
+    renderAt('/home');
+    await openPanel();
+    await askQuestion('Tôi đang ở bao nhiêu bảng?');
+    const t = await within(panel()).findByRole('table');
+    expect(within(t).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Bảng', 'Không gian', 'Bạn là']);
+    expect(within(t).getAllByRole('row')).toHaveLength(3);
+    expect(panel()).toHaveTextContent('Trợ lý hiểu là: các bảng của bạn');
+    expect(panel()).toHaveTextContent('Bạn xem được 2 bảng, trong đó bạn tham gia trực tiếp 1 bảng.');
+    expect(panel()).toHaveTextContent('Chỉ tính bảng bạn có quyền đọc.');
+    expect(within(panel()).queryByRole('list', { name: 'Danh sách việc' })).not.toBeInTheDocument();
+    expect(within(panel()).queryByRole('button', { name: /Xem thêm/ })).not.toBeInTheDocument();
+
+    const first = within(t).getByRole('link', { name: 'Kế hoạch Marketing' });
+    expect(first).toHaveAttribute('href', '/boards/b1');
+    expect(within(t).getByRole('link', { name: 'Việc cá nhân' })).toHaveAttribute('href', '/boards/b%2F2'); // id co ky tu dac biet duoc ma hoa
+    expect(within(t).getAllByRole('link')).toHaveLength(2); // chi o dau cua moi dong
+    expect(within(t).getByText('Xem nhờ không gian')).toBeInTheDocument();
+
+    first.focus();
+    fireEvent.click(first);
+    expect(panel().contains(document.activeElement)).toBe(false); // giong lien ket the: Esc khong dong panel
+    expect(screen.getByTestId('location')).toHaveTextContent('/boards/b1');
+    expect(within(panel()).getByText('Tôi đang ở bao nhiêu bảng?')).toBeInTheDocument(); // hoi thoai con nguyen
+  });
+
+  it('dem the theo cot: so canh phai, dong "hiểu là" co ten bang / cot da nhan dien; dong khong co boardId khong la lien ket', async () => {
+    mocks.sendChatMessage.mockResolvedValue(
+      reply(
+        catalogAnswer({
+          text: 'Bảng “Sprint 12” có 6 thẻ: 4 chưa xong, 2 đã hoàn thành.',
+          table: { columns: ['Cột', 'Chưa xong', 'Đã xong', 'Tổng'], rows: [{ cells: ['Đang làm', 4, 0, 4] }, { cells: ['Xong', 0, 2, 2] }], total: 2 },
+          facts: [{ key: 'open', label: 'Chưa xong', value: 4 }],
+        }),
+        { intent: 'CARD_COUNTS', period: null, focus: null, targetName: 'Sprint 12', columnName: null }
+      )
+    );
+    renderAt('/home');
+    await openPanel();
+    await askQuestion('Bảng Sprint 12 có bao nhiêu thẻ?');
+    const t = await within(panel()).findByRole('table');
+    expect(panel()).toHaveTextContent('Trợ lý hiểu là: số thẻ · Sprint 12');
+    expect(within(t).queryByRole('link')).not.toBeInTheDocument();
+    const cells = within(t).getAllByRole('cell');
+    expect(cells.map((c) => c.textContent)).toEqual(['Đang làm', '4', '0', '4', 'Xong', '0', '2', '2']);
+    expect(cells[0]).not.toHaveClass('text-right');
+    for (const numeric of [cells[1], cells[2], cells[3], cells[7]]) expect(numeric).toHaveClass('text-right', 'tabular-nums');
+    expect(within(t).getAllByRole('columnheader')[1]).toHaveClass('text-right');
+    expect(within(t).getAllByRole('columnheader')[0]).not.toHaveClass('text-right');
+  });
+
+  it('bang rong / khong co bang -> khong ve bang; cau tra loi van hien cau dan + so', async () => {
+    mocks.sendChatMessage
+      .mockResolvedValueOnce(reply(catalogAnswer({ text: 'Bạn chưa xem được bảng nào.', table: table({ rows: [], total: 0 }) }), { intent: 'MY_BOARDS' }))
+      .mockResolvedValueOnce(reply(catalogAnswer({ text: 'Không tìm thấy bảng “abc”.', table: undefined, facts: [] }), { intent: 'CARD_COUNTS' }));
+    renderAt('/home');
+    await openPanel();
+    await askQuestion('Tôi đang ở bao nhiêu bảng?');
+    await within(panel()).findByText('Bạn chưa xem được bảng nào.');
+    expect(within(panel()).queryByRole('table')).not.toBeInTheDocument();
+    await askQuestion('Bảng abc có bao nhiêu thẻ?');
+    await within(panel()).findByText('Không tìm thấy bảng “abc”.');
+    expect(within(panel()).queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('trung ten bang / khong gian: nut chon kieu TARGET gui targetId; lua chon cu khong bam duoc nua; ket qua co bang', async () => {
+    mocks.sendChatMessage.mockResolvedValueOnce(
+      reply(
+        {
+          kind: 'CLARIFY',
+          text: 'Có nhiều bảng hoặc không gian khớp với “Website”. Ý bạn là cái nào?',
+          cards: [],
+          total: 0,
+          facts: [],
+          suggestions: [],
+          notes: [],
+          clarify: {
+            question: 'Ý bạn là cái nào?',
+            options: [
+              { id: 'b4', label: 'Bảng Website (Kỹ thuật)', kind: 'TARGET' },
+              { id: 'b10', label: 'Bảng Website (Marketing)', kind: 'TARGET' },
+            ],
+          },
+        },
+        { intent: 'CARD_COUNTS', period: null, focus: null }
+      )
+    );
+    mocks.sendChatChoice.mockResolvedValue(
+      reply(
+        catalogAnswer({ text: 'Bảng “Website” có 3 thẻ: 3 chưa xong, 0 đã hoàn thành.', table: { columns: ['Cột', 'Tổng'], rows: [{ cells: ['Cần làm', 3] }], total: 1 } }),
+        { intent: 'CARD_COUNTS', targetName: 'Website' }
+      )
+    );
+    renderAt('/home');
+    await openPanel();
+    await askQuestion('Bảng Website có bao nhiêu thẻ?');
+    const group = await within(panel()).findByRole('group', { name: 'Ý bạn là cái nào?' });
+    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['Bảng Website (Kỹ thuật)', 'Bảng Website (Marketing)']);
+    await clickAsync(within(group).getByRole('button', { name: 'Bảng Website (Marketing)' }));
+    expect(mocks.sendChatChoice).toHaveBeenCalledWith('conv-1', { id: 'b10', label: 'Bảng Website (Marketing)', kind: 'TARGET' });
+    await within(panel()).findByText('Bảng “Website” có 3 thẻ: 3 chưa xong, 0 đã hoàn thành.');
+    expect(within(panel()).getByText('Chọn: Bảng Website (Marketing)')).toBeInTheDocument();
+    expect(panel()).toHaveTextContent('Trợ lý hiểu là: số thẻ · Website');
+    expect(within(panel()).getByRole('table')).toBeInTheDocument();
+    expect(within(group).getByRole('button', { name: 'Bảng Website (Kỹ thuật)' })).toBeDisabled();
+  });
+
+  it('cau hoi nhanh thu nam ("Tôi đang ở bao nhiêu bảng?") gui dung chu voi pham vi hien tai', async () => {
+    mocks.sendChatMessage.mockResolvedValue(reply(catalogAnswer(), { intent: 'MY_BOARDS' }));
+    renderAt('/home');
+    await openPanel();
+    const quick = within(panel()).getAllByRole('button').filter((b) => QUICK_QUESTIONS.includes(b.textContent ?? ''));
+    expect(quick.map((b) => b.textContent)).toEqual(QUICK_QUESTIONS);
+    await clickAsync(within(panel()).getByRole('button', { name: 'Tôi đang ở bao nhiêu bảng?' }));
+    expect(mocks.sendChatMessage).toHaveBeenCalledWith({ message: 'Tôi đang ở bao nhiêu bảng?', scope: { kind: 'MY' }, conversationId: undefined });
+    await within(panel()).findByRole('table');
   });
 });

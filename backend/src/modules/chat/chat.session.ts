@@ -8,7 +8,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { ChatScopeInput } from './chat.scope';
-import type { FinalQuestion, ResolvedQuery } from './chat.intent';
+import type { CatalogQuestion, FinalQuestion, ResolvedQuery } from './chat.intent';
 import type { FollowUpContext } from './chat.followup';
 
 export const SESSION_TTL_MS = 30 * 60 * 1000;
@@ -19,9 +19,10 @@ export type Parser = 'RULE' | 'LLM' | 'HYBRID';
 
 /** Cau hoi lai dang cho nguoi dung bam chon (§9.3). */
 export interface PendingChoice {
-  kind: 'MEMBER' | 'WORKSPACE';
-  /** Cau hoi dang do (MEMBER: da bo ten go - thay bang id se chon). */
-  question: FinalQuestion;
+  /** MEMBER: chon nguoi; WORKSPACE: chon khong gian de hoi; TARGET: chon bang / khong gian khi trung ten (§18). */
+  kind: 'MEMBER' | 'WORKSPACE' | 'TARGET';
+  /** Cau hoi dang do (MEMBER / TARGET: da bo ten go - thay bang id se chon). */
+  question: FinalQuestion | CatalogQuestion;
   /** Pham vi se dung khi nguoi dung chon (MEMBER: pham vi hien tai). */
   scopeInput: ChatScopeInput;
   optionIds: string[];

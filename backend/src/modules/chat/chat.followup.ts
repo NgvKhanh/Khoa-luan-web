@@ -4,8 +4,8 @@
 // luot truoc (lay tu phien). Dau ra: cau hoi cuoi voi y dinh la 1 trong 5 y dinh tra
 // loi duoc, hoac UNSUPPORTED. Ca ba nhanh danh gia di qua DUNG ham nay.
 
-import type { AnswerIntent, ChatFocus, ChatPeriod, FinalQuestion, ParsedQuestion } from './chat.intent';
-import { isAnswerIntent } from './chat.intent';
+import type { AnswerIntent, CatalogQuestion, ChatFocus, ChatPeriod, FinalQuestion, ParsedQuestion } from './chat.intent';
+import { isAnswerIntent, isCatalogIntent } from './chat.intent';
 import { isSelfReference } from './chat.members';
 
 /** Ngu canh luot truoc luu trong phien: KHONG luu ten go, chi luu nguoi da nhan dien. */
@@ -18,6 +18,8 @@ export interface FollowUpContext {
 
 export type FollowUpResult =
   | { kind: 'QUESTION'; question: FinalQuestion; inherited: boolean }
+  /** Cau hoi danh muc (§18): luon la cau MOI, khong ke thua ngu canh, khong noi tiep duoc. */
+  | { kind: 'CATALOG'; question: CatalogQuestion }
   | { kind: 'UNSUPPORTED' };
 
 const MY_INTENTS: readonly AnswerIntent[] = ['MY_TASKS', 'MY_PRIORITIES'];
@@ -34,6 +36,12 @@ export function applyFollowUp(parsed: ParsedQuestion, prev: FollowUpContext | nu
   const self = parsed.member !== null && isSelfReference(parsed.member);
   const memberText = self ? null : parsed.member;
 
+  if (isCatalogIntent(parsed.intent)) {
+    return {
+      kind: 'CATALOG',
+      question: { intent: parsed.intent, target: parsed.target ?? null, column: parsed.column ?? null, targetId: null },
+    };
+  }
   if (isAnswerIntent(parsed.intent)) {
     // Cau hoi moi hoan toan: khong ke thua gi
     const intent = self ? selfIntent(parsed.intent) : parsed.intent;

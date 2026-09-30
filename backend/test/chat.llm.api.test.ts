@@ -227,6 +227,92 @@ describe('tong ket nhom co LLM', () => {
   });
 });
 
+describe('cau hoi danh muc co LLM (§18): ten bang / khong gian / cot KHONG bao gio duoc gui LLM', () => {
+  const CATALOG_OUT = { intent: 'CARD_COUNTS', period: 'NONE', focus: 'NONE', member: '', target: '', column: '' };
+
+  it('request LLM khong chua ten bang / danh sach / khong gian / the / nguoi tu danh muc; cau tra loi van co ten do (tu CSDL)', async () => {
+    const s = await setup();
+    const now = new Date();
+    const ctx = { now, sessions: new ChatSessionStore(), llm: deps() };
+
+    // Cau khong nhac ten nao: LLM chi nhan dung cau hoi (va y dinh luot truoc), khong nhan danh muc ten
+    const calls = llmStub(CATALOG_OUT);
+    const all = await handleMessage(s.leader.id, { message: 'Mỗi bảng có bao nhiêu thẻ?', scope: { kind: 'MY' } }, ctx);
+    expect(all.understood).toMatchObject({ intent: 'CARD_COUNTS', parser: 'HYBRID' });
+    expect(all.answer.table!.rows.map((r) => r.cells[0])).toContain('BANG-BI-MAT'); // ten co trong cau tra loi (server tra CSDL)
+    expect(calls.map(schemaName)).toEqual(['chat_intent']); // khong co nhan xet cho cau danh muc
+    expect(calls[0]!.body.messages[1].content).toBe('Mỗi bảng có bao nhiêu thẻ?'.length > 0 ? calls[0]!.body.messages[1].content : '');
+    expect(leaks(calls, s.secrets)).toEqual([]);
+
+    // Cac loai danh muc con lai: dem the theo cot, thanh vien, bang, khong gian - van khong ten nao roi ra ngoai
+    const all4: [string, object][] = [
+      ['Tôi đang ở bao nhiêu bảng?', { ...CATALOG_OUT, intent: 'MY_BOARDS' }],
+      ['Tôi thuộc những không gian nào?', { ...CATALOG_OUT, intent: 'MY_WORKSPACES' }],
+      ['Không gian này có bao nhiêu người?', { ...CATALOG_OUT, intent: 'MEMBER_LIST' }],
+      ['Cột nào có bao nhiêu thẻ?', { ...CATALOG_OUT, intent: 'CARD_COUNTS' }],
+    ];
+    for (const [message, out] of all4) {
+      const c = llmStub(out);
+      const r = await handleMessage(s.leader.id, { message, scope: s.scope }, { now, sessions: new ChatSessionStore(), llm: deps() });
+      expect(r.answer.kind, message).toBe('ANSWER');
+      expect(c.map(schemaName), message).toEqual(['chat_intent']);
+      expect(leaks(c, s.secrets), message).toEqual([]);
+    }
+  });
+
+  it('LLM hieu cau ma bo luat khong hieu (kem chuoi ten): ten duoc nhan dien o SERVER trong danh muc; ten khong co -> "khong tim thay"', async () => {
+    const s = await setup();
+    const now = new Date();
+    const ask = (message: string, out: object, scope: object = { kind: 'MY' }) => {
+      const calls = llmStub(out);
+      return handleMessage(s.leader.id, { message, scope: scope as never }, { now, sessions: new ChatSessionStore(), llm: deps() }).then((r) => ({ r, calls }));
+    };
+    const { r, calls } = await ask('thống kê giúp tôi nhé', { ...CATALOG_OUT, target: 'bang-bi-mat' });
+    expect(r.understood).toMatchObject({ intent: 'CARD_COUNTS', targetName: 'BANG-BI-MAT', parser: 'HYBRID' });
+    expect(r.answer.table!.rows.map((x) => x.cells[0])).toEqual(['DANH-SACH-BI-MAT']);
+    expect(leaks(calls, s.secrets)).toEqual([]);
+
+    // cot: LLM chi dua chuoi; server tim cot trong danh muc
+    const col = await ask('thống kê giúp tôi nhé', { ...CATALOG_OUT, target: 'bang-bi-mat', column: 'danh-sach-bi-mat' });
+    expect(col.r.understood).toMatchObject({ targetName: 'BANG-BI-MAT', columnName: 'DANH-SACH-BI-MAT' });
+
+    const missing = await ask('thống kê giúp tôi nhé', { ...CATALOG_OUT, target: 'bang-khong-co' });
+    expect(missing.r.answer.text).toContain('Không tìm thấy');
+    expect(missing.r.answer.table).toBeUndefined();
+
+    // Bo luat khop DUNG ten trong danh muc thi thang chuoi LLM (LLM khong thay danh muc): nho danh muc duoc truyen vao luat gop
+    const known = await ask('Bảng BANG-BI-MAT có bao nhiêu thẻ?', { ...CATALOG_OUT, target: 'ban-khac-hoan-toan' });
+    expect(known.r.understood).toMatchObject({ intent: 'CARD_COUNTS', targetName: 'BANG-BI-MAT', parser: 'HYBRID' });
+    // Bo luat chi DOAN ten khong co trong danh muc thi LLM quyet dinh
+    const guessed = await ask('Bảng bí mật có bao nhiêu thẻ?', { ...CATALOG_OUT, target: 'bang-bi-mat' });
+    expect(guessed.r.understood).toMatchObject({ intent: 'CARD_COUNTS', targetName: 'BANG-BI-MAT', parser: 'HYBRID' });
+
+    // LLM noi "khong co ten" du bo luat doan mot ten: LLM quyet dinh (B2), khong tra loi "khong tim thay" oan
+    const noName = await ask('Bảng của tôi có bao nhiêu thẻ', { ...CATALOG_OUT }, s.scope);
+    expect(noName.r.answer.kind).toBe('ANSWER');
+  });
+
+  it('/choice (chon khong gian cho cau thanh vien) khong goi LLM; LLM loi -> bo luat, van dung ten trong danh muc', async () => {
+    const s = await setup();
+    const now = new Date();
+    const store = new ChatSessionStore();
+    const d = deps();
+    const calls = llmStub({ ...CATALOG_OUT, intent: 'MEMBER_LIST' });
+    const ask = await handleMessage(s.leader.id, { message: 'Bảng này có bao nhiêu thành viên?', scope: { kind: 'MY' } }, { now, sessions: store, llm: d });
+    expect(ask.answer.kind).toBe('CLARIFY');
+    expect(calls).toHaveLength(1);
+    const none = forbidFetch();
+    const chosen = await handleChoice(s.leader.id, { conversationId: ask.conversationId, workspaceId: s.ws }, { now, sessions: store, llm: d });
+    expect([chosen.answer.kind, chosen.understood.intent, chosen.understood.targetName]).toEqual(['ANSWER', 'MEMBER_LIST', 'KHONG-GIAN-BI-MAT']);
+    expect(none).toHaveLength(0);
+
+    // LLM hong: chi con bo luat, ten trong danh muc van nhan ra
+    stubFetch(() => json(500, 'sap'));
+    const rule = await handleMessage(s.leader.id, { message: 'Bảng BANG-BI-MAT có bao nhiêu thẻ?', scope: { kind: 'MY' } }, { now, sessions: new ChatSessionStore(), llm: deps() });
+    expect(rule.understood).toMatchObject({ intent: 'CARD_COUNTS', targetName: 'BANG-BI-MAT', parser: 'RULE' });
+  });
+});
+
 describe('HTTP /api/chat voi LLM', () => {
   it('/status bao that theo env.ai (khong lo khoa); POST dung cau hinh + ngan sach CHUNG; thieu khoa -> RULE, khong ra mang', async () => {
     const s = await setup();

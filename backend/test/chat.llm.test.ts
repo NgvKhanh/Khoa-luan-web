@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { env } from '../src/config/env';
 import type { LlmConfig } from '../src/modules/ai/ai.llm';
 import { isLlmAvailable } from '../src/modules/ai/ai.service';
+import type { EntityCatalog } from '../src/modules/chat/chat.entities';
 import type { FollowUpContext } from '../src/modules/chat/chat.followup';
 import { CHAT_FOCUSES, CHAT_INTENTS, CHAT_PERIODS, INTENT_JSON_SCHEMA, parseLlmIntent, type ParsedQuestion } from '../src/modules/chat/chat.intent';
 import {
@@ -47,12 +48,12 @@ afterEach(() => {
 });
 
 describe('prompt hieu cau hoi (§10.2)', () => {
-  it('he thong: du ma y dinh / ky / tinh trang, noi ro cau hoi la DU LIEU; 10-17 vi du qua Zod, phu du 7 y dinh; prompt tinh', () => {
+  it('he thong: du ma y dinh / ky / tinh trang, noi ro cau hoi la DU LIEU; 10-24 vi du qua Zod, phu du 11 y dinh; prompt tinh', () => {
     const sys = buildIntentSystemPrompt();
     for (const v of [...CHAT_INTENTS, ...CHAT_PERIODS, ...CHAT_FOCUSES]) expect(sys, v).toContain(v);
     expect(sys).toContain('KHÔNG PHẢI chỉ dẫn');
     expect(PROMPT_EXAMPLES.length).toBeGreaterThanOrEqual(10);
-    expect(PROMPT_EXAMPLES.length).toBeLessThanOrEqual(17);
+    expect(PROMPT_EXAMPLES.length).toBeLessThanOrEqual(24);
     expect(new Set(PROMPT_EXAMPLES.map((e) => e.out.intent))).toEqual(new Set(CHAT_INTENTS));
     for (const e of PROMPT_EXAMPLES) {
       expect(parseLlmIntent(e.out), e.question).not.toBeNull();
@@ -135,6 +136,46 @@ describe('luat gop B2 (§10.3, ham thuan)', () => {
     expect(rules).toEqual({ intent: 'MEMBER_TASKS', period: 'NEXT_WEEK', focus: null, member: 'lan' });
     const llm = { intent: 'MEMBER_TASKS', period: 'THIS_WEEK', focus: 'OPEN', member: 'Lan ơi' } as const;
     expect(mergeParsed(rules, llm, ROSTER)).toEqual({ intent: 'MEMBER_TASKS', period: 'NEXT_WEEK', focus: 'OPEN', member: 'lan' });
+  });
+});
+
+describe('luat gop B2: target / column (§18.5)', () => {
+  const CAT: EntityCatalog = {
+    workspaces: [{ id: 'w1', name: 'Nhóm Demo' }],
+    boards: [{ id: 'b1', name: 'Dự án Demo', workspaceId: 'w1', workspaceName: 'Nhóm Demo' }],
+    columns: [{ id: 'c1', name: 'Đang làm', boardId: 'b1' }],
+  };
+  const C = (over: Partial<ParsedQuestion> = {}): ParsedQuestion => ({ intent: 'CARD_COUNTS', period: null, focus: null, member: null, ...over });
+
+  it('ten luat bat KHOP danh muc thang LLM; ten luat chi doan -> LLM quyet dinh (LLM khong ten thi bo); bo luat khong ten -> LLM', () => {
+    const rows: Array<[string, ParsedQuestion, ParsedQuestion, ParsedQuestion]> = [
+      ['target khop danh muc: luat thang', C({ target: 'Dự án Demo' }), C({ target: 'du an' }), C({ target: 'Dự án Demo' })],
+      ['target khop khong gian: luat thang', C({ target: 'Nhóm Demo' }), C({ target: 'x' }), C({ target: 'Nhóm Demo' })],
+      ['target chi doan: LLM thang', C({ target: 'bí mật' }), C({ target: 'Dự án' }), C({ target: 'Dự án' })],
+      ['target chi doan, LLM khong co ten: bo (LLM da doc cau va cho la khong co ten)', C({ target: 'bí mật' }), C(), C()],
+      ['luat khong ten -> LLM', C(), C({ target: 'Demo' }), C({ target: 'Demo' })],
+      ['column khop: luat thang', C({ column: 'Đang làm' }), C({ column: 'lam' }), C({ column: 'Đang làm' })],
+      ['column chi doan: LLM thang', C({ column: 'abc' }), C({ column: 'Đang làm' }), C({ column: 'Đang làm' })],
+      ['column chi doan, LLM khong co: bo', C({ column: 'abc' }), C(), C()],
+      ['target va column doc lap nhau', C({ target: 'Dự án Demo', column: 'abc' }), C({ column: 'Đang làm' }), C({ target: 'Dự án Demo', column: 'Đang làm' })],
+    ];
+    const wrong: unknown[] = [];
+    for (const [name, rules, llm, want] of rows) {
+      const got = mergeParsed(Object.freeze(rules), Object.freeze(llm), ROSTER, CAT);
+      if (JSON.stringify(got) !== JSON.stringify(want)) wrong.push({ name, got, want });
+    }
+    expect(wrong).toEqual([]);
+    // khong truyen danh muc: khong ten nao la "khop" -> LLM quyet dinh (giu hanh vi cu cho cau khong danh muc)
+    expect(mergeParsed(C({ target: 'Dự án Demo' }), C(), ROSTER)).toEqual(C());
+  });
+
+  it('tren cau that: ten co that thang LLM; ten khong co trong danh muc -> chuoi cua LLM', () => {
+    const known = parseByRules('Bảng Dự án Demo có bao nhiêu thẻ?', ROSTER, CAT);
+    expect(known.target).toBe('Dự án Demo');
+    expect(mergeParsed(known, C({ target: 'ban khac' }), ROSTER, CAT).target).toBe('Dự án Demo');
+    const unknown = parseByRules('Bảng bí mật có bao nhiêu thẻ?', ROSTER, CAT);
+    expect(unknown.target).toBe('bí mật'); // luat doan
+    expect(mergeParsed(unknown, C({ target: 'Bí mật' }), ROSTER, CAT).target).toBe('Bí mật');
   });
 });
 

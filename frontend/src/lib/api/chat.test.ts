@@ -43,6 +43,13 @@ describe('lib/api/chat', () => {
     expect(mocks.post).toHaveBeenLastCalledWith('/chat/messages/choice', { conversationId: 'c1', userId: 'u2' });
     await sendChatChoice('c1', { kind: 'WORKSPACE', id: 'ws2' });
     expect(mocks.post).toHaveBeenLastCalledWith('/chat/messages/choice', { conversationId: 'c1', workspaceId: 'ws2' });
+    // trung ten bang / khong gian (§18): targetId
+    await sendChatChoice('c1', { kind: 'TARGET', id: 'b7' });
+    expect(mocks.post).toHaveBeenLastCalledWith('/chat/messages/choice', { conversationId: 'c1', targetId: 'b7' });
+    for (const kind of ['USER', 'WORKSPACE', 'TARGET'] as const) {
+      await sendChatChoice('c1', { kind, id: 'x' });
+      expect(Object.keys(mocks.post.mock.calls.at(-1)![1]).sort()).toHaveLength(2); // conversationId + DUNG MOT id
+    }
   });
 
   it('fetchMoreAnswer: POST /chat/messages/more voi {conversationId, page}, tra data.data', async () => {

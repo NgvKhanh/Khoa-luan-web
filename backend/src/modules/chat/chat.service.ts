@@ -21,8 +21,19 @@ import {
   type ChatAnswer,
   type ScopeInfo,
 } from './chat.answer';
+import { answerCatalog, loadCatalog } from './chat.catalog';
+import type { EntityCatalog } from './chat.entities';
 import { applyFollowUp, type FollowUpContext } from './chat.followup';
-import { resolveSlots, type ChatFocus, type ChatIntent, type ChatPeriod, type FinalQuestion, type ParsedQuestion } from './chat.intent';
+import {
+  isCatalogQuestion,
+  resolveSlots,
+  type CatalogQuestion,
+  type ChatFocus,
+  type ChatIntent,
+  type ChatPeriod,
+  type FinalQuestion,
+  type ParsedQuestion,
+} from './chat.intent';
 import { chatLlmAvailable, defaultChatLlm, understandHybrid, type ChatLlmDeps } from './chat.llm';
 import { resolveMemberRef, type RosterMember } from './chat.members';
 import { runQuery } from './chat.queries';
@@ -46,12 +57,14 @@ export type Understand = (
   question: string,
   roster: readonly RosterMember[],
   prev: FollowUpContext | null,
-  now: Date
+  now: Date,
+  /** Danh muc ten bang / khong gian / cot cua pham vi (§18) - chi o server, KHONG gui LLM. */
+  catalog: EntityCatalog
 ) => Promise<{ parsed: ParsedQuestion; parser: Parser }>;
 
 /** Chi bo luat (nhanh B0). */
-export const understandByRules: Understand = async (question, roster) => ({
-  parsed: parseByRules(question, roster),
+export const understandByRules: Understand = async (question, roster, _prev, _now, catalog) => ({
+  parsed: parseByRules(question, roster, catalog),
   parser: 'RULE',
 });
 
@@ -70,6 +83,9 @@ export interface Understood {
   focus: ChatFocus | null;
   /** Ten DA nhan dien (tu CSDL), khong phai chuoi go. */
   memberName: string | null;
+  /** Cau hoi danh muc (§18): ten bang / khong gian / cot DA nhan dien. */
+  targetName?: string | null;
+  columnName?: string | null;
   parser: Parser;
 }
 
@@ -194,6 +210,42 @@ async function answerQuestion(
   return { understood: understoodOf(question, parser, target?.name ?? null), answer };
 }
 
+function catalogUnderstood(q: CatalogQuestion, parser: Parser, targetName: string | null, columnName: string | null): Understood {
+  return { intent: q.intent, period: null, focus: null, memberName: null, targetName, columnName, parser };
+}
+
+/**
+ * Tra loi mot cau hoi danh muc (§18). MEMBER_LIST o pham vi ca nhan ma khong noi ten -> hoi khong gian (1 khong gian thi
+ * dung luon); trung ten bang / khong gian -> nut chon (`pending` kieu TARGET). Sau cau tra loi danh muc ngu canh noi tiep bi
+ * xoa (khong noi tiep duoc) va khong con "Xem them".
+ */
+async function answerCatalogQuestion(
+  session: ChatSessionState,
+  scope: ResolvedScope,
+  question: CatalogQuestion,
+  parser: Parser,
+  now: Date,
+  catalog?: EntityCatalog
+): Promise<{ understood: Understood; answer: ChatAnswer }> {
+  const info = scopeInfoOf(scope);
+  if (question.intent === 'MEMBER_LIST' && scope.kind === 'MY' && question.target === null && question.targetId === null) {
+    const options = await listChoosableWorkspaces(scope.userId);
+    if (options.length === 1) {
+      const only = await resolveScope(scope.userId, { kind: 'WORKSPACE', workspaceId: options[0].id });
+      return answerCatalogQuestion(session, only, question, parser, now);
+    }
+    session.pending = { kind: 'WORKSPACE', question, scopeInput: { kind: 'MY' }, optionIds: options.map((o) => o.id), parser };
+    return { understood: catalogUnderstood(question, parser, null, null), answer: renderClarifyWorkspace(options, info, now) };
+  }
+  const out = await answerCatalog(scope, info, question, now, catalog);
+  session.context = null;
+  session.lastQuery = null;
+  session.pending = out.pendingTargets
+    ? { kind: 'TARGET', question: { ...question, target: null }, scopeInput: scopeInputOf(scope), optionIds: out.pendingTargets, parser }
+    : null;
+  return { understood: catalogUnderstood(question, parser, out.targetName, out.columnName), answer: out.answer };
+}
+
 function openSession(
   ctx: ChatContext,
   userId: string,
@@ -231,9 +283,10 @@ export async function handleMessage(
 
   const roster = scope.kind === 'MY' ? await loadMyRoster(userId) : await loadRoster(scope);
   const llm = ctx.llm ?? defaultChatLlm();
+  const catalog = await loadCatalog(scope);
   const understand: Understand =
-    ctx.understand ?? ((question, names, prev, now) => understandHybrid(question, names, prev, now.getTime(), llm));
-  const { parsed, parser } = await understand(input.message, roster, state.context, ctx.now);
+    ctx.understand ?? ((question, names, prev, now, cat) => understandHybrid(question, names, prev, now.getTime(), llm, cat));
+  const { parsed, parser } = await understand(input.message, roster, state.context, ctx.now, catalog);
   const fu = applyFollowUp(parsed, state.context);
 
   const base = { conversationId: id, ...(reset ? { conversationReset: true as const } : {}) };
@@ -244,13 +297,14 @@ export async function handleMessage(
       answer: renderUnsupported(scopeInfoOf(scope), ctx.now),
     };
   }
+  if (fu.kind === 'CATALOG') return { ...base, ...(await answerCatalogQuestion(state, scope, fu.question, parser, ctx.now, catalog)) };
   return { ...base, ...(await answerQuestion(state, scope, fu.question, parser, ctx.now, llm)) };
 }
 
 /** Tra loi cau hoi lai (chon nguoi / chon khong gian) - KHONG goi LLM (§9.3). */
 export async function handleChoice(
   userId: string,
-  input: { conversationId: string; userId?: string; workspaceId?: string },
+  input: { conversationId: string; userId?: string; workspaceId?: string; targetId?: string },
   ctx: ChatContext
 ): Promise<ChatReply> {
   const state = ctx.sessions.get(input.conversationId, userId, ctx.now.getTime());
@@ -258,15 +312,19 @@ export async function handleChoice(
   const pending = state.pending;
   if (!pending) throw new AppError('Khong co cau hoi lai nao dang cho', 400);
 
-  const chosen = pending.kind === 'MEMBER' ? input.userId : input.workspaceId;
+  const chosen = pending.kind === 'MEMBER' ? input.userId : pending.kind === 'TARGET' ? input.targetId : input.workspaceId;
   if (!chosen || !pending.optionIds.includes(chosen)) throw new AppError(BAD_CHOICE, 400);
 
   const scopeInput: ChatScopeInput =
     pending.kind === 'WORKSPACE' ? { kind: 'WORKSPACE', workspaceId: chosen } : pending.scopeInput;
   const scope = await resolveScope(userId, scopeInput); // kiem lai quyen
+  state.pending = null;
+  if (isCatalogQuestion(pending.question)) {
+    const cq: CatalogQuestion = pending.kind === 'TARGET' ? { ...pending.question, target: null, targetId: chosen } : pending.question;
+    return { conversationId: input.conversationId, ...(await answerCatalogQuestion(state, scope, cq, pending.parser, ctx.now)) };
+  }
   const question: FinalQuestion =
     pending.kind === 'MEMBER' ? { ...pending.question, memberText: null, memberUserId: chosen } : pending.question;
-  state.pending = null;
   return { conversationId: input.conversationId, ...(await answerQuestion(state, scope, question, pending.parser, ctx.now, null)) };
 }
 

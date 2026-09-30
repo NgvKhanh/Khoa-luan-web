@@ -13,6 +13,11 @@ export type ChatIntent =
   | 'MEMBER_TASKS'
   | 'TEAM_SUMMARY'
   | 'TEAM_WORKLOAD'
+  // Danh muc truy van (§18): bang, khong gian, thanh vien, dem the
+  | 'MY_BOARDS'
+  | 'MY_WORKSPACES'
+  | 'MEMBER_LIST'
+  | 'CARD_COUNTS'
   | 'UNSUPPORTED'
   | 'NONE';
 export type ChatPeriod = 'TODAY' | 'TOMORROW' | 'THIS_WEEK' | 'NEXT_WEEK' | 'LAST_WEEK' | 'NEXT_7_DAYS';
@@ -68,7 +73,20 @@ export interface ChatWorkloadRow {
 export interface ChatClarifyOption {
   id: string;
   label: string;
-  kind: 'USER' | 'WORKSPACE';
+  /** USER: chon nguoi; WORKSPACE: chon khong gian; TARGET: chon bang / khong gian khi trung ten (§18). */
+  kind: 'USER' | 'WORKSPACE' | 'TARGET';
+}
+
+/** Bang ket qua chung cua cau tra loi danh muc (§18.5). Dong co `boardId` la lien ket mo bang. */
+export interface ChatTableRow {
+  cells: (string | number)[];
+  boardId?: string;
+}
+export interface ChatTable {
+  columns: string[];
+  rows: ChatTableRow[];
+  /** Tong so dong that (co the lon hon so dong hien khi bi cat). */
+  total: number;
 }
 
 export interface ChatAnswer {
@@ -83,6 +101,8 @@ export interface ChatAnswer {
   pageSize: number;
   sections: ChatSection[];
   rows?: ChatWorkloadRow[];
+  /** Chi cau tra loi danh muc (§18). */
+  table?: ChatTable;
   ignoredSlots: ChatSlot[];
   notes: string[];
   clarify?: { question: string; options: ChatClarifyOption[] };
@@ -95,6 +115,9 @@ export interface ChatUnderstood {
   period: ChatPeriod | null;
   focus: ChatFocus | null;
   memberName: string | null;
+  /** Cau danh muc: ten bang / khong gian DA nhan dien (khong phai chuoi go). */
+  targetName?: string | null;
+  columnName?: string | null;
   parser: ChatParser;
 }
 

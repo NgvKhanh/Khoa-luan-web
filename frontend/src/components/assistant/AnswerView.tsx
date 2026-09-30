@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { AssistantTurn } from '../../context/AssistantContext';
 import { cardLink, formatDate, formatDateTime, formatTime, parserText, REASON_TEXT, remainingCards, understoodText } from '../../lib/chatText';
-import type { ChatAnswer, ChatCard, ChatClarifyOption, ChatWorkloadRow } from '../../types/chat';
+import type { ChatAnswer, ChatCard, ChatClarifyOption, ChatTable, ChatWorkloadRow } from '../../types/chat';
 import StatusBadge from '../board/StatusBadge';
 
 // Mot luot hoi - dap (§13): cau hoi, dong "Trợ lý hiểu là", cau dan, con so, danh sach the co lien
@@ -78,6 +78,47 @@ function WorkloadTable({ rows, refIso }: { rows: ChatWorkloadRow[]; refIso: stri
   );
 }
 
+/** Bang ket qua chung cua cau tra loi danh muc (§18): dong co boardId la lien ket mo bang; so canh phai. */
+function AnswerTable({ table }: { table: ChatTable }) {
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+      <table className="w-full text-left text-xs">
+        <thead className="bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+          <tr>
+            {table.columns.map((c, i) => (
+              <th key={c} className={`px-2 py-1 font-medium ${typeof table.rows[0]?.cells[i] === 'number' ? 'text-right' : ''}`}>
+                {c}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="text-slate-700 dark:text-slate-200">
+          {table.rows.map((r, ri) => (
+            <tr key={`${ri}-${r.boardId ?? ''}`} className="border-t border-slate-100 dark:border-slate-700">
+              {r.cells.map((cell, ci) => (
+                <td key={ci} className={`px-2 py-1 ${typeof cell === 'number' ? 'text-right tabular-nums' : ''}`}>
+                  {ci === 0 && r.boardId ? (
+                    <Link
+                      to={`/boards/${encodeURIComponent(r.boardId)}`}
+                      // giong lien ket the: bo focus khoi panel de Esc khong dong panel khi bang mo ra
+                      onClick={(e) => e.currentTarget.blur()}
+                      className="font-medium text-primary-ink hover:underline"
+                    >
+                      {cell}
+                    </Link>
+                  ) : (
+                    cell
+                  )}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function Suggestions({ items, disabled, onAsk }: { items: string[]; disabled: boolean; onAsk: (q: string) => void }) {
   if (items.length === 0) return null;
   return (
@@ -139,6 +180,8 @@ function AnswerBody({
       )}
 
       {answer.rows && answer.rows.length > 0 && <WorkloadTable rows={answer.rows} refIso={answer.generatedAt} />}
+
+      {answer.table && answer.table.rows.length > 0 && <AnswerTable table={answer.table} />}
 
       {turn.cards.length > 0 && (
         <ul aria-label="Danh sách việc" className="space-y-1.5">

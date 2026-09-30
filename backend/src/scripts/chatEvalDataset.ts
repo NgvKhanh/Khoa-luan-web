@@ -9,10 +9,17 @@
 // - Cau noi tiep mang NGU CANH VANG cua luot truoc (`prev`), khong lay tu ket qua nhanh nao.
 // - Chia dev / test CO DINH theo thu tu trong tung nhom: cau thu 1, 4, 7... cua moi nhom la dev.
 // - Khong cau nao trung nguyen van vi du trong prompt (PROMPT_EXAMPLES) - co test.
+//
+// VONG 2 (§18.6, buoc 10): 98 cau dau (nhom A-H) GIU NGUYEN tung byte (CHAT_EVAL_LEGACY_ITEMS, sha256 rieng trong test) -
+// tap test cu da lo o buoc 8 nen chi con la HOI QUY. Them nhom I-M (danh muc: bang, khong gian, thanh vien, dem the, cau
+// gan giong) va EVAL_CATALOG: danh muc ten co dinh (co ten trung, ten trung ten khong gian) cua pham vi ca nhan. Cau danh
+// muc mang `scope: 'MY'` (hoac 'WORKSPACE'); cau cu khong co truong nay = pham vi WORKSPACE (khong gian 'ws1').
 
-import type { AnswerIntent, ChatFocus, ChatPeriod, ChatSlot } from '../modules/chat/chat.intent';
+import type { EntityCatalog } from '../modules/chat/chat.entities';
+import type { AnswerIntent, CatalogIntent, ChatFocus, ChatPeriod, ChatSlot } from '../modules/chat/chat.intent';
 import type { RosterMember } from '../modules/chat/chat.members';
-import type { GoldOutcome } from './chatEvalCore';
+import type { NotFoundWhat } from '../modules/chat/chat.catalog.resolve';
+import type { EvalEnv, GoldOutcome } from './chatEvalCore';
 
 export const EVAL_ROSTER: readonly RosterMember[] = [
   { userId: 'r01', name: 'Nguyễn Thị Lan' },
@@ -37,10 +44,28 @@ export type EvalGroup =
   | 'TEAM_WORKLOAD'
   | 'FOLLOW_UP'
   | 'OUT_OF_SCOPE'
-  | 'INJECTION';
+  | 'INJECTION'
+  | 'MY_BOARDS'
+  | 'MY_WORKSPACES'
+  | 'MEMBER_LIST'
+  | 'CARD_COUNTS'
+  | 'NEAR_MISS';
 
 /** Nhan phu de tach ket qua theo loai kho (khong dau duoc tinh tu dong trong bao cao). */
-export type EvalTag = 'nham-ten' | 'ky-chua-ho-tro' | 'hoi-lai' | 'thao-tac' | 'ngoai-pham-vi' | 'kho-voi-luat';
+export type EvalTag =
+  | 'nham-ten'
+  | 'ky-chua-ho-tro'
+  | 'hoi-lai'
+  | 'thao-tac'
+  | 'ngoai-pham-vi'
+  | 'kho-voi-luat'
+  // vong 2 (danh muc)
+  | 'khong-dau'
+  | 'trung-ten'
+  | 'khong-tim-thay'
+  | 'ten-viet-tat'
+  | 'ten-thuc-the'
+  | 'gan-giong';
 
 /** Ngu canh vang cua luot truoc: `member` la id trong EVAL_ROSTER. */
 export interface EvalContext {
@@ -58,6 +83,8 @@ export interface ChatEvalItem {
   prev: EvalContext | null;
   gold: GoldOutcome;
   tags: EvalTag[];
+  /** Chi cau vong 2: pham vi dat cau hoi. Khong co = 'WORKSPACE' (cau cu). */
+  scope?: 'MY' | 'WORKSPACE';
 }
 
 // ===================== Nhan vang =====================
@@ -231,7 +258,8 @@ const GROUPS: ReadonlyArray<[EvalGroup, string, readonly Row[]]> = [
   ],
 ];
 
-export const CHAT_EVAL_ITEMS: readonly ChatEvalItem[] = GROUPS.flatMap(([group, prefix, rows]) =>
+/** 98 cau cua vong 1 - KHONG SUA (sha256 rieng trong test/chat.eval.test.ts). */
+export const CHAT_EVAL_LEGACY_ITEMS: readonly ChatEvalItem[] = GROUPS.flatMap(([group, prefix, rows]) =>
   rows.map(([question, gold, tags = [], prev], i) => ({
     id: `${prefix}${String(i + 1).padStart(2, '0')}`,
     split: i % 3 === 0 ? ('dev' as const) : ('test' as const),
@@ -242,3 +270,175 @@ export const CHAT_EVAL_ITEMS: readonly ChatEvalItem[] = GROUPS.flatMap(([group, 
     tags,
   }))
 );
+
+// ===================== Vong 2: danh muc ten + nhom I-M =====================
+
+/**
+ * Danh muc ten CO DINH cua nguoi hoi (pham vi ca nhan): 3 khong gian, 11 bang, 34 cot. Co ten TRUNG ('Website' o hai
+ * khong gian), ten bang trung ten khong gian ('Marketing'), ten chung phan dau ('Sprint 12' / 'Sprint 13'), ten cot lap lai
+ * ('Đang làm' o nhieu bang). Chi dung de nhan dien o server; KHONG bao gio gui LLM.
+ */
+const WS_ROWS: ReadonlyArray<[string, string]> = [
+  ['ws1', 'Marketing'],
+  ['ws2', 'Kỹ thuật'],
+  ['ws3', 'Không gian của Khánh'],
+];
+const BOARD_ROWS: ReadonlyArray<[id: string, name: string, workspace: string, columns: readonly string[]]> = [
+  ['b01', 'Kế hoạch Marketing quý 4', 'ws1', ['Cần làm', 'Đang làm', 'Hoàn thành']],
+  ['b02', 'Chiến dịch ra mắt sản phẩm', 'ws1', ['Ý tưởng', 'Đang làm', 'Chờ duyệt', 'Đã ra mắt']],
+  ['b03', 'Nội dung mạng xã hội', 'ws1', ['Cần làm', 'Đang làm', 'Hoàn thành']],
+  ['b04', 'Website', 'ws2', ['Backlog', 'Đang làm', 'Kiểm thử', 'Hoàn thành']],
+  ['b05', 'Sprint 12', 'ws2', ['Cần làm', 'Đang làm', 'Review', 'Xong']],
+  ['b06', 'Sprint 13', 'ws2', ['Cần làm', 'Đang làm', 'Xong']],
+  ['b07', 'Lỗi cần sửa', 'ws2', ['Mới báo', 'Đang sửa', 'Đã sửa']],
+  ['b08', 'Việc cá nhân', 'ws3', ['Cần làm', 'Đang làm', 'Xong']],
+  ['b09', 'Học tiếng Anh', 'ws3', ['Bài học', 'Ôn tập']],
+  ['b10', 'Website', 'ws1', ['Cần làm', 'Đang làm', 'Hoàn thành']],
+  ['b11', 'Marketing', 'ws2', ['Cần làm', 'Hoàn thành']],
+];
+
+function buildCatalog(workspaceIds: readonly string[]): EntityCatalog {
+  const workspaces = WS_ROWS.filter(([id]) => workspaceIds.includes(id)).map(([id, name]) => ({ id, name }));
+  const boards = BOARD_ROWS.filter(([, , w]) => workspaceIds.includes(w));
+  let n = 0;
+  return {
+    workspaces,
+    boards: boards.map(([id, name, w]) => ({ id, name, workspaceId: w, workspaceName: WS_ROWS.find(([x]) => x === w)![1] })),
+    columns: boards.flatMap(([id, , , cols]) => cols.map((name) => ({ id: `c${String(++n).padStart(2, '0')}`, name, boardId: id }))),
+  };
+}
+
+/** Pham vi ca nhan: moi khong gian nguoi hoi tham gia. */
+export const EVAL_CATALOG: EntityCatalog = buildCatalog(['ws1', 'ws2', 'ws3']);
+/** Pham vi WORKSPACE ('ws1'): cau cu + mot so cau vong 2. */
+export const EVAL_WS_CATALOG: EntityCatalog = buildCatalog(['ws1']);
+
+const WS_SCOPE = { kind: 'WORKSPACE' as const, workspace: { id: 'ws1', name: 'Marketing' }, board: null };
+const MY_SCOPE = { kind: 'MY' as const, workspace: null, board: null };
+
+/** Moi truong tra loi cua mot cau (pham vi + danh muc ten). Cau cu: pham vi WORKSPACE ws1. */
+export function evalEnvFor(item: ChatEvalItem): EvalEnv {
+  return item.scope === 'MY' ? { scope: MY_SCOPE, catalog: EVAL_CATALOG } : { scope: WS_SCOPE, catalog: EVAL_WS_CATALOG };
+}
+
+const CAT = (intent: CatalogIntent, target: string | null = null, column: string | null = null): GoldOutcome => ({ kind: 'CATALOG', intent, target, column });
+const CLARIFY = (intent: CatalogIntent, ...ids: string[]): GoldOutcome => ({ kind: 'CLARIFY_TARGET', intent, candidates: [...ids].sort() });
+const NOT_FOUND_TARGET = (intent: CatalogIntent, what: NotFoundWhat): GoldOutcome => ({ kind: 'TARGET_NOT_FOUND', intent, what });
+const ASK_WORKSPACE = (intent: CatalogIntent): GoldOutcome => ({ kind: 'ASK_WORKSPACE', intent });
+
+type Row2 = [question: string, gold: GoldOutcome, tags?: EvalTag[], scope?: 'MY' | 'WORKSPACE'];
+
+const GROUPS_V2: ReadonlyArray<[EvalGroup, string, readonly Row2[]]> = [
+  [
+    'MY_BOARDS',
+    'I',
+    [
+      ['Hiện tại tôi tham gia bao nhiêu bảng?', CAT('MY_BOARDS')],
+      ['Cho mình xem danh sách các bảng của mình', CAT('MY_BOARDS')],
+      ['Các bảng trong không gian Kỹ thuật', CAT('MY_BOARDS', 'ws2')],
+      ['tong cong toi co may bang', CAT('MY_BOARDS'), ['khong-dau']],
+      ['Không gian Marketing có những bảng nào?', CAT('MY_BOARDS', 'ws1')],
+      ['Tôi đang có mấy board?', CAT('MY_BOARDS'), ['kho-voi-luat']],
+      ['Trong không gian Khánh tôi có bao nhiêu bảng?', CAT('MY_BOARDS', 'ws3'), ['ten-viet-tat']],
+      ['Có bao nhiêu bảng trong không gian Nhóm Sáng Tạo?', NOT_FOUND_TARGET('MY_BOARDS', 'WORKSPACE'), ['khong-tim-thay']],
+      ['Liệt kê giúp tôi mọi bảng đang xem được', CAT('MY_BOARDS'), ['kho-voi-luat']],
+      ['Bảng nào tôi là chủ?', CAT('MY_BOARDS'), ['kho-voi-luat']],
+      ['Tổng số bảng tôi có quyền xem là bao nhiêu?', CAT('MY_BOARDS')],
+      ['Tôi được chia sẻ bao nhiêu bảng?', CAT('MY_BOARDS'), ['kho-voi-luat']],
+    ],
+  ],
+  [
+    'MY_WORKSPACES',
+    'J',
+    [
+      ['Tôi đang ở những không gian làm việc nào?', CAT('MY_WORKSPACES')],
+      ['Có bao nhiêu workspace tôi tham gia?', CAT('MY_WORKSPACES')],
+      ['Vai trò của tôi ở từng không gian là gì?', CAT('MY_WORKSPACES'), ['kho-voi-luat']],
+      ['khong gian lam viec cua toi', CAT('MY_WORKSPACES'), ['khong-dau']],
+      ['Tôi thuộc mấy nhóm?', CAT('MY_WORKSPACES'), ['kho-voi-luat']],
+      ['Liệt kê các workspace của mình', CAT('MY_WORKSPACES')],
+      ['Mình là chủ của không gian nào?', CAT('MY_WORKSPACES'), ['kho-voi-luat']],
+      ['Số không gian làm việc mình đang có là bao nhiêu?', CAT('MY_WORKSPACES')],
+      ['Không gian nào của tôi có nhiều bảng nhất?', CAT('MY_WORKSPACES'), ['kho-voi-luat']],
+      ['Cho biết mọi không gian làm việc tôi tham gia và số thành viên của từng cái', CAT('MY_WORKSPACES'), ['kho-voi-luat']],
+    ],
+  ],
+  [
+    'MEMBER_LIST',
+    'K',
+    [
+      ['Bảng Sprint 12 có những ai?', CAT('MEMBER_LIST', 'b05')],
+      ['Trong bảng Website có bao nhiêu thành viên?', CLARIFY('MEMBER_LIST', 'b04', 'b10'), ['trung-ten', 'hoi-lai']],
+      ['Không gian Kỹ thuật có bao nhiêu người?', CAT('MEMBER_LIST', 'ws2')],
+      ['Bảng Sprint có những ai?', CLARIFY('MEMBER_LIST', 'b05', 'b06'), ['ten-viet-tat', 'hoi-lai']],
+      ['Ai đang ở trong bảng Lỗi cần sửa?', CAT('MEMBER_LIST', 'b07')],
+      ['Bảng này có bao nhiêu thành viên?', ASK_WORKSPACE('MEMBER_LIST'), ['hoi-lai']],
+      ['Danh sách thành viên của không gian Marketing', CLARIFY('MEMBER_LIST', 'b11', 'ws1'), ['trung-ten', 'hoi-lai']],
+      ['Ai tham gia bảng Học tiếng Anh?', CAT('MEMBER_LIST', 'b09')],
+      ['cho toi biet ai o trong bang website', CLARIFY('MEMBER_LIST', 'b04', 'b10'), ['khong-dau', 'trung-ten', 'hoi-lai']],
+      ['Bảng Kế hoạch Marketing có bao nhiêu người tham gia?', CAT('MEMBER_LIST', 'b01'), ['ten-viet-tat']],
+      ['Bảng Dự án Xyz có những ai?', NOT_FOUND_TARGET('MEMBER_LIST', 'BOARD_OR_WORKSPACE'), ['khong-tim-thay']],
+      ['Thành viên của không gian Nhóm Sáng Tạo là ai?', NOT_FOUND_TARGET('MEMBER_LIST', 'BOARD_OR_WORKSPACE'), ['khong-tim-thay']],
+      ['Danh sách người trong bảng Nội dung mạng xã hội', CAT('MEMBER_LIST', 'b03')],
+      ['Cho tôi xem những ai đang làm ở không gian Kỹ thuật', CAT('MEMBER_LIST', 'ws2'), ['kho-voi-luat']],
+    ],
+  ],
+  [
+    'CARD_COUNTS',
+    'L',
+    [
+      ['Bảng Website có bao nhiêu thẻ?', CLARIFY('CARD_COUNTS', 'b04', 'b10'), ['trung-ten', 'hoi-lai']],
+      ['Bảng Sprint 13 có bao nhiêu thẻ?', CAT('CARD_COUNTS', 'b06')],
+      ['Cột Đang làm của bảng Sprint 12 có mấy thẻ?', CAT('CARD_COUNTS', 'b05', 'Đang làm')],
+      ['Cột Đang làm có mấy thẻ?', CAT('CARD_COUNTS', null, 'Đang làm')],
+      ['Mỗi bảng có bao nhiêu thẻ?', CAT('CARD_COUNTS')],
+      ['Tổng số thẻ trong không gian Kỹ thuật là bao nhiêu?', CAT('CARD_COUNTS', 'ws2')],
+      ['Bảng Lỗi cần sửa còn bao nhiêu thẻ chưa xong?', CAT('CARD_COUNTS', 'b07'), ['kho-voi-luat']],
+      ['bang Sprint 12 co bao nhieu the', CAT('CARD_COUNTS', 'b05'), ['khong-dau']],
+      ['Cột Kiểm thử có mấy thẻ?', CAT('CARD_COUNTS', null, 'Kiểm thử')],
+      ['Bảng Học tiếng Anh cột Bài học có bao nhiêu thẻ?', CAT('CARD_COUNTS', 'b09', 'Bài học')],
+      ['Cột Xong có bao nhiêu thẻ trong bảng Sprint 13?', CAT('CARD_COUNTS', 'b06', 'Xong')],
+      ['Tổng cộng có bao nhiêu thẻ trên tất cả các bảng?', CAT('CARD_COUNTS'), ['kho-voi-luat']],
+      ['Bảng Chiến dịch ra mắt có bao nhiêu thẻ đã hoàn thành?', CAT('CARD_COUNTS', 'b02'), ['ten-viet-tat', 'kho-voi-luat']],
+      ['Cột Đang làm của bảng Kế hoạch Marketing có mấy thẻ?', CAT('CARD_COUNTS', 'b01', 'Đang làm'), ['ten-viet-tat']],
+      ['Bảng Dự án Xyz có bao nhiêu thẻ?', NOT_FOUND_TARGET('CARD_COUNTS', 'BOARD_OR_WORKSPACE'), ['khong-tim-thay']],
+      ['Cột Kiểm duyệt có mấy thẻ?', NOT_FOUND_TARGET('CARD_COUNTS', 'COLUMN'), ['khong-tim-thay']],
+    ],
+  ],
+  [
+    'NEAR_MISS',
+    'M',
+    [
+      ['Bảng Kế hoạch Marketing quý 4 tuần này có việc nào đến hạn?', Q('TEAM_SUMMARY', 'OPEN', 'THIS_WEEK'), ['gan-giong'], 'WORKSPACE'],
+      ['Việc của tôi ở bảng Website có cái nào quá hạn không?', Q('MY_TASKS', 'OVERDUE'), ['gan-giong'], 'WORKSPACE'],
+      ['Ai đang có nhiều thẻ nhất trong bảng Website?', Q('TEAM_WORKLOAD'), ['gan-giong'], 'WORKSPACE'],
+      ['Tạo bảng mới tên Kế hoạch 2027', UNSUPPORTED, ['thao-tac', 'gan-giong'], 'MY'],
+      ['Xoá cột Đang làm khỏi bảng Website', UNSUPPORTED, ['thao-tac', 'gan-giong'], 'MY'],
+      ['Đổi tên bảng Website thành Trang chủ', UNSUPPORTED, ['thao-tac', 'gan-giong'], 'MY'],
+      ['Thêm Lan vào bảng Sprint 12', UNSUPPORTED, ['thao-tac', 'gan-giong'], 'MY'],
+      ['Email của các thành viên bảng Website là gì?', UNSUPPORTED, ['ngoai-pham-vi', 'gan-giong'], 'MY'],
+      ['Chuyển bảng Website sang không gian Kỹ thuật', UNSUPPORTED, ['thao-tac', 'gan-giong'], 'MY'],
+      ['Mỗi không gian có bao nhiêu thành viên?', CAT('MY_WORKSPACES'), ['kho-voi-luat', 'gan-giong'], 'MY'],
+      ['Tôi nên làm việc nào trước trong bảng Website?', Q('MY_PRIORITIES'), ['gan-giong'], 'WORKSPACE'],
+      ['Trong bảng Website Lan đang làm gì?', CLARIFY_LAN, ['hoi-lai', 'gan-giong'], 'WORKSPACE'],
+      ['Thẻ nào của tôi sắp đến hạn?', Q('MY_TASKS', 'OPEN', 'NEXT_7_DAYS'), ['gan-giong'], 'WORKSPACE'],
+      ['Hôm nay bảng nào có việc đến hạn?', Q('TEAM_SUMMARY', 'OPEN', 'TODAY'), ['kho-voi-luat', 'gan-giong'], 'WORKSPACE'],
+    ],
+  ],
+];
+
+const V2_ITEMS: readonly ChatEvalItem[] = GROUPS_V2.flatMap(([group, prefix, rows]) =>
+  rows.map(([question, gold, tags = [], scope = 'MY'], i) => ({
+    id: `${prefix}${String(i + 1).padStart(2, '0')}`,
+    split: i % 3 === 0 ? ('dev' as const) : ('test' as const),
+    group,
+    question,
+    prev: null,
+    gold,
+    tags,
+    scope,
+  }))
+);
+
+/** Bo du lieu vong 2 = 98 cau cu (khong doi) + cau danh muc / gan giong. */
+export const CHAT_EVAL_ITEMS: readonly ChatEvalItem[] = [...CHAT_EVAL_LEGACY_ITEMS, ...V2_ITEMS];

@@ -31,10 +31,12 @@ export const chatChoiceSchema = z
     conversationId,
     userId: id.optional(),
     workspaceId: id.optional(),
+    /** Bang / khong gian nguoi dung chon khi trung ten (§18). */
+    targetId: id.optional(),
   })
   .strict()
-  .refine((v) => (v.userId === undefined) !== (v.workspaceId === undefined), {
-    message: 'Chon dung mot trong hai: userId hoac workspaceId',
+  .refine((v) => [v.userId, v.workspaceId, v.targetId].filter((x) => x !== undefined).length === 1, {
+    message: 'Chon dung mot trong ba: userId, workspaceId hoac targetId',
   });
 
 export const chatMoreSchema = z

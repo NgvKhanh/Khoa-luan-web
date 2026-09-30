@@ -267,7 +267,7 @@ describe('hoi lai / khong ho tro / khong tim thay', () => {
 
     const un = renderUnsupported(MY, NOW);
     expect(un.kind).toBe('UNSUPPORTED');
-    expect(un.suggestions).toHaveLength(4);
+    expect(un.suggestions).toEqual([...QUICK_QUESTIONS]);
     expect(un.text).toContain('chưa tạo, sửa hay giao việc');
     for (const a of [c, w, who, nf, un]) expect([a.facts, a.cards, a.sections, a.generatedAt]).toEqual([[], [], [], NOW.toISOString()]);
   });
@@ -306,7 +306,8 @@ describe('cau hoi goi y / cau hoi nhanh', () => {
     // bang phai phu DU moi cau dang dung (them cau goi y moi ma quen them vao day -> do)
     const listed = (src: ResolvedQuery['intent'] | 'QUICK') => rows.filter((r) => r[0] === src).map((r) => r[1]);
     for (const intent of Object.keys(SUGGESTIONS) as ResolvedQuery['intent'][]) expect(listed(intent), intent).toEqual([...SUGGESTIONS[intent]]);
-    expect(listed('QUICK')).toEqual([...QUICK_QUESTIONS]);
+    // cau hoi nhanh THU NAM ("Tôi đang ở bao nhiêu bảng?") la y dinh danh muc: test o chat.catalog.answer.test
+    expect(listed('QUICK')).toEqual([...QUICK_QUESTIONS.slice(0, 4)]);
 
     const wrong: unknown[] = [];
     for (const [src, text, w] of rows) {

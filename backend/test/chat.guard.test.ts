@@ -13,6 +13,9 @@ const read = (f: string) => stripComments(fs.readFileSync(path.join(ROOT, f), 'u
 /** Tep thuan: khong duoc keo CSDL / cau hinh / dich vu (bo danh gia chay khong can DB). */
 const PURE_FILES = [
   'chat.intent.ts',
+  'chat.entities.ts',
+  'chat.catalog.answer.ts',
+  'chat.catalog.resolve.ts',
   'chat.members.ts',
   'chat.rules.ts',
   'chat.followup.ts',
@@ -107,6 +110,22 @@ describe('ky luat ma nguon module chatbot', () => {
         expect(ok, `${f} import ${typeOnly ? 'type ' : ''}${spec}`).toBe(true);
       }
     }
+  });
+
+  it('danh muc truy van (§18): chi DOC, khong SQL tho, khong lay truong nhay cam; LLM chi chon dong danh muc', () => {
+    const catalog = read('chat.catalog.ts');
+    // chi ten + vai tro: khong email / mo ta / token / mat khau (§18.3)
+    expect(catalog).not.toMatch(/email|description|password|token|secret/i);
+    // moi tep chat: khong ghi CSDL, khong SQL tho
+    for (const f of sourceFiles()) {
+      const src = read(f);
+      expect(src, `${f} ghi CSDL`).not.toMatch(/prisma\.\w+\.(create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/);
+      expect(src, `${f} SQL tho`).not.toMatch(/\$queryRaw|\$executeRaw|\$queryRawUnsafe|\$executeRawUnsafe|\bPrisma\.sql\b/);
+      expect(src, `${f} transaction`).not.toMatch(/\$transaction/);
+    }
+    // danh muc chi doc qua pham vi da kiem quyen: khong tu dat lai quyen doc, khong import lop LLM
+    expect(catalog).not.toMatch(/readableBoardWhere|assertBoardView|isBoardParticipant|ai\.llm|chat\.llm/);
+    expect(catalog).toMatch(/scope\.boardWhere/);
   });
 
   it('khong dung lai module phan cong (pham vi + truong du lieu khac chinh sach chatbot, §3.4 CHATBOT_PLAN)', () => {
