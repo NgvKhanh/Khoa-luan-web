@@ -127,7 +127,7 @@ export default function BoardCard({
             onClick={() => setMenuOpen(false)}
             className="fixed inset-0 z-30 cursor-default"
           />
-          <div className="absolute right-0 top-[calc(100%+4px)] z-40 w-56 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+          <div className="tf-menu-in absolute right-0 top-[calc(100%+4px)] z-40 w-56 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
             <p className="mb-1.5 text-xs font-semibold text-slate-500">Ảnh nền</p>
 
             <div className="grid grid-cols-4 gap-1.5">

@@ -76,7 +76,7 @@ export default function BoardBackgroundMenu({
   return createPortal(
     <div
       ref={ref}
-      className="fixed right-3 top-14 z-50 max-h-[80vh] w-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 text-slate-800 dark:text-slate-100 shadow-2xl"
+      className="tf-menu-in fixed right-3 top-14 z-50 max-h-[80vh] w-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 text-slate-800 dark:text-slate-100 shadow-2xl"
     >
       <div className="mb-2 flex items-center">
         <p className="flex-1 text-center text-sm font-semibold">

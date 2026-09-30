@@ -212,7 +212,7 @@ export default function AiGenerateBoardModal({ onClose, onCreated, workspaceId: 
   return createPortal(
     <>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-3 backdrop-blur-[2px] sm:p-4"
+        className="tf-overlay fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-3 backdrop-blur-[2px] sm:p-4"
         onClick={requestClose}
       >
         <div

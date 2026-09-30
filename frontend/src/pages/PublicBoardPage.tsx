@@ -247,7 +247,7 @@ function PublicCardOverlay({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-12">
+    <div className="tf-overlay fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-12">
       <div className="w-full max-w-2xl rounded-xl bg-white shadow-2xl dark:bg-slate-800">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">

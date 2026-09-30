@@ -82,7 +82,7 @@ function WorkspaceSwitcher() {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-11 z-40 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 text-slate-800 shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+        <div className="tf-menu-in absolute left-0 top-11 z-40 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 text-slate-800 shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
           <p className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
             Không gian làm việc
           </p>
@@ -462,7 +462,7 @@ export function CreateBoardMenu() {
 
       {open && (
         <CreateBoardDialog
-          className="absolute right-0 top-11 z-40"
+          className="tf-menu-in absolute right-0 top-11 z-40"
           onClose={() => setOpen(false)}
           onOpenAi={() => {
             setOpen(false);
@@ -542,7 +542,7 @@ function AccountMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 z-40 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+        <div className="tf-menu-in absolute right-0 top-11 z-40 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
           <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-700 dark:bg-slate-900/40">
             <Avatar
               id={user?.id ?? 'me'}

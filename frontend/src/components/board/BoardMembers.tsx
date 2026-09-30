@@ -67,7 +67,7 @@ function RoleMenu({
             onClick={() => setOpen(false)}
             className="fixed inset-0 z-40 cursor-default"
           />
-          <div className="absolute right-0 top-9 z-50 w-44 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-xl">
+          <div className="tf-menu-in absolute right-0 top-9 z-50 w-44 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-xl">
             {(['ADMIN', 'MEMBER', 'VIEWER'] as AssignableRole[]).map((r) => (
               <button
                 key={r}
@@ -382,7 +382,7 @@ export default function BoardMembers({
         createPortal(
           <div
             ref={panelRef}
-            className="fixed right-3 top-14 z-50 max-h-[80vh] w-[420px] max-w-[92vw] overflow-y-auto rounded-xl bg-white dark:bg-slate-800 p-4 text-slate-800 dark:text-slate-100 shadow-2xl"
+            className="tf-menu-in fixed right-3 top-14 z-50 max-h-[80vh] w-[420px] max-w-[92vw] overflow-y-auto rounded-xl bg-white dark:bg-slate-800 p-4 text-slate-800 dark:text-slate-100 shadow-2xl"
           >
             <div className="mb-4 flex items-center">
               <h2 className="flex-1 text-base font-semibold">Chia sẻ bảng</h2>

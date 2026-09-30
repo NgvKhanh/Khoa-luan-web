@@ -227,7 +227,7 @@ export default function AssignPlanModal({ listId, listName, onClose, onApplied }
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[2px]" onClick={() => !applying && close()}>
+    <div className="tf-overlay fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[2px]" onClick={() => !applying && close()}>
       <div
         role="dialog"
         aria-modal="true"

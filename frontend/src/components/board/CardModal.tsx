@@ -378,7 +378,7 @@ export default function CardModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 py-10"
+      className="tf-overlay fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 py-10"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -415,7 +415,7 @@ export default function CardModal({
                   {!readOnly && ' ▾'}
                 </button>
                 {panel === 'list' && !readOnly && (
-                  <div className="absolute left-0 top-9 z-10 w-48 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-xl">
+                  <div className="tf-menu-in absolute left-0 top-9 z-10 w-48 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-xl">
                     {lists.map((l) => (
                       <button
                         key={l.id}
@@ -447,7 +447,7 @@ export default function CardModal({
                   </div>
                 )}
                 {panel === 'move-board' && !readOnly && (
-                  <div className="absolute left-0 top-9 z-10 w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-xl">
+                  <div className="tf-menu-in absolute left-0 top-9 z-10 w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-xl">
                     <p className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-100">
                       Chuyển thẻ sang bảng khác
                     </p>
@@ -538,7 +538,7 @@ export default function CardModal({
                   {!readOnly && <span className="text-xs text-slate-500">▾</span>}
                 </button>
                 {panel === 'status' && !readOnly && (
-                  <div className="absolute left-0 top-9 z-10 w-60 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-xl">
+                  <div className="tf-menu-in absolute left-0 top-9 z-10 w-60 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-xl">
                     {CARD_STATUS_ORDER.map((st) => {
                       const moveTo = targetListForStatus(lists, card.listId, st);
                       return (
@@ -585,7 +585,7 @@ export default function CardModal({
                   </button>
                 )}
                 {panel === 'menu' && !readOnly && (
-                  <div className="absolute right-0 top-9 z-10 w-40 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-xl">
+                  <div className="tf-menu-in absolute right-0 top-9 z-10 w-40 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-xl">
                     <button
                       type="button"
                       onClick={() => {
@@ -639,7 +639,7 @@ export default function CardModal({
                   </div>
                 )}
                 {panel === 'copy' && !readOnly && (
-                  <div className="absolute right-0 top-9 z-10 w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-xl">
+                  <div className="tf-menu-in absolute right-0 top-9 z-10 w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-xl">
                     <p className="mb-2 text-sm font-semibold">Sao chép thẻ</p>
                     <label className="mb-1 block text-xs font-semibold text-slate-600 dark:text-slate-400">
                       Tiêu đề
@@ -837,7 +837,7 @@ export default function CardModal({
                               </svg>
                             </button>
                             {panel === 'reminders' && (
-                              <div className="absolute left-0 top-full z-10 mt-1 w-56 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-xl">
+                              <div className="tf-menu-in absolute left-0 top-full z-10 mt-1 w-56 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-xl">
                                 <p className="mb-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400">
                                   Nhắc tôi trước hạn
                                 </p>
@@ -1688,7 +1688,7 @@ export default function CardModal({
                       </button>
                     )}
                     {mentionQuery !== null && mentionMatches.length > 0 && (
-                      <div className="absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-1 shadow-xl">
+                      <div className="tf-menu-in absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-1 shadow-xl">
                         {mentionMatches.map((m) => (
                           <button
                             key={m.userId}

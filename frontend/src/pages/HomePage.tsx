@@ -53,7 +53,7 @@ function CreateBoardTile({
 
       {open && (
         <CreateBoardDialog
-          className="absolute left-0 top-[calc(100%+6px)] z-40"
+          className="tf-menu-in absolute left-0 top-[calc(100%+6px)] z-40"
           workspaceId={workspaceId}
           onClose={() => setOpen(false)}
           onOpenAi={() => {

@@ -131,7 +131,7 @@ export default function BoardActionsMenu({
     return createPortal(
       <div
         ref={ref}
-        className="fixed right-3 top-14 z-50 w-64 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 text-slate-800 dark:text-slate-100 shadow-2xl"
+        className="tf-menu-in fixed right-3 top-14 z-50 w-64 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 text-slate-800 dark:text-slate-100 shadow-2xl"
       >
         <p className="text-sm font-semibold text-red-600">Xoá bảng này?</p>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -165,7 +165,7 @@ export default function BoardActionsMenu({
   return createPortal(
     <div
       ref={ref}
-      className="fixed right-3 top-14 z-50 w-60 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1.5 text-slate-800 dark:text-slate-100 shadow-2xl"
+      className="tf-menu-in fixed right-3 top-14 z-50 w-60 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1.5 text-slate-800 dark:text-slate-100 shadow-2xl"
     >
       <p className="px-2 pb-1 pt-0.5 text-center text-sm font-semibold">
         Thao tác với bảng

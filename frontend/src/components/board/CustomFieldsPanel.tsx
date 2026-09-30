@@ -136,7 +136,7 @@ export default function CustomFieldsPanel({ boardId, onClose, onChanged }: Props
   return createPortal(
     <div
       ref={ref}
-      className="fixed right-3 top-14 z-50 max-h-[80vh] w-96 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 text-slate-800 shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+      className="tf-menu-in fixed right-3 top-14 z-50 max-h-[80vh] w-96 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 text-slate-800 shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
     >
       <p className="mb-2 text-center text-sm font-semibold">Trường tùy chỉnh</p>
 

@@ -1,0 +1,68 @@
+/* He chuyen dong dung chung. Chi dung hieu ung VAO (khong lam hieu ung thoat) va khong de
+   transform ton tai sau khi chay xong -> khong tao "containing block" lam lech popover fixed. */
+:root {
+  --motion-fast: 140ms;
+  --motion-base: 180ms;
+  --motion-page: 150ms;
+  --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes tf-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tf-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tf-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hop thoai: lop nen mo dan, hop noi dung (con truc tiep) phong nhe len */
+.tf-overlay {
+  animation: tf-fade-in var(--motion-base) var(--motion-ease-out);
+}
+.tf-overlay > * {
+  animation: tf-pop-in var(--motion-base) var(--motion-ease-out);
+}
+
+/* Menu, popover */
+.tf-menu-in {
+  animation: tf-menu-in var(--motion-fast) var(--motion-ease-out);
+}
+
+/* Doi trang: chi doi do mo (khong dung transform o phan tu cha cua noi dung) */
+.tf-page-in {
+  animation: tf-fade-in var(--motion-page) ease-out;
+}
+
+/* Nguoi dung chon giam chuyen dong: tat MOI hieu ung trang tri.
+   Moi lop co "animation:" o tren phai duoc liet ke o day (co test kiem tra: motion.test.ts). */
+@media (prefers-reduced-motion: reduce) {
+  .tf-overlay,
+  .tf-overlay > *,
+  .tf-menu-in,
+  .tf-page-in {
+    animation: none;
+  }
+}

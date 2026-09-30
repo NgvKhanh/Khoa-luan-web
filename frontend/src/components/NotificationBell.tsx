@@ -212,7 +212,7 @@ export default function NotificationBell() {
       {open &&
         createPortal(
           <div
-            className="fixed right-3 top-14 z-50 w-[380px] max-w-[92vw] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
+            className="tf-menu-in fixed right-3 top-14 z-50 w-[380px] max-w-[92vw] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
