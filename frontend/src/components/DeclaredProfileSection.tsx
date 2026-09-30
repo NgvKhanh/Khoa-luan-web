@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { deleteDeclaredCv, fetchDeclaredProfile, myCvUrl, saveDeclaredProfile, uploadDeclaredCv } from '../lib/api/assign';
+import {
+  deleteDeclaredCv,
+  fetchDeclaredProfile,
+  myCvUrl,
+  saveDeclaredProfile,
+  uploadDeclaredCv,
+} from '../lib/api/assign';
 import {
   CV_TEXT_MAX,
   SKILLS_MAX_CHARS,
@@ -18,17 +24,21 @@ import { formatViDate } from '../lib/assignDates';
 import { getErrorMessage } from '../lib/errorMessage';
 import type { DeclaredProfile } from '../types/assign';
 import ConfirmDialog from './ConfirmDialog';
+import {
+  ProfileIcon,
+  profileInput,
+  profilePrimaryButton,
+  profileSecondaryButton,
+} from './profile/ProfileUi';
 
 // Mục "Hồ sơ kỹ năng" của trang Hồ sơ cá nhân (ASSIGN_MODULE.md §17): kỹ năng, công việc đã làm và CV mà người dùng TỰ KHAI để
 // gợi ý phân công dùng làm thành phần "Hồ sơ" ở MỌI không gian. Tải CV lên = máy chủ trích chữ (không dùng AI) để người dùng sửa
 // rồi lưu; tệp CV chỉ chính chủ và chủ / quản trị viên không gian chung tải được.
 
-const inputCls =
-  'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#0c66e4] focus:outline-none focus:ring-2 focus:ring-[#0c66e4]/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100';
-const labelCls = 'mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300';
-const hintCls = 'mt-1 text-xs text-slate-500 dark:text-slate-400';
-const secondaryBtn =
-  'rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700';
+const inputCls = profileInput + ' resize-y';
+const labelCls = 'mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200';
+const hintCls = 'mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400';
+const secondaryBtn = profileSecondaryButton;
 
 type Busy = 'save' | 'upload' | 'delete' | null;
 
@@ -151,19 +161,29 @@ export default function DeclaredProfileSection() {
   const showCvText = cv !== null || draft.cvText !== '';
 
   return (
-    <div className="flex flex-col gap-4">
-      <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
-        <input
-          type="checkbox"
-          checked={draft.useForAssign}
-          onChange={(e) => patch({ useForAssign: e.target.checked })}
-          className="mt-0.5 h-4 w-4"
-        />
-        <span>
-          Dùng hồ sơ này cho gợi ý phân công
-          <span className="block text-xs text-slate-500 dark:text-slate-400">
+    <div className="flex flex-col gap-6">
+      <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 text-sm text-slate-700 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-slate-200">
+        <span className="min-w-0">
+          <span className="font-medium">Dùng hồ sơ này cho gợi ý phân công</span>
+          <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
             Tắt thì gợi ý coi như bạn chưa khai, và người khác không tải được CV của bạn.
           </span>
+        </span>
+        <span className="relative mt-0.5 inline-flex shrink-0">
+          <input
+            type="checkbox"
+            checked={draft.useForAssign}
+            onChange={(e) => patch({ useForAssign: e.target.checked })}
+            className="peer sr-only"
+          />
+          <span
+            aria-hidden="true"
+            className="h-6 w-11 rounded-full bg-slate-300 transition-colors peer-checked:bg-indigo-600 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-indigo-500 dark:bg-slate-600"
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-xs transition-transform peer-checked:translate-x-5 motion-reduce:transition-none"
+          />
         </span>
       </label>
 
@@ -178,19 +198,83 @@ export default function DeclaredProfileSection() {
           onChange={(e) => patch({ skillsText: e.target.value })}
           placeholder="vd: React, thiết kế giao diện, SQL, kiểm thử API"
           className={inputCls}
+          aria-describedby="declared-skills-hint"
         />
-        <p className={hintCls}>
-          Mỗi dòng hoặc mỗi dấu phẩy là một kỹ năng · {draft.skillsText.length}/{SKILLS_MAX_CHARS} ký tự
+        <p
+          id="declared-skills-hint"
+          className={hintCls + ' flex flex-wrap justify-between gap-x-3'}
+        >
+          <span>Phân cách các kỹ năng bằng dấu phẩy hoặc xuống dòng.</span>
+          <span className="tabular-nums">
+            {draft.skillsText.length}/{SKILLS_MAX_CHARS}
+          </span>
         </p>
       </div>
 
-      <div>
-        <p className={labelCls}>Công việc đã làm</p>
-        {draft.workItems.length === 0 && <p className="text-xs text-slate-500 dark:text-slate-400">Chưa có công việc nào.</p>}
-        <ul className="flex flex-col gap-2">
+      <div className="border-t border-slate-100 pt-6 dark:border-slate-700">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              Công việc đã làm
+            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Dự án và kinh nghiệm nổi bật của bạn.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              newKey.current += 1;
+              patch({
+                workItems: [
+                  ...draft.workItems,
+                  { key: `moi-${newKey.current}`, title: '', description: '' },
+                ],
+              });
+            }}
+            disabled={draft.workItems.length >= WORK_ITEMS_MAX}
+            className={secondaryBtn}
+          >
+            <ProfileIcon name="plus" />
+            Thêm công việc
+          </button>
+        </div>
+        {draft.workItems.length === 0 && (
+          <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 px-4 py-7 text-center dark:border-slate-600 dark:bg-slate-900/20">
+            <span className="mb-3 rounded-lg border border-slate-200 bg-white p-2.5 text-slate-400 dark:border-slate-600 dark:bg-slate-800">
+              <ProfileIcon name="briefcase" className="h-5 w-5" />
+            </span>
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+              Chưa có công việc nào.
+            </p>
+            <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+              Thêm một công việc để giới thiệu kinh nghiệm của bạn.
+            </p>
+          </div>
+        )}
+        <ul className="flex flex-col gap-3">
           {draft.workItems.map((w, i) => (
-            <li key={w.key} data-testid={`work-${i}`} className="rounded-lg border border-slate-200 p-2 dark:border-slate-700">
-              <div className="flex items-center gap-2">
+            <li
+              key={w.key}
+              data-testid={`work-${i}`}
+              className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-900/20"
+            >
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Công việc {String(i + 1).padStart(2, '0')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    patch({ workItems: draft.workItems.filter((x) => x.key !== w.key) })
+                  }
+                  aria-label={`Xoá công việc ${i + 1}`}
+                  className="shrink-0 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-red-500 dark:text-red-400 dark:hover:bg-red-900/30"
+                >
+                  Xoá
+                </button>
+              </div>
+              <div>
                 <input
                   value={w.title}
                   onChange={(e) => patchWork(w.key, { title: e.target.value })}
@@ -199,14 +283,6 @@ export default function DeclaredProfileSection() {
                   aria-label={`Tên công việc ${i + 1}`}
                   className={inputCls}
                 />
-                <button
-                  type="button"
-                  onClick={() => patch({ workItems: draft.workItems.filter((x) => x.key !== w.key) })}
-                  aria-label={`Xoá công việc ${i + 1}`}
-                  className="shrink-0 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
-                >
-                  Xoá
-                </button>
               </div>
               <textarea
                 value={w.description}
@@ -214,68 +290,84 @@ export default function DeclaredProfileSection() {
                 rows={2}
                 placeholder="Mô tả ngắn (tuỳ chọn): bạn đã làm gì, dùng công nghệ gì"
                 aria-label={`Mô tả công việc ${i + 1}`}
-                className={inputCls + ' mt-1.5'}
+                className={inputCls + ' mt-3'}
               />
             </li>
           ))}
         </ul>
-        <button
-          type="button"
-          onClick={() => {
-            newKey.current += 1;
-            patch({ workItems: [...draft.workItems, { key: `moi-${newKey.current}`, title: '', description: '' }] });
-          }}
-          disabled={draft.workItems.length >= WORK_ITEMS_MAX}
-          className={secondaryBtn + ' mt-2'}
-        >
-          Thêm công việc
-        </button>
         <p className={hintCls}>
-          Tối đa {WORK_ITEMS_MAX} công việc; tên tối đa {WORK_TITLE_MAX} ký tự, mô tả tối đa {WORK_DESC_MAX} ký tự.
+          Tối đa {WORK_ITEMS_MAX} công việc; tên tối đa {WORK_TITLE_MAX} ký tự, mô tả tối đa{' '}
+          {WORK_DESC_MAX} ký tự.
         </p>
       </div>
 
-      <div>
-        <p className={labelCls}>CV</p>
-        {cv ? (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-medium text-slate-800 dark:text-slate-100">{cv.fileName}</span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              {formatSize(cv.size)} · tải lên {formatViDate(cv.uploadedAt)}
+      <div className="border-t border-slate-100 pt-6 dark:border-slate-700">
+        <p className={labelCls}>CV của bạn</p>
+        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-5 dark:border-slate-600 dark:bg-slate-900/20">
+          <div className="flex items-start gap-3">
+            <span className="rounded-lg border border-slate-200 bg-white p-2.5 text-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-indigo-300">
+              <ProfileIcon name="file" className="h-5 w-5" />
             </span>
-            <a href={myCvUrl()} download className="text-sm font-medium text-[#0c66e4] hover:underline dark:text-sky-300">
-              Tải về
-            </a>
+            <div className="min-w-0 flex-1">
+              {cv ? (
+                <div className="flex flex-col items-start gap-1 text-sm">
+                  <span className="max-w-full break-words font-medium text-slate-800 dark:text-slate-100">
+                    {cv.fileName}
+                  </span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {formatSize(cv.size)} · tải lên {formatViDate(cv.uploadedAt)}
+                  </span>
+                  <a
+                    href={myCvUrl()}
+                    download
+                    className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-300"
+                  >
+                    Tải về
+                  </a>
+                </div>
+              ) : (
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                  Chưa tải CV lên.
+                </p>
+              )}
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                PDF hoặc DOCX · Tối đa 5MB
+              </p>
+            </div>
           </div>
-        ) : (
-          <p className="text-xs text-slate-500 dark:text-slate-400">Chưa tải CV lên.</p>
-        )}
-        <div className="mt-2 flex flex-wrap gap-2">
-          <button type="button" onClick={() => fileRef.current?.click()} disabled={busy !== null} className={secondaryBtn}>
-            {busy === 'upload' ? 'Đang đọc CV…' : cv ? 'Thay CV' : 'Tải CV lên'}
-          </button>
-          {(cv || saved.cvText !== null) && (
+          <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => setConfirmDelete(true)}
+              onClick={() => fileRef.current?.click()}
               disabled={busy !== null}
-              className="rounded-lg px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-900/30"
+              className={secondaryBtn}
             >
-              Xoá CV
+              <ProfileIcon name="upload" />
+              {busy === 'upload' ? 'Đang đọc CV…' : cv ? 'Thay CV' : 'Tải CV lên'}
             </button>
-          )}
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            hidden
-            data-testid="cv-file"
-            onChange={(e) => void onPickCv(e)}
-          />
+            {(cv || saved.cvText !== null) && (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                disabled={busy !== null}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-red-500 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/30"
+              >
+                Xoá CV
+              </button>
+            )}
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              hidden
+              data-testid="cv-file"
+              onChange={(e) => void onPickCv(e)}
+            />
+          </div>
         </div>
         <p className={hintCls}>
-          .pdf hoặc .docx, tối đa 5MB. Hệ thống chỉ trích chữ (không dùng AI); tệp chỉ bạn và chủ / quản trị viên của các không gian
-          bạn tham gia tải được.
+          Tệp chỉ bạn và chủ / quản trị viên của các không gian bạn tham gia tải được. Tắt gợi ý
+          phân công để ngừng chia sẻ CV với người khác.
         </p>
       </div>
 
@@ -292,49 +384,69 @@ export default function DeclaredProfileSection() {
             className={inputCls}
           />
           <p className={hintCls}>
-            Chỉ bạn thấy phần chữ này; khi khớp một thẻ, người khác chỉ thấy "một đoạn trong CV". Xoá bớt thông tin không liên quan
-            (địa chỉ, số điện thoại…) · {draft.cvText.length.toLocaleString('vi-VN')}/{CV_TEXT_MAX.toLocaleString('vi-VN')} ký tự
+            Chỉ bạn thấy phần chữ này; khi khớp một thẻ, người khác chỉ thấy "một đoạn trong CV".
+            Xoá bớt thông tin không liên quan (địa chỉ, số điện thoại…) ·{' '}
+            {draft.cvText.length.toLocaleString('vi-VN')}/{CV_TEXT_MAX.toLocaleString('vi-VN')} ký
+            tự
           </p>
         </div>
       )}
 
       {issues.length > 0 && (
-        <ul role="alert" className="list-disc rounded-lg bg-red-50 py-2 pl-7 pr-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300">
+        <ul
+          role="alert"
+          className="list-disc rounded-lg bg-red-50 py-2 pl-7 pr-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300"
+        >
           {issues.map((m) => (
             <li key={m}>{m}</li>
           ))}
         </ul>
       )}
       {error && (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300">
+        <p
+          role="alert"
+          className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300"
+        >
           {error}
         </p>
       )}
       {notice && (
-        <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+        <p
+          role="status"
+          className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+        >
           {notice}
         </p>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => void save()}
-          disabled={!dirty || issues.length > 0 || busy !== null}
-          className="rounded-lg bg-[#0c66e4] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0a5cd4] disabled:opacity-50"
-        >
-          {busy === 'save' ? 'Đang lưu…' : 'Lưu hồ sơ'}
-        </button>
-        {dirty && (
+      <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+        Thông tin tự khai chưa được xác minh, được kết hợp với lịch sử làm việc để gợi ý phân công ở
+        mọi không gian bạn tham gia.
+      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5 dark:border-slate-700">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          {dirty ? 'Bạn có thay đổi chưa lưu.' : 'Hồ sơ đã được cập nhật.'}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {dirty && (
+            <button
+              type="button"
+              onClick={() => setDraft(draftOf(saved))}
+              disabled={busy !== null}
+              className={secondaryBtn}
+            >
+              Hoàn tác
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => setDraft(draftOf(saved))}
-            disabled={busy !== null}
-            className="rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+            onClick={() => void save()}
+            disabled={!dirty || issues.length > 0 || busy !== null}
+            className={profilePrimaryButton}
           >
-            Hoàn tác
+            {busy === 'save' ? 'Đang lưu…' : 'Lưu hồ sơ'}
           </button>
-        )}
+        </div>
       </div>
 
       <ConfirmDialog
