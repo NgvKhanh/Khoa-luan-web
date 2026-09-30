@@ -1,13 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AuthShell, { authFieldClass } from '../components/auth/AuthShell';
+import GoogleAuthButton from '../components/auth/GoogleAuthButton';
 import PasswordField from '../components/auth/PasswordField';
-import GoogleSignInButton from '../components/GoogleSignInButton';
 import { useAuth } from '../context/AuthContext';
 import { getErrorMessage } from '../lib/errorMessage';
 
 export default function LoginPage() {
-  const { login, loginWithGoogle } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -16,33 +16,17 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function redirectAfterAuth() {
-    const redirectTo = (location.state as { from?: string } | null)?.from ?? '/';
-    navigate(redirectTo, { replace: true });
-  }
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
     try {
       await login(email, password);
-      redirectAfterAuth();
+      const redirectTo =
+        (location.state as { from?: string } | null)?.from ?? '/';
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       setError(getErrorMessage(err, 'Không thể đăng nhập. Vui lòng thử lại.'));
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  async function handleGoogle(idToken: string) {
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      await loginWithGoogle(idToken);
-      redirectAfterAuth();
-    } catch (err) {
-      setError(getErrorMessage(err, 'Đăng nhập bằng Google thất bại.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -55,7 +39,11 @@ export default function LoginPage() {
       footer={
         <>
           Chưa có tài khoản?{' '}
-          <Link to="/register" className="font-medium text-[#1558bc] hover:underline">
+          <Link
+            to="/register"
+            state={location.state}
+            className="font-semibold text-white hover:underline"
+          >
             Đăng ký
           </Link>
         </>
@@ -83,12 +71,22 @@ export default function LoginPage() {
           />
         </div>
 
-        <PasswordField
-          label="Mật khẩu"
-          value={password}
-          onChange={setPassword}
-          autoComplete="current-password"
-        />
+        <div>
+          <PasswordField
+            label="Mật khẩu"
+            value={password}
+            onChange={setPassword}
+            autoComplete="current-password"
+          />
+          <div className="mt-1.5 text-right">
+            <Link
+              to="/forgot-password"
+              className="text-sm font-medium text-[#1558bc] hover:underline"
+            >
+              Quên mật khẩu?
+            </Link>
+          </div>
+        </div>
 
         <button
           type="submit"
@@ -99,13 +97,7 @@ export default function LoginPage() {
         </button>
       </form>
 
-      <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
-        <span className="h-px flex-1 bg-slate-200" />
-        HOẶC
-        <span className="h-px flex-1 bg-slate-200" />
-      </div>
-
-      <GoogleSignInButton text="signin_with" onCredential={handleGoogle} />
+      <GoogleAuthButton />
     </AuthShell>
   );
 }

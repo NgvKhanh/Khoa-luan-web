@@ -18,11 +18,6 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Vui long nhap mat khau'),
 });
 
-// ID token nhan tu Google Identity Services o phia frontend
-export const googleAuthSchema = z.object({
-  idToken: z.string().min(10, 'Thieu ID token cua Google'),
-});
-
 export const updateProfileSchema = z.object({
   name: z
     .string()
@@ -35,7 +30,39 @@ export const updateProfileSchema = z.object({
     .optional(),
 });
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Vui long nhap mat khau hien tai'),
+  newPassword: z
+    .string()
+    .min(6, 'Mat khau moi phai co it nhat 6 ky tu')
+    .max(72, 'Mat khau qua dai'),
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Email khong hop le'),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().trim().min(10, 'Lien ket khong hop le'),
+  newPassword: z
+    .string()
+    .min(6, 'Mat khau moi phai co it nhat 6 ky tu')
+    .max(72, 'Mat khau qua dai'),
+});
+
+export const verifyEmailSchema = z.object({
+  token: z.string().trim().min(10, 'Lien ket khong hop le'),
+});
+
+export const googleLoginSchema = z.object({
+  credential: z.string().trim().min(20, 'Thieu Google credential'),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
-export type GoogleAuthInput = z.infer<typeof googleAuthSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+export type GoogleLoginInput = z.infer<typeof googleLoginSchema>;

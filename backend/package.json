@@ -10,6 +10,14 @@
     "start": "node dist/server.js",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "eval:ai": "tsx src/scripts/evaluateAi.ts",
+    "eval:assign": "tsx src/scripts/evaluateAssign.ts",
+    "eval:plan": "tsx src/scripts/evalPlan.ts",
+    "seed:sim": "tsx src/scripts/seedSimulation.ts",
+    "assign:keywords": "tsx src/scripts/showKeywords.ts",
+    "assign:suggest": "tsx src/scripts/showSuggestions.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
@@ -22,9 +30,15 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.7.0",
     "google-auth-library": "^10.9.1",
     "jsonwebtoken": "^9.0.3",
+    "mammoth": "^1.12.3",
+    "multer": "^2.2.0",
+    "nodemailer": "^10.0.1",
+    "pdf-parse": "^2.4.5",
     "pg": "^8.23.0",
+    "socket.io": "^4.8.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -34,12 +48,19 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.2.0",
     "@types/node": "^20.17.0",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.23.1",
+    "@types/supertest": "^6.0.3",
     "eslint": "^9.18.0",
+    "jszip": "^3.10.2",
     "prisma": "^7.10.0",
+    "socket.io-client": "^4.8.3",
+    "supertest": "^7.2.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^3.2.7"
   }
 }

@@ -1,13 +1,14 @@
-import type { Task } from './task';
+import type { Card, CardStatus } from './card';
 
-// Danh sach (cot) tren bang kieu Trello
+// Danh sach (cot) trong bang
 export interface BoardList {
   id: string;
-  projectId: string;
+  boardId: string;
   name: string;
   position: number;
+  // Trang thai gan cho cot (the di vao cot se doi theo); null = cot tu do
+  status: CardStatus | null;
   createdAt: string;
   updatedAt: string;
-  // Chi co khi tai bang qua GET /projects/:id/lists; khi tao/sua cot moi thi rong
-  tasks: Task[];
+  cards: Card[];
 }
