@@ -269,7 +269,7 @@ export default function CalendarPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="flex-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+        <h1 className="min-w-[10rem] flex-1 whitespace-nowrap text-lg font-semibold text-slate-900 dark:text-slate-100">
           Lịch — {title}
         </h1>
 
@@ -327,7 +327,9 @@ export default function CalendarPage() {
       )}
 
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-7 overflow-hidden rounded-xl border border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-800">
+        {/* Màn hình hẹp: lịch cuộn ngang trong vùng riêng để mỗi ô đủ rộng đọc được tên thẻ */}
+        <div className="overflow-x-auto rounded-xl">
+        <div className="grid min-w-[640px] grid-cols-7 overflow-hidden rounded-xl border border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-800">
           {WEEKDAYS.map((w) => (
             <div
               key={w}
@@ -386,6 +388,7 @@ export default function CalendarPage() {
               </DayCell>
             );
           })}
+        </div>
         </div>
       </DndContext>
       <p className="mt-2 text-xs text-slate-400">
