@@ -219,7 +219,7 @@ export default function AssignSuggestPanel({ cardId, boardMembers, cardMemberIds
             aria-expanded={open}
             aria-label={`Vì sao gợi ý ${s.user.name}`}
             onClick={() => setExpanded(open ? null : s.user.id)}
-            className="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium text-primary-ink hover:bg-slate-200 dark:text-sky-300 dark:hover:bg-slate-600"
+            className="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium text-primary-ink hover:bg-slate-200 dark:hover:bg-slate-600"
           >
             Vì sao? {open ? '▴' : '▾'}
           </button>
@@ -272,7 +272,7 @@ export default function AssignSuggestPanel({ cardId, boardMembers, cardMemberIds
   // cho người có quyền (máy chủ quyết định `cvAvailable`).
   function renderDeclared(s: AssignSuggestion) {
     const cv = s.cvAvailable ? (
-      <a href={userCvUrl(s.user.id)} download className="font-medium text-primary-ink hover:underline dark:text-sky-300">
+      <a href={userCvUrl(s.user.id)} download className="font-medium text-primary-ink hover:underline">
         Tải CV
       </a>
     ) : null;
@@ -342,7 +342,7 @@ export default function AssignSuggestPanel({ cardId, boardMembers, cardMemberIds
               setLoaded({ status: 'loading' });
               setReloadKey((k) => k + 1);
             }}
-            className="mt-1 font-medium text-primary-ink hover:underline dark:text-sky-300"
+            className="mt-1 font-medium text-primary-ink hover:underline"
           >
             Thử lại
           </button>
@@ -371,7 +371,7 @@ export default function AssignSuggestPanel({ cardId, boardMembers, cardMemberIds
               <p>
                 Trọng số nhóm: Kinh nghiệm {w.experience}% · Tin cậy {w.reliability}% · Khả dụng {w.availability}% · Hồ sơ {w.declared}%
                 {state.data.weights.custom ? ' (đã tuỳ chỉnh)' : ''}.{' '}
-                <Link to={`/workspaces/${state.data.card.workspaceId}`} className="font-medium text-primary-ink hover:underline dark:text-sky-300">
+                <Link to={`/workspaces/${state.data.card.workspaceId}`} className="font-medium text-primary-ink hover:underline">
                   Xem / chỉnh
                 </Link>
               </p>

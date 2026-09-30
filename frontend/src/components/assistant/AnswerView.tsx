@@ -88,7 +88,7 @@ function Suggestions({ items, disabled, onAsk }: { items: string[]; disabled: bo
           type="button"
           disabled={disabled}
           onClick={() => onAsk(q)}
-          className="rounded-full border border-slate-300 px-2.5 py-1 text-xs text-slate-600 transition hover:border-primary hover:text-primary-ink disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:border-sky-400 dark:hover:text-sky-300"
+          className="rounded-full border border-slate-300 px-2.5 py-1 text-xs text-slate-600 transition hover:border-primary hover:text-primary-ink disabled:opacity-50 dark:border-slate-600 dark:text-slate-300"
         >
           {q}
         </button>

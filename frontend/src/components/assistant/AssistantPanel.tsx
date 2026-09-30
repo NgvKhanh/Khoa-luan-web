@@ -33,7 +33,7 @@ function Intro({ busy, onAsk }: { busy: boolean; onAsk: (q: string) => void }) {
             type="button"
             disabled={busy}
             onClick={() => onAsk(q)}
-            className="rounded-full border border-slate-300 px-3 py-1 text-left text-xs text-slate-700 transition hover:border-primary hover:text-primary-ink disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:border-sky-400 dark:hover:text-sky-300"
+            className="rounded-full border border-slate-300 px-3 py-1 text-left text-xs text-slate-700 transition hover:border-primary hover:text-primary-ink disabled:opacity-50 dark:border-slate-600 dark:text-slate-200"
           >
             {q}
           </button>

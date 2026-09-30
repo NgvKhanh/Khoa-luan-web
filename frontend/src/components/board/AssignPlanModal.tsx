@@ -275,7 +275,7 @@ export default function AssignPlanModal({ listId, listName, onClose, onApplied }
                   setState({ status: 'loading' });
                   setReloadKey((k) => k + 1);
                 }}
-                className="mt-1 font-medium text-primary-ink hover:underline dark:text-sky-300"
+                className="mt-1 font-medium text-primary-ink hover:underline"
               >
                 Thử lại
               </button>

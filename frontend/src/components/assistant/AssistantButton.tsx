@@ -12,7 +12,7 @@ export default function AssistantButton() {
       title="Trợ lý công việc"
       className={`flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-sm font-medium transition sm:px-3 ${
         open
-          ? 'bg-primary/10 text-primary-ink dark:bg-sky-400/15 dark:text-sky-300'
+          ? 'bg-primary/10 text-primary-ink'
           : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
       }`}
     >
