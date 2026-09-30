@@ -354,6 +354,11 @@ Dùng hai tài khoản demo từ `teamSeed.ts` trong hai cửa sổ trình duy�
 | 1a | Màu chủ đạo chàm thay xanh Trello: biến `primary`, `primary-hover`, `primary-soft`, `primary-ink` (hai biến sau tự đổi ở giao diện tối); thay khoảng 180 chỗ ở 43 file; nền ứng dụng `#f8fafc`. Kiểm tra bằng mắt: dashboard, board, hộp thoại thẻ ở sáng/tối | `2580d83` |
 | 1b | Hệ chuyển động trong `motion.css`: hộp thoại, menu/popover, đổi trang; chỉ hiệu ứng vào; tắt hết khi giảm chuyển động (có `motion.test.ts` bảo đảm). Đã đo: khung hình chạy thật (độ mờ 0 → 0,73 trong khoảng 120ms), kết thúc để lại `transform: none` | `adcf831` |
 | 1c | Skeleton thay "Đang tải…" ở danh sách bảng, dashboard, Thẻ của tôi, Mẫu, Hoạt động của tôi, board (tải bảng và tải danh sách) và hộp thoại thẻ; sửa lỗi ô chỉ số dashboard hiện "0" khi đang tải | `44b5df3` |
+| 3a | Thẻ mới / vừa chuyển cột mờ dần vào; thay đổi do người khác nổi bật viền ~1,2s (so sánh danh sách cũ và mới ở frontend, không đổi backend). Không nháy khi chính mình thao tác (1,5s gần nhất), khi đang kéo, khi lần tải đầu/đổi bảng, hoặc khi hơn 12 thẻ đổi cùng lúc. Đã thử thật: tài khoản thứ hai đổi tên thẻ qua API thì thẻ ở tab kia nhận hiệu ứng; vào bảng lần đầu 40 thẻ, 0 hiệu ứng | `157ed30` |
+| 3b | Presence: chấm xanh, chú thích "<tên> (bạn) — đang xem bảng", `role=group` + nhãn liệt kê tên, avatar bật lên khi có người vào. Đã thử thật bằng tài khoản thứ hai vào phòng bảng qua socket | `bde713d` |
+| 3c | Hộp thoại thẻ: nhóm "Thêm vào thẻ" và biểu tượng cho 6 nút; vị trí popover giữ nguyên | `afd9950` |
+
+Ghi chú giai đoạn 3: phần phản hồi kéo thả đã có sẵn từ trước (bản nổi nghiêng, ô chờ nét đứt, hiệu ứng thả 200ms) nên không làm lại. Toast "ai vừa làm gì" và presence mức thẻ cần thay đổi backend, để ngoài đợt này. Phát hiện thêm: ở bề ngang khoảng 800px, thanh công cụ board bị dồn (tên bảng "Sprint 4: Đang chạy" bị ngắt thành 4 dòng) — cần xử lý khi làm toolbar hai hàng (mục 5.4).
 
 Còn lại của giai đoạn 1: khoảng 20 chỗ "Đang tải…" nhỏ trong menu/panel và trang phụ (`CalendarPage`, `JoinBoardPage`, `WorkspaceSettingsPage`, `PublicBoardPage`, `NotificationSettingsPage`…), cho từng trang tự chọn chiều rộng trong `MainLayout`, trạng thái trống có minh họa. Giai đoạn 0 (ảnh đối chiếu lưu trong repo) chưa làm.
 
