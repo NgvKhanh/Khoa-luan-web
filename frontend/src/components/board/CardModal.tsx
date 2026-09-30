@@ -96,6 +96,27 @@ interface Props {
 // dung the - nen luon bat tuong tac duoc, ke ca voi VIEWER (readOnly=true).
 // Tach rieng khoi panel "Ngay" (chi danh cho nguoi co quyen sua) de dung lai
 // duoc o ca 2 noi: trong panel "Ngay" va o popover rieng canh huy hieu ngay.
+// Nut "Thêm vào thẻ": chung kiểu dáng, mỗi nút có biểu tượng để quét mắt nhanh hơn
+const ADD_TO_CARD_BTN =
+  'inline-flex items-center gap-1.5 rounded bg-slate-200 dark:bg-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600';
+
+const ADD_ICON_PATHS = {
+  labels: 'M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0L3 13V3h10l7.6 7.6a2 2 0 010 2.8zM7.5 7.5h.01',
+  due: 'M5 4h14a2 2 0 012 2v13a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zM3 10h18M8 2v4M16 2v4',
+  members: 'M12 4.5a3.5 3.5 0 110 7 3.5 3.5 0 010-7zM5 20a7 7 0 0114 0',
+  checklist: 'M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11',
+  cover: 'M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2zM8.5 7a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM21 15l-5-5L5 21',
+  attach: 'M21 12.5l-8.5 8.5a5 5 0 01-7-7l9-9a3.5 3.5 0 015 5l-9 9a2 2 0 01-3-3l8-8',
+} as const;
+
+function AddIcon({ name }: { name: keyof typeof ADD_ICON_PATHS }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d={ADD_ICON_PATHS[name]} />
+    </svg>
+  );
+}
+
 function ReminderCheckboxes({
   cardId,
   reminders,
@@ -882,6 +903,11 @@ export default function CardModal({
                 )}
 
                 {/* Hang nut hanh dong */}
+                {!readOnly && (
+                  <p className="mb-1.5 pl-7 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Thêm vào thẻ
+                  </p>
+                )}
                 <div
                   className={`relative mb-4 flex flex-wrap gap-2 pl-7 ${
                     readOnly ? 'hidden' : ''
@@ -892,8 +918,9 @@ export default function CardModal({
                       key={p}
                       type="button"
                       onClick={() => setPanel(panel === p ? null : p)}
-                      className="rounded bg-slate-200 dark:bg-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
+                      className={ADD_TO_CARD_BTN}
                     >
+                      <AddIcon name={p} />
                       {p === 'labels' ? 'Nhãn' : p === 'due' ? 'Ngày' : 'Thành viên'}
                     </button>
                   ))}
@@ -908,23 +935,26 @@ export default function CardModal({
                         setPanel('checklist');
                       }
                     }}
-                    className="rounded bg-slate-200 dark:bg-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
+                    className={ADD_TO_CARD_BTN}
                   >
+                    <AddIcon name="checklist" />
                     Việc cần làm
                   </button>
                   <button
                     type="button"
                     onClick={() => setPanel(panel === 'cover' ? null : 'cover')}
-                    className="rounded bg-slate-200 dark:bg-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600"
+                    className={ADD_TO_CARD_BTN}
                   >
+                    <AddIcon name="cover" />
                     Ảnh bìa
                   </button>
                   <button
                     type="button"
                     disabled={uploading}
                     onClick={() => fileRef.current?.click()}
-                    className="rounded bg-slate-200 dark:bg-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-60"
+                    className={`${ADD_TO_CARD_BTN} disabled:opacity-60`}
                   >
+                    <AddIcon name="attach" />
                     {uploading ? 'Đang tải lên...' : 'Đính kèm'}
                   </button>
                   <input
