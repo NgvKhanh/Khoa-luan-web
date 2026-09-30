@@ -208,15 +208,55 @@ export async function listMyBoards(userId: string) {
     },
   });
 
+  const progress = await cardProgressByBoard(boards.map((b) => b.id));
+
   return boards.map(({ _count, members, stars, workspace, ...board }) => ({
     ...board,
     workspaceName: workspace.name,
     workspaceIsPersonal: workspace.isPersonal,
     memberCount: _count.members,
+    cardCount: progress.get(board.id)?.cardCount ?? 0,
+    doneCount: progress.get(board.id)?.doneCount ?? 0,
     isOwner: board.ownerId === userId,
     isMember: members.length > 0,
     isStarred: stars.length > 0,
   }));
+}
+
+// Tong so the va so the da hoan thanh cua tung bang - cho thanh tien do o danh sach bang.
+// Dem giong man hinh bang (chi the/danh sach chua luu tru va chua xoa), va dung 2 truy van
+// gom nhom thay vi tai tung the.
+async function cardProgressByBoard(
+  boardIds: string[]
+): Promise<Map<string, { cardCount: number; doneCount: number }>> {
+  const result = new Map<string, { cardCount: number; doneCount: number }>();
+  if (boardIds.length === 0) return result;
+
+  const lists = await prisma.list.findMany({
+    where: { boardId: { in: boardIds }, deletedAt: null, archivedAt: null },
+    select: { id: true, boardId: true },
+  });
+  const boardOfList = new Map(lists.map((l) => [l.id, l.boardId]));
+  if (boardOfList.size === 0) return result;
+
+  const groups = await prisma.card.groupBy({
+    by: ['listId', 'isDone'],
+    where: {
+      listId: { in: [...boardOfList.keys()] },
+      deletedAt: null,
+      archivedAt: null,
+    },
+    _count: { _all: true },
+  });
+  for (const g of groups) {
+    const boardId = boardOfList.get(g.listId);
+    if (!boardId) continue;
+    const cur = result.get(boardId) ?? { cardCount: 0, doneCount: 0 };
+    cur.cardCount += g._count._all;
+    if (g.isDone) cur.doneCount += g._count._all;
+    result.set(boardId, cur);
+  }
+  return result;
 }
 
 // Danh dau / bo danh dau sao bang cho nguoi dung hien tai.
