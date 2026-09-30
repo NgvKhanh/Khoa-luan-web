@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
-import BoardSidebar from '../components/BoardSidebar';
+import BoardSidebar, { BoardMobileNav } from '../components/BoardSidebar';
 import Header from '../components/Header';
 import { useBoards } from '../context/BoardsContext';
 import type { Board } from '../types/board';
@@ -14,6 +15,7 @@ export interface BoardOutletContext {
 // Layout khi dang xem 1 bang: Header + Sidebar giu nguyen, chi vung noi dung doi.
 export default function BoardViewLayout() {
   const { boards, isLoading, error, upsertBoard } = useBoards();
+  const [navOpen, setNavOpen] = useState(false);
 
   const ctx: BoardOutletContext = {
     boards,
@@ -24,7 +26,8 @@ export default function BoardViewLayout() {
 
   return (
     <div className="flex h-screen flex-col">
-      <Header />
+      <Header onOpenNav={() => setNavOpen(true)} />
+      <BoardMobileNav open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="flex min-h-0 flex-1">
         <BoardSidebar />
         <main className="min-w-0 flex-1 overflow-hidden">

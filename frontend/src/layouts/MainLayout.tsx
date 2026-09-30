@@ -1,15 +1,18 @@
+import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import EmailVerifyBanner from '../components/EmailVerifyBanner';
 import Header from '../components/Header';
-import Sidebar from '../components/Sidebar';
+import Sidebar, { MainMobileNav } from '../components/Sidebar';
 
 export default function MainLayout() {
   const { pathname } = useLocation();
+  const [navOpen, setNavOpen] = useState(false);
   // Tổng quan và danh sách bảng cần rộng hơn (cột phụ, lưới 4 cột); các trang còn lại giữ bề rộng đọc gọn
   const wide = pathname === '/home' || pathname === '/boards';
   return (
     <div className="flex h-screen flex-col bg-white dark:bg-slate-900">
-      <Header />
+      <Header onOpenNav={() => setNavOpen(true)} />
+      <MainMobileNav open={navOpen} onClose={() => setNavOpen(false)} />
       <EmailVerifyBanner />
       <div className="flex min-h-0 flex-1">
         <Sidebar />

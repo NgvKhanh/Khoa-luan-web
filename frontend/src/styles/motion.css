@@ -117,6 +117,36 @@
   animation: tf-bar-in 600ms var(--motion-ease-out);
 }
 
+/* Ngan dieu huong tren dien thoai: nen mo dan, ngan truot vao tu trai (thuoc tinh `translate` rieng) */
+@keyframes tf-drawer-in {
+  from {
+    translate: -100% 0;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+.tf-drawer-backdrop {
+  animation: tf-fade-in var(--motion-base) ease-out;
+}
+.tf-drawer-in {
+  animation: tf-drawer-in 220ms var(--motion-ease-out);
+}
+
+/* Dong/mo mem bang chieu cao dong luoi (khong can do chieu cao bang JS) */
+.tf-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--motion-base) var(--motion-ease-out);
+}
+.tf-collapse[data-open='true'] {
+  grid-template-rows: 1fr;
+}
+.tf-collapse > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* Khung cho tai (skeleton): nen xam + dai sang chay ngang. Giam chuyen dong -> chi con khoi xam tinh. */
 :root {
   --tf-skeleton-base: #e2e8f0;
@@ -158,8 +188,13 @@
   .tf-card-in,
   .tf-avatar-in,
   .tf-bar-in,
+  .tf-drawer-backdrop,
+  .tf-drawer-in,
   .tf-skeleton {
     animation: none;
+  }
+  .tf-collapse {
+    transition: none;
   }
   /* Vien noi bat van can bao duoc thay doi: chuyen thanh vien tinh (lop se bi go sau ~1,6 giay) */
   .tf-card-flash {

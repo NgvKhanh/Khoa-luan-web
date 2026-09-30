@@ -228,8 +228,8 @@ export default function HomeDashboard() {
       </div>
 
       {/* Tu 1280px: cot chinh (can xu ly + truy cap nhanh) va cot phu (hoat dong) ti le 2:1 */}
-      <div className="grid items-start gap-5 xl:grid-cols-3">
-      <div className="flex flex-col gap-5 xl:col-span-2">
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-3">
+      <div className="flex min-w-0 flex-col gap-5 xl:col-span-2">
         {/* 2. Can chu y */}
         <Section
           title="Cần chú ý"
@@ -335,7 +335,7 @@ export default function HomeDashboard() {
       </div>
 
       {/* 4. Hoat dong gan day */}
-      <div className="xl:col-span-1">
+      <div className="min-w-0 xl:col-span-1">
         <Section title="Hoạt động gần đây">
           {loading ? (
             <SkeletonRegion label="Đang tải hoạt động gần đây…">
