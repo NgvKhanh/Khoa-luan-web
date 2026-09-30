@@ -347,14 +347,33 @@ export default function BoardMembers({
 
   return (
     <div ref={rootRef} className="relative flex items-center gap-2">
-      <div className="flex -space-x-2">
-        {shown.map((m) => (
-          <span key={m.id} className="ring-2 ring-white/70 rounded-full">
+      <div
+        role="group"
+        aria-label={
+          present.length <= 1
+            ? 'Đang xem bảng: chỉ có bạn'
+            : `Đang xem bảng: ${present.map((m) => m.user.name).join(', ')}`
+        }
+        className="flex -space-x-2"
+      >
+        {shown.map((m, i) => (
+          // key theo thành viên: người vừa vào mới gắn phần tử mới nên mới chạy hiệu ứng hiện ra.
+          // zIndex giảm dần: avatar bên trái nằm trên, để chấm xanh ở góc phải không bị avatar kế bên đè.
+          <span
+            key={m.id}
+            style={{ zIndex: shown.length - i }}
+            className="tf-avatar-in relative rounded-full ring-2 ring-white/70"
+          >
             <Avatar
               id={m.userId}
               name={m.user.name}
               avatarUrl={m.user.avatarUrl}
               className="h-7 w-7 text-xs"
+              title={`${m.user.name}${m.userId === currentUserId ? ' (bạn)' : ''} — đang xem bảng`}
+            />
+            <span
+              aria-hidden="true"
+              className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-white"
             />
           </span>
         ))}

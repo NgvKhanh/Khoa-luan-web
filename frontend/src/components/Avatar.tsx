@@ -38,11 +38,14 @@ export default function Avatar({
   name,
   avatarUrl,
   className = 'h-7 w-7 text-xs',
+  title,
 }: {
   id: string;
   name: string;
   avatarUrl?: string | null;
   className?: string;
+  /** Chú thích khi rê chuột; mặc định là tên. */
+  title?: string;
 }) {
   const base = avatarUrl ? assetUrl(avatarUrl) : '';
   const [nonce, setNonce] = useState(0);
@@ -79,7 +82,7 @@ export default function Avatar({
     <span
       className={`relative grid shrink-0 place-items-center overflow-hidden rounded-full font-semibold text-white ${className}`}
       style={{ backgroundColor: colorOf(id) }}
-      title={name}
+      title={title ?? name}
     >
       <span className={loaded ? 'invisible' : ''}>{initialsOf(name)}</span>
       {base && (

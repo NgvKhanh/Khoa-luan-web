@@ -88,6 +88,21 @@
   animation: tf-card-flash 1.2s ease-out;
 }
 
+/* Nguoi vua vao xem bang: avatar bat len (thuoc tinh `scale` rieng, khong dung transform) */
+@keyframes tf-avatar-in {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+.tf-avatar-in {
+  animation: tf-avatar-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
 /* Khung cho tai (skeleton): nen xam + dai sang chay ngang. Giam chuyen dong -> chi con khoi xam tinh. */
 :root {
   --tf-skeleton-base: #e2e8f0;
@@ -127,6 +142,7 @@
   .tf-menu-in,
   .tf-page-in,
   .tf-card-in,
+  .tf-avatar-in,
   .tf-skeleton {
     animation: none;
   }

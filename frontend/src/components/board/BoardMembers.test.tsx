@@ -139,3 +139,33 @@ describe('BoardMembers - chia se bang', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('BoardMembers - hang nguoi dang xem bang', () => {
+  it('chi co minh: nhan cho trinh doc man hinh noi ro, chu thich co "(ban)"', () => {
+    setup();
+    expect(screen.getByRole('group', { name: 'Đang xem bảng: chỉ có bạn' })).toBeInTheDocument();
+    expect(screen.getByTitle('Chu Bang (bạn) — đang xem bảng')).toBeInTheDocument();
+    // Thanh vien khong online thi khong hien
+    expect(screen.queryByTitle(/Thanh Vien/)).not.toBeInTheDocument();
+  });
+
+  it('co thanh vien khac dang online: hien them avatar va liet ke ten trong nhan', () => {
+    setup({ onlineUserIds: ['u-1'] });
+    expect(
+      screen.getByRole('group', { name: 'Đang xem bảng: Chu Bang, Thanh Vien' })
+    ).toBeInTheDocument();
+    expect(screen.getByTitle('Thanh Vien — đang xem bảng')).toBeInTheDocument();
+  });
+
+  it('moi nguoi dang xem co mot cham "dang online" trang tri (an voi trinh doc man hinh)', () => {
+    setup({ onlineUserIds: ['u-1'] });
+    const group = screen.getByRole('group', { name: /Đang xem bảng/ });
+    const dots = group.querySelectorAll('span[aria-hidden="true"].bg-emerald-400');
+    expect(dots).toHaveLength(2);
+  });
+
+  it('nguoi online nhung khong con la thanh vien bang thi khong hien', () => {
+    setup({ onlineUserIds: ['u-khong-ton-tai'] });
+    expect(screen.getByRole('group', { name: 'Đang xem bảng: chỉ có bạn' })).toBeInTheDocument();
+  });
+});
