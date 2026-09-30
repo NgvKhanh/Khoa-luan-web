@@ -64,7 +64,7 @@ export default function ForgotPasswordPage() {
 
           <Link
             to="/login"
-            className="rounded-lg bg-[#1558bc] px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-[#0f4aa8]"
+            className="rounded-lg bg-[var(--brand-primary)] px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-[var(--brand-primary-hover)]"
           >
             Về trang đăng nhập
           </Link>
@@ -96,7 +96,7 @@ export default function ForgotPasswordPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="mt-1 rounded-lg bg-[#1558bc] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0f4aa8] disabled:opacity-60"
+              className="mt-1 rounded-lg bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--brand-primary-hover)] disabled:opacity-60"
             >
               {isSubmitting ? 'Đang gửi...' : 'Gửi liên kết đặt lại'}
             </button>

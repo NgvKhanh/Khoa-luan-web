@@ -24,7 +24,7 @@ export default function RegisterPage() {
     try {
       await register(name, email, password);
       const redirectTo =
-        (location.state as { from?: string } | null)?.from ?? '/';
+        (location.state as { from?: string } | null)?.from ?? '/boards';
       navigate(redirectTo, { replace: true });
     } catch (err) {
       setError(getErrorMessage(err, 'Không thể đăng ký. Vui lòng thử lại.'));
@@ -100,7 +100,7 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="mt-1 rounded-lg bg-[#1558bc] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0f4aa8] disabled:opacity-60"
+          className="mt-1 rounded-lg bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--brand-primary-hover)] disabled:opacity-60"
         >
           {isSubmitting ? 'Đang tạo tài khoản...' : 'Đăng ký'}
         </button>

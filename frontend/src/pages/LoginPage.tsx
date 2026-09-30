@@ -23,7 +23,7 @@ export default function LoginPage() {
     try {
       await login(email, password);
       const redirectTo =
-        (location.state as { from?: string } | null)?.from ?? '/';
+        (location.state as { from?: string } | null)?.from ?? '/boards';
       navigate(redirectTo, { replace: true });
     } catch (err) {
       setError(getErrorMessage(err, 'Không thể đăng nhập. Vui lòng thử lại.'));
@@ -81,7 +81,7 @@ export default function LoginPage() {
           <div className="mt-1.5 text-right">
             <Link
               to="/forgot-password"
-              className="text-sm font-medium text-[#1558bc] hover:underline"
+              className="text-sm font-medium text-[var(--brand-primary)] hover:underline"
             >
               Quên mật khẩu?
             </Link>
@@ -91,7 +91,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="mt-1 rounded-lg bg-[#1558bc] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0f4aa8] disabled:opacity-60"
+          className="mt-1 rounded-lg bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--brand-primary-hover)] disabled:opacity-60"
         >
           {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>

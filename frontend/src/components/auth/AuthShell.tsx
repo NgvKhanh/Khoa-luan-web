@@ -2,9 +2,9 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import Logo from '../Logo';
 
-// Class dung chung cho o nhap trong cac trang xac thuc (dong bo focus mau xanh app)
+// Shared brand colors keep authentication consistent with the public landing.
 export const authFieldClass =
-  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition-colors focus:border-[#1558bc] focus:outline-none focus:ring-2 focus:ring-[#1558bc]/20';
+  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 transition-colors focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]/20';
 
 interface Props {
   title: string;
@@ -19,7 +19,7 @@ export default function AuthShell({ title, subtitle, children, footer }: Props) 
   return (
     <div
       className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10"
-      style={{ background: 'linear-gradient(135deg, #1558bc 0%, #0b3f8f 70%)' }}
+      style={{ background: 'var(--brand-gradient)', fontFamily: 'var(--brand-font)' }}
     >
       {/* Doi sang trang tri mo o goc */}
       <div
@@ -48,9 +48,7 @@ export default function AuthShell({ title, subtitle, children, footer }: Props) 
         </div>
 
         <p className="mt-5 text-center text-sm text-white/80">{footer}</p>
-        <p className="mt-8 text-center text-xs text-white/50">
-          © 2026 TaskFlow — Đồ án tốt nghiệp
-        </p>
+        <p className="mt-8 text-center text-xs text-white/85">© 2026 TaskFlow — Đồ án tốt nghiệp</p>
       </div>
     </div>
   );

@@ -45,7 +45,7 @@ export default function VerifyEmailPage() {
   const footer = user ? (
     <>
       Quay lại{' '}
-      <Link to="/" className="font-semibold text-white hover:underline">
+      <Link to="/boards" className="font-semibold text-white hover:underline">
         Trang chủ
       </Link>
     </>
@@ -74,8 +74,8 @@ export default function VerifyEmailPage() {
             Email của bạn đã được xác minh thành công. Cảm ơn bạn!
           </div>
           <Link
-            to={user ? '/' : '/login'}
-            className="rounded-lg bg-[#1558bc] px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-[#0f4aa8]"
+            to={user ? '/boards' : '/login'}
+            className="rounded-lg bg-[var(--brand-primary)] px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-[var(--brand-primary-hover)]"
           >
             {user ? 'Vào TaskFlow' : 'Đăng nhập'}
           </Link>
@@ -88,8 +88,8 @@ export default function VerifyEmailPage() {
             {error}
           </div>
           <Link
-            to={user ? '/' : '/login'}
-            className="rounded-lg bg-[#1558bc] px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-[#0f4aa8]"
+            to={user ? '/boards' : '/login'}
+            className="rounded-lg bg-[var(--brand-primary)] px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-[var(--brand-primary-hover)]"
           >
             {user ? 'Về trang chủ' : 'Về trang đăng nhập'}
           </Link>
