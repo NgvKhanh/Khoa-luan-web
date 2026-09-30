@@ -4,6 +4,7 @@ import { assetUrl } from '../../lib/assets';
 import { shouldShowCardStatus } from '../../lib/cardStatus';
 import type { Card, CardStatus } from '../../types/card';
 import Avatar from '../Avatar';
+import { useCardHighlight } from './CardHighlightContext';
 import StatusBadge from './StatusBadge';
 
 // Dai mau / anh o dinh the (giong Trello)
@@ -77,6 +78,7 @@ export default function CardItem({
     data: { type: 'card', listId: card.listId },
     disabled: overlay || readOnly,
   });
+  const highlight = useCardHighlight(card.id);
 
   // Bao dnd-kit biet dau la "tay cam" keo. Nho vay KeyboardSensor chi nhan
   // Enter/Space khi dung chinh the dang duoc focus - bam Enter tren cac nut
@@ -237,7 +239,9 @@ export default function CardItem({
         // tran chieu cao thi flexbox se bop det cac the lai thay vi cho cuon.
         isDragging
           ? 'shrink-0 rounded-lg border-2 border-dashed border-slate-300 bg-slate-200/60 text-sm dark:border-slate-600 dark:bg-slate-900/40 [&_*]:invisible'
-          : 'group/card relative shrink-0 cursor-pointer overflow-hidden rounded-lg bg-white text-sm shadow-sm ring-1 ring-black/[0.04] transition-shadow hover:shadow-md dark:bg-slate-700 dark:ring-white/10'
+          : `group/card relative shrink-0 cursor-pointer overflow-hidden rounded-lg bg-white text-sm shadow-sm ring-1 ring-black/[0.04] transition-shadow hover:shadow-md dark:bg-slate-700 dark:ring-white/10${
+              highlight?.enter ? ' tf-card-in' : ''
+            }${highlight?.flash ? ' tf-card-flash' : ''}`
       }
     >
       {!isDragging && hasCover && <CardCover card={card} />}

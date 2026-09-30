@@ -38,6 +38,7 @@ import BoardFilterPanel from '../components/board/BoardFilterPanel';
 import BoardMembers from '../components/board/BoardMembers';
 import CardModal from '../components/board/CardModal';
 import CardItem from '../components/board/CardItem';
+import { CardHighlightContext } from '../components/board/CardHighlightContext';
 import ListColumn from '../components/board/ListColumn';
 import ListColumnOverlay from '../components/board/ListColumnOverlay';
 import ShortcutsHelp from '../components/board/ShortcutsHelp';
@@ -92,6 +93,7 @@ import BoardVisibilityMenu from '../components/board/BoardVisibilityMenu';
 import type { Card, CardStatus } from '../types/card';
 import type { BoardList } from '../types/list';
 import { useBoardRealtime } from './boardPage/useBoardRealtime';
+import { useCardHighlights } from './boardPage/useCardHighlights';
 import { useBoardShortcuts } from './boardPage/useBoardShortcuts';
 import {
   collisionDetectionStrategy,
@@ -409,6 +411,9 @@ export default function BoardPage() {
     draggingRef,
     pendingReloadRef,
   });
+
+  // Thẻ vừa xuất hiện / vừa đổi bởi người khác -> hiệu ứng tạm thời trên thẻ
+  const cardHighlights = useCardHighlights({ lists, listsLoading, draggingRef });
 
   // ---------- Phím tắt ----------
   useBoardShortcuts({
@@ -1146,68 +1151,70 @@ export default function BoardPage() {
       ) : boardView === 'table' ? (
         <BoardTableView lists={displayLists} onOpenCard={setOpenCardId} />
       ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={collisionDetectionStrategy}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-          onDragCancel={handleDragCancel}
-        >
-          <div
-            className={`board-scroll flex min-h-0 flex-1 items-start gap-3 overflow-x-auto p-3 ${
-              activeCard || activeList ? 'select-none' : ''
-            }`}
+        <CardHighlightContext.Provider value={cardHighlights}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={collisionDetectionStrategy}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
           >
-            <SortableContext
-              items={listDndIds}
-              strategy={horizontalListSortingStrategy}
+            <div
+              className={`board-scroll flex min-h-0 flex-1 items-start gap-3 overflow-x-auto p-3 ${
+                activeCard || activeList ? 'select-none' : ''
+              }`}
             >
-              {displayLists.map((list) => (
-                <ListColumn
-                  key={list.id}
-                  list={list}
-                  allLists={lists}
-                  readOnly={readOnly}
-                  onApplyCardTemplate={handleApplyCardTemplate}
-                  onRename={handleRenameList}
-                  onRequestDeleteList={(l) =>
-                    setDeleteTarget({ kind: 'list', list: l })
-                  }
-                  onAddCard={handleAddCard}
-                  onToggleCardDone={handleToggleCardDone}
-                  onRequestDeleteCard={handleArchiveCard}
-                  onOpenCard={setOpenCardId}
-                  onCopyList={handleCopyList}
-                  onMoveList={handleMoveList}
-                  onMoveAllCards={handleMoveAllCards}
-                  onSortList={handleSortList}
-                  onSetListStatus={handleSetListStatus}
-                  onRequestDeleteAllCards={(l) =>
-                    setDeleteTarget({ kind: 'cards-in-list', list: l })
-                  }
-                  onAssignApplied={reloadLists}
-                />
-              ))}
-            </SortableContext>
+              <SortableContext
+                items={listDndIds}
+                strategy={horizontalListSortingStrategy}
+              >
+                {displayLists.map((list) => (
+                  <ListColumn
+                    key={list.id}
+                    list={list}
+                    allLists={lists}
+                    readOnly={readOnly}
+                    onApplyCardTemplate={handleApplyCardTemplate}
+                    onRename={handleRenameList}
+                    onRequestDeleteList={(l) =>
+                      setDeleteTarget({ kind: 'list', list: l })
+                    }
+                    onAddCard={handleAddCard}
+                    onToggleCardDone={handleToggleCardDone}
+                    onRequestDeleteCard={handleArchiveCard}
+                    onOpenCard={setOpenCardId}
+                    onCopyList={handleCopyList}
+                    onMoveList={handleMoveList}
+                    onMoveAllCards={handleMoveAllCards}
+                    onSortList={handleSortList}
+                    onSetListStatus={handleSetListStatus}
+                    onRequestDeleteAllCards={(l) =>
+                      setDeleteTarget({ kind: 'cards-in-list', list: l })
+                    }
+                    onAssignApplied={reloadLists}
+                  />
+                ))}
+              </SortableContext>
 
-            {!readOnly && <AddListForm onAdd={handleAddList} />}
-          </div>
+              {!readOnly && <AddListForm onAdd={handleAddList} />}
+            </div>
 
-          <DragOverlay dropAnimation={dropAnimation}>
-            {activeCard ? (
-              <div className="w-64">
-                <CardItem
-                  card={activeCard}
-                  listStatus={lists.find((l) => l.id === activeCard.listId)?.status ?? null}
-                  overlay
-                />
-              </div>
-            ) : activeList ? (
-              <ListColumnOverlay list={activeList} />
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+            <DragOverlay dropAnimation={dropAnimation}>
+              {activeCard ? (
+                <div className="w-64">
+                  <CardItem
+                    card={activeCard}
+                    listStatus={lists.find((l) => l.id === activeCard.listId)?.status ?? null}
+                    overlay
+                  />
+                </div>
+              ) : activeList ? (
+                <ListColumnOverlay list={activeList} />
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        </CardHighlightContext.Provider>
       )}
 
       <ConfirmDialog

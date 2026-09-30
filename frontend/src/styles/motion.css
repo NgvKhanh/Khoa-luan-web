@@ -56,6 +56,38 @@
   animation: tf-fade-in var(--motion-page) ease-out;
 }
 
+/* The tren bang: the moi xuat hien / vua chuyen cot mo dan vao; the vua doi boi nguoi khac vien noi bat.
+   Dung thuoc tinh `translate` (rieng biet voi `transform`) de khong danh nhau voi transform cua dnd-kit. */
+@keyframes tf-card-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes tf-card-flash {
+  0%,
+  35% {
+    outline: 2px solid var(--brand-primary);
+    outline-offset: 1px;
+  }
+  100% {
+    outline: 2px solid transparent;
+    outline-offset: 1px;
+  }
+}
+
+.tf-card-in {
+  animation: tf-card-in 200ms var(--motion-ease-out);
+}
+.tf-card-flash {
+  animation: tf-card-flash 1.2s ease-out;
+}
+
 /* Khung cho tai (skeleton): nen xam + dai sang chay ngang. Giam chuyen dong -> chi con khoi xam tinh. */
 :root {
   --tf-skeleton-base: #e2e8f0;
@@ -94,7 +126,14 @@
   .tf-overlay > *,
   .tf-menu-in,
   .tf-page-in,
+  .tf-card-in,
   .tf-skeleton {
     animation: none;
+  }
+  /* Vien noi bat van can bao duoc thay doi: chuyen thanh vien tinh (lop se bi go sau ~1,6 giay) */
+  .tf-card-flash {
+    animation: none;
+    outline: 2px solid var(--brand-primary);
+    outline-offset: 1px;
   }
 }
