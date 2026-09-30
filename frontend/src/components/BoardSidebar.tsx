@@ -55,7 +55,7 @@ export default function BoardSidebar() {
 
       <div className="flex-1 overflow-y-auto p-2">
         <Link
-          to="/"
+          to="/boards"
           className="flex items-center gap-2 rounded px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">

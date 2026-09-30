@@ -80,7 +80,7 @@ export function useBoardRealtime({
       onMetaChanged();
     };
     const onRemoved = (payload: { boardId?: string }) => {
-      if (payload?.boardId === boardId) navigate('/', { replace: true });
+      if (payload?.boardId === boardId) navigate('/boards', { replace: true });
     };
     const onPresence = (payload: { boardId?: string; userIds?: string[] }) => {
       if (payload?.boardId === boardId) setOnlineIds(payload.userIds ?? []);

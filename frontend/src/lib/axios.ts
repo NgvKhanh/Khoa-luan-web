@@ -16,6 +16,7 @@ export const api = axios.create({
 
 // Cac trang cong khai (chua dang nhap van xem duoc) - khong da ve /login khi 401
 const PUBLIC_PATHS = [
+  '/',
   '/login',
   '/register',
   '/forgot-password',

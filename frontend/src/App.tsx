@@ -9,6 +9,7 @@ import HomeDashboard from './pages/HomeDashboard';
 import HomePage from './pages/HomePage';
 import JoinBoardPage from './pages/JoinBoardPage';
 import LoginPage from './pages/LoginPage';
+import LandingPage from './pages/LandingPage';
 import PublicBoardPage from './pages/PublicBoardPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
@@ -21,10 +22,27 @@ import RegisterPage from './pages/RegisterPage';
 import SearchPage from './pages/SearchPage';
 import WorkspaceSettingsPage from './pages/WorkspaceSettingsPage';
 import ProtectedRoute from './routes/ProtectedRoute';
+import { useAuth } from './context/AuthContext';
+
+function UnknownRoute() {
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div
+        role="status"
+        className="grid min-h-screen place-items-center text-slate-600 dark:text-slate-300"
+      >
+        Đang kiểm tra đăng nhập…
+      </div>
+    );
+  }
+  return <Navigate to={user ? '/boards' : '/'} replace />;
+}
 
 function App() {
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -34,13 +52,10 @@ function App() {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/boards" element={<HomePage />} />
           <Route path="/home" element={<HomeDashboard />} />
           <Route path="/templates" element={<TemplatesPage />} />
-          <Route
-            path="/workspaces/:workspaceId"
-            element={<WorkspaceSettingsPage />}
-          />
+          <Route path="/workspaces/:workspaceId" element={<WorkspaceSettingsPage />} />
           <Route path="/my-cards" element={<MyCardsPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
@@ -57,7 +72,7 @@ function App() {
         </Route>
       </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<UnknownRoute />} />
     </Routes>
   );
 }

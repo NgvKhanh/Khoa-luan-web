@@ -162,7 +162,7 @@ export default function HomeDashboard() {
   const starred = boards.filter((b) => b.isStarred).slice(0, 6);
 
   const stats = [
-    { label: 'Bảng', value: boards.length, to: '/' },
+    { label: 'Bảng', value: boards.length, to: '/boards' },
     { label: 'Thẻ được giao', value: assigned.length, to: '/my-cards' },
     { label: 'Quá hạn', value: overdue, to: '/my-cards', danger: overdue > 0 },
     { label: 'Đến hạn trong tuần', value: dueWeek, to: '/calendar' },

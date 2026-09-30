@@ -36,7 +36,7 @@ export default function GoogleAuthButton() {
             try {
               await loginWithGoogle(res.credential);
               const redirectTo =
-                (location.state as { from?: string } | null)?.from ?? '/';
+                (location.state as { from?: string } | null)?.from ?? '/boards';
               navigate(redirectTo, { replace: true });
             } catch (err) {
               setError(getErrorMessage(err, 'Đăng nhập Google thất bại.'));

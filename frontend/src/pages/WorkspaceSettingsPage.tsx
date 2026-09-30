@@ -228,7 +228,7 @@ export default function WorkspaceSettingsPage() {
       await removeWorkspaceMember(workspaceId, user.id);
       removeWorkspace(workspaceId);
       void reloadWorkspaces();
-      navigate('/', { replace: true });
+      navigate('/boards', { replace: true });
     } catch (err) {
       setActionError(getErrorMessage(err, 'Không rời được không gian.'));
       setBusy(false);
@@ -243,7 +243,7 @@ export default function WorkspaceSettingsPage() {
       await deleteWorkspace(workspaceId);
       removeWorkspace(workspaceId);
       void reloadWorkspaces();
-      navigate('/', { replace: true });
+      navigate('/boards', { replace: true });
     } catch (err) {
       setActionError(getErrorMessage(err, 'Không xoá được không gian.'));
       setBusy(false);
@@ -255,7 +255,7 @@ export default function WorkspaceSettingsPage() {
     return (
       <div className="mx-auto max-w-3xl">
         <p className="text-sm text-red-600">{loadError}</p>
-        <Link to="/" className="mt-3 inline-block text-sm text-[#0c66e4] hover:underline">
+        <Link to="/boards" className="mt-3 inline-block text-sm text-[#0c66e4] hover:underline">
           Về trang chủ
         </Link>
       </div>

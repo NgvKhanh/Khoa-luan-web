@@ -1,0 +1,17 @@
+/* Shared identity for public pages and authentication. System fonts support Vietnamese without a network font request. */
+:root {
+  --brand-primary: #4f46e5;
+  --brand-primary-hover: #4338ca;
+  --brand-accent: #06b6d4;
+  --brand-accent-deep: #0e7490;
+  --brand-focus: #6366f1;
+  --brand-ink: #172b3a;
+  --brand-muted: #52616b;
+  --brand-font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --brand-gradient: linear-gradient(
+    135deg,
+    var(--brand-accent-deep),
+    var(--brand-primary) 65%,
+    var(--brand-primary-hover)
+  );
+}

@@ -76,7 +76,7 @@ export default function PublicBoardPage() {
         <div className="ml-auto">
           {user ? (
             <Link
-              to="/"
+              to="/boards"
               className="rounded-lg bg-[#0c66e4] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4]"
             >
               Về TaskFlow
@@ -84,6 +84,7 @@ export default function PublicBoardPage() {
           ) : (
             <Link
               to="/login"
+              state={{ from: `/boards/${boardId}` }}
               className="rounded-lg bg-[#0c66e4] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#0a5cd4]"
             >
               Đăng nhập
@@ -101,7 +102,7 @@ export default function PublicBoardPage() {
           <p className="text-slate-600 dark:text-slate-300">
             {error ?? 'Không tìm thấy bảng này.'}
           </p>
-          <Link to="/login" className="text-sm font-medium text-[#0c66e4] hover:underline">
+          <Link to="/login" state={{ from: `/boards/${boardId}` }} className="text-sm font-medium text-[#0c66e4] hover:underline">
             Đăng nhập để xem thêm
           </Link>
         </div>

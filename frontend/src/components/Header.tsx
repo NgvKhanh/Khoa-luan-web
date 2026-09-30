@@ -514,7 +514,7 @@ function AccountMenu() {
 
   async function handleLogout() {
     await logout();
-    navigate('/login', { replace: true });
+    navigate('/', { replace: true });
   }
 
   function go(path: string) {
@@ -630,7 +630,7 @@ export default function Header() {
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 sm:gap-4 sm:px-4 dark:border-slate-700 dark:bg-slate-900">
       <Link
-        to="/"
+        to="/boards"
         className="flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 transition hover:bg-slate-100 dark:hover:bg-slate-800"
       >
         <Logo

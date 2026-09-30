@@ -59,7 +59,7 @@ export default function JoinBoardPage() {
           <>
             <p className="text-sm text-red-600">{error}</p>
             <Link
-              to="/"
+              to="/boards"
               className="mt-4 inline-block rounded-lg bg-[#0c66e4] px-4 py-2 text-sm font-medium text-white hover:bg-[#0a5cd4]"
             >
               Về trang chủ
@@ -97,7 +97,7 @@ export default function JoinBoardPage() {
                   Đã gửi yêu cầu tham gia. Vui lòng chờ quản trị viên duyệt.
                 </p>
                 <Link
-                  to="/"
+                  to="/boards"
                   className="mt-4 inline-block text-sm font-medium text-[#0c66e4] hover:underline"
                 >
                   Về trang chủ

@@ -679,7 +679,7 @@ export default function BoardPage() {
               : 'Không tìm thấy bảng này.')}
         </p>
         <Link
-          to="/"
+          to="/boards"
           className="mt-2 inline-block text-sm font-medium text-[#0c66e4] hover:underline"
         >
           ← Về danh sách bảng
@@ -1087,12 +1087,12 @@ export default function BoardPage() {
                   onArchived={() => {
                     setBoardMenuOpen(false);
                     removeBoard(board.id);
-                    navigate('/', { replace: true });
+                    navigate('/boards', { replace: true });
                   }}
                   onDeleted={() => {
                     setBoardMenuOpen(false);
                     removeBoard(board.id);
-                    navigate('/', { replace: true });
+                    navigate('/boards', { replace: true });
                   }}
                 />
               )}

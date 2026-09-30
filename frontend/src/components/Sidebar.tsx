@@ -52,7 +52,7 @@ export default function Sidebar() {
   return (
     <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-2 md:block dark:border-slate-700 dark:bg-slate-800">
       <nav className="flex flex-col gap-0.5">
-        <NavLink to="/" end className={({ isActive }) => (isActive ? ACTIVE : INACTIVE)}>
+        <NavLink to="/boards" end className={({ isActive }) => (isActive ? ACTIVE : INACTIVE)}>
           <span className="text-slate-500">
             <BoardIcon />
           </span>
