@@ -17,6 +17,7 @@ import type {
   PublicCardDetail,
   PublicList,
 } from '../types/publicBoard';
+import { Skeleton, SkeletonColumns, SkeletonRegion } from '../components/Skeleton';
 
 // Trang xem 1 bang PUBLIC - KHONG can dang nhap, chi doc (khong sua/binh luan).
 // Dung cho lien ket chia se cong khai: /public/boards/:boardId
@@ -94,9 +95,9 @@ export default function PublicBoardPage() {
       </header>
 
       {loading ? (
-        <div className="flex flex-1 items-center justify-center text-slate-500">
-          Đang tải...
-        </div>
+        <SkeletonRegion label="Đang tải bảng…" className="flex-1 overflow-hidden p-4">
+          <SkeletonColumns onColor />
+        </SkeletonRegion>
       ) : error || !board ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
           <p className="text-slate-600 dark:text-slate-300">
@@ -268,7 +269,10 @@ function PublicCardOverlay({
         {error ? (
           <p className="p-4 text-sm text-red-600">{error}</p>
         ) : !card ? (
-          <p className="p-4 text-sm text-slate-500">Đang tải...</p>
+          <SkeletonRegion label="Đang tải thẻ…" className="flex flex-col gap-3 p-4">
+            <Skeleton className="h-5 w-3/5" />
+            <Skeleton className="h-16 w-full" />
+          </SkeletonRegion>
         ) : (
           <div className="p-4">
             <h2

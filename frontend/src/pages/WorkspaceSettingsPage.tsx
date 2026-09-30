@@ -24,6 +24,7 @@ import { getErrorMessage } from '../lib/errorMessage';
 import { logError } from '../lib/logError';
 import { socket } from '../lib/socket';
 import type { Workspace, WorkspaceMember } from '../types/workspace';
+import { Skeleton, SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('vi-VN', {
@@ -262,7 +263,12 @@ export default function WorkspaceSettingsPage() {
     );
   }
   if (!ws) {
-    return <p className="text-sm text-slate-500">Đang tải...</p>;
+    return (
+      <SkeletonRegion label="Đang tải không gian làm việc…" className="flex flex-col gap-3">
+        <Skeleton className="h-6 w-56" />
+        <SkeletonRows rows={4} boxed />
+      </SkeletonRegion>
+    );
   }
 
   return (
@@ -352,7 +358,9 @@ export default function WorkspaceSettingsPage() {
         {overviewError ? (
           <p className="text-sm text-red-600">{overviewError}</p>
         ) : !overview ? (
-          <p className="text-sm text-slate-500">Đang tải...</p>
+          <SkeletonRegion label="Đang tải tổng quan…">
+            <SkeletonRows rows={3} />
+          </SkeletonRegion>
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

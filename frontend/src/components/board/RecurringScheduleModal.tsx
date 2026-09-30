@@ -12,6 +12,7 @@ import {
 import { getErrorMessage } from '../../lib/errorMessage';
 import { logError } from '../../lib/logError';
 import type { CardTemplate } from '../../types/cardTemplate';
+import { SkeletonRegion, SkeletonRows } from '../Skeleton';
 
 interface Props {
   listId: string;
@@ -273,7 +274,9 @@ export default function RecurringScheduleModal({ listId, boardId, onClose }: Pro
             Các lịch đã tạo
           </p>
           {loading ? (
-            <p className="text-sm text-slate-500">Đang tải...</p>
+            <SkeletonRegion label="Đang tải lịch lặp…">
+              <SkeletonRows rows={2} />
+            </SkeletonRegion>
           ) : schedules.length === 0 ? (
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Danh sách này chưa có lịch tạo thẻ định kỳ nào.

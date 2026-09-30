@@ -8,6 +8,7 @@ import {
   type ArchivedList,
 } from '../../lib/api/board';
 import { getErrorMessage } from '../../lib/errorMessage';
+import { SkeletonRegion, SkeletonRows } from '../Skeleton';
 
 interface Props {
   boardId: string;
@@ -104,7 +105,9 @@ export default function BoardArchiveMenu({ boardId, onClose, onChanged }: Props)
 
       {error && <p className="mb-1 px-1 text-xs text-red-600">{error}</p>}
       {loading ? (
-        <p className="px-1 py-4 text-center text-sm text-slate-500 dark:text-slate-400">Đang tải...</p>
+        <SkeletonRegion label="Đang tải…" className="py-3">
+          <SkeletonRows rows={3} />
+        </SkeletonRegion>
       ) : tab === 'cards' ? (
         cards.length === 0 ? (
           <p className="px-1 py-4 text-center text-sm text-slate-500 dark:text-slate-400">

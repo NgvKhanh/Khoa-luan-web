@@ -18,6 +18,7 @@ import { logError } from '../../lib/logError';
 import type { BoardMember } from '../../types/board';
 import type { Label } from '../../types/card';
 import type { BoardList } from '../../types/list';
+import { SkeletonRegion, SkeletonRows } from '../Skeleton';
 
 interface Props {
   boardId: string;
@@ -197,7 +198,9 @@ export default function AutomationPanel({ boardId, onClose }: Props) {
       {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
 
       {loading ? (
-        <p className="py-4 text-center text-sm text-slate-500 dark:text-slate-400">Đang tải...</p>
+        <SkeletonRegion label="Đang tải…" className="py-3">
+          <SkeletonRows rows={3} />
+        </SkeletonRegion>
       ) : (
         <>
           <div className="mb-3 flex flex-col gap-2 rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">

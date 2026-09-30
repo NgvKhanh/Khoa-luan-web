@@ -5,6 +5,7 @@ import {
   type NotificationPreference,
 } from '../lib/api/notification';
 import { getErrorMessage } from '../lib/errorMessage';
+import { SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 
 type BoolKey = keyof NotificationPreference;
 
@@ -69,7 +70,11 @@ export default function NotificationSettingsPage() {
     return <p className="text-sm text-red-600">{error}</p>;
   }
   if (!pref) {
-    return <p className="text-sm text-slate-500">Đang tải...</p>;
+    return (
+      <SkeletonRegion label="Đang tải cài đặt thông báo…">
+        <SkeletonRows rows={4} boxed />
+      </SkeletonRegion>
+    );
   }
 
   const row =

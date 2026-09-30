@@ -4,6 +4,7 @@ import { previewInvite, requestToJoin } from '../lib/api/board';
 import { assetUrl } from '../lib/assets';
 import { getErrorMessage } from '../lib/errorMessage';
 import type { InvitePreview } from '../types/board';
+import { Skeleton, SkeletonRegion } from '../components/Skeleton';
 
 export default function JoinBoardPage() {
   const { token } = useParams<{ token: string }>();
@@ -54,7 +55,11 @@ export default function JoinBoardPage() {
     <div className="grid min-h-screen place-items-center bg-[var(--app-bg)] p-4">
       <div className="w-[420px] max-w-full rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm">
         {loading ? (
-          <p className="text-sm text-slate-500">Đang tải...</p>
+          <SkeletonRegion label="Đang tải lời mời…" className="flex flex-col items-center gap-3">
+            <Skeleton className="h-14 w-14 rounded-xl" />
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-3 w-56" />
+          </SkeletonRegion>
         ) : error && !preview ? (
           <>
             <p className="text-sm text-red-600">{error}</p>

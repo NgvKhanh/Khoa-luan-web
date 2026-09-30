@@ -9,6 +9,7 @@ import { BOARD_COLORS } from '../../lib/boardColors';
 import { getErrorMessage } from '../../lib/errorMessage';
 import { useUnsplashPhotos } from '../../lib/useUnsplashPhotos';
 import type { Board } from '../../types/board';
+import { Skeleton, SkeletonRegion } from '../Skeleton';
 
 interface Props {
   board: Board;
@@ -136,9 +137,11 @@ export default function BoardBackgroundMenu({
 
           <div className="max-h-56 overflow-y-auto">
             {loading ? (
-              <p className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">
-                Đang tải...
-              </p>
+              <SkeletonRegion label="Đang tải ảnh…" className="grid grid-cols-3 gap-1.5 py-2">
+              {Array.from({ length: 6 }, (_, i) => (
+                <Skeleton key={i} className="h-14" />
+              ))}
+            </SkeletonRegion>
             ) : photos.length === 0 ? (
               <p className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">
                 Không có ảnh nào.

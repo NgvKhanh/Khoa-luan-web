@@ -11,6 +11,7 @@ import { initialsOf } from '../lib/avatar';
 import { logError } from '../lib/logError';
 import { socket } from '../lib/socket';
 import type { AppNotification } from '../types/notification';
+import { SkeletonRegion, SkeletonRows } from './Skeleton';
 
 const AVATAR_COLORS = [
   '#0079BF',
@@ -244,9 +245,9 @@ export default function NotificationBell() {
 
             <div className="max-h-[70vh] overflow-y-auto">
               {loading ? (
-                <p className="py-10 text-center text-sm text-slate-400">
-                  Đang tải...
-                </p>
+                <SkeletonRegion label="Đang tải thông báo…" className="px-4 py-4">
+                  <SkeletonRows rows={4} />
+                </SkeletonRegion>
               ) : items.length === 0 ? (
                 <p className="py-12 text-center text-sm text-slate-500">
                   {unreadOnly

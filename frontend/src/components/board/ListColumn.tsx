@@ -18,6 +18,7 @@ import AssignPlanModal from './AssignPlanModal';
 import CardItem from './CardItem';
 import RecurringScheduleModal from './RecurringScheduleModal';
 import StatusBadge from './StatusBadge';
+import { SkeletonRegion, SkeletonRows } from '../Skeleton';
 
 interface Props {
   list: BoardList;
@@ -337,9 +338,9 @@ export default function ListColumn({
                         <p className="px-2 py-1 text-xs text-red-600">{templateError}</p>
                       )}
                       {!templatesLoaded ? (
-                        <p className="px-2 py-1.5 text-xs text-slate-500 dark:text-slate-400">
-                          Đang tải...
-                        </p>
+                        <SkeletonRegion label="Đang tải mẫu thẻ…" className="px-2 py-1.5">
+                          <SkeletonRows rows={2} />
+                        </SkeletonRegion>
                       ) : cardTemplates.length === 0 ? (
                         <p className="px-2 py-1.5 text-xs text-slate-500 dark:text-slate-400">
                           Bảng chưa có mẫu thẻ nào.

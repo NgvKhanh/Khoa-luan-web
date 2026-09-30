@@ -9,6 +9,7 @@ import {
 } from '../../lib/api/customField';
 import { getErrorMessage } from '../../lib/errorMessage';
 import type { CustomField, CustomFieldType } from '../../types/customField';
+import { SkeletonRegion, SkeletonRows } from '../Skeleton';
 
 const TYPE_LABEL: Record<CustomFieldType, string> = {
   TEXT: 'Văn bản',
@@ -143,7 +144,9 @@ export default function CustomFieldsPanel({ boardId, onClose, onChanged }: Props
       {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
 
       {loading ? (
-        <p className="py-4 text-center text-sm text-slate-500 dark:text-slate-400">Đang tải...</p>
+        <SkeletonRegion label="Đang tải…" className="py-3">
+          <SkeletonRows rows={3} />
+        </SkeletonRegion>
       ) : fields.length === 0 ? (
         <p className="mb-2 text-center text-sm text-slate-500 dark:text-slate-400">
           Bảng chưa có trường tùy chỉnh nào.

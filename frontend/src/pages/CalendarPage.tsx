@@ -323,7 +323,7 @@ export default function CalendarPage() {
 
       {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
       {(loading || moving) && (
-        <p className="mb-2 text-sm text-slate-400">{moving ? 'Đang cập nhật...' : 'Đang tải...'}</p>
+        <p role="status" className="mb-2 text-sm text-slate-400">{moving ? 'Đang cập nhật...' : 'Đang tải...'}</p>
       )}
 
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
