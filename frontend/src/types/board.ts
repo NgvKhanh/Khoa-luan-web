@@ -15,6 +15,9 @@ export interface Board {
   workspaceIsPersonal?: boolean;
   // Chi co trong danh sach bang (GET /api/boards)
   memberCount?: number;
+  // Chi co trong danh sach bang: tong so the va so the da hoan thanh (thanh tien do)
+  cardCount?: number;
+  doneCount?: number;
   isOwner?: boolean;
   isMember?: boolean;
   isStarred?: boolean;

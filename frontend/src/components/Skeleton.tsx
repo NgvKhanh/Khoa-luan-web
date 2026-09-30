@@ -38,12 +38,12 @@ export function SkeletonRegion({
   );
 }
 
-/** Lưới thẻ bảng chờ, cùng kích thước với BoardCard (cao 7rem, bo 12px). */
+/** Lưới thẻ bảng chờ, cùng kích thước xấp xỉ BoardCard (cao 10rem, bo 12px). */
 export function SkeletonBoardGrid({ count = 8 }: { count?: number }) {
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
       {Array.from({ length: count }, (_, i) => (
-        <Skeleton key={i} className="h-28 rounded-xl" />
+        <Skeleton key={i} className="h-40 rounded-xl" />
       ))}
     </div>
   );

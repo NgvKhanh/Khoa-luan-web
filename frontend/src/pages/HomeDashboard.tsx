@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Avatar from '../components/Avatar';
+import { CreateBoardMenu } from '../components/Header';
 import { Skeleton, SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
@@ -9,6 +10,7 @@ import { assetUrl } from '../lib/assets';
 import { fetchHomeActivity, type HomeActivity } from '../lib/api/board';
 import { fetchMyCards, type MyCard } from '../lib/api/card';
 import { getErrorMessage } from '../lib/errorMessage';
+import { useCountUp } from '../lib/useCountUp';
 import { getRecentBoards } from '../lib/recentBoards';
 
 function greeting(): string {
@@ -113,6 +115,15 @@ function bucketOf(c: MyCard): string | null {
   return null;
 }
 
+// Số liệu ở đầu trang: có dữ liệu thì đếm lên; đang tải hiện khung chờ (không hiện 0);
+// tải lỗi hiện dấu gạch ngang thay vì số 0 gây hiểu nhầm.
+function StatValue({ value, loading, failed }: { value: number; loading: boolean; failed: boolean }) {
+  const shown = useCountUp(value, { enabled: !loading });
+  if (loading) return <Skeleton className="h-8 w-10" />;
+  if (failed) return <>–</>;
+  return <>{shown}</>;
+}
+
 export default function HomeDashboard() {
   const { user } = useAuth();
   const { boards } = useBoards();
@@ -170,20 +181,23 @@ export default function HomeDashboard() {
   ];
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-5">
-      <div>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-          {greeting()}
-          {user?.name ? `, ${firstName(user.name)}` : ''} 👋
-        </h1>
-        <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-          {new Date().toLocaleDateString('vi-VN', {
-            weekday: 'long',
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-          })}
-        </p>
+    <div className="mx-auto flex max-w-6xl flex-col gap-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+            {greeting()}
+            {user?.name ? `, ${firstName(user.name)}` : ''} 👋
+          </h1>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+            {new Date().toLocaleDateString('vi-VN', {
+              weekday: 'long',
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+            })}
+          </p>
+        </div>
+        <CreateBoardMenu label="Tạo bảng" />
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -204,13 +218,7 @@ export default function HomeDashboard() {
                   : 'text-slate-900 dark:text-slate-100'
               }`}
             >
-              {s.fromCards && loading ? (
-                <Skeleton className="h-8 w-10" />
-              ) : s.fromCards && error ? (
-                '–'
-              ) : (
-                s.value
-              )}
+              <StatValue value={s.value} loading={Boolean(s.fromCards) && loading} failed={Boolean(s.fromCards) && Boolean(error)} />
             </p>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
               {s.label}
@@ -219,155 +227,163 @@ export default function HomeDashboard() {
         ))}
       </div>
 
-      {/* 2. Can chu y */}
-      <Section
-        title="Cần chú ý"
-        action={
-          <Link
-            to="/my-cards"
-            className="text-xs font-medium text-primary-ink hover:underline"
-          >
-            Xem tất cả
-          </Link>
-        }
-      >
-        {loading ? (
-          <SkeletonRegion label="Đang tải thẻ cần chú ý…">
-            <SkeletonRows rows={3} />
-          </SkeletonRegion>
-        ) : !hasAttention ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Không có thẻ nào sắp đến hạn. 🎉
-          </p>
-        ) : (
-          <div className="flex flex-col gap-4">
-            {DUE_GROUPS.map((g) => {
-              const items = attention[g.key] ?? [];
-              if (items.length === 0) return null;
-              return (
-                <div key={g.key}>
-                  <p
-                    className={`mb-1.5 text-xs font-semibold uppercase tracking-wide ${g.cls}`}
-                  >
-                    {g.label} ({items.length})
-                  </p>
-                  <ul className="flex flex-col gap-1">
-                    {items.slice(0, 5).map((c) => (
-                      <li key={c.id}>
-                        <Link
-                          to={`/boards/${c.list.boardId}`}
-                          className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
-                        >
-                          <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full border-2 border-slate-300" />
-                          <span className="min-w-0 flex-1 truncate text-slate-800 dark:text-slate-100">
-                            {c.title}
-                          </span>
-                          <span className="shrink-0 text-xs text-slate-400">
-                            {c.list.board.name}
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Section>
-
-      {/* 3. Truy cap nhanh */}
-      {(recent.length > 0 || starred.length > 0) && (
-        <Section title="Truy cập nhanh">
-          {recent.length > 0 && (
-            <>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Xem gần đây
-              </p>
-              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {recent.map((b) => (
-                  <BoardTile
-                    key={b.id}
-                    id={b.id}
-                    name={b.name}
-                    color={b.color}
-                    backgroundImage={b.backgroundImage}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-          {starred.length > 0 && (
-            <>
-              <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-amber-400" fill="currentColor">
-                  <path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.8 6.1 20.5l1.2-6.5L2.5 9.4l6.6-.9z" />
-                </svg>
-                Đánh dấu sao
-              </p>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {starred.map((b) => (
-                  <BoardTile
-                    key={b.id}
-                    id={b.id}
-                    name={b.name}
-                    color={b.color}
-                    backgroundImage={b.backgroundImage}
-                  />
-                ))}
-              </div>
-            </>
+      {/* Tu 1280px: cot chinh (can xu ly + truy cap nhanh) va cot phu (hoat dong) ti le 2:1 */}
+      <div className="grid items-start gap-5 xl:grid-cols-3">
+      <div className="flex flex-col gap-5 xl:col-span-2">
+        {/* 2. Can chu y */}
+        <Section
+          title="Cần chú ý"
+          action={
+            <Link
+              to="/my-cards"
+              className="text-xs font-medium text-primary-ink hover:underline"
+            >
+              Xem tất cả
+            </Link>
+          }
+        >
+          {loading ? (
+            <SkeletonRegion label="Đang tải thẻ cần chú ý…">
+              <SkeletonRows rows={3} />
+            </SkeletonRegion>
+          ) : !hasAttention ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Không có thẻ nào sắp đến hạn. 🎉
+            </p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {DUE_GROUPS.map((g) => {
+                const items = attention[g.key] ?? [];
+                if (items.length === 0) return null;
+                return (
+                  <div key={g.key}>
+                    <p
+                      className={`mb-1.5 text-xs font-semibold uppercase tracking-wide ${g.cls}`}
+                    >
+                      {g.label} ({items.length})
+                    </p>
+                    <ul className="flex flex-col gap-1">
+                      {items.slice(0, 5).map((c) => (
+                        <li key={c.id}>
+                          <Link
+                            to={`/boards/${c.list.boardId}`}
+                            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
+                          >
+                            <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full border-2 border-slate-300" />
+                            <span className="min-w-0 flex-1 truncate text-slate-800 dark:text-slate-100">
+                              {c.title}
+                            </span>
+                            <span className="shrink-0 text-xs text-slate-400">
+                              {c.list.board.name}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </Section>
-      )}
+
+        {/* 3. Truy cap nhanh */}
+        {(recent.length > 0 || starred.length > 0) && (
+          <Section title="Truy cập nhanh">
+            {recent.length > 0 && (
+              <>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Xem gần đây
+                </p>
+                <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {recent.map((b) => (
+                    <BoardTile
+                      key={b.id}
+                      id={b.id}
+                      name={b.name}
+                      color={b.color}
+                      backgroundImage={b.backgroundImage}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+            {starred.length > 0 && (
+              <>
+                <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-amber-400" fill="currentColor">
+                    <path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.8 6.1 20.5l1.2-6.5L2.5 9.4l6.6-.9z" />
+                  </svg>
+                  Đánh dấu sao
+                </p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {starred.map((b) => (
+                    <BoardTile
+                      key={b.id}
+                      id={b.id}
+                      name={b.name}
+                      color={b.color}
+                      backgroundImage={b.backgroundImage}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </Section>
+        )}
+
+      </div>
 
       {/* 4. Hoat dong gan day */}
-      <Section title="Hoạt động gần đây">
-        {loading ? (
-          <SkeletonRegion label="Đang tải hoạt động gần đây…">
-            <SkeletonRows rows={5} />
-          </SkeletonRegion>
-        ) : activity.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Chưa có hoạt động nào.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-2.5">
-            {activity.map((a) => (
-              <li key={a.id} className="flex gap-2">
-                <Avatar
-                  id={a.user.id}
-                  name={a.user.name}
-                  avatarUrl={a.user.avatarUrl}
-                  className="h-6 w-6 text-[10px]"
-                />
-                <p className="text-xs text-slate-600 dark:text-slate-300">
-                  <span className="font-semibold text-slate-700 dark:text-slate-100">
-                    {a.user.name}
-                  </span>{' '}
-                  {activityPhrase(a)}
-                  {a.card && (
-                    <span className="text-slate-500"> — “{a.card.title}”</span>
-                  )}
-                  {a.board && (
-                    <>
-                      {' · '}
-                      <Link
-                        to={`/boards/${a.board.id}`}
-                        className="text-primary-ink hover:underline"
-                      >
-                        {a.board.name}
-                      </Link>
-                    </>
-                  )}
-                  <br />
-                  <span className="text-slate-400">{timeAgo(a.createdAt)}</span>
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Section>
+      <div className="xl:col-span-1">
+        <Section title="Hoạt động gần đây">
+          {loading ? (
+            <SkeletonRegion label="Đang tải hoạt động gần đây…">
+              <SkeletonRows rows={5} />
+            </SkeletonRegion>
+          ) : activity.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Chưa có hoạt động nào.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-2.5">
+              {activity.map((a) => (
+                <li key={a.id} className="flex gap-2">
+                  <Avatar
+                    id={a.user.id}
+                    name={a.user.name}
+                    avatarUrl={a.user.avatarUrl}
+                    className="h-6 w-6 text-[10px]"
+                  />
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    <span className="font-semibold text-slate-700 dark:text-slate-100">
+                      {a.user.name}
+                    </span>{' '}
+                    {activityPhrase(a)}
+                    {a.card && (
+                      <span className="text-slate-500"> — “{a.card.title}”</span>
+                    )}
+                    {a.board && (
+                      <>
+                        {' · '}
+                        <Link
+                          to={`/boards/${a.board.id}`}
+                          className="text-primary-ink hover:underline"
+                        >
+                          {a.board.name}
+                        </Link>
+                      </>
+                    )}
+                    <br />
+                    <span className="text-slate-400">{timeAgo(a.createdAt)}</span>
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+      </div>
+      </div>
     </div>
   );
 }

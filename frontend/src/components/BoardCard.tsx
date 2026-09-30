@@ -17,6 +17,8 @@ interface Props {
   onRequestDelete: (board: Board) => void;
   onRequestPermanentDelete?: (board: Board) => void;
   onToggleStar: (boardId: string) => void;
+  // false khi thẻ nằm dưới tiêu đề đã ghi tên không gian làm việc (đỡ lặp, đỡ bị cắt chữ)
+  showWorkspace?: boolean;
 }
 
 export default function BoardCard({
@@ -25,6 +27,7 @@ export default function BoardCard({
   onRequestDelete,
   onRequestPermanentDelete,
   onToggleStar,
+  showWorkspace = true,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -72,23 +75,73 @@ export default function BoardCard({
     if (file) void run(() => uploadBoardBackground(board.id, file));
   }
 
+  const cardCount = board.cardCount;
+  const doneCount = board.doneCount ?? 0;
+  const hasProgress = typeof cardCount === 'number' && cardCount > 0;
+  const donePct = hasProgress ? Math.round((doneCount / cardCount) * 100) : 0;
+  const memberLabel =
+    typeof board.memberCount === 'number' && board.memberCount > 0
+      ? `${board.memberCount} thành viên`
+      : null;
+  // Chỉ hiện các thông tin CÓ thật; thiếu thì ẩn chứ không thay bằng số 0
+  const subline = [showWorkspace ? board.workspaceName : null, memberLabel].filter(Boolean).join(' · ');
+  const updated = board.updatedAt
+    ? new Date(board.updatedAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+    : null;
+
   return (
     <div
-      className={`group relative h-28 rounded-xl shadow-sm ring-1 ring-black/5 transition-transform hover:-translate-y-0.5 hover:shadow-md ${
+      className={`group relative rounded-xl bg-white shadow-sm ring-1 ring-black/5 transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-md dark:bg-slate-800 dark:ring-white/10 ${
         menuOpen ? 'z-40' : ''
       }`}
     >
-      {/* Lop hinh anh - bam vao de mo bang; bo cat rieng de menu ben ngoai khong bi che */}
+      {/* Ảnh bìa + thông tin - bấm vào để mở bảng; bo cắt riêng để menu bên ngoài không bị che */}
       <Link
         to={`/boards/${board.id}`}
         title={board.name}
-        style={bgStyle}
-        className="absolute inset-0 overflow-hidden rounded-xl"
+        className="block overflow-hidden rounded-xl"
       >
-        <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
-        <p className="absolute inset-x-0 bottom-0 line-clamp-2 px-3 pb-2.5 text-sm font-semibold leading-snug text-white drop-shadow">
-          {board.name}
-        </p>
+        <span style={bgStyle} className="block h-20" aria-hidden="true" />
+        <span className="block px-3 pb-3 pt-2">
+          <span className="line-clamp-2 block text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">
+            {board.name}
+          </span>
+          {subline && (
+            <span className="mt-0.5 block truncate text-xs text-slate-500 dark:text-slate-400">
+              {subline}
+            </span>
+          )}
+          <span className="mt-2 block">
+            {hasProgress ? (
+              <>
+                <span
+                  role="progressbar"
+                  aria-label="Tiến độ hoàn thành thẻ"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={donePct}
+                  className="block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
+                >
+                  <span
+                    className="tf-bar-in block h-full rounded-full bg-emerald-500"
+                    style={{ width: `${donePct}%` }}
+                  />
+                </span>
+                <span className="mt-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                  <span>
+                    {doneCount}/{cardCount} thẻ hoàn thành
+                  </span>
+                  {updated && <span title="Ngày cập nhật bảng">Cập nhật {updated}</span>}
+                </span>
+              </>
+            ) : (
+              <span className="flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
+                <span>{typeof cardCount === 'number' ? 'Chưa có thẻ' : ''}</span>
+                {updated && <span title="Ngày cập nhật bảng">Cập nhật {updated}</span>}
+              </span>
+            )}
+          </span>
+        </span>
       </Link>
 
       {/* Nut sao */}

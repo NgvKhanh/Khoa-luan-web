@@ -429,7 +429,8 @@ function BoardSearch() {
 }
 
 // ------- Tao bang moi -------
-export function CreateBoardMenu() {
+// label: nhãn luôn hiện (dùng ở trang tổng quan); bỏ trống -> "Tạo mới" và ẩn nhãn trên màn hình hẹp
+export function CreateBoardMenu({ label }: { label?: string } = {}) {
   const navigate = useNavigate();
   const { upsertBoard } = useBoards();
   const [open, setOpen] = useState(false);
@@ -457,7 +458,7 @@ export function CreateBoardMenu() {
         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
           <path d="M12 5v14M5 12h14" />
         </svg>
-        <span className="hidden sm:inline">Tạo mới</span>
+        <span className={label ? '' : 'hidden sm:inline'}>{label ?? 'Tạo mới'}</span>
       </button>
 
       {open && (
