@@ -1006,23 +1006,22 @@ Tên luật chỉ *đoán* (không khớp, §18.4) thì **LLM quyết định** 
 
 **Kết quả vòng 2 (30/09/2026)** — `gemini-3.5-flash-lite`, khoá trong `.env` (không in). Prompt `790951f255f0` (chỉnh **một dòng** trên tập dev: `MY_WORKSPACES` gồm cả câu hỏi
 về *từng / mọi* không gian), luật `78eb56a81ab5`, bộ dữ liệu `9ad0c146f990` (164 câu; 98 câu cũ giữ nguyên sha256 `966cbe7ae85a…`). Báo cáo: `backend/eval-chat2-dev-before.md` (trước chỉnh),
-`eval-chat2-dev.md` (sau chỉnh), `eval-chat2-partial.md` (tập test, **chưa hoàn tất** — xem dưới).
+`eval-chat2-dev.md` (sau chỉnh), `eval-chat2-result.md` (tập test, **đủ 105 câu × 3 lần**, chạy xong ngày 02/10/2026).
 
 | Tập | B0 (luật) | B1 (chỉ LLM) | B2 (lai) |
 |---|---|---|---|
 | **dev trước chỉnh** (59 câu × 1) | 94,9% | 94,9% (2 lượt TIMEOUT hạ tầng) | 98,3% (sai M10) |
 | **dev sau chỉnh** (đã chỉnh trên dev nên **lạc quan**) | 94,9% (56/59) | 100% | 100% |
-| **test — câu danh mục mới** (38 câu × 3: nhóm I–L đủ + 6/9 câu nhóm M) | 84,2% | **100%** | **100%** |
+| **test — câu danh mục mới** (42 câu × 3: nhóm I–M) | 81,0% [69,0; 92,9] | **100%** | **100%** |
 | **test — câu cũ, hồi quy** (63 câu × 3) | 84,1% (đúng bằng vòng 1) | 93,1% (vòng 1: 95,2%) | 91,5% (vòng 1: 93,7%) |
-| test — 101 / 105 câu đã chạy đủ 3 lần (khớp hoàn toàn, KTC 95%) | 84,2% [77,2; 91,1] | 95,7% [91,4; 99,0] | 94,7% [90,1; 98,7] |
+| **test — toàn bộ 105 câu × 3** (khớp hoàn toàn, KTC 95%) | 82,9% [75,2; 89,5] | 95,9% [91,7; 99,0] | 94,9% [90,5; 98,7] |
 
-- Trên câu danh mục mới LLM thắng luật: B1 − B0 ở nhóm này = +16 điểm % (B0 sai `I06` "board", `J05` "mấy nhóm", `J09`, `K05`, `K12`, `K14` — toàn câu ghi `kho-voi-luat`, cách nói xa từ khoá).
-  B0 vẫn đủ dùng khi không có LLM (84,2% trên câu mới) và **không trả lời nhầm bảng** (mọi tên không khớp đều thành "Không tìm thấy").
+- Ý định đúng trên cả 105 câu: B0 84,8% / B1 98,4% / B2 98,4%; macro-F1 0,861 / 0,988 / 0,988. Chênh lệch cặp (cùng câu hỏi): B1 − B0 = +13,0 điểm % [5,1; 21,3], B2 − B1 = −1,0 [−2,9; 0,0], B2 − B0 = +12,1 [4,4; 20,0].
+- Trên câu danh mục mới LLM thắng luật: B1 − B0 ở nhóm này = +19 điểm % (81,0% → 100%). B0 sai 8/42 câu: `I06` "board", `J05` "mấy nhóm", `J09`, `K05`, `K12`, `K14` (cách nói xa từ khoá, ghi `kho-voi-luat`) và `M12`, `M14` (cùng trả `MY_TASKS`).
+  B0 vẫn đủ dùng khi không có LLM (81,0% trên câu mới) và **không trả lời nhầm bảng** (mọi tên không khớp đều thành "Không tìm thấy").
 - **Hồi quy nhẹ trên câu cũ** (−2,1 điểm % ở B1, −2,2 ở B2; khoảng tin cậy chồng nhau): lỗi mới duy nhất là `A08` "Trong 7 ngày tới tôi có bao nhiêu việc phải làm?" bị hiểu là `CARD_COUNTS` một lần / 3 —
   ý định đếm thẻ mới hút câu "bao nhiêu việc"; các lỗi còn lại (`C06`, `C09`, `C12`, `C17`, `D06`) là đúng những lỗi đã ghi ở §14.6, không phải do bước 10.
-- **Chưa hoàn tất, còn 10 lượt**: tập test có 105 câu × 3 = 315 lượt; đã có **305 lượt / 102 câu** thì Gemini gói miễn phí trả 429 (hết hạn mức ngày, hồi khoảng 14:00 giờ Việt Nam) và các lần thử lại cách
-  nhau 1,5–3 phút đều 429. **Còn `M09` (lần 3), `M11`, `M12`, `M14`** (nhóm câu gần giống). Không sửa mã, luật, prompt hay câu hỏi trong lúc chờ; bộ đệm `.chat-eval-cache` giữ nguyên nên chạy lại đúng lệnh cũ chỉ gọi 10 lượt còn thiếu:
-  `npx tsx src/scripts/evaluateChat.ts --arm=all --split=test --runs=3 --delay=4000 --out=eval-chat2-result.md`. Số ở bảng trên là **tạm thời** (101/105 câu), sẽ thay bằng số của lần chạy đủ.
+- **Đã hoàn tất (02/10/2026)**: lượt chạy đầu dừng ở 305 / 315 lượt vì Gemini gói miễn phí hết hạn mức ngày (429); chạy lại đúng lệnh cũ `npx tsx src/scripts/evaluateChat.ts --arm=all --split=test --runs=3 --delay=4000 --out=eval-chat2-result.md` sau khi hạn mức hồi: **11 lượt gọi API, 304 lượt lấy từ bộ đệm**, 0 lượt LLM lỗi ở lần chạy cuối. Trong lúc chờ không sửa mã, luật, prompt hay câu hỏi (đúng bản `790951f255f0` / `78eb56a81ab5` / `9ad0c146f990`). Số trên thay cho số tạm (101 / 105 câu: B0 84,2% / B1 95,7% / B2 94,7%) — chênh lệch nhỏ, nằm trong khoảng tin cậy. Tệp tạm `eval-chat2-partial.md` đã bỏ.
 - **Cách tính lỗi hạ tầng**: gần cuối tập dev và ở đầu tập test có nhiều lượt `TIMEOUT` 8 giây (nghi do kết nối giữ sống bị phía máy chủ đóng khi dừng 4,5 giây giữa hai lượt; khi dừng 3,5–4 giây gần như hết);
   lượt lỗi hạ tầng **không** được đệm nên đã chạy lại tới khi có phản hồi thật — số "LLM lỗi" ở báo cáo chỉ đếm lần chạy cuối, nên chỉ tính được ~10–15% timeout ở lần chạy đầu bằng nhật ký tay.
 
@@ -1516,4 +1515,4 @@ Có test đối chiếu `outcomeOf` với `handleMessage` thật trên CSDL dự
 
 **Toàn bộ test**: backend **114 tệp / 1268 test xanh** (gồm toàn bộ ai.*, assign.*, cardStatus.*), frontend **47 tệp / 361 test xanh**; `tsc`, `eslint` (backend), `oxlint` (chỉ cảnh báo có sẵn ở tệp không thuộc module), `tsc -b` (frontend) sạch.
 
-**Việc còn lại**: (1) **10 lượt Gemini** của tập test vòng 2 (§18.6) khi hạn mức hồi — chạy lại đúng lệnh ghi ở §18.6 rồi thay số tạm bằng số cuối trong §18.6 và `backend/eval-chat2-result.md`; (2) việc của tác giả như trước (xoá khoá API cũ đã lộ; báo GVHD); (3) các nhóm dữ liệu tiếp theo (nhãn, checklist, bình luận, thông báo, tự động hoá…) làm theo quy trình §18.7, mỗi nhóm một bước.
+**Việc còn lại**: (1) việc của tác giả như trước (xoá khoá API cũ đã lộ; báo GVHD); (2) các nhóm dữ liệu tiếp theo (nhãn, checklist, bình luận, thông báo, tự động hoá…) làm theo quy trình §18.7, mỗi nhóm một bước. (Tập test vòng 2 đã chạy đủ 105 câu × 3 lần ngày 02/10/2026 — số cuối ở §18.6.)
