@@ -49,14 +49,16 @@ function endOfWeek(): number {
 function Section({
   title,
   action,
+  className = '',
   children,
 }: {
   title: string;
   action?: React.ReactNode;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+    <section className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 ${className}`}>
       <div className="mb-3 flex items-center">
         <h2 className="flex-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
           {title}
@@ -338,9 +340,13 @@ export default function HomeDashboard() {
 
       </div>
 
-      {/* 4. Hoat dong gan day */}
-      <div className="min-w-0 xl:col-span-1">
-        <Section title="Hoạt động gần đây">
+      {/* 4. Hoat dong gan day: khung cao co han + thanh cuon rieng (cuon het danh sach khong keo ca
+          trang theo); man hinh rong thi dung yen ben phai khi cuon cot trai */}
+      <div className="min-w-0 xl:sticky xl:top-6 xl:col-span-1">
+        <Section
+          title="Hoạt động gần đây"
+          className="flex max-h-[28rem] flex-col xl:max-h-[calc(100dvh-8rem)]"
+        >
           {loading ? (
             <SkeletonRegion label="Đang tải hoạt động gần đây…">
               <SkeletonRows rows={5} />
@@ -348,7 +354,11 @@ export default function HomeDashboard() {
           ) : activity.length === 0 ? (
             <EmptyState compact icon="activity" title="Chưa có hoạt động nào." />
           ) : (
-            <ul className="flex flex-col gap-2.5">
+            <ul
+              aria-label="Hoạt động gần đây"
+              tabIndex={0}
+              className="-mr-3 flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-3 [scrollbar-color:rgb(148_163_184/0.5)_transparent] [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-primary dark:[scrollbar-color:rgb(100_116_139/0.8)_transparent]"
+            >
               {activity.map((a) => (
                 <li key={a.id} className="flex gap-2">
                   <Avatar
