@@ -162,7 +162,7 @@ export default function DeclaredProfileSection() {
 
   return (
     <div className="flex flex-col gap-6">
-      <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 text-sm text-slate-700 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-slate-200">
+      <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200">
         <span className="min-w-0">
           <span className="font-medium">Dùng hồ sơ này cho gợi ý phân công</span>
           <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
@@ -178,7 +178,7 @@ export default function DeclaredProfileSection() {
           />
           <span
             aria-hidden="true"
-            className="h-6 w-11 rounded-full bg-slate-300 transition-colors peer-checked:bg-indigo-600 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-indigo-500 dark:bg-slate-600"
+            className="h-6 w-11 rounded-full bg-slate-300 transition-colors peer-checked:bg-primary peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary dark:bg-slate-600"
           />
           <span
             aria-hidden="true"
@@ -305,7 +305,7 @@ export default function DeclaredProfileSection() {
         <p className={labelCls}>CV của bạn</p>
         <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-5 dark:border-slate-600 dark:bg-slate-900/20">
           <div className="flex items-start gap-3">
-            <span className="rounded-lg border border-slate-200 bg-white p-2.5 text-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-indigo-300">
+            <span className="rounded-lg border border-slate-200 bg-white p-2.5 text-primary-ink dark:border-slate-600 dark:bg-slate-800">
               <ProfileIcon name="file" className="h-5 w-5" />
             </span>
             <div className="min-w-0 flex-1">
@@ -320,7 +320,7 @@ export default function DeclaredProfileSection() {
                   <a
                     href={myCvUrl()}
                     download
-                    className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-300"
+                    className="text-sm font-medium text-primary-ink hover:underline"
                   >
                     Tải về
                   </a>
@@ -425,7 +425,7 @@ export default function DeclaredProfileSection() {
       </p>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5 dark:border-slate-700">
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          {dirty ? 'Bạn có thay đổi chưa lưu.' : 'Hồ sơ đã được cập nhật.'}
+          {dirty ? 'Bạn có thay đổi chưa lưu.' : ''}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {dirty && (

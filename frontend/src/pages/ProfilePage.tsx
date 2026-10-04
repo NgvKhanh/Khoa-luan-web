@@ -1,31 +1,35 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import Avatar from '../components/Avatar';
 import DeclaredProfileSection from '../components/DeclaredProfileSection';
 import {
   ProfileIcon,
-  ProfilePanel,
   profileInput,
   profilePrimaryButton,
   profileSecondaryButton,
-  type ProfileIconName,
 } from '../components/profile/ProfileUi';
 import { useAuth } from '../context/AuthContext';
-import { useBoards } from '../context/BoardsContext';
 import { useTheme } from '../context/ThemeContext';
 import { updateProfile, uploadAvatar } from '../lib/api/auth';
 import { getErrorMessage } from '../lib/errorMessage';
 
-const sections = [
-  { id: 'personal', label: 'Thông tin cá nhân', icon: 'user' },
-  { id: 'skills', label: 'Kỹ năng & CV', icon: 'skills' },
-  { id: 'preferences', label: 'Tùy chọn', icon: 'settings' },
+const TABS = [
+  { id: 'personal', label: 'Thông tin' },
+  { id: 'skills', label: 'Kỹ năng & CV' },
+  { id: 'preferences', label: 'Tùy chọn' },
 ] as const;
-const themes = [
+type TabId = (typeof TABS)[number]['id'];
+
+const THEMES = [
   { id: 'light', label: 'Sáng', icon: 'sun' },
   { id: 'dark', label: 'Tối', icon: 'moon' },
   { id: 'system', label: 'Hệ thống', icon: 'monitor' },
 ] as const;
+
+const AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
+type Feedback = { kind: 'error' | 'ok'; text: string } | null;
 
 function fmtDate(iso?: string): string {
   if (!iso) return '—';
@@ -36,59 +40,78 @@ function fmtDate(iso?: string): string {
   });
 }
 
-function SettingsLink({
-  to,
-  icon,
-  label,
-  description,
-}: {
-  to: string;
-  icon: ProfileIconName;
-  label: string;
-  description: string;
-}) {
+const CARD = 'rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800';
+const ROW_LABEL = 'text-sm font-medium text-slate-700 sm:pt-2 dark:text-slate-200';
+
+// 1 dong cai dat: nhan ben trai, noi dung ben phai (man hinh hep thi xep chong)
+function Row({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
   return (
-    <Link
-      to={to}
-      className="group flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:hover:bg-slate-700/50"
-    >
-      <span className="rounded-lg bg-slate-100 p-2.5 text-slate-500 dark:bg-slate-700 dark:text-slate-300">
-        <ProfileIcon name={icon} className="h-5 w-5" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-slate-800 dark:text-slate-100">
+    <div className="grid gap-2 px-5 py-5 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-6 sm:px-6">
+      {htmlFor ? (
+        <label htmlFor={htmlFor} className={ROW_LABEL}>
           {label}
-        </span>
-        <span className="mt-0.5 block text-xs leading-5 text-slate-500 dark:text-slate-400">
-          {description}
-        </span>
-      </span>
-      <ProfileIcon name="arrow" className="h-4 w-4 text-slate-400 group-hover:text-indigo-500" />
-    </Link>
+        </label>
+      ) : (
+        <p className={ROW_LABEL}>{label}</p>
+      )}
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function Message({ fb }: { fb: Feedback }) {
+  if (!fb) return null;
+  return fb.kind === 'error' ? (
+    <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+      {fb.text}
+    </p>
+  ) : (
+    <p role="status" className="flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400">
+      <ProfileIcon name="check" />
+      {fb.text}
+    </p>
   );
 }
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuth();
-  const { boards, isLoading: boardsLoading, error: boardsError } = useBoards();
   const { theme, setTheme } = useTheme();
-  const [section, setSection] = useState<(typeof sections)[number]['id']>('personal');
+  const [tab, setTab] = useState<TabId>('personal');
   const [name, setName] = useState(user?.name ?? '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? '');
+  const [showUrl, setShowUrl] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [avatarFb, setAvatarFb] = useState<Feedback>(null);
+  const [formFb, setFormFb] = useState<Feedback>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const preview = avatarUrl.trim();
   const dirty = name.trim() !== (user?.name ?? '') || preview !== (user?.avatarUrl ?? '');
   const pending = busy || uploading;
-  const starred = boards.filter((b) => b.isStarred).length;
 
   function clearFeedback() {
-    setError(null);
-    setNotice(null);
+    setAvatarFb(null);
+    setFormFb(null);
+  }
+
+  // Tab theo chuan ARIA: mui ten trai/phai, Home/End chuyen tab va dua focus theo
+  function onTabKey(e: KeyboardEvent<HTMLButtonElement>) {
+    const i = TABS.findIndex((t) => t.id === tab);
+    const next =
+      e.key === 'ArrowRight'
+        ? (i + 1) % TABS.length
+        : e.key === 'ArrowLeft'
+          ? (i - 1 + TABS.length) % TABS.length
+          : e.key === 'Home'
+            ? 0
+            : e.key === 'End'
+              ? TABS.length - 1
+              : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    setTab(TABS[next]!.id);
+    document.getElementById(`tab-${TABS[next]!.id}`)?.focus();
   }
 
   async function onPickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
@@ -96,11 +119,8 @@ export default function ProfilePage() {
     e.target.value = '';
     if (!file || pending) return;
     clearFeedback();
-    if (
-      !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type) ||
-      file.size > 2 * 1024 * 1024
-    ) {
-      setError('Chọn ảnh PNG, JPG, WEBP hoặc GIF có dung lượng tối đa 2MB.');
+    if (!AVATAR_TYPES.includes(file.type) || file.size > AVATAR_MAX_BYTES) {
+      setAvatarFb({ kind: 'error', text: 'Chọn ảnh PNG, JPG, WEBP hoặc GIF, tối đa 2MB.' });
       return;
     }
     setUploading(true);
@@ -108,9 +128,9 @@ export default function ProfilePage() {
       const updated = await uploadAvatar(file);
       updateUser(updated);
       setAvatarUrl(updated.avatarUrl ?? '');
-      setNotice('Đã cập nhật ảnh đại diện.');
+      setAvatarFb({ kind: 'ok', text: 'Đã đổi ảnh đại diện.' });
     } catch (err) {
-      setError(getErrorMessage(err, 'Không tải được ảnh đại diện.'));
+      setAvatarFb({ kind: 'error', text: getErrorMessage(err, 'Không tải được ảnh đại diện.') });
     } finally {
       setUploading(false);
     }
@@ -124,9 +144,9 @@ export default function ProfilePage() {
       const updated = await updateProfile({ avatarUrl: null });
       updateUser(updated);
       setAvatarUrl('');
-      setNotice('Đã xoá ảnh đại diện.');
+      setAvatarFb({ kind: 'ok', text: 'Đã xoá ảnh đại diện.' });
     } catch (err) {
-      setError(getErrorMessage(err, 'Không xoá được ảnh đại diện.'));
+      setAvatarFb({ kind: 'error', text: getErrorMessage(err, 'Không xoá được ảnh đại diện.') });
     } finally {
       setUploading(false);
     }
@@ -142,422 +162,245 @@ export default function ProfilePage() {
       updateUser(updated);
       setName(updated.name);
       setAvatarUrl(updated.avatarUrl ?? '');
-      setNotice('Đã lưu thay đổi.');
+      setFormFb({ kind: 'ok', text: 'Đã lưu.' });
     } catch (err) {
-      setError(getErrorMessage(err, 'Không lưu được hồ sơ.'));
+      setFormFb({ kind: 'error', text: getErrorMessage(err, 'Không lưu được hồ sơ.') });
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="mx-auto w-full space-y-6 pb-6">
-      <header>
-        <p className="mb-2 text-xs font-medium tracking-wide text-slate-500 dark:text-slate-400">
-          TÀI KHOẢN
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-[28px] dark:text-slate-100">
-          Hồ sơ cá nhân
-        </h1>
-        <p className="mt-1.5 text-sm leading-6 text-slate-500 dark:text-slate-400">
-          Quản lý thông tin của bạn và cách bạn làm việc trên TaskFlow.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-3xl pb-6">
+      <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Hồ sơ</h1>
 
-      <section
-        aria-label="Tổng quan hồ sơ"
-        className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs dark:border-slate-700 dark:bg-slate-800"
+      <div
+        role="tablist"
+        aria-label="Hồ sơ"
+        className="mt-4 flex gap-6 border-b border-slate-200 dark:border-slate-700"
       >
-        <div className="h-1.5 bg-gradient-to-r from-cyan-400 via-indigo-400 to-indigo-600" />
-        <div className="flex flex-col gap-6 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-center gap-4">
-            <div className="relative shrink-0 rounded-full bg-slate-50 p-1.5 ring-1 ring-slate-100 dark:bg-slate-900/50 dark:ring-slate-700">
-              <Avatar
-                id={user?.id ?? 'me'}
-                name={user?.name ?? '?'}
-                avatarUrl={preview || null}
-                className="h-16 w-16 text-xl sm:h-20 sm:w-20 sm:text-2xl"
-              />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={pending}
-                aria-label="Thay ảnh đại diện"
-                className="absolute -right-0.5 bottom-0 grid h-8 w-8 place-items-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xs hover:text-indigo-600 focus-visible:outline-2 focus-visible:outline-indigo-500 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
-              >
-                <ProfileIcon name="camera" />
-              </button>
-            </div>
-            <div className="min-w-0">
-              <p
-                className="truncate text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100"
-                title={user?.name}
-              >
-                {user?.name}
-              </p>
-              <p
-                className="mt-1 truncate text-sm text-slate-500 dark:text-slate-400"
-                title={user?.email}
-              >
-                {user?.email}
-              </p>
-              <p className="mt-2.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                <ProfileIcon name="calendar" className="h-3.5 w-3.5" />
-                Tham gia từ {fmtDate(user?.createdAt)}
-              </p>
-            </div>
-          </div>
-          <dl className="grid shrink-0 grid-cols-2 divide-x divide-slate-200 border-t border-slate-100 pt-4 lg:min-w-52 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-2 dark:divide-slate-700 dark:border-slate-700">
-            {[
-              { label: 'Bảng tham gia', value: boards.length },
-              { label: 'Đánh dấu sao', value: starred },
-            ].map((stat) => (
-              <div key={stat.label} className="flex flex-col px-4 text-center">
-                <dt className="order-2 mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  {stat.label}
-                </dt>
-                <dd className="text-2xl font-semibold tabular-nums text-slate-800 dark:text-slate-100">
-                  {boardsLoading || boardsError ? '—' : stat.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      </section>
+        {TABS.map((t) => {
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              id={`tab-${t.id}`}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              aria-controls={`panel-${t.id}`}
+              tabIndex={active ? 0 : -1}
+              onClick={() => setTab(t.id)}
+              onKeyDown={onTabKey}
+              className={`-mb-px shrink-0 border-b-2 px-0.5 pb-2.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-primary ${
+                active
+                  ? 'border-primary text-primary-ink'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'
+              }`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
 
       <input
         ref={fileRef}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif"
+        accept={AVATAR_TYPES.join(',')}
         aria-label="Chọn ảnh đại diện"
         hidden
         onChange={onPickAvatar}
       />
-      {error && (
-        <p
-          role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-        >
-          {error}
-        </p>
-      )}
-      {notice && (
-        <p
-          role="status"
-          className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
-        >
-          <ProfileIcon name="check" />
-          {notice}
-        </p>
-      )}
-      {uploading && (
-        <p role="status" className="text-sm text-slate-500 dark:text-slate-400">
-          Đang cập nhật ảnh đại diện…
-        </p>
-      )}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-6">
-        <aside className="min-w-0">
-          <nav
-            aria-label="Cài đặt hồ sơ"
-            className="grid grid-cols-3 gap-1 rounded-xl border border-slate-200 bg-white p-1.5 lg:flex lg:flex-col lg:border-0 lg:bg-transparent lg:p-0 dark:border-slate-700 dark:bg-slate-800 lg:dark:bg-transparent"
-          >
-            {sections.map((item) => (
-              <button
-                key={item.id}
-                id={`nav-${item.id}`}
-                type="button"
-                aria-label={item.label}
-                aria-pressed={section === item.id}
-                aria-controls={`profile-${item.id}`}
-                onClick={() => setSection(item.id)}
-                className={`flex min-w-0 flex-col items-center justify-center gap-1.5 rounded-lg px-1.5 py-3 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-indigo-500 sm:flex-row sm:gap-2.5 sm:px-3 sm:text-sm lg:justify-start ${section === item.id ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300' : 'text-slate-500 hover:bg-white hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'}`}
-              >
-                <ProfileIcon name={item.icon} className="h-[18px] w-[18px]" />
-                <span className="sm:hidden">{item.id === 'personal' ? 'Cá nhân' : item.label}</span>
-                <span className="hidden sm:inline">{item.label}</span>
-              </button>
-            ))}
-          </nav>
-          <div className="mt-6 hidden border-t border-slate-200 pt-5 lg:block dark:border-slate-700">
-            <p className="mb-2 px-3 text-[11px] font-semibold tracking-wider text-slate-400 dark:text-slate-500">
-              KHÔNG GIAN CỦA BẠN
-            </p>
-            {[
-              { to: '/my-cards', label: 'Thẻ của tôi', icon: 'board' },
-              { to: '/activity', label: 'Hoạt động của tôi', icon: 'activity' },
-            ].map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-slate-500 hover:bg-white hover:text-slate-800 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-              >
-                <ProfileIcon name={item.icon as ProfileIconName} />
-                {item.label}
-              </Link>
-            ))}
-          </div>
-        </aside>
-
-        <div className="min-w-0">
-          <div id="profile-personal" hidden={section !== 'personal'}>
-            <ProfilePanel
-              id="personal-title"
-              title="Thông tin cá nhân"
-              description="Thông tin giúp mọi người nhận ra bạn trong không gian làm việc."
-            >
-              <form onSubmit={submit}>
-                <div className="space-y-6 p-5 sm:p-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 p-4 dark:bg-slate-900/40">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                        Ảnh đại diện
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                        PNG, JPG, WEBP hoặc GIF · Tối đa 2MB
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => fileRef.current?.click()}
-                        disabled={pending}
-                        className={profileSecondaryButton}
-                      >
-                        <ProfileIcon name="upload" />
-                        Tải ảnh lên
-                      </button>
-                      {preview && (
-                        <button
-                          type="button"
-                          onClick={removeAvatar}
-                          disabled={pending}
-                          className="min-h-10 rounded-lg px-2 text-sm text-slate-500 hover:text-red-600 focus-visible:outline-2 focus-visible:outline-indigo-500 disabled:opacity-50 dark:text-slate-400"
-                        >
-                          Xoá ảnh
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="profile-name"
-                      className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200"
-                    >
-                      Tên hiển thị
-                    </label>
-                    <input
-                      id="profile-name"
-                      autoComplete="name"
-                      required
-                      minLength={2}
-                      maxLength={100}
-                      value={name}
+      {/* Giu ca 3 tab trong DOM: chuyen tab khong mat phan dang go do */}
+      <div id="panel-personal" role="tabpanel" aria-labelledby="tab-personal" hidden={tab !== 'personal'} className="mt-6">
+        <form onSubmit={submit} className={CARD}>
+          <div className="divide-y divide-slate-100 dark:divide-slate-700">
+            <Row label="Ảnh đại diện">
+              <div className="flex items-center gap-4">
+                <Avatar
+                  id={user?.id ?? 'me'}
+                  name={user?.name ?? '?'}
+                  avatarUrl={preview || null}
+                  className="h-16 w-16 shrink-0 text-xl"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileRef.current?.click()}
                       disabled={pending}
-                      onChange={(e) => {
-                        setName(e.target.value);
-                        clearFeedback();
-                      }}
-                      className={profileInput}
-                      aria-describedby="profile-name-hint"
-                    />
-                    <p
-                      id="profile-name-hint"
-                      className="mt-2 text-xs text-slate-500 dark:text-slate-400"
+                      className={profileSecondaryButton}
                     >
-                      Tên hiển thị trên thẻ công việc, bình luận và trong nhóm.
-                    </p>
-                  </div>
-
-                  <div>
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <label
-                        htmlFor="profile-email"
-                        className="text-sm font-medium text-slate-700 dark:text-slate-200"
-                      >
-                        Địa chỉ email
-                      </label>
-                      {user?.emailVerifiedAt && (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                          <ProfileIcon name="check" className="h-3.5 w-3.5" />
-                          Đã xác minh
-                        </span>
-                      )}
-                    </div>
-                    <div className="relative">
-                      <input
-                        id="profile-email"
-                        type="email"
-                        value={user?.email ?? ''}
-                        readOnly
-                        className={`${profileInput} pr-10 bg-slate-50 text-slate-500 dark:bg-slate-900/60 dark:text-slate-400`}
-                        aria-describedby="profile-email-hint"
-                      />
-                      <ProfileIcon
-                        name="lock"
-                        className="pointer-events-none absolute right-3.5 top-3 h-4 w-4 text-slate-400"
-                      />
-                    </div>
-                    <p
-                      id="profile-email-hint"
-                      className="mt-2 text-xs text-slate-500 dark:text-slate-400"
-                    >
-                      Email được dùng để đăng nhập và không thể thay đổi.
-                    </p>
-                  </div>
-
-                  <details className="rounded-lg border border-slate-200 dark:border-slate-700">
-                    <summary className="cursor-pointer rounded-lg px-4 py-3 text-sm font-medium text-slate-600 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-slate-300">
-                      Dùng ảnh từ liên kết
-                    </summary>
-                    <div className="px-4 pb-4">
-                      <label
-                        htmlFor="profile-avatar-url"
-                        className="mb-2 block text-xs text-slate-500 dark:text-slate-400"
-                      >
-                        Liên kết ảnh đại diện (tùy chọn)
-                      </label>
-                      <input
-                        id="profile-avatar-url"
-                        value={avatarUrl}
-                        disabled={pending}
-                        onChange={(e) => {
-                          setAvatarUrl(e.target.value);
-                          clearFeedback();
-                        }}
-                        placeholder="https://example.com/avatar.jpg"
-                        className={profileInput}
-                      />
-                    </div>
-                  </details>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:px-6 dark:border-slate-700 dark:bg-slate-900/20">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {dirty ? 'Bạn có thay đổi chưa lưu.' : 'Thông tin của bạn đã được cập nhật.'}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    {dirty && (
+                      {uploading ? 'Đang cập nhật…' : preview ? 'Đổi ảnh' : 'Tải ảnh lên'}
+                    </button>
+                    {preview && (
                       <button
                         type="button"
+                        onClick={removeAvatar}
                         disabled={pending}
-                        onClick={() => {
-                          setName(user?.name ?? '');
-                          setAvatarUrl(user?.avatarUrl ?? '');
-                          clearFeedback();
-                        }}
-                        className={profileSecondaryButton}
+                        className="min-h-10 rounded-lg px-2 text-sm text-slate-500 hover:text-red-600 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50 dark:text-slate-400 dark:hover:text-red-400"
                       >
-                        Hoàn tác
+                        Xoá ảnh
                       </button>
                     )}
-                    <button
-                      type="submit"
-                      disabled={pending || !name.trim() || !dirty}
-                      className={profilePrimaryButton}
-                    >
-                      {busy ? 'Đang lưu…' : 'Lưu thay đổi'}
-                    </button>
                   </div>
-                </div>
-              </form>
-            </ProfilePanel>
-          </div>
-
-          {/* Keep panels mounted so switching sections preserves unsaved drafts. */}
-          <div id="profile-skills" hidden={section !== 'skills'}>
-            <ProfilePanel
-              id="skills-title"
-              title="Kỹ năng & CV"
-              description="Chia sẻ kỹ năng và kinh nghiệm để nhận gợi ý công việc phù hợp hơn."
-            >
-              <div className="p-5 sm:p-6">
-                <DeclaredProfileSection />
-              </div>
-            </ProfilePanel>
-          </div>
-
-          <div id="profile-preferences" hidden={section !== 'preferences'} className="space-y-5">
-            <ProfilePanel
-              id="appearance-title"
-              title="Giao diện"
-              description="Chọn giao diện phù hợp với cách bạn làm việc."
-            >
-              <div className="p-5 sm:p-6">
-                <div
-                  role="group"
-                  aria-label="Chế độ giao diện"
-                  className="grid grid-cols-3 gap-2 sm:gap-3"
-                >
-                  {themes.map((item) => (
+                  <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    PNG, JPG, WEBP hoặc GIF, tối đa 2MB ·{' '}
                     <button
-                      key={item.id}
                       type="button"
-                      aria-pressed={theme === item.id}
-                      onClick={() => setTheme(item.id)}
-                      className={`min-w-0 rounded-xl border-2 p-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 sm:p-3 ${theme === item.id ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-500/10' : 'border-slate-200 hover:border-slate-300 dark:border-slate-600 dark:hover:border-slate-500'}`}
+                      aria-expanded={showUrl}
+                      aria-controls="profile-avatar-url"
+                      onClick={() => setShowUrl((v) => !v)}
+                      className="font-medium text-primary-ink hover:underline"
                     >
-                      <span
-                        aria-hidden="true"
-                        className={`flex h-16 overflow-hidden rounded-md border sm:h-20 ${item.id === 'dark' ? 'border-slate-700 bg-slate-900' : item.id === 'system' ? 'border-slate-300 bg-gradient-to-r from-slate-50 from-50% to-slate-900 to-50%' : 'border-slate-200 bg-slate-50'}`}
-                      >
-                        <span
-                          className={`w-1/4 border-r ${item.id === 'dark' ? 'border-slate-700 bg-slate-800' : 'border-slate-200 bg-white'}`}
-                        />
-                        <span className="flex flex-1 flex-col gap-1.5 p-2 sm:p-3">
-                          <span className="h-1.5 w-3/4 rounded bg-indigo-400/70" />
-                          <span className="h-1.5 w-full rounded bg-slate-400/25" />
-                          <span className="h-1.5 w-2/3 rounded bg-slate-400/25" />
-                        </span>
-                      </span>
-                      <span className="mt-3 flex items-center justify-between gap-1 text-xs font-medium text-slate-700 sm:text-sm dark:text-slate-200">
-                        <span className="flex items-center gap-1.5">
-                          <ProfileIcon name={item.icon} className="hidden h-4 w-4 sm:block" />
-                          {item.label}
-                        </span>
-                        <span
-                          className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${theme === item.id ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 dark:border-slate-500'}`}
-                        >
-                          {theme === item.id && <ProfileIcon name="check" className="h-3 w-3" />}
-                        </span>
-                      </span>
+                      {showUrl ? 'Ẩn ô liên kết' : 'Dùng liên kết ảnh'}
                     </button>
-                  ))}
+                  </p>
                 </div>
-                <p className="mt-4 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                  Lựa chọn được lưu tự động trên trình duyệt này. Chế độ Hệ thống sẽ theo cài đặt
-                  của thiết bị.
-                </p>
               </div>
-            </ProfilePanel>
-            <ProfilePanel
-              id="account-title"
-              title="Tài khoản & hoạt động"
-              description="Quản lý bảo mật và truy cập công việc cá nhân."
-            >
-              <div className="space-y-1 p-2 sm:p-3">
-                <SettingsLink
-                  to="/settings/password"
-                  icon="lock"
-                  label="Đổi mật khẩu"
-                  description="Cập nhật mật khẩu để bảo vệ tài khoản."
-                />
-                <SettingsLink
-                  to="/my-cards"
-                  icon="board"
-                  label="Thẻ của tôi"
-                  description="Xem các công việc được giao cho bạn."
-                />
-                <SettingsLink
-                  to="/activity"
-                  icon="activity"
-                  label="Hoạt động của tôi"
-                  description="Xem lại những cập nhật gần đây của bạn."
-                />
-              </div>
-            </ProfilePanel>
+              <input
+                id="profile-avatar-url"
+                aria-label="Liên kết ảnh đại diện"
+                hidden={!showUrl}
+                value={avatarUrl}
+                disabled={pending}
+                onChange={(e) => {
+                  setAvatarUrl(e.target.value);
+                  clearFeedback();
+                }}
+                placeholder="https://example.com/avatar.jpg"
+                className={`${profileInput} mt-3`}
+              />
+              {avatarFb && (
+                <div className="mt-2">
+                  <Message fb={avatarFb} />
+                </div>
+              )}
+            </Row>
+
+            <Row label="Tên hiển thị" htmlFor="profile-name">
+              <input
+                id="profile-name"
+                autoComplete="name"
+                required
+                minLength={2}
+                maxLength={100}
+                value={name}
+                disabled={pending}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  clearFeedback();
+                }}
+                className={`${profileInput} sm:max-w-sm`}
+              />
+            </Row>
+
+            <Row label="Email">
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-800 sm:pt-2 dark:text-slate-100">
+                <span className="min-w-0 break-all">{user?.email}</span>
+                {user?.emailVerifiedAt ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                    <ProfileIcon name="check" className="h-3.5 w-3.5" />
+                    Đã xác minh
+                  </span>
+                ) : (
+                  <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                    Chưa xác minh
+                  </span>
+                )}
+              </p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Dùng để đăng nhập, không đổi được.
+              </p>
+            </Row>
+
+            <Row label="Mật khẩu">
+              <Link to="/settings/password" className={profileSecondaryButton}>
+                Đổi mật khẩu
+              </Link>
+            </Row>
+
+            <Row label="Tham gia">
+              <p className="text-sm text-slate-800 sm:pt-2 dark:text-slate-100">{fmtDate(user?.createdAt)}</p>
+            </Row>
           </div>
-        </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 px-5 py-4 sm:px-6 dark:border-slate-700">
+            <div className="mr-auto">
+              <Message fb={formFb} />
+            </div>
+            {dirty && (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  setName(user?.name ?? '');
+                  setAvatarUrl(user?.avatarUrl ?? '');
+                  clearFeedback();
+                }}
+                className={profileSecondaryButton}
+              >
+                Hoàn tác
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={pending || !name.trim() || !dirty}
+              className={profilePrimaryButton}
+            >
+              {busy ? 'Đang lưu…' : 'Lưu thay đổi'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div id="panel-skills" role="tabpanel" aria-labelledby="tab-skills" hidden={tab !== 'skills'} className="mt-6">
+        <section className={`${CARD} p-5 sm:p-6`}>
+          <DeclaredProfileSection />
+        </section>
+      </div>
+
+      <div id="panel-preferences" role="tabpanel" aria-labelledby="tab-preferences" hidden={tab !== 'preferences'} className="mt-6">
+        <section className={`${CARD} divide-y divide-slate-100 dark:divide-slate-700`}>
+          <Row label="Giao diện">
+            <div
+              role="radiogroup"
+              aria-label="Giao diện"
+              className="inline-grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-900/60"
+            >
+              {THEMES.map((t) => {
+                const checked = theme === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={checked}
+                    onClick={() => setTheme(t.id)}
+                    className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-primary ${
+                      checked
+                        ? 'bg-white text-primary-ink shadow-sm dark:bg-slate-700'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'
+                    }`}
+                  >
+                    <ProfileIcon name={t.icon} />
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              Lưu trên trình duyệt này. “Hệ thống” đi theo cài đặt sáng/tối của máy.
+            </p>
+          </Row>
+          <Row label="Thông báo">
+            <Link to="/settings/notifications" className={profileSecondaryButton}>
+              Cài đặt thông báo
+            </Link>
+          </Row>
+        </section>
       </div>
     </div>
   );
