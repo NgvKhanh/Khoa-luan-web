@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
 import { useTheme } from '../context/ThemeContext';
@@ -492,29 +492,75 @@ export function CreateBoardMenu({ label }: { label?: string } = {}) {
 }
 
 // ------- Menu tai khoan -------
-const THEME_LABEL = { light: 'Sáng', dark: 'Tối', system: 'Hệ thống' } as const;
+// Hai nhóm mục: việc của tôi / cài đặt tài khoản. Biểu tượng của mục trùng với sidebar dùng cùng nét vẽ.
+const ACCOUNT_GROUPS = [
+  [
+    { to: '/my-cards', label: 'Thẻ của tôi', icon: 'M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11' },
+    { to: '/calendar', label: 'Lịch', icon: 'M5 4h14a2 2 0 012 2v13a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zM3 10h18M8 2v4M16 2v4' },
+    { to: '/activity', label: 'Hoạt động của tôi', icon: 'M22 12h-4l-3 9L9 3l-3 9H2' },
+  ],
+  [
+    { to: '/settings/profile', label: 'Hồ sơ', icon: 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0' },
+    { to: '/settings/notifications', label: 'Cài đặt thông báo', icon: 'M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0' },
+    { to: '/settings/password', label: 'Đổi mật khẩu', icon: 'M5 11h14v10H5zM8 11V7a4 4 0 018 0v4' },
+  ],
+] as const;
 
-function AccountMenu() {
+const THEME_OPTIONS = [
+  { value: 'light', label: 'Sáng', icon: 'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4' },
+  { value: 'dark', label: 'Tối', icon: 'M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z' },
+  { value: 'system', label: 'Hệ thống', icon: 'M3 4h18v12H3zM8 20h8M12 16v4' },
+] as const;
+
+function MenuIcon({ path, className = 'h-4 w-4' }: { path: string; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={`shrink-0 ${className}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d={path} />
+    </svg>
+  );
+}
+
+// Màu chữ của từng loại mục để riêng, không ghép chuỗi đè lên nhau (trước đây "Đăng xuất" ghép
+// text-red-600 vào sau text-slate-700 nên vẫn ra màu xám: Tailwind không ưu tiên lớp viết sau).
+const MENU_ITEM = 'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors';
+const MENU_ITEM_IDLE = 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700/70';
+const MENU_ITEM_ACTIVE = 'bg-primary-soft font-medium text-primary-ink';
+
+export function AccountMenu() {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
-  const [themeOpen, setThemeOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    if (!open) return;
     function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-        setThemeOpen(false);
-      }
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    // Esc đóng menu và trả con trỏ bàn phím về nút ảnh đại diện
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      triggerRef.current?.focus();
     }
     document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, []);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
   async function handleLogout() {
-    await logout();
+    setOpen(false);
+    try {
+      await logout();
+    } catch {
+      // logout() đã xoá phiên ở máy này trong finally; lỗi mạng không được giữ người dùng lại
+    }
     navigate('/', { replace: true });
   }
 
@@ -523,16 +569,19 @@ function AccountMenu() {
     navigate(path);
   }
 
-  const item =
-    'w-full rounded-lg px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700';
-
   return (
     <div ref={ref} className="relative shrink-0">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         title={user?.name}
-        className="grid shrink-0 place-items-center rounded-full ring-2 ring-transparent transition hover:ring-slate-200 dark:hover:ring-slate-700"
+        aria-label="Tài khoản"
+        aria-haspopup="true"
+        aria-expanded={open}
+        className={`grid shrink-0 place-items-center rounded-full ring-2 transition focus-visible:outline-none focus-visible:ring-primary ${
+          open ? 'ring-primary/40' : 'ring-transparent hover:ring-slate-200 dark:hover:ring-slate-700'
+        }`}
       >
         <Avatar
           id={user?.id ?? 'me'}
@@ -543,81 +592,82 @@ function AccountMenu() {
       </button>
 
       {open && (
-        <div className="tf-menu-in absolute right-0 top-11 z-40 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-          <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-700 dark:bg-slate-900/40">
+        <div className="tf-menu-in absolute right-0 top-11 z-40 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-2xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+          <div className="flex items-center gap-3 px-4 pb-3 pt-4">
             <Avatar
               id={user?.id ?? 'me'}
               name={user?.name ?? '?'}
               avatarUrl={user?.avatarUrl}
-              className="h-10 w-10 text-base"
+              className="h-10 w-10 text-sm"
             />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{user?.name}</p>
-              <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                {user?.email}
-              </p>
+              <p className="truncate text-xs text-slate-500 dark:text-slate-400">{user?.email}</p>
             </div>
           </div>
 
-          <div className="p-1.5">
-            <button type="button" className={item} onClick={() => go('/settings/profile')}>
-              Hồ sơ
-            </button>
-            <button type="button" className={item} onClick={() => go('/my-cards')}>
-              Thẻ của tôi
-            </button>
-            <button type="button" className={item} onClick={() => go('/calendar')}>
-              Lịch
-            </button>
-            <button type="button" className={item} onClick={() => go('/settings/notifications')}>
-              Cài đặt thông báo
-            </button>
-            <button type="button" className={item} onClick={() => go('/settings/password')}>
-              Đổi mật khẩu
-            </button>
-            <button type="button" className={item} onClick={() => go('/activity')}>
-              Hoạt động của tôi
-            </button>
-
-            <button
-              type="button"
-              className={item + ' flex items-center justify-between'}
-              onClick={() => setThemeOpen((v) => !v)}
-            >
-              <span>Chủ đề</span>
-              <span className="flex items-center gap-1 text-xs text-slate-400">
-                {THEME_LABEL[theme]}
-                <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 transition-transform ${themeOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 6l6 6-6 6" />
-                </svg>
-              </span>
-            </button>
-            {themeOpen && (
-              <div className="mb-1 ml-2 border-l border-slate-200 pl-1.5 dark:border-slate-700">
-                {(['light', 'dark', 'system'] as const).map((t) => (
+          {ACCOUNT_GROUPS.map((group, i) => (
+            <div key={i} className="border-t border-slate-100 p-1.5 dark:border-slate-700">
+              {group.map((it) => {
+                const active = pathname === it.to || pathname.startsWith(it.to + '/');
+                return (
                   <button
-                    key={t}
+                    key={it.to}
                     type="button"
-                    onClick={() => setTheme(t)}
-                    className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+                    aria-current={active ? 'page' : undefined}
+                    onClick={() => go(it.to)}
+                    className={`${MENU_ITEM} ${active ? MENU_ITEM_ACTIVE : MENU_ITEM_IDLE}`}
                   >
-                    {THEME_LABEL[t]}
-                    {theme === t && (
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 text-primary-ink" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
+                    <MenuIcon
+                      path={it.icon}
+                      className={`h-4 w-4 ${active ? '' : 'text-slate-400 dark:text-slate-500'}`}
+                    />
+                    {it.label}
                   </button>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
+          ))}
 
-            <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
+          <div className="border-t border-slate-100 px-4 py-3 dark:border-slate-700">
+            <p id="account-theme-label" className="mb-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+              Giao diện
+            </p>
+            <div
+              role="radiogroup"
+              aria-labelledby="account-theme-label"
+              className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-900/60"
+            >
+              {THEME_OPTIONS.map((o) => {
+                const checked = theme === o.value;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={checked}
+                    onClick={() => setTheme(o.value)}
+                    className={`flex items-center justify-center gap-1 rounded-md px-1 py-1.5 text-xs font-medium transition ${
+                      checked
+                        ? 'bg-white text-primary-ink shadow-sm dark:bg-slate-700'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'
+                    }`}
+                  >
+                    <MenuIcon path={o.icon} className="h-3.5 w-3.5" />
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 p-1.5 dark:border-slate-700">
             <button
               type="button"
               onClick={handleLogout}
-              className={item + ' font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10'}
+              className={`${MENU_ITEM} font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10`}
             >
+              <MenuIcon path="M9 21H6a2 2 0 01-2-2V5a2 2 0 012-2h3M16 17l5-5-5-5M21 12H9" />
               Đăng xuất
             </button>
           </div>
