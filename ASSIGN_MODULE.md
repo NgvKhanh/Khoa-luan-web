@@ -2785,3 +2785,20 @@ mức sàn 0,05 cho tới khi có số liệu thật (bước 15: 1/4 tiêu chí
   gì; ký tự lạ do PDF (biểu tượng thành "□") không ảnh hưởng so khớp vì phần tách từ bỏ qua.
 - **Dữ liệu cũ:** có tệp nhưng `cvText` rỗng → nhắc "tải lại CV"; có `cvText` gõ tay mà không có tệp → nói rõ đang được dùng, "Xoá CV" để bỏ.
 - Số liệu đánh giá (bước 15, 19) **không bị ảnh hưởng**: bộ dữ liệu mô phỏng ghi `cvText` thẳng, không qua giao diện.
+
+### Sửa lỗi (04/10/2026) — test CV đã xoá tệp CV THẬT của người dùng
+
+**Lỗi (do bước 17)**: `test/assign.profileapi.test.ts` dọn tệp sau mỗi ca bằng cách xoá mọi tệp trong `CV_DIR` không có trong danh sách
+"tệp có sẵn" — nhưng danh sách khởi tạo **rỗng** và ca đầu tiên không chụp lại, nên lần dọn đầu xoá **sạch** thư mục. `CV_DIR` lúc đó là
+`backend/uploads/cv` **thật** (bind-mount chung với backend trong Docker) → mỗi lần chạy bộ test backend là mất mọi CV thật. Đã mất CV tải
+lên ngày 28/09 của một tài khoản (CSDL vẫn trỏ tới tệp → tải về 404); không khôi phục được (`uploads` không nằm trong git). Nhật ký bước 17
+ghi "không còn tệp CV rác sau suite" là đúng nhưng gây hiểu sai: không còn rác vì xoá cả tệp thật.
+
+**Sửa**: `UPLOAD_ROOT` đọc biến môi trường cùng tên nếu có (chỉ test đặt; ứng dụng và Docker không đặt → hành vi không đổi);
+`test/uploadsIsolation.ts` (import **đầu tiên** trong `test/setup.ts`) trỏ nó vào `<thư mục tạm>/taskflow-test-uploads` → **mọi** test
+(ảnh nền, ảnh đại diện, tệp đính kèm, CV) không còn ghi / xoá vào `backend/uploads`. Test CV chụp danh sách tệp có sẵn ngay khi nạp và sau mỗi
+lần dọn. Chốt chặn: `test/uploads.isolation.test.ts` (thư mục tải lên của test phải nằm trong thư mục tạm, không nằm trong `backend/uploads`) và
+một ca đặt sẵn tệp "không phải của test" rồi kiểm nó còn nguyên. Cài lỗi 3/3 (bỏ import cách ly, `upload.ts` bỏ qua biến, danh sách khởi tạo
+rỗng như lỗi cũ — hai phép đầu chỉ chạy test chốt chặn, vốn không ghi tệp, để không đụng thư mục thật khi cách ly bị gỡ). Suite backend
+121 tệp / 1320 test xanh; danh sách 234 tệp trong `backend/uploads` **không đổi** sau cả suite (so trước / sau).
+

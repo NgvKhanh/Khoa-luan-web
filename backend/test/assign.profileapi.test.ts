@@ -30,10 +30,17 @@ const userCv = (u: TestUser | null, id: string) => {
 };
 const filesInCv = () => (fs.existsSync(CV_DIR) ? fs.readdirSync(CV_DIR) : []);
 
-// Test tao tep that trong uploads/cv: don het tep MOI sinh ra sau moi test (TRUNCATE chi xoa dong CSDL)
-let before = new Set<string>();
+// Test tao tep that trong CV_DIR (thu muc TAM cua test - test/uploadsIsolation.ts, khong phai backend/uploads): don cac tep MOI
+// sinh ra sau moi test (TRUNCATE chi xoa dong CSDL). Danh sach "tep co san" chup NGAY khi nap tep va sau moi lan don: ban dau de
+// rong thi lan don dau tien xoa sach ca tep khong phai cua test (04/10 da mat mot CV that vi loi nay, khi CV_DIR con la thu muc that).
+// Tep "cua nguoi khac" dat san TRUOC khi chup: ca cuoi tep kiem no con nguyen (bat dung loi 04/10)
+const FOREIGN = 'khong-phai-cua-test.pdf';
+fs.mkdirSync(CV_DIR, { recursive: true });
+fs.writeFileSync(path.join(CV_DIR, FOREIGN), 'tep co san, test khong duoc xoa');
+let before = new Set<string>(filesInCv());
 afterEach(() => {
   for (const f of filesInCv()) if (!before.has(f)) fs.rmSync(path.join(CV_DIR, f), { force: true });
+  before = new Set(filesInCv());
 });
 const startTracking = () => {
   before = new Set(filesInCv());
@@ -356,5 +363,12 @@ describe('CV di vao bo cham, chu CV khong ra ngoai', () => {
     // bob tat cong tac -> chu khong gian khong con thay
     await put(w.bob, { ...VALID, useForAssign: false });
     expect(candOf((await suggest(w.owner, target.id)).body, w.bob).cvAvailable).toBe(false);
+  });
+});
+
+describe('don tep cua test khong dung vao tep co san', () => {
+  it('tep dat san truoc khi chay (khong do test tao) van con nguyen sau moi ca o tren', () => {
+    expect(filesInCv()).toContain(FOREIGN);
+    fs.rmSync(path.join(CV_DIR, FOREIGN), { force: true });
   });
 });

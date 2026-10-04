@@ -5,8 +5,10 @@ import type { NextFunction, Request, Response } from 'express';
 import multer from 'multer';
 import { AppError } from '../utils/AppError';
 
-// Thu muc luu file tai len (nam ngoai src, khong commit len git)
-export const UPLOAD_ROOT = path.join(process.cwd(), 'uploads');
+// Thu muc luu file tai len (nam ngoai src, khong commit len git). Bien moi truong UPLOAD_ROOT CHI de test tro sang thu muc tam
+// (test/uploadsIsolation.ts): thu muc that duoc bind-mount chung voi backend trong Docker, test ghi / xoa vao do la mat tep that
+// cua nguoi dung (04/10 da mat mot CV vi vay). Ung dung va Docker khong dat bien nay.
+export const UPLOAD_ROOT = process.env.UPLOAD_ROOT ? path.resolve(process.env.UPLOAD_ROOT) : path.join(process.cwd(), 'uploads');
 // CHI xuat cac thu muc CONG KHAI (avatars, boards) de app.ts mount static
 // dung tung thu muc do. KHONG bao gio mount static tren UPLOAD_ROOT: no chua
 // ca CARD_ATTACH_DIR (rieng tu) va lam vo hieu lop kiem tra quyen o

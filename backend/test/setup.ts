@@ -1,4 +1,6 @@
-// PHAI la import dau tien: chan khoa AI that trong backend/.env truoc khi env.ts duoc nap
+// PHAI la hai import dau tien: tro thu muc tai len sang thu muc tam (khong dung vao tep that cua nguoi dung) va chan khoa AI that
+// trong backend/.env truoc khi env.ts / upload.ts duoc nap
+import './uploadsIsolation';
 import './aiEnvIsolation';
 import { loadAndAssertTestDatabaseUrl } from './dbSafety';
 
