@@ -357,7 +357,7 @@ export default function HomeDashboard() {
             <ul
               aria-label="Hoạt động gần đây"
               tabIndex={0}
-              className="-mr-3 flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-3 [scrollbar-color:rgb(148_163_184/0.5)_transparent] [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-primary dark:[scrollbar-color:rgb(100_116_139/0.8)_transparent]"
+              className="tf-scroll -mr-3 flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-3 focus-visible:outline-2 focus-visible:outline-primary"
             >
               {activity.map((a) => (
                 <li key={a.id} className="flex gap-2">

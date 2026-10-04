@@ -37,6 +37,16 @@ body {
   background-clip: content-box;
 }
 
+/* Thanh cuon manh cho vung cuon rieng trong trang (Hoat dong gan day, ket qua tim kiem):
+   xam trung tinh, thay ro tren ca nen sang lan nen toi */
+.tf-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 0.5) transparent;
+}
+.dark .tf-scroll {
+  scrollbar-color: rgb(100 116 139 / 0.8) transparent;
+}
+
 /* Thanh cuon doc cua vung the trong 1 danh sach (nen cot sang mau) */
 .list-scroll {
   scrollbar-width: thin;

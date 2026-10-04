@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   deleteSavedFilter,
@@ -43,6 +43,7 @@ export default function SearchPage() {
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [savingName, setSavingName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const listRef = useRef<HTMLUListElement>(null);
 
   const loadSavedFilters = useCallback(() => {
     fetchSavedFilters()
@@ -62,6 +63,8 @@ export default function SearchPage() {
         .then((res) => {
           setResult(res);
           setError(null);
+          // Ket qua moi (doi bo loc / sang trang): danh sach tu cuon ve dau
+          if (listRef.current) listRef.current.scrollTop = 0;
         })
         .catch((err) => setError(getErrorMessage(err, 'Không tìm được thẻ.')))
         .finally(() => setLoading(false));
@@ -116,7 +119,10 @@ export default function SearchPage() {
   const totalPages = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4">
+    // Tu md: cao dung vung noi dung (MainLayout cho h-full) -> phan tren dung yen, chi danh sach ket qua (min-h-0)
+    // co lai va tu cuon. min-h 32rem: khung qua thap thi quay ve cuon ca trang thay vi bop danh sach con 0.
+    // Man hinh hep: bo loc chiem gan nua man hinh nen van cuon ca trang nhu cu.
+    <div className="mx-auto flex max-w-3xl flex-col gap-4 md:h-full md:min-h-[32rem]">
       <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
         Tìm kiếm nâng cao
       </h1>
@@ -323,7 +329,12 @@ export default function SearchPage() {
       ) : (
         <>
           <p className="text-xs text-slate-400">{result.total} kết quả</p>
-          <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800">
+          <ul
+            ref={listRef}
+            aria-label="Kết quả tìm kiếm"
+            tabIndex={0}
+            className="tf-scroll divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white focus-visible:outline-2 focus-visible:outline-primary md:min-h-0 md:overflow-y-auto md:overscroll-contain dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800"
+          >
             {result.items.map((c) => (
               <li key={c.id}>
                 <Link

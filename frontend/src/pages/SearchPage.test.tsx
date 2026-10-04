@@ -77,3 +77,25 @@ describe('SearchPage - lọc theo trạng thái', () => {
     expect(within(done.closest('a')!).queryByText('Hoàn thành')).toBeNull();
   });
 });
+
+describe('SearchPage - danh sách kết quả cuộn riêng', () => {
+  it('danh sách kết quả là vùng cuộn có tên (bấm Tab tới được); sang trang mới thì tự cuộn về đầu', async () => {
+    const user = userEvent.setup();
+    mocks.search.mockImplementation(async (_filters: unknown, page: number) => ({
+      items: [item(`p${page}`, 'TODO')],
+      page,
+      pageSize: 1,
+      total: 3,
+      hasMore: page < 3,
+    }));
+    renderPage();
+    const list = await screen.findByRole('list', { name: 'Kết quả tìm kiếm' });
+    expect(list).toHaveAttribute('tabindex', '0');
+    expect(list.className).toContain('md:overflow-y-auto');
+
+    list.scrollTop = 300;
+    await user.click(screen.getByRole('button', { name: 'Sau' }));
+    expect(await screen.findByText('Thẻ p2')).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Kết quả tìm kiếm' }).scrollTop).toBe(0);
+  });
+});
