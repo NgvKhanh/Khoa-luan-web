@@ -8,7 +8,7 @@ import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity/activity.service';
 import { isBoardParticipant } from '../board/board.service';
 import { cardMemberIds, notify } from '../notification/notification.service';
-import { assertCardAccess } from './card.service';
+import { assertCardAccess, assertCardView } from './card.service';
 import { initialStatusData } from './cardStatus';
 
 const USER_SELECT = {
@@ -322,15 +322,44 @@ async function mentionedUserIds(
   return [...ids];
 }
 
+// Nguoi viet binh luan vua duoc tra loi con xem duoc the khong (co the da bi moi ra khoi bang)
+async function canStillViewCard(targetUserId: string, cardId: string) {
+  try {
+    await assertCardView(targetUserId, cardId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// parentId: tra loi binh luan do. Luong chi 1 cap - tra loi mot cau tra loi thi van
+// gan vao binh luan GOC cua luong, con thong bao gui cho nguoi viet cau duoc tra loi.
 export async function addComment(
   userId: string,
   cardId: string,
-  text: string
+  text: string,
+  parentId?: string
 ) {
   const card = await assertCardAccess(userId, cardId);
   const trimmed = text.trim();
+
+  let rootId: string | null = null;
+  let repliedToUserId: string | null = null;
+  if (parentId) {
+    // Phai cung the va chua bi xoa (goc da xoa thi van tra loi duoc qua cac cau tra loi con lai)
+    const target = await prisma.comment.findFirst({
+      where: { id: parentId, cardId, deletedAt: null },
+      select: { id: true, userId: true, parentId: true },
+    });
+    if (!target) {
+      throw new AppError('Binh luan ban tra loi khong con ton tai', 404);
+    }
+    rootId = target.parentId ?? target.id;
+    repliedToUserId = target.userId;
+  }
+
   const comment = await prisma.comment.create({
-    data: { cardId, userId, text: trimmed },
+    data: { cardId, userId, text: trimmed, parentId: rootId },
     include: { user: { select: USER_SELECT } },
   });
 
@@ -344,6 +373,13 @@ export async function addComment(
 
   const mentioned = await mentionedUserIds(card.list.boardId, trimmed);
   const commenters = await cardMemberIds(cardId);
+  // Moi nguoi chi nhan 1 thong bao, uu tien: duoc nhac ten > duoc tra loi > binh luan moi
+  const repliedTo =
+    repliedToUserId &&
+    !mentioned.includes(repliedToUserId) &&
+    (await canStillViewCard(repliedToUserId, cardId))
+      ? [repliedToUserId]
+      : [];
   // Nguoi duoc nhac ten -> thong bao rieng "card.mentioned"
   await notify({
     recipients: mentioned,
@@ -353,9 +389,18 @@ export async function addComment(
     cardId,
     data: { cardTitle: card.title, text: trimmed.slice(0, 120) },
   });
-  // Thanh vien the (khong tinh nguoi da duoc nhac) -> thong bao "card.comment"
+  // Nguoi viet binh luan vua duoc tra loi -> "card.comment.reply"
   await notify({
-    recipients: commenters.filter((id) => !mentioned.includes(id)),
+    recipients: repliedTo,
+    actorId: userId,
+    type: 'card.comment.reply',
+    boardId: card.list.boardId,
+    cardId,
+    data: { cardTitle: card.title, text: trimmed.slice(0, 120) },
+  });
+  // Thanh vien the (khong tinh 2 nhom tren) -> thong bao "card.comment"
+  await notify({
+    recipients: commenters.filter((id) => !mentioned.includes(id) && !repliedTo.includes(id)),
     actorId: userId,
     type: 'card.comment',
     boardId: card.list.boardId,

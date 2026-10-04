@@ -26,6 +26,7 @@ export type NotificationType =
   | 'card.member.added'
   | 'card.comment'
   | 'card.mentioned'
+  | 'card.comment.reply'
   | 'card.attachment.added'
   | 'card.moved'
   | 'card.renamed'
@@ -51,6 +52,7 @@ export const NOTIFICATION_TYPES: readonly NotificationType[] = [
   'card.member.added',
   'card.comment',
   'card.mentioned',
+  'card.comment.reply',
   'card.attachment.added',
   'card.moved',
   'card.renamed',

@@ -72,7 +72,10 @@ import StatusBadge from './StatusBadge';
 import type { BoardList } from '../../types/list';
 import AssignSuggestPanel from './cardModal/AssignSuggestPanel';
 import { AddItemInput } from './cardModal/AddItemInput';
+import CommentComposer from './cardModal/CommentComposer';
+import CommentThread from './cardModal/CommentThread';
 import { SortableItem } from './cardModal/SortableItem';
+import { groupCommentThreads, type CommentThreadGroup } from '../../lib/commentThreads';
 import { useCardRealtime } from './cardModal/useCardRealtime';
 import {
   COVER_COLORS,
@@ -186,7 +189,6 @@ export default function CardModal({
   const [editingTitle, setEditingTitle] = useState(false);
   const [descDraft, setDescDraft] = useState('');
   const [editingDesc, setEditingDesc] = useState(false);
-  const [comment, setComment] = useState('');
   const [panel, setPanel] = useState<
     | 'labels'
     | 'due'
@@ -359,16 +361,21 @@ export default function CardModal({
     }
   }
 
+  // Binh luan gom thanh luong (goc + cac cau tra loi); moi luong xen voi nhat ky theo gio cua binh luan goc
   const feed = useMemo(() => {
     if (!card) return [] as (
-      | { kind: 'comment'; at: string; c: CardComment }
+      | { kind: 'thread'; at: string; t: CommentThreadGroup<CardComment> }
       | { kind: 'activity'; at: string; a: CardActivity }
     )[];
     const items: (
-      | { kind: 'comment'; at: string; c: CardComment }
+      | { kind: 'thread'; at: string; t: CommentThreadGroup<CardComment> }
       | { kind: 'activity'; at: string; a: CardActivity }
     )[] = [
-      ...card.comments.map((c) => ({ kind: 'comment' as const, at: c.createdAt, c })),
+      ...groupCommentThreads(card.comments).map((t) => ({
+        kind: 'thread' as const,
+        at: t.root.createdAt,
+        t,
+      })),
       // "Hien chi tiet" moi hien cac dong nhat ky hoat dong
       ...(showDetails
         ? card.activities
@@ -385,18 +392,6 @@ export default function CardModal({
   const dueRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-
-  // Goi y "@nhac ten" khi dang go @... o cuoi o binh luan
-  const mentionQuery = useMemo(() => {
-    const m = /@([^@\s]*)$/.exec(comment);
-    return m ? m[1]!.toLowerCase() : null;
-  }, [comment]);
-  const mentionMatches = useMemo(() => {
-    if (mentionQuery === null) return [];
-    return boardMembers
-      .filter((m) => m.user.name.toLowerCase().includes(mentionQuery))
-      .slice(0, 6);
-  }, [mentionQuery, boardMembers]);
 
   return createPortal(
     <div
@@ -1703,88 +1698,29 @@ export default function CardModal({
                 </div>
 
                 {!readOnly && (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const t = comment.trim();
-                      if (!t) return;
-                      setComment('');
-                      void run(() => addComment(card.id, t));
-                    }}
-                    className="relative mb-3 flex gap-2"
-                  >
-                    <input
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
+                  <div className="mb-3">
+                    <CommentComposer
+                      boardMembers={boardMembers}
                       placeholder="Viết bình luận... (gõ @ để nhắc tên)"
-                      className="min-w-0 flex-1 rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                      onSubmit={(t) => run(() => addComment(card.id, t))}
                     />
-                    {comment.trim() && (
-                      <button
-                        type="submit"
-                        className="shrink-0 rounded-lg bg-primary px-3 text-sm font-medium text-white hover:bg-primary-hover"
-                      >
-                        Gửi
-                      </button>
-                    )}
-                    {mentionQuery !== null && mentionMatches.length > 0 && (
-                      <div className="tf-menu-in absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-1 shadow-xl">
-                        {mentionMatches.map((m) => (
-                          <button
-                            key={m.userId}
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() =>
-                              setComment((c) =>
-                                c.replace(/@[^@\s]*$/, `@${m.user.name} `)
-                              )
-                            }
-                            className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
-                          >
-                            <Avatar
-                              id={m.userId}
-                              name={m.user.name}
-                              avatarUrl={m.user.avatarUrl}
-                              className="h-6 w-6 text-[10px]"
-                            />
-                            <span className="flex-1 truncate">{m.user.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </form>
+                  </div>
                 )}
 
                 {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
 
                 <ul className="flex flex-col gap-3">
                   {feed.map((it) =>
-                    it.kind === 'comment' ? (
-                      <li key={`c-${it.c.id}`} className="flex gap-2">
-                        <Avatar
-                          id={it.c.user.id}
-                          name={it.c.user.name}
-                          avatarUrl={it.c.user.avatarUrl}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs">
-                            <span className="font-semibold text-slate-700 dark:text-slate-200">{it.c.user.name}</span>{' '}
-                            <span className="text-slate-600 dark:text-slate-400">{fmt(it.c.createdAt)}</span>
-                          </p>
-                          <p className="mt-0.5 rounded-lg bg-white dark:bg-slate-800 p-2 text-sm text-slate-700 dark:text-slate-200 ring-1 ring-slate-200">
-                            {it.c.text}
-                          </p>
-                          {!readOnly && it.c.user.id === currentUserId && (
-                            <button
-                              type="button"
-                              onClick={() => void run(() => deleteComment(it.c.id))}
-                              className="mt-0.5 text-xs text-slate-600 dark:text-slate-400 hover:underline"
-                            >
-                              Xoá
-                            </button>
-                          )}
-                        </div>
-                      </li>
+                    it.kind === 'thread' ? (
+                      <CommentThread
+                        key={`c-${it.t.root.id}`}
+                        thread={it.t}
+                        currentUserId={currentUserId}
+                        readOnly={readOnly}
+                        boardMembers={boardMembers}
+                        onReply={(parentId, t) => run(() => addComment(card.id, t, parentId))}
+                        onDelete={(id) => void run(() => deleteComment(id))}
+                      />
                     ) : (
                       <li key={`a-${it.a.id}`} className="flex gap-2">
                         <Avatar

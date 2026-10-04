@@ -1,5 +1,6 @@
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
+import { maskDeletedComments, VISIBLE_COMMENT_WHERE } from '../card/commentThread';
 
 // Du lieu cong khai: KHONG BAO GIO tra email (rieng tu) - chi id/ten/anh dai dien.
 const PUBLIC_USER_SELECT = { id: true, name: true, avatarUrl: true } as const;
@@ -113,12 +114,14 @@ export async function getPublicCard(cardId: string) {
         },
       },
       comments: {
-        where: { deletedAt: null },
+        where: VISIBLE_COMMENT_WHERE,
         orderBy: { createdAt: 'desc' },
         select: {
           id: true,
+          parentId: true,
           text: true,
           createdAt: true,
+          deletedAt: true,
           user: { select: PUBLIC_USER_SELECT },
         },
       },
@@ -137,5 +140,5 @@ export async function getPublicCard(cardId: string) {
     },
   });
   if (!card) throw new AppError('Khong tim thay the', 404);
-  return card;
+  return { ...card, comments: maskDeletedComments(card.comments) };
 }

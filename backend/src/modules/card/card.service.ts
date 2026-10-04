@@ -12,6 +12,7 @@ import { cardMemberIds, notify } from '../notification/notification.service';
 import { assertListAccess, assertListView } from '../list/list.service';
 import { memberWorkspaceIds } from '../workspace/workspace.service';
 import { resetCardRemindersOnDueDateChange } from './cardReminder.service';
+import { maskDeletedComments, VISIBLE_COMMENT_WHERE } from './commentThread';
 import { isWatchingCard } from '../watch/watch.service';
 import {
   firstListWithStatus,
@@ -358,7 +359,7 @@ export async function getCardDetail(userId: string, cardId: string) {
         },
       },
       comments: {
-        where: { deletedAt: null },
+        where: VISIBLE_COMMENT_WHERE,
         orderBy: { createdAt: 'desc' },
         include: { user: { select: CARD_USER_SELECT } },
       },
@@ -377,7 +378,11 @@ export async function getCardDetail(userId: string, cardId: string) {
     },
   });
   if (!card) throw new AppError('Khong tim thay the', 404);
-  return { ...card, isWatching: await isWatchingCard(userId, cardId) };
+  return {
+    ...card,
+    comments: maskDeletedComments(card.comments),
+    isWatching: await isWatchingCard(userId, cardId),
+  };
 }
 
 export async function createCard(

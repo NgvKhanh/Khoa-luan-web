@@ -305,13 +305,15 @@ export async function deleteAttachment(attachmentId: string): Promise<void> {
 }
 
 // ----- Binh luan -----
+// parentId: tra loi binh luan do (backend tu gan vao binh luan goc cua luong)
 export async function addComment(
   cardId: string,
-  text: string
+  text: string,
+  parentId?: string
 ): Promise<CardComment> {
   const res = await api.post<{ data: { comment: CardComment } }>(
     `/cards/${cardId}/comments`,
-    { text }
+    parentId ? { text, parentId } : { text }
   );
   return res.data.data.comment;
 }

@@ -71,8 +71,12 @@ export interface Checklist {
 
 export interface CardComment {
   id: string;
+  // null = binh luan goc; co gia tri = cau tra loi trong luong cua binh luan goc do
+  parentId: string | null;
   text: string;
   createdAt: string;
+  // Binh luan goc da xoa nhung con cau tra loi: text rong, chi hien "Binh luan da bi xoa"
+  deleted?: boolean;
   user: CardUserBrief;
 }
 

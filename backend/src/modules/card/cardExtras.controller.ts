@@ -185,10 +185,12 @@ export const convertItemToCardHandler = asyncHandler(
 // ----- Binh luan -----
 export const addCommentHandler = asyncHandler(
   async (req: Request, res: Response) => {
+    const body = req.body as { text: string; parentId?: string };
     const comment = await addComment(
       uid(req),
       req.params.cardId as string,
-      (req.body as { text: string }).text
+      body.text,
+      body.parentId
     );
     res.status(201).json({ success: true, data: { comment } });
   }

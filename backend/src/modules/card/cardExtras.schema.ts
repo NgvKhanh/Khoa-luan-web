@@ -41,6 +41,11 @@ export const commentSchema = z.object({
   text: z.string().trim().min(1, 'Binh luan trong').max(5000),
 });
 
+// Tao binh luan: co parentId = tra loi binh luan do (sua binh luan van dung commentSchema)
+export const createCommentSchema = commentSchema.extend({
+  parentId: z.string().trim().min(1).max(64).optional(),
+});
+
 export const createLabelSchema = z.object({
   name: z.string().trim().max(50).optional(),
   color: hexColor,

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Avatar from '../components/Avatar';
+import CommentThread from '../components/board/cardModal/CommentThread';
 import { fmt, formatBytes } from '../components/board/cardModal/helpers';
+import { groupCommentThreads } from '../lib/commentThreads';
 import { useAuth } from '../context/AuthContext';
 import { assetUrl } from '../lib/assets';
 import { getErrorMessage } from '../lib/errorMessage';
@@ -383,19 +385,11 @@ function PublicCardOverlay({
               {card.comments.length === 0 ? (
                 <p className="text-sm text-slate-500 dark:text-slate-400">Chưa có bình luận.</p>
               ) : (
-                <div className="space-y-2">
-                  {card.comments.map((c) => (
-                    <div key={c.id} className="flex gap-2">
-                      <Avatar id={c.user.id} name={c.user.name} avatarUrl={c.user.avatarUrl} />
-                      <div className="min-w-0 flex-1 rounded-lg bg-slate-50 px-2.5 py-1.5 dark:bg-slate-900">
-                        <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                          {c.user.name} <span className="font-normal text-slate-400">· {fmt(c.createdAt)}</span>
-                        </p>
-                        <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">{c.text}</p>
-                      </div>
-                    </div>
+                <ul className="flex flex-col gap-3">
+                  {groupCommentThreads(card.comments).map((t) => (
+                    <CommentThread key={t.root.id} thread={t} readOnly />
                   ))}
-                </div>
+                </ul>
               )}
             </div>
           </div>

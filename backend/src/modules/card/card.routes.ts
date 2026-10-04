@@ -65,6 +65,7 @@ import {
   addChecklistItemSchema,
   addChecklistSchema,
   commentSchema,
+  createCommentSchema,
   reorderChecklistItemsSchema,
   updateChecklistItemSchema,
   updateChecklistSchema,
@@ -141,7 +142,7 @@ cardRoutes.delete(
 // Binh luan
 cardRoutes.post(
   '/:cardId/comments',
-  validateBody(commentSchema),
+  validateBody(createCommentSchema),
   addCommentHandler
 );
 

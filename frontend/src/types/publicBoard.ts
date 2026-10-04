@@ -61,8 +61,10 @@ export interface PublicChecklist {
 
 export interface PublicComment {
   id: string;
+  parentId: string | null;
   text: string;
   createdAt: string;
+  deleted?: boolean;
   user: PublicUserBrief;
 }
 

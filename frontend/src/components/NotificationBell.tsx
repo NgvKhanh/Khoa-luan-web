@@ -79,6 +79,8 @@ function notifText(n: AppNotification): string {
       return `${a} đã bình luận thẻ "${d.cardTitle}": ${d.text}`;
     case 'card.mentioned':
       return `${a} đã nhắc đến bạn trong thẻ "${d.cardTitle}": ${d.text}`;
+    case 'card.comment.reply':
+      return `${a} đã trả lời bình luận của bạn trong thẻ "${d.cardTitle}": ${d.text}`;
     case 'card.attachment.added':
       return `${a} đã đính kèm "${d.name}" vào thẻ "${d.cardTitle}"`;
     case 'card.moved':

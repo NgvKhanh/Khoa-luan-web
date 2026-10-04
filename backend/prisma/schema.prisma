@@ -830,15 +830,21 @@ model Comment {
   id        String    @id @default(cuid())
   cardId    String
   userId    String
+  // Tra loi 1 cap: tro ve binh luan GOC cua luong (null = chinh no la binh luan goc).
+  // Tra loi mot cau tra loi van gan vao goc -> luong khong bao gio sau qua 1 cap.
+  parentId  String?
   text      String
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card    Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentReplies")
 
   @@index([cardId])
+  @@index([parentId])
 }
 
 // Nhat ky hoat dong (tao the, chuyen danh sach, doi ten, danh dau xong, binh luan...)
