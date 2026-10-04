@@ -1155,8 +1155,10 @@ vẽ 3 đường cho tới lúc chuyển. `AssignRun`: `algorithmVersion` mới;
 
 **Riêng tư**:
 - Tệp CV ở `uploads/cv/<uuid>.<đuôi>` — thư mục **riêng**, **không bao giờ** mount tĩnh (như thẻ đính kèm, `upload.ts`).
-- Tải về: **chủ CV**, hoặc người là **OWNER/ADMIN của một không gian mà chủ CV là thành viên** (hoặc chủ sở hữu). Khác →
-  **404** (không phải 403: không để lộ ai có CV). Luôn `Content-Disposition: attachment`, Content-Type suy từ đuôi,
+- Tải về: **chủ CV**, hoặc người là **chủ / quản trị của một BẢNG mà chủ CV là thành viên bảng (hoặc chủ bảng), hoặc chủ /
+  quản trị của KHÔNG GIAN chứa bảng đó** (bảng và không gian chưa xoá; bảng lưu trữ vẫn tính). *04/10 đổi theo lựa chọn của user*:
+  luật cũ "OWNER/ADMIN của một không gian mà chủ CV là **thành viên không gian**" chặn trường hợp phổ biến nhất — người được mời vào
+  **bảng** chứ không vào không gian (chủ bảng không xem được CV của họ). Khác → **404** (không phải 403: không để lộ ai có CV). Luôn `Content-Disposition: attachment`, Content-Type suy từ đuôi,
   `X-Content-Type-Options: nosniff`, `Cache-Control: no-store` (mẫu `attachment.serve.ts`).
 - `cvText` chỉ trả cho chủ CV. Người xem gợi ý (người sửa được thẻ) thấy cụm kỹ năng / tiêu đề công việc đã khớp, không
   bao giờ thấy chữ trong CV.
@@ -2801,4 +2803,23 @@ lần dọn. Chốt chặn: `test/uploads.isolation.test.ts` (thư mục tải l
 một ca đặt sẵn tệp "không phải của test" rồi kiểm nó còn nguyên. Cài lỗi 3/3 (bỏ import cách ly, `upload.ts` bỏ qua biến, danh sách khởi tạo
 rỗng như lỗi cũ — hai phép đầu chỉ chạy test chốt chặn, vốn không ghi tệp, để không đụng thư mục thật khi cách ly bị gỡ). Suite backend
 121 tệp / 1320 test xanh; danh sách 234 tệp trong `backend/uploads` **không đổi** sau cả suite (so trước / sau).
+
+### Đổi luật quyền xem CV (04/10/2026, user chọn) — quản lý BẢNG chung
+
+**Vì sao**: luật bước 17 ("OWNER/ADMIN của một không gian mà chủ CV là **thành viên không gian**") chặn đúng trường hợp phổ biến nhất —
+nhóm thật mời người vào **bảng**, không vào không gian. Dữ liệu dev: người duy nhất khác có CV chỉ là thành viên bảng của 3 bảng do user làm
+chủ → chủ bảng không xem được CV. User chọn luật mới trong 3 phương án (giữ luật cũ / luật bảng / cả hai).
+
+**Luật mới** (§17.8, một nguồn `managedAmong`): chủ CV, hoặc **chủ / quản trị của một bảng mà chủ CV là thành viên bảng (hoặc chủ bảng), hoặc
+chủ / quản trị của không gian chứa bảng đó**; bảng và không gian chưa xoá, dòng thành viên chưa rời; bảng lưu trữ vẫn tính. Thành viên / người
+xem bảng, thành viên thường của không gian, quản trị một bảng KHÁC không có chủ CV: vẫn 404. Thành viên không gian không chung bảng nào: **không
+còn** xem được (khác luật cũ — có test ghi rõ). Công tắc "dùng cho gợi ý" tắt vẫn rút CV khỏi mọi người khác.
+
+**Kiểm chứng**: `assign.profileapi.test.ts` viết lại ma trận quyền theo bảng (11 vai trò; người được xem chỉ là thành viên bảng), `canDownloadCv`
+từng điều kiện (rời bảng hai phía, bảng / không gian xoá, lưu trữ, chủ theo cột `ownerId` không có dòng thành viên, quản trị không gian rời nhóm,
+luật cũ không còn đủ), `cvDownloadableOf` theo lô, `cvAvailable` (chủ bảng không có CV không bao giờ có nút). Cài lỗi 13 phép: lần đầu 9/13 —
+lọt quản trị không gian rời nhóm (thiếu test), chủ CV rời bảng (bị điều kiện lọc che khi hỏi MỘT người, lộ khi hỏi theo lô), "chủ bảng luôn
+được tính" (lộ khi chủ bảng không có CV) → thêm 3 kiểm → 12/13; còn lại **tương đương**: bỏ điều kiện "bảng có người cần hỏi" chỉ làm truy vấn
+lấy nhiều dòng hơn (đã ghi chú trong mã). Chạy thử luật trên CSDL dev (chỉ đọc): chủ bảng nay xem được CV của thành viên bảng; chiều ngược lại
+vẫn bị chặn. Câu chữ ở trang Hồ sơ đổi theo.
 

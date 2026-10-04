@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CV_DIR, cvDiskPath } from '../src/config/upload';
 import { prisma } from '../src/config/prisma';
-import { canDownloadCv, uploadMyCv } from '../src/modules/declaredProfile/declaredProfile.service';
+import { canDownloadCv, cvDownloadableOf, uploadMyCv } from '../src/modules/declaredProfile/declaredProfile.service';
 import { buildDocx, buildPdf, para } from './fixtures/ai/documents';
 import { agent, makeDirectUser, type TestUser } from './helpers';
 import { candOf, giveHistory, newTarget, suggest, world } from './assignFixtures';
@@ -234,91 +234,169 @@ describe('POST / DELETE / GET /api/me/assign-profile/cv', () => {
   });
 });
 
-describe('GET /api/users/:userId/assign-profile/cv - quyen tai CV', () => {
-  it('chu CV + OWNER/ADMIN khong gian chung: duoc; MEMBER cung khong gian, nguoi ngoai, OWNER khong gian KHAC: 404 (khong lo co CV); chua dang nhap 401', async () => {
+/** Bang trong khong gian `workspaceId`, chu bang `ownerId` (co dong OWNER), cac thanh vien con lai theo vai tro. */
+async function mkBoard(workspaceId: string, ownerId: string, members: [string, 'ADMIN' | 'MEMBER' | 'VIEWER'][] = [], name = 'Bang') {
+  return prisma.board.create({
+    data: {
+      workspaceId,
+      ownerId,
+      name,
+      members: { create: [{ userId: ownerId, role: 'OWNER' }, ...members.map(([userId, role]) => ({ userId, role }))] },
+    },
+    select: { id: true },
+  });
+}
+
+describe('GET /api/users/:userId/assign-profile/cv - quyen tai CV (luat 04/10: quan ly BANG chung)', () => {
+  it('chu CV, chu / quan tri BANG co nguoi do, chu / quan tri KHONG GIAN chua bang: duoc; thanh vien / nguoi xem bang, thanh vien khong gian, quan tri bang KHAC, nguoi ngoai: 404; chua dang nhap 401', async () => {
     startTracking();
-    const owner = await makeDirectUser('Owner');
-    const admin = await makeDirectUser('Admin');
-    const member = await makeDirectUser('Member');
-    const target = await makeDirectUser('Target');
-    const outsider = await makeDirectUser('Outsider');
-    const otherOwner = await makeDirectUser('OtherOwner');
-    await prisma.workspace.create({
+    const [wsOwner, wsAdmin, wsMember, boardOwner, boardAdmin, boardMember, boardViewer, otherBoardAdmin, target, outsider, otherOwner] =
+      await Promise.all(
+        ['WsOwner', 'WsAdmin', 'WsMember', 'BoardOwner', 'BoardAdmin', 'BoardMember', 'BoardViewer', 'OtherBoardAdmin', 'Target', 'Outsider', 'OtherOwner'].map(
+          (n) => makeDirectUser(n)
+        )
+      );
+    const ws = await prisma.workspace.create({
       data: {
-        ownerId: owner.id,
+        ownerId: wsOwner.id,
         name: 'Nhom',
         members: {
           create: [
-            { userId: owner.id, role: 'OWNER' },
-            { userId: admin.id, role: 'ADMIN' },
-            { userId: member.id, role: 'MEMBER' },
-            { userId: target.id, role: 'MEMBER' },
+            { userId: wsOwner.id, role: 'OWNER' },
+            { userId: wsAdmin.id, role: 'ADMIN' },
+            { userId: wsMember.id, role: 'MEMBER' },
           ],
         },
       },
+      select: { id: true },
     });
-    await prisma.workspace.create({ data: { ownerId: otherOwner.id, name: 'Khac', members: { create: [{ userId: otherOwner.id, role: 'OWNER' }] } } });
-    const file = await cvDocx();
-    await upload(target, file);
+    // target CHI la thanh vien BANG, khong phai thanh vien khong gian (truong hop pho bien: moi vao bang)
+    await mkBoard(ws.id, boardOwner.id, [
+      [boardAdmin.id, 'ADMIN'],
+      [boardMember.id, 'MEMBER'],
+      [boardViewer.id, 'VIEWER'],
+      [target.id, 'MEMBER'],
+    ]);
+    await mkBoard(ws.id, otherBoardAdmin.id, [], 'Bang khac khong co target');
+    const ws2 = await prisma.workspace.create({ data: { ownerId: otherOwner.id, name: 'Khac', members: { create: [{ userId: otherOwner.id, role: 'OWNER' }] } }, select: { id: true } });
+    await mkBoard(ws2.id, otherOwner.id);
+    await upload(target, await cvDocx());
 
-    for (const u of [owner, admin, target]) {
+    for (const u of [target, boardOwner, boardAdmin, wsOwner, wsAdmin]) {
       const r = await userCv(u, target.id).buffer(true);
       expect(r.status, u.name).toBe(200);
       expect(r.headers['content-disposition'], u.name).toMatch(/^attachment;/);
     }
-    for (const u of [member, outsider, otherOwner]) {
+    for (const u of [boardMember, boardViewer, wsMember, otherBoardAdmin, outsider, otherOwner]) {
       const r = await userCv(u, target.id);
       expect(r.status, u.name).toBe(404);
       expect(JSON.stringify(r.body)).not.toContain('ngan hang');
     }
     expect((await userCv(null, target.id)).status).toBe(401);
-    // Nguoi KHONG co CV: ca truong nhom cung 404 (giong het "khong co quyen")
-    expect((await userCv(owner, member.id)).status).toBe(404);
-    expect((await userCv(owner, 'khong-ton-tai')).status).toBe(404);
+    // Nguoi KHONG co CV: ca chu bang cung 404 (giong het "khong co quyen")
+    expect((await userCv(boardOwner, boardMember.id)).status).toBe(404);
+    expect((await userCv(boardOwner, 'khong-ton-tai')).status).toBe(404);
 
     // Chu CV TAT "dung cho goi y" -> nguoi khac 404, chinh chu van tai duoc; bat lai -> duoc
     await put(target, { ...VALID, useForAssign: false });
-    expect((await userCv(owner, target.id)).status).toBe(404);
-    expect((await userCv(admin, target.id)).status).toBe(404);
+    expect((await userCv(boardOwner, target.id)).status).toBe(404);
+    expect((await userCv(wsAdmin, target.id)).status).toBe(404);
     expect((await userCv(target, target.id).buffer(true)).status).toBe(200);
     expect((await myCv(target)).status).toBe(200);
     await put(target, VALID);
-    expect((await userCv(owner, target.id).buffer(true)).status).toBe(200);
+    expect((await userCv(boardOwner, target.id).buffer(true)).status).toBe(200);
 
     // Tep mat tren dia -> 404 (khong 500)
     const stored = (await prisma.userAssignProfile.findUniqueOrThrow({ where: { userId: target.id } })).cvStoredName!;
     fs.rmSync(path.join(CV_DIR, stored));
-    expect((await userCv(owner, target.id)).status).toBe(404);
+    expect((await userCv(boardOwner, target.id)).status).toBe(404);
     expect((await myCv(target)).status).toBe(404);
   });
 
-  it('canDownloadCv: thanh vien da roi nhom / khong gian da xoa khong con tinh; chu so huu khong gian (khong co dong thanh vien) van tinh', async () => {
+  it('canDownloadCv: tung dieu kien cua luat bang (roi bang, bang / khong gian da xoa, luu tru, chu bang / chu khong gian khong co dong thanh vien)', async () => {
     const boss = await makeDirectUser('Boss');
     const t = await makeDirectUser('T');
-    const ws = await prisma.workspace.create({ data: { ownerId: t.id, name: 'Cua T', members: { create: [{ userId: boss.id, role: 'ADMIN' }] } }, select: { id: true } });
-    expect(await canDownloadCv(boss.id, t.id)).toBe(true); // t la chu so huu khong gian, khong co dong thanh vien
-    await prisma.workspaceMember.updateMany({ where: { workspaceId: ws.id, userId: boss.id }, data: { deletedAt: new Date() } });
+    const host = await makeDirectUser('Host');
+    const ws = await prisma.workspace.create({ data: { ownerId: host.id, name: 'Nhom', members: { create: [{ userId: host.id, role: 'OWNER' }] } }, select: { id: true } });
+    const b = await mkBoard(ws.id, host.id, [
+      [boss.id, 'ADMIN'],
+      [t.id, 'MEMBER'],
+    ]);
+    const leave = (userId: string, at: Date | null) => prisma.boardMember.updateMany({ where: { boardId: b.id, userId }, data: { deletedAt: at } });
+    expect(await canDownloadCv(boss.id, t.id)).toBe(true); // quan tri bang
+    expect(await canDownloadCv(host.id, t.id)).toBe(true); // chu khong gian + chu bang
+    expect(await canDownloadCv(t.id, boss.id)).toBe(false); // thanh vien thuong khong xem duoc nguoi khac
+
+    await leave(boss.id, new Date()); // nguoi hoi roi bang
     expect(await canDownloadCv(boss.id, t.id)).toBe(false);
-    await prisma.workspaceMember.updateMany({ where: { workspaceId: ws.id, userId: boss.id }, data: { deletedAt: null } });
-    await prisma.workspace.update({ where: { id: ws.id }, data: { deletedAt: null } });
+    await leave(boss.id, null);
+    await leave(t.id, new Date()); // chu CV roi bang
+    expect(await canDownloadCv(boss.id, t.id)).toBe(false);
+    await leave(t.id, null);
     expect(await canDownloadCv(boss.id, t.id)).toBe(true);
-    await prisma.workspace.update({ where: { id: ws.id }, data: { deletedAt: new Date() } });
+
+    await prisma.board.update({ where: { id: b.id }, data: { archivedAt: new Date() } }); // luu tru van tinh
+    expect(await canDownloadCv(boss.id, t.id)).toBe(true);
+    await prisma.board.update({ where: { id: b.id }, data: { archivedAt: null, deletedAt: new Date() } }); // bang da xoa
     expect(await canDownloadCv(boss.id, t.id)).toBe(false);
+    await prisma.board.update({ where: { id: b.id }, data: { deletedAt: null } });
+    await prisma.workspace.update({ where: { id: ws.id }, data: { deletedAt: new Date() } }); // khong gian da xoa
+    expect(await canDownloadCv(boss.id, t.id)).toBe(false);
+    expect(await canDownloadCv(host.id, t.id)).toBe(false);
+    await prisma.workspace.update({ where: { id: ws.id }, data: { deletedAt: null } });
+
+    // Quan tri KHONG GIAN (khong o bang nao): duoc; roi khong gian -> het quyen
+    const wsAdmin = await makeDirectUser('WsAdmin');
+    await prisma.workspaceMember.create({ data: { workspaceId: ws.id, userId: wsAdmin.id, role: 'ADMIN' } });
+    expect(await canDownloadCv(wsAdmin.id, t.id)).toBe(true);
+    await prisma.workspaceMember.updateMany({ where: { workspaceId: ws.id, userId: wsAdmin.id }, data: { deletedAt: new Date() } });
+    expect(await canDownloadCv(wsAdmin.id, t.id)).toBe(false);
+
+    // Chu bang / chu khong gian theo cot ownerId, KHONG co dong thanh vien tuong ung
+    const owner2 = await makeDirectUser('Owner2');
+    const m2 = await makeDirectUser('M2');
+    const admin2 = await makeDirectUser('Admin2');
+    const ws2 = await prisma.workspace.create({ data: { ownerId: owner2.id, name: 'Nhom 2', members: { create: [{ userId: admin2.id, role: 'ADMIN' }] } }, select: { id: true } });
+    const b2 = await prisma.board.create({ data: { workspaceId: ws2.id, ownerId: m2.id, name: 'Cua M2' }, select: { id: true } });
+    expect(await canDownloadCv(owner2.id, m2.id)).toBe(true); // chu khong gian (ownerId), m2 la chu bang (ownerId)
+    expect(await canDownloadCv(admin2.id, m2.id)).toBe(true); // quan tri khong gian chua bang
+    await prisma.boardMember.create({ data: { boardId: b2.id, userId: owner2.id, role: 'MEMBER' } });
+    expect(await canDownloadCv(m2.id, owner2.id)).toBe(true); // m2 la chu bang (ownerId), owner2 la thanh vien bang
+
+    // LUAT CU (thanh vien khong gian, khong chung bang nao) KHONG con du
+    const lead = await makeDirectUser('Lead');
+    const wm = await makeDirectUser('WsMemberOnly');
+    await prisma.workspace.create({ data: { ownerId: lead.id, name: 'Nhom 3', members: { create: [{ userId: lead.id, role: 'OWNER' }, { userId: wm.id, role: 'MEMBER' }] } } });
+    expect(await canDownloadCv(lead.id, wm.id)).toBe(false);
+
     expect(await canDownloadCv(t.id, t.id)).toBe(true);
-    // Nguoi KHONG co khong gian nao (ke ca khong gian ca nhan) van tai duoc CV cua chinh minh
+    // Nguoi KHONG co khong gian / bang nao van tai duoc CV cua chinh minh
     const bare = await prisma.user.create({ data: { email: `bare_${Date.now()}@test.local`, name: 'Bare' }, select: { id: true } });
     expect(await canDownloadCv(bare.id, bare.id)).toBe(true);
+  });
+});
 
-    // Chu CV la THANH VIEN (khong phai chu so huu) roi nhom -> quan tri vien het quyen
-    const lead = await makeDirectUser('Lead');
-    const m = await makeDirectUser('M');
-    const ws2 = await prisma.workspace.create({
-      data: { ownerId: lead.id, name: 'Nhom 2', members: { create: [{ userId: lead.id, role: 'OWNER' }, { userId: m.id, role: 'MEMBER' }] } },
-      select: { id: true },
-    });
-    expect(await canDownloadCv(lead.id, m.id)).toBe(true);
-    await prisma.workspaceMember.updateMany({ where: { workspaceId: ws2.id, userId: m.id }, data: { deletedAt: new Date() } });
-    expect(await canDownloadCv(lead.id, m.id)).toBe(false);
+describe('cvDownloadableOf - hoi theo lo (duong cua cvAvailable)', () => {
+  it('cung mot bang: nguoi da roi bang bi loai, nguoi con o lai van duoc; chi nguoi CO tep CV; chinh minh luon duoc', async () => {
+    const boss = await makeDirectUser('Boss');
+    const stay = await makeDirectUser('Stay');
+    const left = await makeDirectUser('Left');
+    const noCv = await makeDirectUser('NoCv');
+    const ws = await prisma.workspace.create({ data: { ownerId: boss.id, name: 'Nhom', members: { create: [{ userId: boss.id, role: 'OWNER' }] } }, select: { id: true } });
+    const b = await mkBoard(ws.id, boss.id, [
+      [stay.id, 'MEMBER'],
+      [left.id, 'MEMBER'],
+      [noCv.id, 'MEMBER'],
+    ]);
+    // Dong ho so co thong tin tep (cvDownloadableOf khong doc dia)
+    for (const u of [stay, left, boss]) {
+      await prisma.userAssignProfile.create({ data: { userId: u.id, cvStoredName: `${u.id}.pdf`, cvFileName: 'cv.pdf', cvSize: 1, cvUploadedAt: new Date() } });
+    }
+    await prisma.userAssignProfile.create({ data: { userId: noCv.id, skillsText: 'React' } });
+    await prisma.boardMember.updateMany({ where: { boardId: b.id, userId: left.id }, data: { deletedAt: new Date() } });
+    expect([...(await cvDownloadableOf(boss.id, [stay.id, left.id, noCv.id, boss.id]))].sort()).toEqual([boss.id, stay.id].sort());
+    expect([...(await cvDownloadableOf(stay.id, [stay.id, boss.id]))]).toEqual([stay.id]); // thanh vien thuong: chi chinh minh
+    expect([...(await cvDownloadableOf(boss.id, []))]).toEqual([]);
   });
 });
 
@@ -340,27 +418,29 @@ describe('CV di vao bo cham, chu CV khong ra ngoai', () => {
     expect(candOf((await suggest(w.owner, target.id)).body, w.bob).components.declared.value).toBe(0);
   });
 
-  it('cvAvailable trong goi y: chi true khi nguoi HOI tai duoc (chinh minh / quan ly khong gian ma ung vien la thanh vien)', async () => {
+  it('cvAvailable trong goi y: chi true khi nguoi HOI tai duoc (chinh minh / quan ly bang hoac khong gian chua bang)', async () => {
     startTracking();
     const w = await world();
     const target = await newTarget(w.listId);
     await upload(w.bob, await cvDocx());
-    // bob chi la thanh vien BANG, chua la thanh vien khong gian -> chu khong gian khong quan ly bob
+    // bob CHI la thanh vien BANG (khong phai thanh vien khong gian) - chu bang van thay (luat 04/10)
     let res = await suggest(w.owner, target.id);
-    expect(candOf(res.body, w.bob).cvAvailable).toBe(false);
-    expect(candOf(res.body, w.alice).cvAvailable).toBe(false);
-    await prisma.workspaceMember.create({ data: { workspaceId: w.wsId, userId: w.bob.id, role: 'MEMBER' } });
-    res = await suggest(w.owner, target.id);
     expect(candOf(res.body, w.bob).cvAvailable).toBe(true);
     expect(candOf(res.body, w.alice).cvAvailable).toBe(false); // khong co CV
-    // alice co ho so (khong CV) va la thanh vien khong gian -> van false
-    await prisma.workspaceMember.create({ data: { workspaceId: w.wsId, userId: w.alice.id, role: 'MEMBER' } });
+    // alice co ho so (khong CV) -> van false
     await put(w.alice, VALID);
-    expect(candOf((await suggest(w.owner, target.id)).body, w.alice).cvAvailable).toBe(false);
-    // Chinh bob hoi: thay CV cua minh; alice (thanh vien thuong) khong thay CV cua bob
+    res = await suggest(w.owner, target.id);
+    expect(candOf(res.body, w.alice).cvAvailable).toBe(false);
+    expect(candOf(res.body, w.bob).cvAvailable).toBe(true);
+    // Chinh bob hoi: thay CV cua minh; alice (thanh vien thuong cua bang) khong thay CV cua bob
     expect(candOf((await suggest(w.bob, target.id)).body, w.bob).cvAvailable).toBe(true);
     expect(candOf((await suggest(w.alice, target.id)).body, w.bob).cvAvailable).toBe(false);
-    // bob tat cong tac -> chu khong gian khong con thay
+    // alice duoc nang len quan tri bang -> thay
+    await prisma.boardMember.updateMany({ where: { boardId: w.boardId, userId: w.alice.id }, data: { role: 'ADMIN' } });
+    const asAdmin = (await suggest(w.alice, target.id)).body;
+    expect(candOf(asAdmin, w.bob).cvAvailable).toBe(true);
+    expect(candOf(asAdmin, w.owner).cvAvailable).toBe(false); // chu bang KHONG co CV -> khong bao gio co nut tai
+    // bob tat cong tac -> khong ai khac thay
     await put(w.bob, { ...VALID, useForAssign: false });
     expect(candOf((await suggest(w.owner, target.id)).body, w.bob).cvAvailable).toBe(false);
   });

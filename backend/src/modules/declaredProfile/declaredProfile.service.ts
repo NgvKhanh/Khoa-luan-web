@@ -136,24 +136,39 @@ export async function deleteMyCv(userId: string): Promise<DeclaredProfileView> {
 }
 
 /**
- * Nhung nguoi trong `userIds` ma `requesterId` QUAN LY: la thanh vien (chua roi) hoac chu so huu cua mot khong gian CHUA XOA ma
- * requester la OWNER / ADMIN. Nguon DUY NHAT cua quyen tai CV nguoi khac (tai tung nguoi va co `cvAvailable` trong goi y).
+ * Nhung nguoi trong `userIds` ma `requesterId` QUAN LY: cung o mot BANG chua xoa (khong gian chua xoa) ma nguoi do la thanh vien bang
+ * (chua roi) hoac chu bang, va requester la chu / quan tri BANG do hoac chu / quan tri KHONG GIAN chua bang do. Nguon DUY NHAT cua quyen
+ * tai CV nguoi khac (tai tung nguoi, `cvAvailable` trong goi y, danh sach thanh vien).
+ * 04/10 (user chon): DOI tu "thanh vien KHONG GIAN" sang "thanh vien BANG" - nhom thuc te moi nguoi vao bang chu khong vao khong gian,
+ * nen luat cu chan ca truong hop pho bien nhat (chu bang khong xem duoc CV nguoi minh moi vao bang).
  */
 async function managedAmong(requesterId: string, userIds: readonly string[]): Promise<Set<string>> {
   const out = new Set<string>();
   if (userIds.length === 0) return out;
-  const wanted = new Set(userIds);
-  const rows = await prisma.workspaceMember.findMany({
-    where: { userId: requesterId, deletedAt: null, role: { in: ['OWNER', 'ADMIN'] }, workspace: { deletedAt: null } },
-    select: {
-      workspace: {
-        select: { ownerId: true, members: { where: { userId: { in: [...wanted] }, deletedAt: null }, select: { userId: true } } },
-      },
+  const wanted = [...new Set(userIds)];
+  const manager = { in: ['OWNER' as const, 'ADMIN' as const] };
+  // Cac bang (chua xoa, trong khong gian chua xoa) ma requester QUAN LY - chu / quan tri bang, hoac chu / quan tri khong gian chua
+  // bang - va co it nhat mot nguoi can hoi la thanh vien (chua roi) hoac chu bang. Bang luu tru (archivedAt) van tinh: luu tru co
+  // the khoi phuc, quan he trong nhom van con.
+  const boards = await prisma.board.findMany({
+    where: {
+      deletedAt: null,
+      workspace: { deletedAt: null },
+      OR: [
+        { ownerId: requesterId },
+        { members: { some: { userId: requesterId, deletedAt: null, role: manager } } },
+        { workspace: { ownerId: requesterId } },
+        { workspace: { members: { some: { userId: requesterId, deletedAt: null, role: manager } } } },
+      ],
+      // Chi de lay IT dong hon (bo bang khong co ai can hoi) - ket qua van dung khi bo, vi `select` va vong lap duoi da loc lai
+      AND: [{ OR: [{ ownerId: { in: wanted } }, { members: { some: { userId: { in: wanted }, deletedAt: null } } }] }],
     },
+    select: { ownerId: true, members: { where: { userId: { in: wanted }, deletedAt: null }, select: { userId: true } } },
   });
-  for (const { workspace } of rows) {
-    if (wanted.has(workspace.ownerId)) out.add(workspace.ownerId);
-    for (const m of workspace.members) out.add(m.userId);
+  const asked = new Set(wanted);
+  for (const b of boards) {
+    if (asked.has(b.ownerId)) out.add(b.ownerId);
+    for (const m of b.members) out.add(m.userId);
   }
   return out;
 }

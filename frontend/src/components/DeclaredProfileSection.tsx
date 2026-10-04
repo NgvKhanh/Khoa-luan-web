@@ -31,8 +31,8 @@ import {
 } from './profile/ProfileUi';
 
 // Mục "Hồ sơ kỹ năng" của trang Hồ sơ cá nhân (ASSIGN_MODULE.md §17): kỹ năng, công việc đã làm và CV mà người dùng TỰ KHAI để
-// gợi ý phân công dùng làm thành phần "Hồ sơ" ở MỌI không gian. Tải CV lên = máy chủ trích chữ (không dùng AI) để người dùng sửa
-// rồi lưu; tệp CV chỉ chính chủ và chủ / quản trị viên không gian chung tải được.
+// gợi ý phân công dùng làm thành phần "Hồ sơ" ở MỌI không gian. Tải CV lên = máy chủ trích chữ (không dùng AI); tệp CV chỉ chính
+// chủ và chủ / quản trị viên của một bảng có người đó (hoặc của không gian chứa bảng đó) tải được.
 
 const inputCls = profileInput + ' resize-y';
 const labelCls = 'mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200';
@@ -376,8 +376,8 @@ export default function DeclaredProfileSection() {
           </div>
         </div>
         <p className={hintCls}>
-          Tệp chỉ bạn và chủ / quản trị viên của các không gian bạn tham gia tải được. Tắt gợi ý
-          phân công để ngừng chia sẻ CV với người khác.
+          Tệp chỉ bạn và chủ / quản trị viên của các bảng bạn tham gia (hoặc của không gian chứa các bảng đó) tải được. Tắt gợi
+          ý phân công để ngừng chia sẻ CV với người khác.
         </p>
       </div>
 
