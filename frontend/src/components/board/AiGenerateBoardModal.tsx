@@ -61,7 +61,6 @@ export default function AiGenerateBoardModal({ onClose, onCreated, workspaceId: 
   // nguoi dung da co lua chon thi khong bao gio bi ghi de.
   const workspaceId = workspaceChoice || forcedWorkspaceId || currentWorkspaceId || '';
   const [text, setText] = useState('');
-  const [inputKind, setInputKind] = useState<AiInputKind>('TEXT');
   const [mode, setMode] = useState<'' | PlanMode>('');
   const [projectStart, setProjectStart] = useState('');
   const [projectEnd, setProjectEnd] = useState('');
@@ -69,7 +68,11 @@ export default function AiGenerateBoardModal({ onClose, onCreated, workspaceId: 
 
   const [status, setStatus] = useState<AiStatus | null | undefined>(undefined);
   const [extracting, setExtracting] = useState(false);
+  // Tep da doc: AI dung thang chu trong tep (khong do ra o nhap de sua - sai sot sua o man xem truoc ke hoach).
+  // Chu go tay van giu nguyen ben duoi, bo tep la quay lai dung.
   const [fileNote, setFileNote] = useState<{ name: string; doc: ExtractedDocument } | null>(null);
+  const sourceText = fileNote ? fileNote.doc.text : text;
+  const inputKind: AiInputKind = fileNote ? fileNote.doc.inputKind : 'TEXT';
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,7 +112,7 @@ export default function AiGenerateBoardModal({ onClose, onCreated, workspaceId: 
 
   // ---------- Man 1: nhap ----------
   const rangeInvalid = projectStart !== '' && projectEnd !== '' && projectStart > projectEnd;
-  const trimmedLength = text.trim().length;
+  const trimmedLength = sourceText.trim().length;
   const canGenerate =
     !generating && !extracting && trimmedLength >= AI_MIN_CHARS && workspaceId !== '' && !rangeInvalid;
 
@@ -130,9 +133,6 @@ export default function AiGenerateBoardModal({ onClose, onCreated, workspaceId: 
     setError(null);
     try {
       const doc = await extractDocument(file);
-      // Thay han noi dung o nhap (khong noi them): nguoi dung sua tiep tren ban trich duoc
-      setText(doc.text);
-      setInputKind(doc.inputKind);
       setFileNote({ name: file.name, doc });
     } catch (err) {
       setError(explain(err, 'Không đọc được tệp.'));
@@ -141,13 +141,6 @@ export default function AiGenerateBoardModal({ onClose, onCreated, workspaceId: 
     }
   }
 
-  function changeText(value: string) {
-    setText(value);
-    if (value.trim() === '') {
-      setInputKind('TEXT');
-      setFileNote(null);
-    }
-  }
 
   async function generate() {
     if (!canGenerate) return;
@@ -156,7 +149,7 @@ export default function AiGenerateBoardModal({ onClose, onCreated, workspaceId: 
     try {
       const res = await generateBoardPlan({
         workspaceId,
-        text: text.trim(),
+        text: sourceText.trim(),
         inputKind,
         ...(mode ? { mode } : {}),
         ...(projectStart ? { projectStart } : {}),
@@ -283,16 +276,20 @@ export default function AiGenerateBoardModal({ onClose, onCreated, workspaceId: 
 
                 <div>
                   <div className="mb-1 flex items-center justify-between gap-2">
-                    <label className="text-xs font-medium text-slate-600 dark:text-slate-300" htmlFor="ai-text">
-                      Mô tả công việc
-                    </label>
+                    {fileNote ? (
+                      <p className="text-xs font-medium text-slate-600 dark:text-slate-300">Tệp mô tả công việc</p>
+                    ) : (
+                      <label className="text-xs font-medium text-slate-600 dark:text-slate-300" htmlFor="ai-text">
+                        Mô tả công việc
+                      </label>
+                    )}
                     <button
                       type="button"
                       onClick={() => fileRef.current?.click()}
                       disabled={extracting || generating}
                       className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
                     >
-                      {extracting ? 'Đang đọc tệp...' : 'Tải lên .docx / .pdf'}
+                      {extracting ? 'Đang đọc tệp...' : fileNote ? 'Chọn tệp khác' : 'Tải lên .docx / .pdf'}
                     </button>
                     <input
                       ref={fileRef}
@@ -303,36 +300,64 @@ export default function AiGenerateBoardModal({ onClose, onCreated, workspaceId: 
                       className="hidden"
                     />
                   </div>
-                  <textarea
-                    id="ai-text"
-                    value={text}
-                    onChange={(e) => changeText(e.target.value)}
-                    maxLength={AI_MAX_CHARS}
-                    rows={10}
-                    disabled={extracting}
-                    placeholder={
-                      'Dán hoặc gõ mô tả dự án. Ví dụ:\n- Chốt thông điệp chiến dịch, hạn 20/10\n- Thiết kế bộ nhận diện, hạn 25/10\n- Chạy quảng cáo từ 1/11 đến 15/11'
-                    }
-                    className={`${field} resize-y leading-relaxed`}
-                  />
-                  <div className="mt-1 flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                    <span>
-                      {trimmedLength < AI_MIN_CHARS
-                        ? `Cần ít nhất ${AI_MIN_CHARS} ký tự`
-                        : 'Bạn có thể sửa văn bản trước khi tạo kế hoạch'}
-                    </span>
-                    <span aria-label="Số ký tự">
-                      {text.length}/{AI_MAX_CHARS}
-                    </span>
-                  </div>
-                  {fileNote && (
-                    <p className="mt-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
-                      Đã đọc “{fileNote.name}” ({fileNote.doc.chars} ký tự
-                      {fileNote.doc.pages ? `, ${fileNote.doc.pages} trang` : ''}).
-                      {fileNote.doc.truncated
-                        ? ' Tệp dài hơn giới hạn nên chỉ lấy phần đầu — hãy kiểm tra và bổ sung phần còn thiếu.'
-                        : ' Hãy kiểm tra và sửa lại nếu cần.'}
-                    </p>
+                  {fileNote ? (
+                    <div
+                      role="group"
+                      aria-label={`Tệp đã chọn: ${fileNote.name}`}
+                      className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/40"
+                    >
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-white text-[10px] font-bold text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-600">
+                        {fileNote.doc.inputKind === 'PDF' ? 'PDF' : 'DOCX'}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100" title={fileNote.name}>
+                          {fileNote.name}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {fileNote.doc.pages ? `${fileNote.doc.pages} trang · ` : ''}đọc được{' '}
+                          {fileNote.doc.chars.toLocaleString('vi-VN')} ký tự
+                        </p>
+                        {fileNote.doc.truncated && (
+                          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                            Tệp dài hơn giới hạn nên AI chỉ đọc phần đầu.
+                          </p>
+                        )}
+                        {trimmedLength < AI_MIN_CHARS && (
+                          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                            Tệp có quá ít chữ (cần ít nhất {AI_MIN_CHARS} ký tự).
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFileNote(null)}
+                        disabled={generating}
+                        className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-200 hover:text-slate-800 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+                      >
+                        Bỏ tệp
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <textarea
+                        id="ai-text"
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        maxLength={AI_MAX_CHARS}
+                        rows={10}
+                        disabled={extracting}
+                        placeholder={
+                          'Dán hoặc gõ mô tả dự án. Ví dụ:\n- Chốt thông điệp chiến dịch, hạn 20/10\n- Thiết kế bộ nhận diện, hạn 25/10\n- Chạy quảng cáo từ 1/11 đến 15/11'
+                        }
+                        className={`${field} resize-y leading-relaxed`}
+                      />
+                      <div className="mt-1 flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                        <span>{trimmedLength < AI_MIN_CHARS ? `Cần ít nhất ${AI_MIN_CHARS} ký tự` : ''}</span>
+                        <span aria-label="Số ký tự">
+                          {text.length}/{AI_MAX_CHARS}
+                        </span>
+                      </div>
+                    </>
                   )}
                 </div>
 

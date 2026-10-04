@@ -1047,7 +1047,7 @@ không bao giờ góp vào độ tin cậy (chỉ lịch sử đúng/trễ hạn
 |---|---|---|
 | `skillsText` | ≤ 2000 ký tự | Tự do; mỗi dòng / dấu phẩy / chấm phẩy / gạch đầu dòng là một cụm kỹ năng |
 | `workItems` | ≤ 30 mục, mỗi mục tiêu đề ≤ 200 + mô tả ≤ 1000 ký tự | "Các công việc đã làm" (dự án, nhiệm vụ) |
-| `cvText` | ≤ 20 000 ký tự (đúng giới hạn của `extractDocument`) | Chữ trích từ CV, **người dùng sửa được** trước khi lưu |
+| `cvText` | ≤ 20 000 ký tự (đúng giới hạn của `extractDocument`) | Chữ máy chủ đọc từ tệp CV lúc tải lên, dùng thẳng cho gợi ý; **giao diện không cho sửa** (đổi 04/10/2026, xem cuối tệp) |
 | Tệp CV | `.pdf` / `.docx`, ≤ 5 MB | **Lưu tệp** (user chốt); chỉ lưu sau khi `extractDocument` kiểm xong nội dung |
 | `useForAssign` | mặc định bật | Tắt → coi như không có hồ sơ (cờ `NO_PROFILE`) |
 
@@ -1176,7 +1176,7 @@ vẽ 3 đường cho tới lúc chuyển. `AssignRun`: `algorithmVersion` mới;
 - Gợi ý (`assignment-suggestions`, `assignment-plan`): thêm thành phần `declared`, `declaredEvidence`, cờ `NO_PROFILE`; gợi ý lớp 1
   có thêm `cvAvailable` (người hỏi tải được CV của ứng viên đó không — bước 17).
 - Giao diện: mục **"Hồ sơ kỹ năng"** ở trang Hồ sơ cá nhân (`ProfilePage.tsx`): công tắc, ô kỹ năng, danh sách công việc
-  (thêm/xoá/sửa), tải lên / xoá / tải về CV, ô chữ trích từ CV để sửa. `AssignWeightsPanel`: thanh trượt thứ 4 —
+  (thêm/xoá/sửa), tải lên / xoá / tải về CV (gợi ý dùng thẳng nội dung tệp, không có ô sửa chữ trích — đổi 04/10/2026). `AssignWeightsPanel`: thanh trượt thứ 4 —
   **`rebalance` / `toPct` trong `frontend/src/lib/assignWeights.ts` phải viết lại cho N khoá** (bản hiện tại chia phần
   còn lại cho đúng hai thanh kia). `AssignSuggestPanel` / `AssignPlanModal`: "Khớp hồ sơ tự khai: …", "Chưa khai hồ sơ".
   Trưởng nhóm thấy nút tải CV của thành viên.
@@ -2772,3 +2772,16 @@ Suite backend 92 tệp / 1096 test xanh (lần chạy đầy đủ này phủ c�
 **Lộ trình 10–19 đã xong.** Việc còn treo (không thuộc lộ trình, cần bạn quyết): báo GVHD việc đảo quyết định §2 (tự khai); DROP /
 NEUTRAL cho ba thành phần lịch sử; đổi mặc định lớp 2 sang phạt 10 điểm (bước 19 không đổi kết luận của bước 9); `d` = 0,20 hay để Hồ sơ ở
 mức sàn 0,05 cho tới khi có số liệu thật (bước 15: 1/4 tiêu chí đạt).
+
+---
+
+### Thay đổi 04/10/2026 — bỏ ô sửa chữ trích từ CV (theo yêu cầu của bạn)
+
+- **Trước:** tải CV lên thì chữ trích hiện ra ô "Nội dung CV dùng cho gợi ý" để người dùng sửa rồi bấm "Lưu hồ sơ" (§17.2, bước 18).
+- **Nay:** bỏ ô đó. Máy chủ vẫn đọc chữ từ tệp lúc tải lên và lưu vào `cvText` như cũ (API, schema, phép so khớp **không đổi**);
+  giao diện chỉ báo "Đã lưu CV, gợi ý phân công sẽ dùng nội dung trong tệp (đọc được N ký tự)". Muốn đổi nội dung thì sửa tệp rồi
+  "Thay CV".
+- **Vì sao chấp nhận được:** `cvText` chỉ trả cho chủ CV (§17.8), người khác chỉ thấy *"một đoạn trong CV"* → bỏ ô sửa không làm lộ thêm
+  gì; ký tự lạ do PDF (biểu tượng thành "□") không ảnh hưởng so khớp vì phần tách từ bỏ qua.
+- **Dữ liệu cũ:** có tệp nhưng `cvText` rỗng → nhắc "tải lại CV"; có `cvText` gõ tay mà không có tệp → nói rõ đang được dùng, "Xoá CV" để bỏ.
+- Số liệu đánh giá (bước 15, 19) **không bị ảnh hưởng**: bộ dữ liệu mô phỏng ghi `cvText` thẳng, không qua giao diện.

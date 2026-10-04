@@ -331,42 +331,53 @@ describe('AiGenerateBoardModal - tải tệp .docx / .pdf', () => {
   });
   const fileInput = () => screen.getByLabelText('Tệp báo cáo') as HTMLInputElement;
 
-  it('chữ trích ra THAY hẳn ô nhập, hiện ghi chú; sinh kế hoạch gửi inputKind của tệp; xoá hết chữ thì về TEXT; PDF dài báo bị cắt kèm số trang', async () => {
+  const fileCard = (name: string) => screen.findByRole('group', { name: `Tệp đã chọn: ${name}` });
+
+  it('chọn tệp: KHÔNG đổ chữ ra ô nhập mà hiện thẻ tệp; AI dùng thẳng chữ trong tệp + inputKind của tệp; "Bỏ tệp" quay lại chữ gõ tay (TEXT); PDF dài báo bị cắt kèm số trang', async () => {
     mocks.extractDocument.mockResolvedValueOnce(docx());
     const { user } = renderModal();
-    await fillText(user, 'chữ cũ sẽ bị thay thế bằng chữ trích được');
+    await fillText(user, 'chữ gõ tay vẫn còn nguyên sau khi bỏ tệp');
 
     await user.upload(fileInput(), new File(['x'], 'ke-hoach.docx'));
-    await waitFor(() => expect(textbox()).toHaveValue(docx().text));
+    const card = await fileCard('ke-hoach.docx');
+    expect(within(card).getByText(/đọc được 47 ký tự/)).toBeInTheDocument();
     expect(mocks.extractDocument).toHaveBeenCalledTimes(1);
     expect((mocks.extractDocument.mock.calls[0]![0] as File).name).toBe('ke-hoach.docx');
-    expect(screen.getByText(/Đã đọc “ke-hoach.docx” \(47 ký tự\)\. Hãy kiểm tra và sửa lại nếu cần\./)).toBeInTheDocument();
+    // chữ trong tệp không hiện ra để sửa; ô nhập ẩn đi
+    expect(screen.queryByRole('textbox', { name: 'Mô tả công việc' })).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('Việc một cần làm');
+    expect(screen.getByRole('button', { name: 'Chọn tệp khác' })).toBeInTheDocument();
 
     await user.click(generateButton());
     await screen.findByRole('heading', { name: 'Xem trước kế hoạch' });
     expect(mocks.generateBoardPlan).toHaveBeenLastCalledWith({ workspaceId: 'ws1', text: docx().text, inputKind: 'DOCX', skipWeekend: true });
     await user.click(screen.getByRole('button', { name: /Quay lại chỉnh mô tả/ }));
 
-    // sửa chữ rồi sinh: vẫn khai nguồn là DOCX (người dùng chỉ sửa bản trích)
-    await user.type(textbox(), ' thêm');
+    // quay lại vẫn là tệp đó; "Bỏ tệp" -> về ô nhập với đúng chữ gõ tay lúc trước, nguồn TEXT
+    await user.click(within(await fileCard('ke-hoach.docx')).getByRole('button', { name: 'Bỏ tệp' }));
+    expect(textbox()).toHaveValue('chữ gõ tay vẫn còn nguyên sau khi bỏ tệp');
     await user.click(generateButton());
     await screen.findByRole('heading', { name: 'Xem trước kế hoạch' });
-    expect(mocks.generateBoardPlan).toHaveBeenLastCalledWith(expect.objectContaining({ inputKind: 'DOCX' }));
+    expect(mocks.generateBoardPlan).toHaveBeenLastCalledWith(
+      expect.objectContaining({ text: 'chữ gõ tay vẫn còn nguyên sau khi bỏ tệp', inputKind: 'TEXT' })
+    );
     await user.click(screen.getByRole('button', { name: /Quay lại chỉnh mô tả/ }));
 
-    // xoá sạch chữ -> quên nguồn tệp, ghi chú biến mất; gõ tay lại -> TEXT
-    await user.clear(textbox());
-    expect(screen.queryByText(/Đã đọc “/)).not.toBeInTheDocument();
-    await fillText(user, 'chữ gõ tay hoàn toàn mới ở đây');
-    await user.click(generateButton());
-    await screen.findByRole('heading', { name: 'Xem trước kế hoạch' });
-    expect(mocks.generateBoardPlan).toHaveBeenLastCalledWith(expect.objectContaining({ inputKind: 'TEXT' }));
-    await user.click(screen.getByRole('button', { name: /Quay lại chỉnh mô tả/ }));
-
-    // PDF bị cắt: có số trang + cảnh báo chỉ lấy phần đầu
+    // PDF bị cắt: có số trang + cảnh báo chỉ đọc phần đầu
     mocks.extractDocument.mockResolvedValueOnce(docx({ inputKind: 'PDF', truncated: true, pages: 60, chars: 20000 }));
     await user.upload(fileInput(), new File(['x'], 'bao-cao.pdf'));
-    expect(await screen.findByText(/Đã đọc “bao-cao.pdf” \(20000 ký tự, 60 trang\)\. Tệp dài hơn giới hạn nên chỉ lấy phần đầu/)).toBeInTheDocument();
+    const pdf = await fileCard('bao-cao.pdf');
+    expect(within(pdf).getByText(/60 trang · đọc được 20\.000 ký tự/)).toBeInTheDocument();
+    expect(within(pdf).getByText('Tệp dài hơn giới hạn nên AI chỉ đọc phần đầu.')).toBeInTheDocument();
+  });
+
+  it('tệp có quá ít chữ: báo ngay trên thẻ tệp và khoá nút "Tạo kế hoạch"', async () => {
+    mocks.extractDocument.mockResolvedValueOnce(docx({ text: 'Mục lục', chars: 7 }));
+    const { user } = renderModal();
+    await user.upload(fileInput(), new File(['x'], 'ngan.docx'));
+    const card = await fileCard('ngan.docx');
+    expect(within(card).getByText('Tệp có quá ít chữ (cần ít nhất 20 ký tự).')).toBeInTheDocument();
+    expect(generateButton()).toBeDisabled();
   });
 
   it('tệp sai đuôi / quá 5MB bị chặn ngay ở trình duyệt (không gọi API); lỗi đọc tệp hiện thông điệp của server và KHÔNG mất chữ đang nhập', async () => {
@@ -383,9 +394,9 @@ describe('AiGenerateBoardModal - tải tệp .docx / .pdf', () => {
     await user.upload(fileInput(), new File(['x'], 'khoa.pdf'));
     expect(await screen.findByRole('alert')).toHaveTextContent('Tệp PDF bị khóa mật khẩu');
     expect(textbox()).toHaveValue(TEXT);
-    expect(screen.queryByText(/Đã đọc “/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /Tệp đã chọn/ })).not.toBeInTheDocument();
 
-    // đang đọc tệp: ô nhập và nút tải khoá
+    // đang đọc tệp: ô nhập và nút tải khoá; đọc xong thì thẻ tệp thay ô nhập
     const pending = deferred<ExtractedDocument>();
     mocks.extractDocument.mockReturnValueOnce(pending.promise);
     await user.upload(fileInput(), new File(['x'], 'cham.docx'));
@@ -393,8 +404,8 @@ describe('AiGenerateBoardModal - tải tệp .docx / .pdf', () => {
     expect(textbox()).toBeDisabled();
     expect(generateButton()).toBeDisabled();
     pending.resolve(docx());
-    await waitFor(() => expect(textbox()).toHaveValue(docx().text));
-    expect(textbox()).toBeEnabled();
+    expect(await fileCard('cham.docx')).toBeInTheDocument();
+    expect(generateButton()).toBeEnabled();
   });
 });
 

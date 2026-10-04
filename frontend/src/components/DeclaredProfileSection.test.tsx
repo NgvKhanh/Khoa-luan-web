@@ -5,7 +5,8 @@ import type { DeclaredCvUploadResult, DeclaredProfile } from '../types/assign';
 import DeclaredProfileSection from './DeclaredProfileSection';
 
 // Mục "Hồ sơ kỹ năng" ở trang Hồ sơ: mock lớp gọi API (đã có test riêng ở lib/api/assign.test.ts) và kiểm HÀNH VI: tải, sửa, lưu
-// đúng thân yêu cầu, tải CV lên (chữ trích vào ô để sửa, phần đang sửa dở giữ nguyên), xoá CV có xác nhận, lỗi hiện rõ.
+// đúng thân yêu cầu, tải CV lên (máy chủ đọc thẳng nội dung tệp, KHÔNG có ô sửa chữ CV; phần đang sửa dở giữ nguyên),
+// xoá CV có xác nhận, lỗi hiện rõ.
 
 const mocks = vi.hoisted(() => ({
   fetchDeclaredProfile: vi.fn(),
@@ -74,7 +75,7 @@ describe('DeclaredProfileSection - tải và hiển thị', () => {
     expect(saveBtn()).toBeDisabled();
   });
 
-  it('hồ sơ đã có: kỹ năng, công việc, CV (tên, cỡ, ngày, link tải về của mình), ô chữ CV', async () => {
+  it('hồ sơ đã có: kỹ năng, công việc, CV (tên, cỡ, ngày, link tải về của mình); KHÔNG hiện chữ CV ra ô để sửa', async () => {
     await setup(FILLED);
     expect(skills().value).toBe('React, SQL');
     expect((screen.getByLabelText('Tên công việc 1') as HTMLInputElement).value).toBe('Trang quản trị');
@@ -83,7 +84,9 @@ describe('DeclaredProfileSection - tải và hiển thị', () => {
     expect(screen.getByText(/150,0 KB · tải lên 20\/09\/2026/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Tải về' })).toHaveAttribute('href', 'http://api.test/me/assign-profile/cv');
     expect(screen.getByRole('button', { name: 'Thay CV' })).toBeInTheDocument();
-    expect((screen.getByLabelText('Nội dung CV dùng cho gợi ý') as HTMLTextAreaElement).value).toBe('Kinh nghiệm React 2 năm');
+    expect(screen.queryByLabelText('Nội dung CV dùng cho gợi ý')).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('Kinh nghiệm React 2 năm');
+    expect(screen.queryByText(/Chưa có nội dung đọc từ tệp|nhập tay trước đây/)).not.toBeInTheDocument();
   });
 
   it('lỗi tải -> thông điệp + "Thử lại" gọi lại', async () => {
@@ -171,7 +174,7 @@ describe('DeclaredProfileSection - sửa và lưu', () => {
 });
 
 describe('DeclaredProfileSection - CV', () => {
-  it('tải CV lên: gửi đúng tệp; chữ trích vào ô để sửa; phần kỹ năng ĐANG SỬA DỞ giữ nguyên; báo số ký tự và nhắc lưu', async () => {
+  it('tải CV lên: gửi đúng tệp; báo đã lưu + số ký tự đọc được, KHÔNG hiện chữ ra ô để sửa; phần kỹ năng ĐANG SỬA DỞ giữ nguyên', async () => {
     await setup();
     fireEvent.change(skills(), { target: { value: 'React (chưa lưu)' } });
     const result: DeclaredCvUploadResult = {
@@ -184,25 +187,28 @@ describe('DeclaredProfileSection - CV', () => {
     const file = pdf();
     pick(file);
     await waitFor(() => expect(mocks.uploadDeclaredCv).toHaveBeenCalledWith(file));
-    expect(await screen.findByText(/Đã đọc được 30 ký tự từ CV\. Kiểm tra, sửa phần chữ bên dưới rồi bấm "Lưu hồ sơ"\./)).toBeInTheDocument();
-    expect((screen.getByLabelText('Nội dung CV dùng cho gợi ý') as HTMLTextAreaElement).value).toBe('Kinh nghiệm thiết kế giao diện');
+    expect(
+      await screen.findByText('Đã lưu CV, gợi ý phân công sẽ dùng nội dung trong tệp (đọc được 30 ký tự).')
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText('Nội dung CV dùng cho gợi ý')).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('Kinh nghiệm thiết kế giao diện');
     expect(skills().value).toBe('React (chưa lưu)');
     expect(screen.getByText('cv moi.pdf')).toBeInTheDocument();
     // CV đã lưu ở máy chủ; phần kỹ năng thì chưa -> vẫn còn thay đổi để lưu
     expect(saveBtn()).toBeEnabled();
   });
 
-  it('tệp dài bị cắt -> nói rõ "chỉ lấy phần đầu"; lỗi đọc tệp -> thông điệp của máy chủ', async () => {
+  it('tệp dài bị cắt -> nói rõ "chỉ dùng phần đầu"; lỗi đọc tệp -> thông điệp của máy chủ', async () => {
     await setup();
     mocks.uploadDeclaredCv.mockResolvedValueOnce({ cv: FILLED.cv!, text: 'abc', truncated: true, profile: { ...EMPTY, cv: FILLED.cv, cvText: 'abc' } });
     pick(pdf());
-    expect(await screen.findByText(/\(tệp dài, chỉ lấy phần đầu\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/tệp dài nên chỉ dùng phần đầu/)).toBeInTheDocument();
     mocks.uploadDeclaredCv.mockRejectedValueOnce(axiosErr(400, 'Nội dung tệp không phải PDF (sai đuôi tệp hoặc tệp hỏng)'));
     pick(pdf());
     expect(await screen.findByText('Nội dung tệp không phải PDF (sai đuôi tệp hoặc tệp hỏng)')).toBeInTheDocument();
   });
 
-  it('Xoá CV: hỏi xác nhận (Huỷ thì không gọi); đồng ý -> deleteDeclaredCv, ô chữ CV biến mất, về "Chưa tải CV lên."', async () => {
+  it('Xoá CV: hỏi xác nhận (Huỷ thì không gọi); đồng ý -> deleteDeclaredCv, về "Chưa tải CV lên."', async () => {
     await setup(FILLED);
     fireEvent.click(screen.getByRole('button', { name: 'Xoá CV' }));
     const dialog = screen.getByRole('dialog');
@@ -216,20 +222,23 @@ describe('DeclaredProfileSection - CV', () => {
     await waitFor(() => expect(mocks.deleteDeclaredCv).toHaveBeenCalledTimes(1));
     expect(await screen.findByText('Đã xoá CV (cả tệp và phần chữ).')).toBeInTheDocument();
     expect(screen.getByText('Chưa tải CV lên.')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Nội dung CV dùng cho gợi ý')).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(saveBtn()).toBeDisabled();
   });
 
-  it('có tệp CV nhưng chữ CV đã bị xoá hết -> VẪN có ô chữ CV (để nhập lại), trống', async () => {
+  it('dữ liệu cũ: có tệp CV nhưng chữ CV đã bị xoá hết -> nhắc tải lại CV để dùng cho gợi ý', async () => {
     await setup({ ...FILLED, cvText: null });
-    expect((screen.getByLabelText('Nội dung CV dùng cho gợi ý') as HTMLTextAreaElement).value).toBe('');
+    expect(
+      screen.getByText('Chưa có nội dung đọc từ tệp này. Tải lại CV để dùng cho gợi ý phân công.')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Thay CV' })).toBeInTheDocument();
   });
 
-  it('chữ CV gõ tay (không có tệp) cũng có nút "Xoá CV"', async () => {
+  it('dữ liệu cũ: chữ CV gõ tay (không có tệp) -> nói rõ đang được dùng, có nút "Xoá CV" để bỏ', async () => {
     await setup({ ...EMPTY, cvText: 'Chữ CV gõ tay' });
     expect(screen.getByRole('button', { name: 'Xoá CV' })).toBeInTheDocument();
     expect(screen.getByText('Chưa tải CV lên.')).toBeInTheDocument();
-    expect((screen.getByLabelText('Nội dung CV dùng cho gợi ý') as HTMLTextAreaElement).value).toBe('Chữ CV gõ tay');
+    expect(screen.getByText(/Gợi ý đang dùng phần chữ CV bạn nhập tay trước đây/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Nội dung CV dùng cho gợi ý')).not.toBeInTheDocument();
   });
 });

@@ -7,7 +7,6 @@ import {
   uploadDeclaredCv,
 } from '../lib/api/assign';
 import {
-  CV_TEXT_MAX,
   SKILLS_MAX_CHARS,
   WORK_DESC_MAX,
   WORK_ITEMS_MAX,
@@ -127,11 +126,12 @@ export default function DeclaredProfileSection() {
     startAction();
     try {
       const r = await uploadDeclaredCv(file);
-      // Máy chủ đã lưu tệp + chữ trích; phần kỹ năng / công việc đang sửa dở vẫn giữ nguyên
+      // Máy chủ đã lưu tệp + chữ đọc từ tệp (gợi ý dùng thẳng nội dung tệp, không có ô sửa chữ);
+      // phần kỹ năng / công việc đang sửa dở vẫn giữ nguyên
       setSaved(r.profile);
       setDraft({ ...draft, cvText: r.text });
       setNotice(
-        `Đã đọc được ${r.text.length.toLocaleString('vi-VN')} ký tự từ CV${r.truncated ? ' (tệp dài, chỉ lấy phần đầu)' : ''}. Kiểm tra, sửa phần chữ bên dưới rồi bấm "Lưu hồ sơ".`
+        `Đã lưu CV, gợi ý phân công sẽ dùng nội dung trong tệp (đọc được ${r.text.length.toLocaleString('vi-VN')} ký tự${r.truncated ? '; tệp dài nên chỉ dùng phần đầu' : ''}).`
       );
     } catch (err) {
       setError(getErrorMessage(err, 'Không đọc được tệp CV.'));
@@ -158,7 +158,6 @@ export default function DeclaredProfileSection() {
   }
 
   const cv = saved.cv;
-  const showCvText = cv !== null || draft.cvText !== '';
 
   return (
     <div className="flex flex-col gap-6">
@@ -333,6 +332,17 @@ export default function DeclaredProfileSection() {
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 PDF hoặc DOCX · Tối đa 5MB
               </p>
+              {/* Du lieu tu ban cu (con o sua chu CV): khong con o de nhin thay nen noi ro tinh trang */}
+              {cv && saved.cvText === null && (
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                  Chưa có nội dung đọc từ tệp này. Tải lại CV để dùng cho gợi ý phân công.
+                </p>
+              )}
+              {!cv && saved.cvText !== null && (
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                  Gợi ý đang dùng phần chữ CV bạn nhập tay trước đây. Tải CV lên để thay, hoặc Xoá CV để bỏ.
+                </p>
+              )}
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -370,27 +380,6 @@ export default function DeclaredProfileSection() {
           phân công để ngừng chia sẻ CV với người khác.
         </p>
       </div>
-
-      {showCvText && (
-        <div>
-          <label htmlFor="declared-cv-text" className={labelCls}>
-            Nội dung CV dùng cho gợi ý
-          </label>
-          <textarea
-            id="declared-cv-text"
-            rows={8}
-            value={draft.cvText}
-            onChange={(e) => patch({ cvText: e.target.value })}
-            className={inputCls}
-          />
-          <p className={hintCls}>
-            Chỉ bạn thấy phần chữ này; khi khớp một thẻ, người khác chỉ thấy "một đoạn trong CV".
-            Xoá bớt thông tin không liên quan (địa chỉ, số điện thoại…) ·{' '}
-            {draft.cvText.length.toLocaleString('vi-VN')}/{CV_TEXT_MAX.toLocaleString('vi-VN')} ký
-            tự
-          </p>
-        </div>
-      )}
 
       {issues.length > 0 && (
         <ul
