@@ -1,335 +1,363 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import BoardTile from '../components/BoardTile';
-import { fetchMyTeams } from '../lib/api/team';
+import BoardCard from '../components/BoardCard';
+import { Skeleton, SkeletonBoardGrid, SkeletonRegion } from '../components/Skeleton';
+import AiGenerateBoardModal from '../components/board/AiGenerateBoardModal';
+import CreateBoardDialog from '../components/board/CreateBoardDialog';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { useBoards } from '../context/BoardsContext';
+import { useWorkspaces } from '../context/WorkspacesContext';
 import {
-  createProject,
-  fetchMyProjects,
-  setProjectStar,
-} from '../lib/api/project';
-import { colorForId, initialsOf } from '../lib/avatar';
+  archiveBoard,
+  deleteBoard,
+  fetchArchivedBoards,
+  purgeBoard,
+  restoreBoard,
+  type ArchivedBoard,
+} from '../lib/api/board';
+import { assetUrl } from '../lib/assets';
+import { logError } from '../lib/logError';
 import { getErrorMessage } from '../lib/errorMessage';
-import { getRecentBoards } from '../lib/recentBoards';
-import type { TeamListItem } from '../types/team';
-import type { ProjectListItem } from '../types/project';
+import type { Board } from '../types/board';
 
-interface NewBoardTileProps {
-  teamId: string;
-  onCreated: () => void;
-  onCancel: () => void;
-}
-
-function NewBoardTile({ teamId, onCreated, onCancel }: NewBoardTileProps) {
-  const [name, setName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit() {
-    if (!name.trim()) {
-      onCancel();
-      return;
-    }
-    setIsSubmitting(true);
-    setError(null);
-    try {
-      await createProject({ teamId, name: name.trim() });
-      onCreated();
-    } catch (err) {
-      setError(getErrorMessage(err, 'Không tạo được bảng.'));
-      setIsSubmitting(false);
-    }
-  }
-
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    submit();
-  }
-
-  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Escape') onCancel();
-  }
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex h-24 flex-col justify-between rounded-lg bg-slate-200 p-2"
-    >
-      <input
-        autoFocus
-        type="text"
-        value={name}
-        disabled={isSubmitting}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onBlur={submit}
-        placeholder="Nhập tên bảng..."
-        className="rounded border border-slate-300 bg-white px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
-      />
-      {error && <p className="text-xs text-red-600">{error}</p>}
-      {!error && (
-        <div className="flex gap-2 text-xs">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="rounded bg-blue-600 px-2 py-1 font-medium text-white hover:bg-blue-700"
-          >
-            Tạo
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={onCancel}
-            className="px-2 py-1 text-slate-500 hover:text-slate-700"
-          >
-            Huỷ
-          </button>
-        </div>
-      )}
-    </form>
-  );
-}
-
-function SectionHeading({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-  return (
-    <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
-      <span className="text-slate-400">{icon}</span>
-      {children}
-    </h2>
-  );
-}
-
-const gridClass =
-  'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5';
-
-export default function HomePage() {
-  const [teams, setTeams] = useState<TeamListItem[]>([]);
-  const [projects, setProjects] = useState<ProjectListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [creatingForTeamId, setCreatingForTeamId] = useState<string | null>(null);
-
-  async function loadAll() {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const [teamList, projectList] = await Promise.all([
-        fetchMyTeams(),
-        fetchMyProjects(),
-      ]);
-      setTeams(teamList);
-      setProjects(projectList);
-    } catch (err) {
-      setError(getErrorMessage(err, 'Không tải được trang chủ.'));
-    } finally {
-      setIsLoading(false);
-    }
-  }
+function CreateBoardTile({
+  onCreated,
+  workspaceId,
+}: {
+  onCreated: (board: Board) => void;
+  workspaceId?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  // Modal AI o CHA (khong nam trong popover): xem chu thich o CreateBoardMenu trong Header.tsx
+  const [aiOpen, setAiOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    loadAll();
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
   }, []);
 
-  async function handleToggleStar(projectId: string, next: boolean) {
-    setProjects((prev) =>
-      prev.map((p) => (p.id === projectId ? { ...p, isStarred: next } : p))
-    );
+  return (
+    <>
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-full min-h-40 w-full flex-col items-center justify-center gap-1 rounded-xl bg-slate-200/70 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-300 dark:hover:bg-slate-700"
+      >
+        <span className="text-xl leading-none">+</span>
+        Tạo bảng mới
+      </button>
+
+      {open && (
+        <CreateBoardDialog
+          className="tf-menu-in absolute left-0 top-[calc(100%+6px)] z-40"
+          workspaceId={workspaceId}
+          onClose={() => setOpen(false)}
+          onOpenAi={() => {
+            setOpen(false);
+            setAiOpen(true);
+          }}
+          onCreated={(board) => {
+            onCreated(board);
+            setOpen(false);
+          }}
+        />
+      )}
+    </div>
+    {aiOpen && (
+      <AiGenerateBoardModal
+        workspaceId={workspaceId}
+        onClose={() => setAiOpen(false)}
+        onCreated={(board) => {
+          onCreated(board);
+          setAiOpen(false);
+        }}
+      />
+    )}
+    </>
+  );
+}
+
+export default function HomePage() {
+  const { boards, isLoading, error, reload, upsertBoard, removeBoard, toggleStar } =
+    useBoards();
+  const { workspaces } = useWorkspaces();
+
+  const starred = boards.filter((b) => b.isStarred);
+  const knownWsIds = new Set(workspaces.map((w) => w.id));
+  const orphanBoards = boards.filter((b) => !knownWsIds.has(b.workspaceId));
+
+  const [deleteTarget, setDeleteTarget] = useState<Board | null>(null);
+  const [permTarget, setPermTarget] = useState<Board | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const [archived, setArchived] = useState<ArchivedBoard[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
+  const [purgeTarget, setPurgeTarget] = useState<ArchivedBoard | null>(null);
+
+  const loadArchived = useCallback(() => {
+    fetchArchivedBoards()
+      .then(setArchived)
+      .catch(logError('HomePage: tai bang luu tru'));
+  }, []);
+  useEffect(() => {
+    loadArchived();
+  }, [loadArchived]);
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await setProjectStar(projectId, next);
+      await archiveBoard(deleteTarget.id);
+      removeBoard(deleteTarget.id);
+      setDeleteTarget(null);
+      loadArchived();
     } catch (err) {
-      // Hoan tac neu loi
-      setProjects((prev) =>
-        prev.map((p) => (p.id === projectId ? { ...p, isStarred: !next } : p))
-      );
-      setError(getErrorMessage(err, 'Không cập nhật được đánh dấu sao.'));
+      setActionError(getErrorMessage(err, 'Không lưu trữ được bảng.'));
+    } finally {
+      setDeleting(false);
     }
   }
 
-  const starred = useMemo(
-    () => projects.filter((p) => p.isStarred),
-    [projects]
-  );
-
-  const recent = useMemo(() => {
-    const byId = new Map(projects.map((p) => [p.id, p]));
-    return getRecentBoards()
-      .map((r) => byId.get(r.id))
-      .filter((p): p is ProjectListItem => Boolean(p))
-      .slice(0, 4);
-  }, [projects]);
-
-  if (isLoading) {
-    return <p className="text-sm text-slate-500">Đang tải...</p>;
+  async function handleRestore(b: ArchivedBoard) {
+    setActionError(null);
+    try {
+      await restoreBoard(b.id);
+      setArchived((cur) => cur.filter((x) => x.id !== b.id));
+      await reload();
+    } catch (err) {
+      setActionError(getErrorMessage(err, 'Không khôi phục được bảng.'));
+    }
   }
 
-  if (error && projects.length === 0) {
-    return <p className="text-sm text-red-600">{error}</p>;
+  async function confirmPermDelete() {
+    if (!permTarget) return;
+    setDeleting(true);
+    try {
+      await deleteBoard(permTarget.id);
+      removeBoard(permTarget.id);
+      setPermTarget(null);
+    } catch (err) {
+      setActionError(getErrorMessage(err, 'Không xoá được bảng.'));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function confirmPurge() {
+    if (!purgeTarget) return;
+    setDeleting(true);
+    try {
+      await purgeBoard(purgeTarget.id);
+      setArchived((cur) => cur.filter((x) => x.id !== purgeTarget.id));
+      setPurgeTarget(null);
+    } catch (err) {
+      setActionError(getErrorMessage(err, 'Không xoá được bảng.'));
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
-    <div className="flex flex-col gap-9">
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
-      {teams.length === 0 && (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center">
-          <p className="text-sm text-slate-600">
-            Bạn chưa có không gian làm việc (workspace) nào.
-          </p>
-          <Link
-            to="/teams"
-            className="mt-2 inline-block text-sm font-medium text-blue-600 hover:underline"
-          >
-            Tạo nhóm đầu tiên →
-          </Link>
-        </div>
+    <div className="flex flex-col gap-6">
+      {(error || actionError) && (
+        <p className="text-sm text-red-600">{error ?? actionError}</p>
       )}
 
-      {starred.length > 0 && (
-        <section>
-          <SectionHeading
-            icon={
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 17.9 6.8 20.6l1-5.8-4.3-4.1 5.9-.9z" />
-              </svg>
-            }
-          >
-            Bảng đánh dấu sao
-          </SectionHeading>
-          <div className={gridClass}>
-            {starred.map((p) => (
-              <BoardTile
-                key={p.id}
-                id={p.id}
-                name={p.name}
-                memberCount={p.memberCount}
-                isStarred={p.isStarred}
-                onToggleStar={(next) => handleToggleStar(p.id, next)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+      {isLoading ? (
+        <SkeletonRegion label="Đang tải danh sách bảng…" className="flex flex-col gap-3">
+          <Skeleton className="h-4 w-44" />
+          <SkeletonBoardGrid count={8} />
+        </SkeletonRegion>
+      ) : (
+        <>
+          {starred.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <h1 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                <svg viewBox="0 0 24 24" className="h-4 w-4 text-amber-400" fill="currentColor">
+                  <path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.8 6.1 20.5l1.2-6.5L2.5 9.4l6.6-.9z" />
+                </svg>
+                Được đánh dấu sao
+              </h1>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {starred.map((board) => (
+                  <BoardCard
+                    key={board.id}
+                    board={board}
+                    onChanged={upsertBoard}
+                    onRequestDelete={setDeleteTarget}
+                    onRequestPermanentDelete={setPermTarget}
+                    onToggleStar={toggleStar}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
-      {recent.length > 0 && (
-        <section>
-          <SectionHeading
-            icon={
-              <svg
-                viewBox="0 0 24 24"
-                className="h-4 w-4 fill-none stroke-current"
-                strokeWidth="2"
-              >
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 7v5l3 2" />
-              </svg>
-            }
-          >
-            Đã xem gần đây
-          </SectionHeading>
-          <div className={gridClass}>
-            {recent.map((p) => (
-              <BoardTile
-                key={p.id}
-                id={p.id}
-                name={p.name}
-                memberCount={p.memberCount}
-                isStarred={p.isStarred}
-                onToggleStar={(next) => handleToggleStar(p.id, next)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section>
-        <SectionHeading
-          icon={
-            <svg
-              viewBox="0 0 24 24"
-              className="h-4 w-4 fill-none stroke-current"
-              strokeWidth="2"
-            >
-              <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" />
-            </svg>
-          }
-        >
-          Các không gian làm việc của bạn
-        </SectionHeading>
-
-        <div className="flex flex-col gap-8">
-          {teams.map((team) => {
-            const teamProjects = projects.filter((p) => p.team.id === team.id);
-            const isCreatingHere = creatingForTeamId === team.id;
-
+          {workspaces.map((ws) => {
+            const wsBoards = boards.filter((b) => b.workspaceId === ws.id);
             return (
-              <div key={team.id}>
-                <div className="mb-3 flex flex-wrap items-center gap-3">
-                  <span
-                    className="flex h-8 w-8 items-center justify-center rounded text-xs font-bold text-white"
-                    style={{ backgroundColor: colorForId(team.id) }}
+              <div key={ws.id} className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 8a3 3 0 100-6 3 3 0 000 6zM3 20a6 6 0 0112 0M17 8a3 3 0 100-6M15 20a6 6 0 019-5" />
+                  </svg>
+                  <h1 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    {ws.name}
+                  </h1>
+                  <Link
+                    to={`/workspaces/${ws.id}`}
+                    className="text-xs font-medium text-primary-ink hover:underline"
                   >
-                    {initialsOf(team.name)}
-                  </span>
-                  <span className="font-semibold text-slate-700">{team.name}</span>
-                  <div className="flex items-center gap-2 text-xs">
-                    <Link
-                      to={`/teams/${team.id}`}
-                      className="rounded border border-slate-300 bg-white px-2 py-1 font-medium text-slate-600 hover:bg-slate-50"
-                    >
-                      Thành viên
-                    </Link>
-                    <Link
-                      to={`/teams/${team.id}`}
-                      className="rounded border border-slate-300 bg-white px-2 py-1 font-medium text-slate-600 hover:bg-slate-50"
-                    >
-                      Cài đặt
-                    </Link>
-                  </div>
+                    Quản lý
+                  </Link>
                 </div>
-
-                <div className={gridClass}>
-                  {teamProjects.map((project) => (
-                    <BoardTile
-                      key={project.id}
-                      id={project.id}
-                      name={project.name}
-                      memberCount={project.memberCount}
-                      isStarred={project.isStarred}
-                      onToggleStar={(next) => handleToggleStar(project.id, next)}
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                  {wsBoards.map((board) => (
+                    <BoardCard
+                      key={board.id}
+                      showWorkspace={false}
+                      board={board}
+                      onChanged={upsertBoard}
+                      onRequestDelete={setDeleteTarget}
+                      onRequestPermanentDelete={setPermTarget}
+                      onToggleStar={toggleStar}
                     />
                   ))}
-
-                  {isCreatingHere ? (
-                    <NewBoardTile
-                      teamId={team.id}
-                      onCreated={() => {
-                        setCreatingForTeamId(null);
-                        loadAll();
-                      }}
-                      onCancel={() => setCreatingForTeamId(null)}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setCreatingForTeamId(team.id)}
-                      className="flex h-24 flex-col items-center justify-center gap-1 rounded-lg bg-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-300"
-                    >
-                      <span className="text-lg leading-none">+</span>
-                      Tạo bảng mới
-                    </button>
-                  )}
+                  <CreateBoardTile onCreated={upsertBoard} workspaceId={ws.id} />
                 </div>
               </div>
             );
           })}
-        </div>
-      </section>
+
+          {orphanBoards.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <h1 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Bảng khác
+              </h1>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {orphanBoards.map((board) => (
+                  <BoardCard
+                    key={board.id}
+                    board={board}
+                    onChanged={upsertBoard}
+                    onRequestDelete={setDeleteTarget}
+                    onRequestPermanentDelete={setPermTarget}
+                    onToggleStar={toggleStar}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {archived.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => setShowArchived((v) => !v)}
+                className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-700"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="4" width="18" height="4" rx="1" />
+                  <path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8M10 12h4" />
+                </svg>
+                Bảng đã lưu trữ ({archived.length})
+                <svg viewBox="0 0 24 24" className={`h-3.5 w-3.5 transition-transform ${showArchived ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </button>
+
+              {showArchived && (
+                <ul className="flex flex-col gap-2">
+                  {archived.map((b) => (
+                    <li
+                      key={b.id}
+                      className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-800"
+                    >
+                      <span
+                        className="h-8 w-12 shrink-0 rounded bg-cover bg-center"
+                        style={
+                          b.backgroundImage
+                            ? { backgroundImage: `url(${assetUrl(b.backgroundImage)})` }
+                            : { backgroundColor: b.color }
+                        }
+                      />
+                      <span className="flex-1 truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                        {b.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleRestore(b)}
+                        className="rounded bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200"
+                      >
+                        Khôi phục
+                      </button>
+                      {b.isOwner && (
+                        <button
+                          type="button"
+                          onClick={() => setPurgeTarget(b)}
+                          className="rounded px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                        >
+                          Xoá vĩnh viễn
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Lưu trữ bảng?"
+        message={
+          deleteTarget
+            ? `Bảng "${deleteTarget.name}" sẽ được chuyển vào mục "Bảng đã lưu trữ". Bạn có thể khôi phục lại sau.`
+            : undefined
+        }
+        confirmLabel="Lưu trữ"
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => !deleting && setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={permTarget !== null}
+        title="Xoá bảng vĩnh viễn?"
+        message={
+          permTarget
+            ? `Bảng "${permTarget.name}" cùng toàn bộ danh sách và thẻ sẽ bị xoá và không thể khôi phục. Nếu chỉ muốn cất đi, hãy chọn "Lưu trữ bảng".`
+            : undefined
+        }
+        confirmLabel="Xoá vĩnh viễn"
+        danger
+        busy={deleting}
+        onConfirm={confirmPermDelete}
+        onCancel={() => !deleting && setPermTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={purgeTarget !== null}
+        title="Xoá vĩnh viễn bảng?"
+        message={
+          purgeTarget
+            ? `Bảng "${purgeTarget.name}" và toàn bộ danh sách, thẻ bên trong sẽ bị xoá và không thể khôi phục.`
+            : undefined
+        }
+        confirmLabel="Xoá vĩnh viễn"
+        danger
+        busy={deleting}
+        onConfirm={confirmPurge}
+        onCancel={() => !deleting && setPurgeTarget(null)}
+      />
     </div>
   );
 }

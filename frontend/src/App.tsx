@@ -1,60 +1,78 @@
-import { Navigate, Route, Routes, useParams } from 'react-router-dom';
-import BoardLayout from './layouts/BoardLayout';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import BoardViewLayout from './layouts/BoardViewLayout';
 import MainLayout from './layouts/MainLayout';
 import BoardPage from './pages/BoardPage';
+import CalendarPage from './pages/CalendarPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import HomeDashboard from './pages/HomeDashboard';
 import HomePage from './pages/HomePage';
+import JoinBoardPage from './pages/JoinBoardPage';
 import LoginPage from './pages/LoginPage';
-import NotFoundPage from './pages/NotFoundPage';
-import PlaceholderPage from './pages/PlaceholderPage';
-import ProjectDetailPage from './pages/ProjectDetailPage';
-import ProjectsPage from './pages/ProjectsPage';
-import ProjectTaskListPage from './pages/ProjectTaskListPage';
+import LandingPage from './pages/LandingPage';
+import PublicBoardPage from './pages/PublicBoardPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
+import MyActivityPage from './pages/MyActivityPage';
+import MyCardsPage from './pages/MyCardsPage';
+import NotificationSettingsPage from './pages/NotificationSettingsPage';
+import ProfilePage from './pages/ProfilePage';
+import TemplatesPage from './pages/TemplatesPage';
 import RegisterPage from './pages/RegisterPage';
-import TaskDetailPage from './pages/TaskDetailPage';
-import TeamDetailPage from './pages/TeamDetailPage';
-import TeamsPage from './pages/TeamsPage';
+import SearchPage from './pages/SearchPage';
+import WorkspaceSettingsPage from './pages/WorkspaceSettingsPage';
 import ProtectedRoute from './routes/ProtectedRoute';
+import { useAuth } from './context/AuthContext';
 
-// Duong dan /kanban cu -> chuyen sang /board moi
-function KanbanRedirect() {
-  const { projectId } = useParams<{ projectId: string }>();
-  return <Navigate to={`/projects/${projectId}/board`} replace />;
+function UnknownRoute() {
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div
+        role="status"
+        className="grid min-h-screen place-items-center text-slate-600 dark:text-slate-300"
+      >
+        Đang kiểm tra đăng nhập…
+      </div>
+    );
+  }
+  return <Navigate to={user ? '/boards' : '/'} replace />;
 }
 
 function App() {
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/public/boards/:boardId" element={<PublicBoardPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
-          <Route path="/" element={<HomePage />} />
-          <Route
-            path="/my-tasks"
-            element={<PlaceholderPage title="Công việc của tôi" />}
-          />
-          <Route path="/teams" element={<TeamsPage />} />
-          <Route path="/teams/:teamId" element={<TeamDetailPage />} />
-          <Route path="/projects" element={<ProjectsPage />} />
-          <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
-          <Route
-            path="/projects/:projectId/kanban"
-            element={<KanbanRedirect />}
-          />
-          <Route
-            path="/projects/:projectId/tasks"
-            element={<ProjectTaskListPage />}
-          />
-          <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
+          <Route path="/boards" element={<HomePage />} />
+          <Route path="/home" element={<HomeDashboard />} />
+          <Route path="/templates" element={<TemplatesPage />} />
+          <Route path="/workspaces/:workspaceId" element={<WorkspaceSettingsPage />} />
+          <Route path="/my-cards" element={<MyCardsPage />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/settings/profile" element={<ProfilePage />} />
+          <Route path="/settings/password" element={<ChangePasswordPage />} />
+          <Route path="/settings/notifications" element={<NotificationSettingsPage />} />
+          <Route path="/activity" element={<MyActivityPage />} />
         </Route>
 
-        <Route element={<BoardLayout />}>
-          <Route path="/projects/:projectId/board" element={<BoardPage />} />
+        <Route path="/join/:token" element={<JoinBoardPage />} />
+
+        <Route element={<BoardViewLayout />}>
+          <Route path="/boards/:boardId" element={<BoardPage />} />
         </Route>
       </Route>
 
-      <Route path="*" element={<NotFoundPage />} />
+      <Route path="*" element={<UnknownRoute />} />
     </Routes>
   );
 }

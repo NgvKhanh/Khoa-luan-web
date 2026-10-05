@@ -1,34 +1,22 @@
-// Luu "bang da xem gan day" tren trinh duyet (giong Trello - theo tung may).
-
+// Danh sach id cac bang vua mo gan day (luu tren trinh duyet)
 const KEY = 'taskflow_recent_boards';
 const MAX = 8;
 
-export interface RecentBoard {
-  id: string;
-  name: string;
-  viewedAt: number;
-}
-
-export function getRecentBoards(): RecentBoard[] {
+export function pushRecentBoard(id: string): void {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as RecentBoard[];
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((b) => b && typeof b.id === 'string' && typeof b.name === 'string')
-      .sort((a, b) => b.viewedAt - a.viewedAt);
+    const cur = getRecentBoards();
+    const next = [id, ...cur.filter((x) => x !== id)].slice(0, MAX);
+    localStorage.setItem(KEY, JSON.stringify(next));
   } catch {
-    return [];
+    // bo qua (che do rieng tu / bi chan)
   }
 }
 
-export function recordRecentBoard(id: string, name: string): void {
+export function getRecentBoards(): string[] {
   try {
-    const others = getRecentBoards().filter((b) => b.id !== id);
-    const next = [{ id, name, viewedAt: Date.now() }, ...others].slice(0, MAX);
-    localStorage.setItem(KEY, JSON.stringify(next));
+    const v = JSON.parse(localStorage.getItem(KEY) ?? '[]');
+    return Array.isArray(v) ? (v as string[]) : [];
   } catch {
-    // Bo qua neu trinh duyet chan localStorage
+    return [];
   }
 }

@@ -6,13 +6,14 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { googleLogin as googleLoginApi } from '../lib/api/auth';
 import { api } from '../lib/axios';
-import { clearToken, getToken, setToken } from '../lib/token';
+import { connectSocket, disconnectSocket } from '../lib/socket';
 import type { User } from '../types/auth';
 
 interface AuthResponse {
   success: boolean;
-  data: { user: User; token: string };
+  data: { user: User };
 }
 
 interface MeResponse {
@@ -24,9 +25,11 @@ interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  loginWithGoogle: (idToken: string) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  // Cap nhat thong tin nguoi dung trong bo nho (sau khi sua ho so)
+  updateUser: (patch: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -36,17 +39,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Cookie httpOnly duoc gui tu dong; chi can hoi /auth/me xem con phien khong
     async function loadCurrentUser() {
-      if (!getToken()) {
-        setIsLoading(false);
-        return;
-      }
-
       try {
         const res = await api.get<MeResponse>('/auth/me');
         setUser(res.data.data.user);
       } catch {
-        clearToken();
         setUser(null);
       } finally {
         setIsLoading(false);
@@ -56,19 +54,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loadCurrentUser();
   }, []);
 
+  // Nối/ngắt kết nối realtime theo trạng thái đăng nhập
+  useEffect(() => {
+    if (user) connectSocket();
+    else disconnectSocket();
+  }, [user]);
+
   const login = useCallback(async (email: string, password: string) => {
     const res = await api.post<AuthResponse>('/auth/login', {
       email,
       password,
     });
-    setToken(res.data.data.token);
     setUser(res.data.data.user);
   }, []);
 
-  const loginWithGoogle = useCallback(async (idToken: string) => {
-    const res = await api.post<AuthResponse>('/auth/google', { idToken });
-    setToken(res.data.data.token);
-    setUser(res.data.data.user);
+  const loginWithGoogle = useCallback(async (credential: string) => {
+    const user = await googleLoginApi(credential);
+    setUser(user);
   }, []);
 
   const register = useCallback(
@@ -78,7 +80,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password,
       });
-      setToken(res.data.data.token);
       setUser(res.data.data.user);
     },
     []
@@ -88,14 +89,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await api.post('/auth/logout');
     } finally {
-      clearToken();
       setUser(null);
     }
   }, []);
 
+  const updateUser = useCallback((patch: Partial<User>) => {
+    setUser((cur) => (cur ? { ...cur, ...patch } : cur));
+  }, []);
+
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, login, loginWithGoogle, register, logout }}
+      value={{
+        user,
+        isLoading,
+        login,
+        loginWithGoogle,
+        register,
+        logout,
+        updateUser,
+      }}
     >
       {children}
     </AuthContext.Provider>

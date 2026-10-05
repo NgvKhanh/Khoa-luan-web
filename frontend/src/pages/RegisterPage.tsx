@@ -1,14 +1,15 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AuthShell, { authFieldClass } from '../components/auth/AuthShell';
+import GoogleAuthButton from '../components/auth/GoogleAuthButton';
 import PasswordField from '../components/auth/PasswordField';
-import GoogleSignInButton from '../components/GoogleSignInButton';
 import { useAuth } from '../context/AuthContext';
 import { getErrorMessage } from '../lib/errorMessage';
 
 export default function RegisterPage() {
-  const { register, loginWithGoogle } = useAuth();
+  const { register } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -22,22 +23,11 @@ export default function RegisterPage() {
     setIsSubmitting(true);
     try {
       await register(name, email, password);
-      navigate('/', { replace: true });
+      const redirectTo =
+        (location.state as { from?: string } | null)?.from ?? '/boards';
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       setError(getErrorMessage(err, 'Không thể đăng ký. Vui lòng thử lại.'));
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  async function handleGoogle(idToken: string) {
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      await loginWithGoogle(idToken);
-      navigate('/', { replace: true });
-    } catch (err) {
-      setError(getErrorMessage(err, 'Đăng ký bằng Google thất bại.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -50,7 +40,11 @@ export default function RegisterPage() {
       footer={
         <>
           Đã có tài khoản?{' '}
-          <Link to="/login" className="font-medium text-[#1558bc] hover:underline">
+          <Link
+            to="/login"
+            state={location.state}
+            className="font-semibold text-white hover:underline"
+          >
             Đăng nhập
           </Link>
         </>
@@ -106,19 +100,13 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="mt-1 rounded-lg bg-[#1558bc] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0f4aa8] disabled:opacity-60"
+          className="mt-1 rounded-lg bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--brand-primary-hover)] disabled:opacity-60"
         >
           {isSubmitting ? 'Đang tạo tài khoản...' : 'Đăng ký'}
         </button>
       </form>
 
-      <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
-        <span className="h-px flex-1 bg-slate-200" />
-        HOẶC
-        <span className="h-px flex-1 bg-slate-200" />
-      </div>
-
-      <GoogleSignInButton text="signup_with" onCredential={handleGoogle} />
+      <GoogleAuthButton />
     </AuthShell>
   );
 }
