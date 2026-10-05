@@ -15,9 +15,11 @@ import {
   rejectJoinRequest,
   type AddMemberResult,
 } from '../../lib/api/board';
+import { userCvUrl } from '../../lib/api/assign';
 import { getErrorMessage } from '../../lib/errorMessage';
 import { logError } from '../../lib/logError';
 import { socket } from '../../lib/socket';
+import { useCvAccess } from '../../lib/useCvAccess';
 import type { BoardMember, JoinRequest } from '../../types/board';
 import Avatar from '../Avatar';
 import ConfirmDialog from '../ConfirmDialog';
@@ -153,6 +155,11 @@ export default function BoardMembers({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'members' | 'requests'>('members');
+  // Nut "Xem CV": chi hoi may chu khi danh sach thanh vien dang mo; may chu quyet dinh ai minh xem duoc (quan ly bang chung)
+  const cvIds = useCvAccess(
+    members.map((m) => m.userId),
+    open && tab === 'members'
+  );
 
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<AssignableRole>('MEMBER');
@@ -578,6 +585,16 @@ export default function BoardMembers({
                             {m.viaWorkspace && ' • Qua không gian làm việc'}
                           </p>
                         </div>
+                        {cvIds.has(m.userId) && (
+                          <a
+                            href={userCvUrl(m.userId)}
+                            download
+                            aria-label={`Xem CV của ${m.user.name}`}
+                            className="shrink-0 rounded px-2 py-1 text-xs font-medium text-primary-ink hover:bg-slate-100 dark:hover:bg-slate-700"
+                          >
+                            Xem CV
+                          </a>
+                        )}
                         {m.viaWorkspace ||
                         m.role === 'OWNER' ||
                         (!canManage && !isSelf) ? (

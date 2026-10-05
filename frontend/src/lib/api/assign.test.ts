@@ -4,11 +4,13 @@ const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), del
 vi.mock('../axios', () => ({ api: mocks }));
 
 import {
+  CV_ACCESS_MAX_IDS,
   deleteDeclaredCv,
   fetchAssignPlan,
   fetchAssignProfile,
   fetchAssignSuggestions,
   fetchAssignWeights,
+  fetchCvAccess,
   fetchDeclaredProfile,
   myCvUrl,
   recordAssignOutcome,
@@ -131,6 +133,24 @@ describe('lib/api/assign', () => {
     expect(myCvUrl()).toBe(`${base}/me/assign-profile/cv`);
     expect(userCvUrl('u1')).toBe(`${base}/users/u1/assign-profile/cv`);
     expect(userCvUrl('a/b?c')).toBe(`${base}/users/a%2Fb%3Fc/assign-profile/cv`);
+  });
+
+  it('fetchCvAccess: GET /me/assign-profile/cv-access?userIds=a,b (bo trung); rong -> khong goi; > 200 nguoi -> chia nhieu lan, gop ket qua', async () => {
+    mocks.get.mockResolvedValue({ data: { data: { userIds: ['b'] } } });
+    await expect(fetchCvAccess(['a', 'b', 'a'])).resolves.toEqual(['b']);
+    expect(mocks.get).toHaveBeenCalledWith('/me/assign-profile/cv-access', { params: { userIds: 'a,b' } });
+
+    mocks.get.mockClear();
+    await expect(fetchCvAccess([])).resolves.toEqual([]);
+    expect(mocks.get).not.toHaveBeenCalled();
+
+    expect(CV_ACCESS_MAX_IDS).toBe(200);
+    const ids = Array.from({ length: 201 }, (_, i) => `u${i}`);
+    mocks.get.mockResolvedValueOnce({ data: { data: { userIds: ['u0'] } } }).mockResolvedValueOnce({ data: { data: { userIds: ['u200'] } } });
+    await expect(fetchCvAccess(ids)).resolves.toEqual(['u0', 'u200']);
+    expect(mocks.get).toHaveBeenCalledTimes(2);
+    expect(mocks.get.mock.calls[0]![1]).toEqual({ params: { userIds: ids.slice(0, 200).join(',') } });
+    expect(mocks.get.mock.calls[1]![1]).toEqual({ params: { userIds: 'u200' } });
   });
 
   it('loi cua may chu duoc day nguyen (khong nuot): giao dien tu lay thong diep', async () => {

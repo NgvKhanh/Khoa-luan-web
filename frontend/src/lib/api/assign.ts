@@ -118,3 +118,22 @@ export async function deleteDeclaredCv(): Promise<DeclaredProfile> {
 const API_URL = import.meta.env.VITE_API_URL as string;
 export const myCvUrl = () => `${API_URL}${MY_PROFILE}/cv`;
 export const userCvUrl = (userId: string) => `${API_URL}/users/${encodeURIComponent(userId)}/assign-profile/cv`;
+
+/** Toi da so nguoi moi lan hoi (khop gioi han may chu). */
+export const CV_ACCESS_MAX_IDS = 200;
+
+// GET /api/me/assign-profile/cv-access?userIds=a,b - trong danh sach, ai minh tai duoc CV (co tep + co quyen). Danh sach rong ->
+// khong goi may chu. Dai hon 200 nguoi -> chia nhieu lan.
+export async function fetchCvAccess(userIds: readonly string[]): Promise<string[]> {
+  const ids = [...new Set(userIds)];
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += CV_ACCESS_MAX_IDS) chunks.push(ids.slice(i, i + CV_ACCESS_MAX_IDS));
+  const parts = await Promise.all(
+    chunks.map((chunk) =>
+      api
+        .get<{ data: { userIds: string[] } }>(`${MY_PROFILE}/cv-access`, { params: { userIds: chunk.join(',') } })
+        .then((res) => res.data.data.userIds)
+    )
+  );
+  return parts.flat();
+}

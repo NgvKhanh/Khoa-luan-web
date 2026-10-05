@@ -2,8 +2,9 @@ import type { Request, Response } from 'express';
 import { trustedCvContentType } from '../../config/upload';
 import { AppError } from '../../utils/AppError';
 import { asyncHandler } from '../../utils/asyncHandler';
-import type { DeclaredProfileInput } from './declaredProfile.schema';
+import type { CvAccessQuery, DeclaredProfileInput } from './declaredProfile.schema';
 import {
+  cvDownloadableOf,
   cvFileFor,
   deleteMyCv,
   getMyDeclaredProfile,
@@ -26,6 +27,13 @@ export const putMyProfileHandler = asyncHandler(async (req: Request, res: Respon
 
 export const uploadCvHandler = asyncHandler(async (req: Request, res: Response) => {
   res.json({ success: true, data: await uploadMyCv(requireUserId(req), req.file) });
+});
+
+/** Trong danh sach `userIds`, ai nguoi goi tai duoc CV (de hien nut "Xem CV" o danh sach thanh vien). Giu nguyen thu tu da gui. */
+export const cvAccessHandler = asyncHandler(async (req: Request, res: Response) => {
+  const { userIds } = res.locals.query as CvAccessQuery;
+  const ok = await cvDownloadableOf(requireUserId(req), userIds);
+  res.json({ success: true, data: { userIds: userIds.filter((id) => ok.has(id)) } });
 });
 
 export const deleteCvHandler = asyncHandler(async (req: Request, res: Response) => {

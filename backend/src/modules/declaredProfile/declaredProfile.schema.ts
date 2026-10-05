@@ -24,3 +24,20 @@ export const declaredProfileSchema = z.object({
   cvText: z.string().max(CV_TEXT_MAX, `Nội dung CV tối đa ${CV_TEXT_MAX} ký tự`).nullable(),
 });
 export type DeclaredProfileInput = z.infer<typeof declaredProfileSchema>;
+
+/** Toi da so nguoi hoi trong MOT lan (danh sach thanh vien bang / khong gian). */
+export const CV_ACCESS_MAX_IDS = 200;
+
+/** `?userIds=a,b,c` - bo khoang trang, bo trung, bo phan tu rong. */
+export const cvAccessQuerySchema = z.object({
+  userIds: z
+    .string()
+    .transform((s) => [...new Set(s.split(',').map((x) => x.trim()).filter((x) => x !== ''))])
+    .pipe(
+      z
+        .array(z.string().max(64, 'Mã người dùng quá dài'))
+        .min(1, 'Thiếu danh sách người dùng')
+        .max(CV_ACCESS_MAX_IDS, `Tối đa ${CV_ACCESS_MAX_IDS} người mỗi lần`)
+    ),
+});
+export type CvAccessQuery = z.infer<typeof cvAccessQuerySchema>;

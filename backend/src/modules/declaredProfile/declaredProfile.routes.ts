@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { uploadAiDocument } from '../../config/upload';
 import { requireAuth } from '../../middleware/auth.middleware';
 import { cvUploadLimiter } from '../../middleware/rateLimit.middleware';
-import { validateBody } from '../../middleware/validate.middleware';
+import { validateBody, validateQuery } from '../../middleware/validate.middleware';
 import {
+  cvAccessHandler,
   deleteCvHandler,
   downloadMyCvHandler,
   downloadUserCvHandler,
@@ -11,7 +12,7 @@ import {
   putMyProfileHandler,
   uploadCvHandler,
 } from './declaredProfile.controller';
-import { declaredProfileSchema } from './declaredProfile.schema';
+import { cvAccessQuerySchema, declaredProfileSchema } from './declaredProfile.schema';
 
 // Gan vao /api/me/assign-profile - ho so tu khai cua CHINH nguoi goi (ASSIGN_MODULE.md §17.9)
 export const meAssignProfileRoutes = Router();
@@ -22,8 +23,10 @@ meAssignProfileRoutes.put('/', validateBody(declaredProfileSchema), putMyProfile
 meAssignProfileRoutes.post('/cv', cvUploadLimiter, uploadAiDocument, uploadCvHandler);
 meAssignProfileRoutes.delete('/cv', deleteCvHandler);
 meAssignProfileRoutes.get('/cv', downloadMyCvHandler);
+// Ai trong danh sach minh tai duoc CV (nut "Xem CV" o danh sach thanh vien bang / khong gian)
+meAssignProfileRoutes.get('/cv-access', validateQuery(cvAccessQuerySchema), cvAccessHandler);
 
-// Gan vao /api/users/:userId/assign-profile/cv - OWNER/ADMIN khong gian chung tai CV cua thanh vien; con lai 404
+// Gan vao /api/users/:userId/assign-profile/cv - chu / quan tri bang chung (hoac khong gian chua bang) tai CV cua thanh vien; con lai 404
 export const userCvRoutes = Router({ mergeParams: true });
 userCvRoutes.use(requireAuth);
 userCvRoutes.get('/', downloadUserCvHandler);

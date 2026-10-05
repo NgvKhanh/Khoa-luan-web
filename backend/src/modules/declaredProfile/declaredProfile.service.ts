@@ -200,16 +200,20 @@ export async function cvFileFor(requesterId: string, targetId: string): Promise<
   return { diskPath, fileName: row.cvFileName, storedName: row.cvStoredName };
 }
 
-/** Trong `userIds`, nhung nguoi ma `requesterId` tai duoc CV (co tep + co quyen, cung luat voi cvFileFor tru buoc kiem tep tren dia). */
+/**
+ * Trong `userIds`, nhung nguoi ma `requesterId` tai duoc CV - CUNG luat voi cvFileFor (co quyen, cong tac bat voi nguoi khac, tep con
+ * tren dia): moi nut "Tai CV" / "Xem CV" hien ra deu bam duoc, khong bao gio ra 404.
+ */
 export async function cvDownloadableOf(requesterId: string, userIds: readonly string[]): Promise<Set<string>> {
   const out = new Set<string>();
   if (userIds.length === 0) return out;
   const rows = await prisma.userAssignProfile.findMany({
     where: { userId: { in: [...userIds] }, cvStoredName: { not: null }, cvFileName: { not: null } },
-    select: { userId: true, useForAssign: true },
+    select: { userId: true, useForAssign: true, cvStoredName: true },
   });
   const others: string[] = [];
   for (const r of rows) {
+    if (!fs.existsSync(cvDiskPath(r.cvStoredName!))) continue;
     if (r.userId === requesterId) out.add(r.userId);
     else if (r.useForAssign) others.push(r.userId);
   }

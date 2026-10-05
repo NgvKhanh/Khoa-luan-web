@@ -1175,6 +1175,8 @@ vẽ 3 đường cho tới lúc chuyển. `AssignRun`: `algorithmVersion` mới;
 - `POST /api/me/assign-profile/cv` (multipart `file`) → lưu tệp + trả `{ cv, text, truncated }` để người dùng sửa;
   `DELETE /api/me/assign-profile/cv`; `GET /api/me/assign-profile/cv` (tải bản của mình).
 - `GET /api/users/:userId/assign-profile/cv` — cho trưởng nhóm (§17.8).
+- `GET /api/me/assign-profile/cv-access?userIds=a,b` (04/10) — trong danh sách (≤ 200, bỏ trùng), ai người gọi tải được CV, giữ thứ tự đã
+  gửi; cùng luật với tải về (kể cả tệp phải còn trên đĩa). Dùng cho nút **"Xem CV"** ở danh sách thành viên bảng và không gian.
 - Gợi ý (`assignment-suggestions`, `assignment-plan`): thêm thành phần `declared`, `declaredEvidence`, cờ `NO_PROFILE`; gợi ý lớp 1
   có thêm `cvAvailable` (người hỏi tải được CV của ứng viên đó không — bước 17).
 - Giao diện: mục **"Hồ sơ kỹ năng"** ở trang Hồ sơ cá nhân (`ProfilePage.tsx`): công tắc, ô kỹ năng, danh sách công việc
@@ -2822,4 +2824,19 @@ lọt quản trị không gian rời nhóm (thiếu test), chủ CV rời bảng
 được tính" (lộ khi chủ bảng không có CV) → thêm 3 kiểm → 12/13; còn lại **tương đương**: bỏ điều kiện "bảng có người cần hỏi" chỉ làm truy vấn
 lấy nhiều dòng hơn (đã ghi chú trong mã). Chạy thử luật trên CSDL dev (chỉ đọc): chủ bảng nay xem được CV của thành viên bảng; chiều ngược lại
 vẫn bị chặn. Câu chữ ở trang Hồ sơ đổi theo.
+
+### Nút "Xem CV" ở danh sách thành viên (04/10/2026, user chọn)
+
+Trước đây nút tải CV thành viên **chỉ** nằm trong mục "Vì sao?" của gợi ý phân công (ô Thành viên của một thẻ) — khó thấy. Thêm:
+- Backend: `GET /api/me/assign-profile/cv-access?userIds=…` (zod: bỏ khoảng trắng, bỏ trùng, 1–200 mã, mỗi mã ≤ 64 ký tự) → những người người gọi
+  tải được CV, **giữ thứ tự đã gửi**. Dùng chung `cvDownloadableOf` (luật bảng ở trên); hàm này nay **kiểm cả tệp còn trên đĩa** → nút nào hiện ra
+  (ở danh sách thành viên lẫn "Tải CV" trong gợi ý) cũng bấm được, không ra 404 (dữ liệu dev có một dòng CV mà tệp đã bị test cũ xoá).
+- Frontend: `fetchCvAccess` (chia lần nếu > 200 người), hook `useCvAccess` (hỏi MỘT lần cho cả danh sách; danh sách đổi → bỏ kết quả cũ; lỗi →
+  không ai, chỉ ghi log); nút **"Xem CV"** cạnh tên ở danh sách thành viên **bảng** (`BoardMembers`, chỉ hỏi khi danh sách đang mở) và danh sách
+  thành viên **không gian** (`WorkspaceSettingsPage`).
+- Test: backend thêm 2 ca API (tập con đúng thứ tự cả hai chiều, quyền theo vai trò, 401, 400 cho tham số sai, biên 200) + tệp mất → không có nút;
+  frontend `useCvAccess.test.ts` (7), `fetchCvAccess`, `BoardMembers` (chưa mở không hỏi, chỉ đúng người có nút, lỗi không vỡ danh sách),
+  `WorkspaceSettingsPage.cv.test.tsx` (mới — trang này trước đây chưa có test). Cài lỗi 19 phép (backend 8, frontend 11): lần đầu 17/19 — lọt
+  "trả theo thứ tự tập thay vì thứ tự gửi" (test chỉ gửi một thứ tự, tình cờ trùng) và "trả kết quả của danh sách cũ khi danh sách mới chưa về"
+  → thêm 2 kiểm → 19/19.
 

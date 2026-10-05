@@ -377,7 +377,8 @@ describe('GET /api/users/:userId/assign-profile/cv - quyen tai CV (luat 04/10: q
 });
 
 describe('cvDownloadableOf - hoi theo lo (duong cua cvAvailable)', () => {
-  it('cung mot bang: nguoi da roi bang bi loai, nguoi con o lai van duoc; chi nguoi CO tep CV; chinh minh luon duoc', async () => {
+  it('cung mot bang: nguoi da roi bang bi loai, nguoi con o lai van duoc; chi nguoi CO tep CV (dong + tep tren dia); chinh minh luon duoc', async () => {
+    startTracking();
     const boss = await makeDirectUser('Boss');
     const stay = await makeDirectUser('Stay');
     const left = await makeDirectUser('Left');
@@ -388,15 +389,55 @@ describe('cvDownloadableOf - hoi theo lo (duong cua cvAvailable)', () => {
       [left.id, 'MEMBER'],
       [noCv.id, 'MEMBER'],
     ]);
-    // Dong ho so co thong tin tep (cvDownloadableOf khong doc dia)
+    // Dong ho so + tep that trong CV_DIR (thu muc TAM cua test)
     for (const u of [stay, left, boss]) {
       await prisma.userAssignProfile.create({ data: { userId: u.id, cvStoredName: `${u.id}.pdf`, cvFileName: 'cv.pdf', cvSize: 1, cvUploadedAt: new Date() } });
+      fs.writeFileSync(path.join(CV_DIR, `${u.id}.pdf`), 'pdf');
     }
     await prisma.userAssignProfile.create({ data: { userId: noCv.id, skillsText: 'React' } });
     await prisma.boardMember.updateMany({ where: { boardId: b.id, userId: left.id }, data: { deletedAt: new Date() } });
     expect([...(await cvDownloadableOf(boss.id, [stay.id, left.id, noCv.id, boss.id]))].sort()).toEqual([boss.id, stay.id].sort());
     expect([...(await cvDownloadableOf(stay.id, [stay.id, boss.id]))]).toEqual([stay.id]); // thanh vien thuong: chi chinh minh
     expect([...(await cvDownloadableOf(boss.id, []))]).toEqual([]);
+    // Dong con nhung TEP MAT tren dia -> khong co nut (ke ca chinh chu): nut nao hien ra cung bam duoc
+    fs.rmSync(path.join(CV_DIR, `${stay.id}.pdf`));
+    fs.rmSync(path.join(CV_DIR, `${boss.id}.pdf`));
+    expect([...(await cvDownloadableOf(boss.id, [stay.id, boss.id]))]).toEqual([]);
+  });
+});
+
+describe('GET /api/me/assign-profile/cv-access - ai trong danh sach minh tai duoc CV', () => {
+  const access = (u: TestUser | null, query: string) => {
+    const r = agent().get(`${ME}/cv-access${query}`);
+    return u ? r.set('Cookie', u.cookie) : r;
+  };
+
+  it('tra dung tap con theo thu tu da gui (bo trung, bo khoang trang); khong quyen / khong CV / id la -> khong co; chua dang nhap 401', async () => {
+    startTracking();
+    const w = await world();
+    await upload(w.bob, await cvDocx());
+    await upload(w.alice, await cvDocx());
+    const q = `?userIds=${w.alice.id},%20${w.bob.id},${w.bob.id},${w.viewer.id},khong-ton-tai,${w.owner.id}`;
+    const r = await access(w.owner, q);
+    expect(r.status).toBe(200);
+    expect(r.body.data).toEqual({ userIds: [w.alice.id, w.bob.id] }); // owner la chu bang; viewer / chinh owner khong co CV
+    // Giu DUNG thu tu da gui (gui nguoc lai -> ket qua nguoc lai)
+    expect((await access(w.owner, `?userIds=${w.bob.id},${w.alice.id}`)).body.data).toEqual({ userIds: [w.bob.id, w.alice.id] });
+    // Thanh vien thuong cua bang: chi chinh minh
+    expect((await access(w.alice, q)).body.data).toEqual({ userIds: [w.alice.id] });
+    // Nguoi ngoai: khong ai
+    expect((await access(w.outsider, q)).body.data).toEqual({ userIds: [] });
+    expect((await access(null, q)).status).toBe(401);
+  });
+
+  it('tham so sai -> 400: thieu, rong, chi dau phay, > 200 nguoi, ma qua dai; dung 200 nguoi van duoc', async () => {
+    const u = await makeDirectUser('Q');
+    for (const q of ['', '?userIds=', '?userIds=,,%20,', `?userIds=${Array.from({ length: 201 }, (_, i) => `u${i}`).join(',')}`, `?userIds=${'x'.repeat(65)}`]) {
+      expect((await access(u, q)).status, q.slice(0, 40)).toBe(400);
+    }
+    const ok = await access(u, `?userIds=${Array.from({ length: 199 }, (_, i) => `u${i}`).join(',')},${u.id}`); // dung 200
+    expect(ok.status).toBe(200);
+    expect(ok.body.data).toEqual({ userIds: [] });
   });
 });
 

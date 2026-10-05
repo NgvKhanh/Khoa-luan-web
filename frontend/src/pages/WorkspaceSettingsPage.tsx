@@ -20,9 +20,11 @@ import {
   type OverviewStatusFilter,
   type WorkspaceOverview,
 } from '../lib/api/workspace';
+import { userCvUrl } from '../lib/api/assign';
 import { getErrorMessage } from '../lib/errorMessage';
 import { logError } from '../lib/logError';
 import { socket } from '../lib/socket';
+import { useCvAccess } from '../lib/useCvAccess';
 import type { Workspace, WorkspaceMember } from '../types/workspace';
 import { Skeleton, SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 
@@ -58,6 +60,8 @@ export default function WorkspaceSettingsPage() {
 
   const [ws, setWs] = useState<Workspace | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  // Nut "Xem CV" canh thanh vien: may chu quyet dinh ai minh xem duoc (chu / quan tri bang chung, hoac khong gian chua bang)
+  const cvIds = useCvAccess(members.map((m) => m.userId));
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -535,6 +539,17 @@ export default function WorkspaceSettingsPage() {
                     {m.user.email}
                   </p>
                 </div>
+
+                {cvIds.has(m.userId) && (
+                  <a
+                    href={userCvUrl(m.userId)}
+                    download
+                    aria-label={`Xem CV của ${m.user.name}`}
+                    className="shrink-0 rounded px-2 py-1 text-xs font-medium text-primary-ink hover:bg-slate-100 dark:hover:bg-slate-700"
+                  >
+                    Xem CV
+                  </a>
+                )}
 
                 {editable ? (
                   <select

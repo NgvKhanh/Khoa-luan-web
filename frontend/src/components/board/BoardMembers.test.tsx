@@ -15,6 +15,13 @@ vi.mock('../../lib/api/board', () => ({
   rejectJoinRequest: vi.fn(),
 }));
 
+// ----- Mock quyen xem CV (may chu quyet dinh; lop goi API co test rieng) -----
+const fetchCvAccess = vi.fn().mockResolvedValue([]);
+vi.mock('../../lib/api/assign', () => ({
+  fetchCvAccess: (...a: unknown[]) => fetchCvAccess(...a),
+  userCvUrl: (id: string) => `http://api.test/users/${id}/assign-profile/cv`,
+}));
+
 // ----- Mock socket: ghi lai handler de test tu ban su kien -----
 const socketHandlers = new Map<string, ((...args: unknown[]) => void)[]>();
 vi.mock('../../lib/socket', () => ({
@@ -74,6 +81,33 @@ beforeEach(() => {
   getInviteLink.mockClear();
 });
 afterEach(() => vi.clearAllMocks());
+
+describe('BoardMembers - nut "Xem CV"', () => {
+  it('chua mo danh sach -> khong hoi may chu; mo -> hoi MOT lan cho ca danh sach; chi nguoi may chu cho phep co nut, dung duong dan', async () => {
+    fetchCvAccess.mockResolvedValue(['u-1']);
+    const user = userEvent.setup();
+    setup();
+    expect(fetchCvAccess).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Chia sẻ bảng' }));
+    const link = await screen.findByRole('link', { name: 'Xem CV của Thanh Vien' });
+    expect(link).toHaveAttribute('href', 'http://api.test/users/u-1/assign-profile/cv');
+    expect(fetchCvAccess).toHaveBeenCalledTimes(1);
+    expect([...fetchCvAccess.mock.calls[0]![0]].sort()).toEqual(['u-1', 'u-owner']);
+    expect(screen.queryByRole('link', { name: 'Xem CV của Chu Bang' })).not.toBeInTheDocument();
+  });
+
+  it('may chu khong cho ai / loi -> khong co nut nao, danh sach van hien binh thuong', async () => {
+    fetchCvAccess.mockRejectedValue(new Error('500'));
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const user = userEvent.setup();
+    setup();
+    await user.click(screen.getByRole('button', { name: 'Chia sẻ bảng' }));
+    await waitFor(() => expect(fetchCvAccess).toHaveBeenCalled());
+    expect(screen.getByText('Thanh Vien')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Xem CV/ })).not.toBeInTheDocument();
+    spy.mockRestore();
+  });
+});
 
 describe('BoardMembers - chia se bang', () => {
   it('o moi dung placeholder "Nhap dia chi email" (khong con "hoac ten")', async () => {
