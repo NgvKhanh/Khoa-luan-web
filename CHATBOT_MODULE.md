@@ -1,5 +1,7 @@
 # Module Chatbot — Trợ lý công việc TaskFlow (bản đầu)
 
+> Cập nhật 04/10/2026: chatbot v2 đã triển khai bước 1–6 của [kế hoạch v2](CHATBOT_V2_PLAN.md), gồm AI chọn nhiều công cụ, API `/api/chat/v2` và panel nhiều phần. Hợp đồng hiện tại ở [CHATBOT_V2_MODULE.md](CHATBOT_V2_MODULE.md). Tài liệu dưới đây mô tả API v1 `/api/chat`, vẫn được giữ để tương thích và fallback; `CHAT_ENGINE=legacy` cho giao diện quay lại v1.
+
 > Module AI thứ ba của khoá luận, sau module sinh bảng (`AI_MODULE.md`) và
 > module gợi ý phân công (`ASSIGN_MODULE.md`). Ý tưởng gốc ở `CHATBOT_PLAN.md`
 > (giữ nguyên, không sửa); tài liệu này là **hợp đồng** để hiện thực: mọi định

@@ -26,7 +26,7 @@ export const QUICK_QUESTIONS = [
   'Tôi đang ở bao nhiêu bảng?',
 ];
 
-export const PRIVACY_NOTE = 'Chỉ câu hỏi (và số liệu tổng hợp) được gửi tới dịch vụ AI.';
+export const PRIVACY_NOTE = 'AI có thể nhận câu hỏi, tên bảng/thành viên, tiêu đề, hạn, trạng thái và nhật ký liên quan mà bạn được phép xem.';
 
 /** Mui gio cua moi dinh nghia "hôm nay / tuần này" o server (§5). */
 const VN_TIME_ZONE = 'Asia/Ho_Chi_Minh';
@@ -79,6 +79,7 @@ export const REASON_TEXT: Record<PriorityReason, string> = {
  * (ten bang / khong gian / cot la ten DA nhan dien tu danh muc cua server, khong phai chuoi nguoi dung go).
  */
 export function understoodText(u: ChatUnderstood): string {
+  if (u.summary) return u.summary;
   const subject = u.intent === 'MEMBER_TASKS' && u.memberName ? `việc của ${u.memberName}` : INTENT_TEXT[u.intent];
   const parts = [subject];
   if (u.targetName) parts.push(u.targetName);

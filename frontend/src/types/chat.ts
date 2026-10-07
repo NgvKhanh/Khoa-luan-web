@@ -28,6 +28,26 @@ export type PriorityReason = 'OVERDUE' | 'DUE_TODAY' | 'DUE_SOON' | 'LATER';
 
 export interface ChatStatus {
   llmAvailable: boolean;
+  engine?: 'legacy' | 'v2';
+}
+
+export interface ChatConversationSummary {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  turnCount: number;
+}
+export interface ChatConversationList {
+  conversations: ChatConversationSummary[];
+  page: number;
+  hasMore: boolean;
+}
+export interface ChatConversationHistory {
+  conversation: { id: string; title: string; updatedAt: string };
+  turns: { id: number; question: string; reply: ChatReply | null; error: string | null; createdAt: string }[];
+  hasMore: boolean;
+  before: number | null;
 }
 
 export interface ChatCard {
@@ -90,6 +110,7 @@ export interface ChatTable {
 }
 
 export interface ChatAnswer {
+  blocks?: ChatV2Block[];
   kind: 'ANSWER' | 'CLARIFY' | 'UNSUPPORTED';
   text: string;
   scopeLabel: string;
@@ -111,6 +132,7 @@ export interface ChatAnswer {
 }
 
 export interface ChatUnderstood {
+  summary?: string;
   intent: ChatIntent;
   period: ChatPeriod | null;
   focus: ChatFocus | null;
@@ -122,8 +144,38 @@ export interface ChatUnderstood {
 }
 
 export interface ChatReply {
+  version?: 'v2';
+  mode?: 'AI' | 'BASIC';
   conversationId: string;
   conversationReset?: true;
   understood: ChatUnderstood;
   answer: ChatAnswer;
 }
+
+export interface ChatV2Task {
+  id: string; title: string; status: CardStatus; isDone: boolean;
+  boardId: string; boardName: string; columnId: string; columnName: string;
+  dueDate: string | null; completedAt: string | null; createdAt: string; overdue: boolean;
+  assignees: { id: string; name: string }[];
+}
+export interface ChatV2Event {
+  id: string; boardId: string; cardId: string | null; cardTitle: string | null; redacted: boolean;
+  type: string; createdAt: string; actor: { id: string; name: string } | null;
+  data: Record<string, string | null>;
+}
+export interface ChatV2Source {
+  id: string; generatedAt: string; scope: ChatScope; scopeLabel: string;
+  appliedInput: Record<string, unknown>; ranges: { from: string; to: string }[];
+}
+interface V2Page { total: number; page: number; pageSize: number; hasMore: boolean }
+interface BlockBase { id: string; title: string; status: 'OK'; source: ChatV2Source; pagination: { page: number; hasMore: boolean } }
+export type ChatV2Block = (BlockBase & (
+  | { tool: 'query_tasks'; data: V2Page & { cards: ChatV2Task[] } }
+  | { tool: 'aggregate_tasks'; data: V2Page & { totalCards: number; groupBy: 'ASSIGNEE' | 'BOARD' | 'COLUMN' | 'STATUS' | 'DATE'; highestCount: number; leaderIds: string[]; rows: { id: string; label: string; count: number }[]; outsideAssignments: number; deletedAccountAssignments: number; unassignedCards: number; assignmentCounting: string } }
+  | { tool: 'query_activities'; data: V2Page & { mode: 'EVENTS' | 'CHANGED_CARDS'; eventCount: number; changedCardCount: number; events: ChatV2Event[]; cards: { id: string; title: string | null; eventCount: number; lastChangedAt: string; events: ChatV2Event[]; eventsTruncated: boolean }[]; coverage: string } }
+  | { tool: 'query_catalog'; data: V2Page & (
+    | { kind: 'BOARDS'; rows: { id: string; name: string; workspaceId: string; workspaceName: string; myRole: string | null }[] }
+    | { kind: 'WORKSPACES'; rows: { id: string; name: string; myRole: string | null; boards: number; members: number }[] }
+    | { kind: 'MEMBERS'; rows: { id: string; name: string; role: string | null }[] }
+  ) }
+)) | { id: string; title: string; status: 'ERROR'; error: string };

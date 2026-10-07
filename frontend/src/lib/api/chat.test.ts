@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 vi.mock('../axios', () => ({ api: { get: mocks.get, post: mocks.post } }));
 
-import { fetchChatStatus, fetchMoreAnswer, sendChatChoice, sendChatMessage } from './chat';
+import { fetchChatStatus, fetchChatConversations, fetchChatConversation, fetchMoreAnswer, sendChatChoice, sendChatMessage } from './chat';
 
 // Lop goi API cua tro ly: dung DUONG DAN, dung THAN yeu cau (khong kem gi ngoai hop dong §12),
 // boc `res.data.data`. Cac test giao dien mock lop nay nen day la cho DUY NHAT kiem tra no.
@@ -13,10 +13,26 @@ beforeEach(() => {
 });
 
 describe('lib/api/chat', () => {
+  it('reads owned conversation history with bounded page/cursor inputs', async () => {
+    mocks.get.mockResolvedValue({ data: { data: { turns: [] } } });
+    await fetchChatConversations(2);
+    expect(mocks.get).toHaveBeenLastCalledWith('/chat/v2/conversations', { params: { page: 2 } });
+    await fetchChatConversation('thread/id', 50);
+    expect(mocks.get).toHaveBeenLastCalledWith('/chat/v2/conversations/thread%2Fid', { params: { before: 50 } });
+  });
+  it('routes all v2 operations using server IDs, without accepting client tool plans', async () => {
+    mocks.post.mockResolvedValue({ data: { data: {} } });
+    await sendChatMessage({ message: 'hai phần', scope: { kind: 'MY' } }, 'v2');
+    expect(mocks.post).toHaveBeenLastCalledWith('/chat/v2/messages', { message: 'hai phần', scope: { kind: 'MY' } });
+    await sendChatChoice('session', { kind: 'TARGET', id: 'board' }, 'v2');
+    expect(mocks.post).toHaveBeenLastCalledWith('/chat/v2/messages/choice', { conversationId: 'session', optionId: 'board' });
+    await fetchMoreAnswer('session', 2, 'block', 'v2');
+    expect(mocks.post).toHaveBeenLastCalledWith('/chat/v2/messages/more', { conversationId: 'session', page: 2, blockId: 'block' });
+  });
   it('fetchChatStatus: GET /chat/status, tra data.data', async () => {
     mocks.get.mockResolvedValue({ data: { data: { llmAvailable: true } } });
     await expect(fetchChatStatus()).resolves.toEqual({ llmAvailable: true });
-    expect(mocks.get).toHaveBeenCalledWith('/chat/status');
+    expect(mocks.get).toHaveBeenCalledWith('/chat/v2/status');
   });
 
   it('sendChatMessage: POST /chat/messages voi {message, scope} (+ conversationId khi co) - khong gui gi khac', async () => {

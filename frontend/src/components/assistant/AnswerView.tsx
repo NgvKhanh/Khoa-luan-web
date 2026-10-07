@@ -3,6 +3,7 @@ import type { AssistantTurn } from '../../context/AssistantContext';
 import { cardLink, formatDate, formatDateTime, formatTime, parserText, REASON_TEXT, remainingCards, understoodText } from '../../lib/chatText';
 import type { ChatAnswer, ChatCard, ChatClarifyOption, ChatTable, ChatWorkloadRow } from '../../types/chat';
 import StatusBadge from '../board/StatusBadge';
+import V2AnswerView from './V2AnswerView';
 
 // Mot luot hoi - dap (§13): cau hoi, dong "Trợ lý hiểu là", cau dan, con so, danh sach the co lien
 // ket, "Xem thêm", nut hoi lai, cau hoi goi y; nhan xet AI nam o rieng, tach khoi so lieu.
@@ -152,7 +153,7 @@ function AnswerBody({
   latest: boolean;
   busy: boolean;
   onChoose: (o: ChatClarifyOption) => void;
-  onMore: (t: AssistantTurn) => void;
+  onMore: (t: AssistantTurn, blockId?: string) => void;
   onAsk: (q: string) => void;
 }) {
   const understood = turn.reply!.understood;
@@ -273,7 +274,7 @@ export default function AnswerView(props: {
   latest: boolean;
   busy: boolean;
   onChoose: (o: ChatClarifyOption) => void;
-  onMore: (t: AssistantTurn) => void;
+  onMore: (t: AssistantTurn, blockId?: string) => void;
   onAsk: (q: string) => void;
 }) {
   const { turn } = props;
@@ -283,7 +284,7 @@ export default function AnswerView(props: {
       <div className="rounded-2xl rounded-bl-sm border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/60">
         {turn.status === 'loading' && (
           <p role="status" className="text-sm text-slate-500 dark:text-slate-400">
-            Trợ lý đang trả lời…
+            Đang tra cứu dữ liệu…
           </p>
         )}
         {turn.status === 'error' && (
@@ -291,7 +292,7 @@ export default function AnswerView(props: {
             {turn.error}
           </p>
         )}
-        {turn.status === 'done' && turn.reply && <AnswerBody {...props} answer={turn.reply.answer} />}
+        {turn.status === 'done' && turn.reply && (turn.reply.answer.blocks ? <V2AnswerView {...props} /> : <AnswerBody {...props} answer={turn.reply.answer} />)}
       </div>
     </li>
   );

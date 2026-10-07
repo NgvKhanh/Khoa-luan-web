@@ -76,6 +76,6 @@ describe('Che do toi cua vung bang', () => {
 
   it('quet ca vung bang lan panel tro ly (chot chong "xanh gia" khi doi thu muc)', () => {
     const names = FILES.map((f) => basename(f));
-    expect(names).toEqual(expect.arrayContaining(['CardModal.tsx', 'AssistantPanel.tsx', 'AnswerView.tsx', 'ScopePicker.tsx', 'AssistantButton.tsx']));
+    expect(names).toEqual(expect.arrayContaining(['CardModal.tsx', 'AssistantPanel.tsx', 'AnswerView.tsx', 'V2AnswerView.tsx', 'AssistantButton.tsx']));
   });
 });

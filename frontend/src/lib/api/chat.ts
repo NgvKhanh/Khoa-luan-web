@@ -1,12 +1,21 @@
 import { api } from '../axios';
-import type { ChatReply, ChatScope, ChatStatus } from '../../types/chat';
+import type { ChatConversationHistory, ChatConversationList, ChatReply, ChatScope, ChatStatus } from '../../types/chat';
 
 // Lop goi API cua tro ly (CHATBOT_MODULE.md §12). Client CHI gui cau hoi, pham vi va ma hoi
 // thoai - khong bao gio gui vai tro, danh tinh hay id nguoi duoc nhac (server tu kiem quyen).
 
-// GET /api/chat/status - co AI hay khong (khong bao gio 503: thieu AI thi dung bo luat).
+// Discover the server-selected engine; availability means configured, not a live key check.
 export async function fetchChatStatus(): Promise<ChatStatus> {
-  const res = await api.get<{ data: ChatStatus }>('/chat/status');
+  const res = await api.get<{ data: ChatStatus }>('/chat/v2/status');
+  return res.data.data;
+}
+
+export async function fetchChatConversations(page = 1): Promise<ChatConversationList> {
+  const res = await api.get<{ data: ChatConversationList }>('/chat/v2/conversations', { params: { page } });
+  return res.data.data;
+}
+export async function fetchChatConversation(id: string, before?: number): Promise<ChatConversationHistory> {
+  const res = await api.get<{ data: ChatConversationHistory }>(`/chat/v2/conversations/${encodeURIComponent(id)}`, { params: before ? { before } : {} });
   return res.data.data;
 }
 
@@ -15,21 +24,22 @@ export async function sendChatMessage(input: {
   message: string;
   scope: ChatScope;
   conversationId?: string;
-}): Promise<ChatReply> {
+}, engine: 'legacy' | 'v2' = 'legacy'): Promise<ChatReply> {
   const body = {
     message: input.message,
     scope: input.scope,
     ...(input.conversationId ? { conversationId: input.conversationId } : {}),
   };
-  const res = await api.post<{ data: ChatReply }>('/chat/messages', body);
+  const res = await api.post<{ data: ChatReply }>(engine === 'v2' ? '/chat/v2/messages' : '/chat/messages', body);
   return res.data.data;
 }
 
-// POST /api/chat/messages/choice - tra loi cau hoi lai ("Ý bạn là ai?" / "không gian nào?" / "bảng nào?"). Khong goi AI.
+// Answer an entity clarification. v2 may replan with AI after rechecking the chosen entity.
 // Gui DUNG MOT trong userId / workspaceId / targetId theo loai lua chon.
 export async function sendChatChoice(
   conversationId: string,
-  option: { kind: 'USER' | 'WORKSPACE' | 'TARGET'; id: string }
+  option: { kind: 'USER' | 'WORKSPACE' | 'TARGET'; id: string },
+  engine: 'legacy' | 'v2' = 'legacy'
 ): Promise<ChatReply> {
   const body =
     option.kind === 'USER'
@@ -37,12 +47,12 @@ export async function sendChatChoice(
       : option.kind === 'WORKSPACE'
         ? { conversationId, workspaceId: option.id }
         : { conversationId, targetId: option.id };
-  const res = await api.post<{ data: ChatReply }>('/chat/messages/choice', body);
+  const res = await api.post<{ data: ChatReply }>(engine === 'v2' ? '/chat/v2/messages/choice' : '/chat/messages/choice', engine === 'v2' ? { conversationId, optionId: option.id } : body);
   return res.data.data;
 }
 
-// POST /api/chat/messages/more - trang tiep theo cua cau tra loi cuoi. Khong goi AI.
-export async function fetchMoreAnswer(conversationId: string, page: number): Promise<ChatReply> {
-  const res = await api.post<{ data: ChatReply }>('/chat/messages/more', { conversationId, page });
+// Next page of a server-owned query (v2: one block). Never calls AI.
+export async function fetchMoreAnswer(conversationId: string, page: number, blockId?: string, engine: 'legacy' | 'v2' = 'legacy'): Promise<ChatReply> {
+  const res = await api.post<{ data: ChatReply }>(engine === 'v2' ? '/chat/v2/messages/more' : '/chat/messages/more', { conversationId, page, ...(blockId ? { blockId } : {}) });
   return res.data.data;
 }

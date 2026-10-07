@@ -34,14 +34,17 @@ export async function addCardMember(
     throw new AppError('Chi gan duoc thanh vien cua bang vao the', 400);
   }
 
-  const member = await prisma.cardMember.upsert({
-    where: { cardId_userId: { cardId, userId: targetUserId } },
-    create: { cardId, userId: targetUserId, assignedById: userId },
-    update: {},
-    include: { user: { select: USER_SELECT } },
+  const { member, added } = await prisma.$transaction(async (tx) => {
+    const inserted = await tx.cardMember.createMany({
+      data: { cardId, userId: targetUserId, assignedById: userId }, skipDuplicates: true,
+    });
+    const member = await tx.cardMember.findUniqueOrThrow({
+      where: { cardId_userId: { cardId, userId: targetUserId } }, include: { user: { select: USER_SELECT } },
+    });
+    return { member, added: inserted.count > 0 };
   });
 
-  await logActivity({
+  if (added) await logActivity({
     boardId,
     cardId,
     userId,
@@ -51,7 +54,7 @@ export async function addCardMember(
     // dien hien duoc ten cu ke ca sau khi nguoi do doi ten hoac bi xoa.
     data: { memberId: targetUserId, memberName: member.user.name },
   });
-  await notify({
+  if (added) await notify({
     recipients: [targetUserId],
     actorId: userId,
     type: 'card.member.added',
@@ -69,10 +72,24 @@ export async function removeCardMember(
   targetUserId: string
 ) {
   const card = await assertCardAccess(userId, cardId);
-  await prisma.cardMember.deleteMany({
+  const existing = await prisma.cardMember.findUnique({
+    where: { cardId_userId: { cardId, userId: targetUserId } },
+    select: { user: { select: { name: true, deletedAt: true } } },
+  });
+  const removed = await prisma.cardMember.deleteMany({
     where: { cardId, userId: targetUserId },
   });
-  emitToBoard(card.list.boardId, 'board:lists-changed');
+  if (removed.count > 0) {
+    await logActivity({
+      boardId: card.list.boardId,
+      cardId,
+      userId,
+      type: 'member.remove',
+      data: { memberId: targetUserId, ...(existing?.user.deletedAt === null ? { memberName: existing.user.name } : {}) },
+    });
+  } else {
+    emitToBoard(card.list.boardId, 'board:lists-changed');
+  }
 }
 
 // ---------- Checklist ----------

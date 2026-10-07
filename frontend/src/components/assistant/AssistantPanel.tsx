@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { useAssistant } from '../../context/AssistantContext';
 import { MAX_QUESTION_CHARS, PRIVACY_NOTE, QUICK_QUESTIONS } from '../../lib/chatText';
 import AnswerView from './AnswerView';
-import ScopePicker from './ScopePicker';
 
 /**
  * Panel tro ly ben phai (§13): portal ra body, nam DUOI Header (top-14). Lop z-[35]: tren noi dung
@@ -22,9 +21,8 @@ function Intro({ busy, onAsk }: { busy: boolean; onAsk: (q: string) => void }) {
   return (
     <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
       <p>
-        Trợ lý trả lời về việc của bạn, việc của một thành viên, tiến độ nhóm và số việc của từng người, cùng các bảng,
-        không gian, thành viên và số thẻ theo bảng / cột — dựa trên các bảng bạn xem được. Trợ lý chỉ đọc, không tạo
-        hay sửa gì.
+        Trợ lý tra cứu công việc, người phụ trách, khối lượng của từng thành viên và lịch sử thay đổi trên các bảng
+        bạn được phép xem. Bạn có thể hỏi nhiều nội dung trong một câu và nêu tên bảng hoặc không gian cần xem. Trợ lý hiện chỉ đọc dữ liệu.
       </p>
       <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Thử hỏi:</p>
       <div className="flex flex-col items-start gap-1.5">
@@ -45,9 +43,12 @@ function Intro({ busy, onAsk }: { busy: boolean; onAsk: (q: string) => void }) {
 }
 
 function PanelBody() {
-  const { turns, busy, status, notice, closePanel, ask, choose, loadMore, newConversation } = useAssistant();
+  const { turns, busy, status, notice, conversations, activeConversationId, historyLoading, historyError, historyHasMore, olderHasMore,
+    refreshHistory, selectConversation, loadOlder, closePanel, ask, choose, loadMore, newConversation } = useAssistant();
   const [draft, setDraft] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const olderScroll = useRef<{ height: number; top: number } | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -57,13 +58,20 @@ function PanelBody() {
   // Luot moi / tra loi moi -> cuon xuong cuoi
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [turns]);
+    if (!el || historyLoading || historyOpen) return;
+    if (olderScroll.current) {
+      el.scrollTop = olderScroll.current.top + el.scrollHeight - olderScroll.current.height;
+      olderScroll.current = null;
+    } else el.scrollTop = el.scrollHeight;
+  }, [turns, historyLoading, historyOpen]);
+
+  useEffect(() => { if (historyOpen && scrollRef.current) scrollRef.current.scrollTop = 0; }, [historyOpen]);
 
   function send() {
     const q = draft.trim();
     if (q === '' || busy) return;
     setDraft('');
+    setHistoryOpen(false);
     void ask(q);
   }
 
@@ -111,7 +119,20 @@ function PanelBody() {
         <span className="flex-1" />
         <button
           type="button"
-          onClick={newConversation}
+          aria-label="Lịch sử trò chuyện"
+          title="Lịch sử trò chuyện"
+          aria-pressed={historyOpen}
+          disabled={busy}
+          onClick={() => { setHistoryOpen((prev) => !prev); if (!historyOpen) void refreshHistory(); }}
+          className="grid h-7 w-7 place-items-center rounded text-slate-500 transition hover:bg-slate-100 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-800"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path d="M3 11a9 9 0 1 1 2.5 7M3 4v7h7M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => { newConversation(); setHistoryOpen(false); setDraft(''); inputRef.current?.focus(); }}
           disabled={busy || turns.length === 0}
           aria-label="Hội thoại mới"
           title="Hội thoại mới"
@@ -133,18 +154,44 @@ function PanelBody() {
         </button>
       </div>
 
-      <ScopePicker />
-
       {notice && (
         <p role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200">
           {notice}
         </p>
       )}
+      {historyError && (
+        <div role="alert" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200">
+          {historyError} <button type="button" disabled={busy} onClick={() => void refreshHistory()} className="underline disabled:opacity-50">Thử lại</button>
+        </div>
+      )}
 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-        {turns.length === 0 ? (
+        {historyLoading && <p role="status" className="mb-3 text-xs text-slate-500">Đang tải lịch sử trò chuyện…</p>}
+        {historyOpen ? (
+          <section aria-label="Các hội thoại đã lưu" className="space-y-3">
+            <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Lịch sử trò chuyện</h3>
+              <button type="button" onClick={() => setHistoryOpen(false)} className="text-xs text-primary-ink">Quay lại chat</button>
+            </div>
+            {!historyLoading && conversations.length === 0 && <p className="text-sm text-slate-500">Chưa có hội thoại được lưu.</p>}
+            <ul className="space-y-2">{conversations.map((c) => <li key={c.id}>
+              <button type="button" disabled={busy} aria-current={activeConversationId === c.id ? 'true' : undefined}
+                onClick={() => { void selectConversation(c.id).then((loaded) => { if (loaded) { setHistoryOpen(false); setDraft(''); } }); }}
+                className="w-full rounded-lg border border-slate-200 bg-white p-3 text-left transition hover:border-primary disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800">
+                <span className="block break-words text-sm font-medium">{c.title}</span>
+                <span className="mt-1 block text-xs text-slate-500">{c.turnCount} lượt · {new Date(c.updatedAt).toLocaleString('vi-VN')}</span>
+              </button>
+            </li>)}</ul>
+            {historyHasMore && <button type="button" disabled={busy} onClick={() => void refreshHistory(true)} className="text-xs text-primary-ink disabled:opacity-50">Xem thêm hội thoại</button>}
+          </section>
+        ) : turns.length === 0 ? (
           <Intro busy={busy} onAsk={(q) => void ask(q)} />
         ) : (
+          <>
+          {olderHasMore && <button type="button" disabled={busy} onClick={() => {
+            const el = scrollRef.current;
+            if (el) olderScroll.current = { height: el.scrollHeight, top: el.scrollTop };
+            void loadOlder();
+          }} className="mb-3 text-xs text-primary-ink disabled:opacity-50">Tải tin nhắn trước</button>}
           <ol aria-label="Hội thoại" className="space-y-4">
             {turns.map((t, i) => (
               <AnswerView
@@ -153,11 +200,12 @@ function PanelBody() {
                 latest={i === turns.length - 1}
                 busy={busy}
                 onChoose={(o) => void choose(o)}
-                onMore={(turn) => void loadMore(turn)}
+                onMore={(turn, blockId) => void loadMore(turn, blockId)}
                 onAsk={(q) => void ask(q)}
               />
             ))}
           </ol>
+          </>
         )}
       </div>
 

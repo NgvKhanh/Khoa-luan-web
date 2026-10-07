@@ -453,16 +453,21 @@ export async function updateCard(
       ? await firstListWithStatus(boardId, statusReq.to)
       : null;
 
-  const { row: updated, change } = await prisma.$transaction(async (tx) => {
+  const { row: updated, change, previous } = await prisma.$transaction(async (tx) => {
+    // Read the actual previous title/due date while holding the row lock, so
+    // concurrent updates do not record an outdated before-value in Activity.
+    if ((statusReq && !moveTo) || input.title !== undefined || input.dueDate !== undefined) {
+      await tx.$queryRaw`SELECT id FROM "Card" WHERE id = ${cardId} FOR UPDATE`;
+    }
+    const previous = await tx.card.findUniqueOrThrow({
+      where: { id: cardId }, select: { status: true, title: true, dueDate: true },
+    });
     let change: { from: CardStatus; to: CardStatus } | null = null;
     if (statusReq && !moveTo) {
       // CODE_REVIEW.md #13: khoa dong the (SELECT ... FOR UPDATE) roi doc trang thai
       // MOI NHAT truoc khi quyet dinh - snapshot `card` o tren doc TRUOC giao dich
       // nay, 1 request khac co the vua doi trang thai xen vao giua.
-      await tx.$queryRaw`SELECT id FROM "Card" WHERE id = ${cardId} FOR UPDATE`;
-      const current = (
-        await tx.card.findUniqueOrThrow({ where: { id: cardId }, select: { status: true } })
-      ).status;
+      const current = previous.status;
       const to = statusReq.onlyIfDone && current !== 'DONE' ? null : statusReq.to;
       if (to && to !== current) {
         await statusWrite(tx, { id: cardId }, to);
@@ -490,7 +495,7 @@ export async function updateCard(
           : {}),
       },
     });
-    return { row, change };
+    return { row, change, previous };
   });
 
   const recipients = () => cardMemberIds(cardId);
@@ -518,13 +523,13 @@ export async function updateCard(
     });
   }
 
-  if (input.title !== undefined && input.title !== card.title) {
+  if (input.title !== undefined && input.title !== previous.title) {
     await logActivity({
       boardId,
       cardId,
       userId,
       type: 'card.rename',
-      data: { from: card.title, to: input.title },
+      data: { from: previous.title, to: input.title },
     });
     await notify({
       recipients: await recipients(),
@@ -537,14 +542,20 @@ export async function updateCard(
   }
   if (input.dueDate !== undefined) {
     await resetCardRemindersOnDueDateChange(cardId, Boolean(input.dueDate));
-    await logActivity({
+    const to = input.dueDate ? new Date(input.dueDate).toISOString() : null;
+    const from = previous.dueDate?.toISOString() ?? null;
+    if (from !== to) await logActivity({
       boardId,
       cardId,
       userId,
       type: input.dueDate ? 'card.due.set' : 'card.due.clear',
-      data: input.dueDate ? { dueDate: input.dueDate } : {},
+      data: {
+        from,
+        to,
+        ...(input.dueDate ? { dueDate: input.dueDate } : {}),
+      },
     });
-    if (input.dueDate) {
+    if (input.dueDate && from !== to) {
       await notify({
         recipients: await recipients(),
         actorId: userId,

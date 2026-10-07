@@ -66,6 +66,8 @@ function getPositiveInt(key: string, defaultValue: number): number {
 }
 
 const nodeEnv = getString('NODE_ENV', 'development');
+const chatEngine = getString('CHAT_ENGINE', nodeEnv === 'production' ? 'legacy' : 'v2');
+if (!['legacy', 'v2'].includes(chatEngine)) throw new Error('CHAT_ENGINE phải là legacy hoặc v2');
 const allowedNodeEnv = ['development', 'production', 'test'];
 
 if (!allowedNodeEnv.includes(nodeEnv)) {
@@ -75,6 +77,7 @@ if (!allowedNodeEnv.includes(nodeEnv)) {
 }
 
 export const env = {
+  chatEngine: chatEngine as 'legacy' | 'v2',
   nodeEnv,
   isProduction: nodeEnv === 'production',
   port: getPort('PORT', 4000),

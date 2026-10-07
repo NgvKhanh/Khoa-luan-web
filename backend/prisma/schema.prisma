@@ -167,8 +167,37 @@ model User {
   automationRules        AutomationRule[]
   automationActions      AutomationAction[]
   aiRuns                 AiRun[]
+  chatConversations      ChatConversation[]
 
   @@index([email])
+}
+
+model ChatConversation {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  state     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  turns ChatTurn[]
+
+  @@index([userId, updatedAt])
+}
+
+model ChatTurn {
+  id             Int      @id @default(autoincrement())
+  conversationId String
+  question       String
+  reply          Json?
+  error          String?
+  access         Json
+  createdAt      DateTime @default(now())
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, id])
 }
 
 // Tuy chinh thong bao ca nhan. 3 nhom: "card" (hoat dong tren the: binh luan,
