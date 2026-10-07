@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { AssistantTurn } from '../../context/AssistantContext';
 import { cardLink, formatDate, formatDateTime, formatTime, parserText, REASON_TEXT, remainingCards, understoodText } from '../../lib/chatText';
-import type { ChatAnswer, ChatCard, ChatClarifyOption, ChatTable, ChatWorkloadRow } from '../../types/chat';
+import type { ChatAnswer, ChatCard, ChatClarifyOption, ChatScope, ChatTable, ChatWorkloadRow } from '../../types/chat';
 import StatusBadge from '../board/StatusBadge';
 import V2AnswerView from './V2AnswerView';
 
@@ -273,6 +273,10 @@ export default function AnswerView(props: {
   turn: AssistantTurn;
   latest: boolean;
   busy: boolean;
+  /** Pham vi theo trang dang mo (khoi thao tac dung de vo hieu ke hoach cua bang khac). */
+  scope: ChatScope;
+  onConfirm: (t: AssistantTurn) => void;
+  onCancel: (t: AssistantTurn) => void;
   onChoose: (o: ChatClarifyOption) => void;
   onMore: (t: AssistantTurn, blockId?: string) => void;
   onAsk: (q: string) => void;

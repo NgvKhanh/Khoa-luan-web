@@ -143,4 +143,20 @@ describe('chatText', () => {
       expect(chatErrorText(err, kind), `${kind} ${(err as AxiosError).response?.status}`).toEqual({ text, conversationGone: gone });
     }
   });
+
+  it('chatErrorText cho thao tac (ACTION) va 409: moi thong diep deu noi ro chua thay doi gi / nut cu het tac dung; khong lam mat hoi thoai', () => {
+    const rows: Array<[unknown, 'MESSAGE' | 'CHOICE' | 'MORE' | 'ACTION', string]> = [
+      [httpError(403), 'ACTION', 'Bạn không có quyền thực hiện thao tác này, hoặc trợ lý đang tắt chức năng thay đổi dữ liệu. Chưa thay đổi gì.'],
+      [httpError(409), 'ACTION', 'Kế hoạch đã thay đổi hoặc đang được xử lý. Chưa thay đổi gì thêm; hãy gửi lại lệnh nếu cần.'],
+      [httpError(404), 'ACTION', 'Không tìm thấy kế hoạch này (có thể đã hết hạn). Hãy gửi lại lệnh.'],
+      [httpError(400), 'ACTION', 'Yêu cầu không hợp lệ nên chưa thay đổi gì. Hãy gửi lại lệnh.'],
+      [httpError(429), 'ACTION', 'Bạn hỏi hơi nhiều trong thời gian ngắn. Hãy thử lại sau ít phút.'],
+      [httpError(409), 'CHOICE', 'Bạn đã chuyển sang trang khác nên lựa chọn này không còn dùng được. Hãy hỏi lại ở trang này.'],
+      [httpError(409), 'MORE', 'Bạn đã chuyển sang trang khác nên lựa chọn này không còn dùng được. Hãy hỏi lại ở trang này.'],
+    ];
+    for (const [err, kind, text] of rows) {
+      // lỗi ở bước thao tác không bao giờ coi là "hội thoại đã mất" (kế hoạch nằm ở CSDL)
+      expect(chatErrorText(err, kind), `${kind} ${(err as AxiosError).response?.status}`).toEqual({ text, conversationGone: false });
+    }
+  });
 });

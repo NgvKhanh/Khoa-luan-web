@@ -1,17 +1,56 @@
 import { z } from 'zod';
+import { env } from '../../../config/env';
 import { AppError } from '../../../utils/AppError';
+import { assertBoardView } from '../../board/board.service';
 import { handleMessage, handleChoice, handleMore, understandByRules, type ChatReply } from '../chat.service';
 import { chatSessions } from '../chat.session';
 import type { ChatMessageInput } from '../chat.schema';
 import { basicStep, bindEntity, explicitBoardName, orchestrate, validateBindings } from './chat.v2.orchestrator';
 import { callChatModel, v2LlmAvailable, type ModelStep } from './chat.v2.llm';
+import { proposeActionsTool } from './chat.v2.registry';
+import { choosePlanRef, typedPlanCommand, type ActionOutcome } from './actions/actions.service';
+import { cancelOpenPlans, cancelPlanRow } from './actions/actions.plan.repo';
 import { v2Sessions, type V2Session, type V2SessionStore } from './chat.v2.session';
 import { v2Reply, resultBlock } from './chat.v2.answer';
 import { executeChatTool } from './chat.v2.tools';
-import { resolveExecutionContext } from './chat.v2.scope';
+import { OUT_OF_CEILING, resolveExecutionContext } from './chat.v2.scope';
 import { v2ChoiceSchema, v2MoreSchema, type V2Reply } from './chat.v2.contract';
 
-export interface V2ServiceContext { now: Date; sessions?: V2SessionStore; step?: ModelStep; available?: boolean }
+// `actions` / `autoExecute`: ghi de co CHAT_ACTIONS / CHAT_AUTO_EXECUTE (de kiem thu); mac dinh doc tu env.
+export interface V2ServiceContext { now: Date; sessions?: V2SessionStore; step?: ModelStep; available?: boolean; actions?: boolean; autoExecute?: boolean }
+
+const ACTIONS_OFF_TEXT = 'Trợ lý hiện chỉ đọc dữ liệu. Bạn cần thực hiện tạo, sửa hoặc giao việc trực tiếp trên website.';
+const NEEDS_AI_TEXT = 'Cần bật AI để thực hiện thao tác; hiện trợ lý chỉ tra cứu được. Bạn có thể thao tác trực tiếp trên website.';
+const READ_ONLY_HERE_TEXT = 'Bạn chỉ có quyền xem bảng này nên trợ lý không thay đổi dữ liệu ở đây được. Chưa thay đổi gì.';
+const AI_FAILED_TEXT = 'Trợ lý chưa xử lý được lệnh này nên chưa thay đổi gì. Hãy thử lại sau.';
+
+const PAGE_CHANGED_TEXT = 'Bạn đã chuyển sang trang khác nên lựa chọn / kết quả cũ không còn dùng được. Hãy hỏi lại ở trang này.';
+/**
+ * Nút "chọn" / "xem thêm" của một lượt cũ chạy theo phạm vi trang đã lưu trong hội thoại. Nếu giao diện đã sang trang khác (client gửi
+ * kèm `scope` hiện tại) thì nút cũ vô hiệu - và mọi kế hoạch đang dở bị hủy - để trần phạm vi theo trang không bị lách qua nút cũ.
+ */
+async function assertSamePage(s: V2Session, scope: z.infer<typeof v2ChoiceSchema>['scope'], now: Date): Promise<void> {
+  if (!scope) return;
+  const same = scope.kind === s.uiScope.kind
+    && (scope.kind === 'MY' || (scope.kind === 'BOARD' && s.uiScope.kind === 'BOARD' && scope.boardId === s.uiScope.boardId)
+      || (scope.kind === 'WORKSPACE' && s.uiScope.kind === 'WORKSPACE' && scope.workspaceId === s.uiScope.workspaceId));
+  if (same) return;
+  await cancelOpenPlans(s.userId, s.id, 'SCOPE_CHANGED', now);
+  if (s.pending?.kind === 'PLAN_REF') s.pending = undefined;
+  throw new AppError(PAGE_CHANGED_TEXT, 409);
+}
+/** Nguoi dung sua duoc o trang hien tai? (trang bang: VIEWER thi khong; trang chu / khong gian: de guard kiem tung bang). */
+async function canModifyHere(s: V2Session): Promise<boolean> {
+  if (s.uiScope.kind !== 'BOARD') return true;
+  try { return (await assertBoardView(s.userId, s.uiScope.boardId)).canEdit; }
+  catch (e) { if (e instanceof AppError && e.statusCode < 500) return false; throw e; }
+}
+/** Ket qua cua lop hanh dong -> tra loi V2 (chi tiep nhan: ngu canh "no", cau hoi tiep, khoi xem truoc / ket qua). */
+function actionReply(s: V2Session, now: Date, outcome: ActionOutcome): V2Reply {
+  for (const entity of outcome.bind) bindEntity(s, entity);
+  s.pending = outcome.pending;
+  return v2Reply(s, now, [], 'AI', outcome.text, [], outcome.action ? { action: outcome.action } : {});
+}
 function legacyReply(s: V2Session, reply: ChatReply): V2Reply {
   s.legacyId = reply.conversationId;
   s.legacyOptions = reply.answer.clarify?.options.map((o) => ({ id: o.id, kind: o.kind }));
@@ -19,37 +58,50 @@ function legacyReply(s: V2Session, reply: ChatReply): V2Reply {
 }
 async function answerQuestion(s: V2Session, message: string, context: V2ServiceContext): Promise<V2Reply> {
   const { now } = context;
-  const step = context.step ?? callChatModel;
   const basic = basicStep(message, now);
   const available = context.available ?? v2LlmAvailable();
+  const actionsFlag = context.actions ?? env.chatActions;
+  const autoExecute = context.autoExecute ?? env.chatAutoExecute;
   s.legacyOptions = undefined;
   const folded = message.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/g, 'd');
   const writeRequest = /^(?:hay |vui long |toi muon |toi can )?(?:tao |xoa |sua |doi han |giao viec |phan cong |chuyen |luu tru )/.test(folded)
     || /(?:tao|xoa|sua|doi han|giao viec|phan cong|chuyen).*(?:giup toi|giup minh|gium|ho toi)/.test(folded);
-  if (writeRequest) {
+  // Hanh dong: chi gui cong cu ghi cho AI khi co co + co AI + nguoi dung sua duoc o trang nay (dac quyen toi thieu).
+  let canModify = false;
+  if (writeRequest || (actionsFlag && available)) canModify = actionsFlag && available && await canModifyHere(s);
+  if (writeRequest && !canModify) {
     s.pending = undefined; s.queries = []; s.legacyId = undefined;
-    return v2Reply(s, now, [], available ? 'AI' : 'BASIC', 'Trợ lý hiện chỉ đọc dữ liệu. Bạn cần thực hiện tạo, sửa hoặc giao việc trực tiếp trên website.');
+    const text = !actionsFlag ? ACTIONS_OFF_TEXT : !available ? NEEDS_AI_TEXT : READ_ONLY_HERE_TEXT;
+    return v2Reply(s, now, [], available ? 'AI' : 'BASIC', text);
   }
   const namedBoard = explicitBoardName(message);
   if (namedBoard && !s.bindings.some((b) => b.kind === 'BOARD' && b.name === namedBoard)) {
     const resolveInput = { kind: 'BOARD', text: namedBoard };
     const found = await executeChatTool({ userId: s.userId, now, scope: s.uiScope }, 'resolve_entities', resolveInput);
-    if (found.data.status === 'NOT_FOUND') { s.pending = undefined; s.queries = []; return v2Reply(s, now, [], available ? 'AI' : 'BASIC', 'Không tìm thấy bảng này trong dữ liệu bạn được phép xem.'); }
+    if (found.data.status === 'NOT_FOUND') { s.pending = undefined; s.queries = []; return v2Reply(s, now, [], available ? 'AI' : 'BASIC', s.uiScope.kind === 'MY' ? 'Không tìm thấy bảng này trong dữ liệu bạn được phép xem.' : `Không tìm thấy bảng này trong phạm vi bạn đang mở. ${OUT_OF_CEILING}`); }
     if (found.data.status === 'CLARIFY') {
       s.queries = []; s.pending = { kind: 'ENTITY', original: message, question: 'Có nhiều bảng cùng tên. Bạn muốn chọn bảng nào?', options: found.data.options, resolveInput };
       return v2Reply(s, now, [], available ? 'AI' : 'BASIC', s.pending.question);
     }
     bindEntity(s, found.data.options[0]);
   }
-  const historyQuestion = /(?:thay doi|da doi|doi han|nhat ky|lich su)/.test(folded);
+  // Mot LENH ghi ("doi han ... sang thu sau", "Trong bang X, doi ten the A thanh Da doi...") khong phai cau hoi lich su: co dong tu ghi o bat ky
+  // dau trong cau ma khong co chu nghi van thi bo loi tat "ban muon xem khoang thoi gian nao" (cau hoi that luon co ? hoac nao / gi / ai...).
+  const asksQuestion = /\?|(?:^|\s)(?:nao|gi|ai|bao nhieu|khi nao)(?:\s|$)/.test(folded);
+  const commandLike = canModify && !asksQuestion && /(?:doi ten|doi han|thay doi han|dat han|chuyen |giao |gan (?!day)|them |tao |sua |keo |danh dau|cap nhat|di chuyen|phan cong)/.test(folded);
+  const historyQuestion = !writeRequest && !commandLike && /(?:thay doi|da doi|doi han|nhat ky|lich su)/.test(folded);
   const hasHistoryTime = /(?:hom nay|hom qua|tuan|thang|gan day|\bngay\b|\d{1,4}[/-]\d{1,2}|\bvua\b)/.test(folded);
   if (historyQuestion && !hasHistoryTime) {
     s.queries = []; s.pending = { kind: 'QUESTION', original: message, question: 'Bạn muốn xem thay đổi trong khoảng thời gian nào? Ví dụ: hôm nay hoặc tuần này.', options: [] };
     return v2Reply(s, now, [], available ? 'AI' : 'BASIC', s.pending.question);
   }
   if (available) {
-    const response = await orchestrate(s, message, now, step);
+    // Co cong cu ghi thi gui kem propose_actions; ngoai ra giu nguyen buoc goi mo hinh nhu truoc.
+    const step: ModelStep = context.step ?? (canModify ? (messages, timeoutMs) => callChatModel(messages, timeoutMs, env.ai, true, [proposeActionsTool]) : callChatModel);
+    const response = await orchestrate(s, message, now, step, 'AI', canModify ? { actions: { autoExecute } } : {});
     if (response.mode !== 'BASIC') { s.legacyId = undefined; return response; }
+    // Mot LENH ghi khong duoc de roi xuong cac nhanh doc / v1: noi ro la chua thay doi gi.
+    if (writeRequest) { s.pending = undefined; s.queries = []; s.legacyId = undefined; return v2Reply(s, now, [], 'BASIC', AI_FAILED_TEXT); }
   }
   if (basic) { s.legacyId = undefined; return orchestrate(s, message, now, basic, 'BASIC'); }
   if (historyQuestion || /(?:\bva\b|phan cong|chua giao|\bgan\b)/.test(folded)) return v2Reply(s, now, [], 'BASIC', 'AI hiện chưa sẵn sàng để xử lý đầy đủ câu này. Hãy thử lại hoặc tách câu hỏi thành từng phần.');
@@ -66,8 +118,17 @@ export async function handleV2Message(userId: string, input: ChatMessageInput, c
   if (JSON.stringify(s.uiScope) !== JSON.stringify(input.scope)) {
     s.uiScope = input.scope; s.scope = undefined; s.bindings = []; s.queries = []; s.pending = undefined;
     s.lastQuestion = undefined; s.legacyId = undefined; s.legacyOptions = undefined;
+    // doi trang giua luc xem truoc va ap dung: ke hoach cu khong con hop le
+    await cancelOpenPlans(userId, s.id, 'SCOPE_CHANGED', context.now);
   }
   await resolveExecutionContext({ userId, now: context.now, scope: input.scope });
+  if (context.actions ?? env.chatActions) {
+    // go "huy" -> huy ke hoach dang mo; go "ok / ap dung" -> khong xac nhan (chi nut moi xac nhan). Khong goi LLM.
+    const typed = await typedPlanCommand(s, input.message, context.now);
+    if (typed) { const reply = actionReply(s, context.now, typed); if (reset) reply.conversationReset = true; return reply; }
+  }
+  // cau moi bo qua cau hoi chon dang do -> ke hoach dang cho chon bi bo
+  if (s.pending?.kind === 'PLAN_REF' && s.pending.planId) { await cancelPlanRow(s.pending.planId, userId, 'SUPERSEDED', context.now); s.pending = undefined; }
   const message = s.pending?.kind === 'QUESTION' ? `${s.pending.original}\nBổ sung: ${input.message}` : input.message;
   const reply = await answerQuestion(s, message, context);
   if (reset) reply.conversationReset = true;
@@ -75,12 +136,24 @@ export async function handleV2Message(userId: string, input: ChatMessageInput, c
 }
 export async function handleV2Choice(userId: string, input: z.infer<typeof v2ChoiceSchema>, context: V2ServiceContext): Promise<V2Reply> {
   const s = (context.sessions ?? v2Sessions).require(userId, input.conversationId, context.now);
+  await assertSamePage(s, input.scope, context.now);
   await validateBindings(s, context.now);
   if (s.legacyOptions && s.legacyId) {
     const o = s.legacyOptions.find((o) => o.id === input.optionId);
     if (!o) throw new AppError('Lựa chọn không hợp lệ', 400);
     const selected = o.kind === 'USER' ? { userId: o.id } : o.kind === 'WORKSPACE' ? { workspaceId: o.id } : { targetId: o.id };
     return legacyReply(s, await handleChoice(userId, { conversationId: s.legacyId, ...selected }, { now: context.now, sessions: chatSessions }));
+  }
+  if (s.pending?.kind === 'PLAN_REF') {
+    const pending = s.pending;
+    if (!pending.planId || !pending.options.some((o) => o.id === input.optionId)) throw new AppError('Lựa chọn không hợp lệ', 400);
+    try {
+      const outcome = await choosePlanRef({ session: s, planId: pending.planId, optionId: input.optionId, now: context.now, autoExecute: context.autoExecute ?? env.chatAutoExecute });
+      return actionReply(s, context.now, outcome);
+    } catch (e) {
+      if (e instanceof AppError && (e.statusCode === 404 || e.statusCode === 409)) s.pending = undefined; // het han / da xu ly: bo cau hoi chon
+      throw e;
+    }
   }
   const pending = s.pending;
   if (!pending || pending.kind !== 'ENTITY' || !pending.resolveInput) throw new AppError('Không có lựa chọn đang chờ', 400);
@@ -94,6 +167,7 @@ export async function handleV2Choice(userId: string, input: z.infer<typeof v2Cho
 }
 export async function handleV2More(userId: string, input: z.infer<typeof v2MoreSchema>, context: V2ServiceContext): Promise<V2Reply> {
   const s = (context.sessions ?? v2Sessions).require(userId, input.conversationId, context.now);
+  await assertSamePage(s, input.scope, context.now);
   if (!input.blockId && s.legacyId && !s.queries.length) return legacyReply(s, await handleMore(userId, { conversationId: s.legacyId, page: input.page }, { now: context.now, sessions: chatSessions }));
   const saved = s.queries.find((q) => q.blockId === input.blockId);
   if (!saved || !saved.hasMore || input.page !== saved.page + 1) throw new AppError('Phần trả lời hoặc trang không hợp lệ', 400);

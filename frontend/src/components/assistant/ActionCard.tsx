@@ -1,0 +1,114 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import type { AssistantTurn } from '../../context/AssistantContext';
+import { planOutOfScope } from '../../lib/chatScope';
+import { cardLink, formatTime } from '../../lib/chatText';
+import type { ChatActionPlan, ChatActionResult, ChatScope } from '../../types/chat';
+
+// Khoi THAO TAC cua tro ly (Phase 1): ban xem truoc co nut Ap dung / Huy, hoac ket qua cua mot thao tac da chay.
+// Moi chu mo ta thao tac do SERVER dung tu ke hoach da phan giai (ten lay tu CSDL) - AI khong viet duoc chu o day.
+// Xac nhan CHI bang nut (go "ok" khong chay gi). Vung bao ngoai la aria-live nen ket qua duoc doc khi the xem truoc doi thanh ket qua.
+
+const PANEL_BORDER = 'border-slate-200 dark:border-slate-700';
+
+/** Dong ho cham de nut Ap dung tu khoa khi het han (15 giay mot lan, chi chay khi con co the bam). */
+function useNow(active: boolean, everyMs = 15_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const timer = window.setInterval(() => setNow(Date.now()), everyMs);
+    return () => window.clearInterval(timer);
+  }, [active, everyMs]);
+  return now;
+}
+
+function PlanCard({ turn, plan, scope, busy, onConfirm, onCancel }: {
+  turn: AssistantTurn; plan: ChatActionPlan; scope: ChatScope; busy: boolean; onConfirm: (t: AssistantTurn) => void; onCancel: (t: AssistantTurn) => void;
+}) {
+  const open = plan.status === 'PROPOSED';
+  const now = useNow(open);
+  const expired = open && (!plan.canConfirm || Date.parse(plan.expiresAt) <= now);
+  const wrongPage = open && planOutOfScope(scope, plan.boardId);
+  const disabled = !open || expired || wrongPage || busy;
+  return (
+    <section aria-label="Kế hoạch thao tác" className={`space-y-2 rounded-lg border p-2 ${PANEL_BORDER}`}>
+      <h4 className="text-sm font-semibold">
+        Thao tác trên bảng{' '}
+        <Link to={`/boards/${encodeURIComponent(plan.boardId)}`} onClick={(e) => e.currentTarget.blur()} className="text-primary-ink hover:underline">{plan.boardName}</Link>
+      </h4>
+      <ul className="space-y-1.5">
+        {plan.items.map((item) => (
+          <li key={item.index} className="text-sm">
+            <span className="font-medium">{item.verb}</span> <span className="break-words">{item.text}</span>
+            {item.detail && <span className="block text-xs text-slate-500 dark:text-slate-400">{item.detail}</span>}
+            {item.cardId && (
+              <Link to={cardLink({ id: item.cardId, boardId: plan.boardId })} onClick={(e) => e.currentTarget.blur()} className="text-xs text-primary-ink hover:underline">Mở thẻ</Link>
+            )}
+          </li>
+        ))}
+      </ul>
+      {plan.reasons.length > 0 && (
+        <div role="note" className="rounded-md bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-400/10 dark:text-amber-200">
+          <p className="font-medium">Cần bạn xem lại trước khi áp dụng</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4">{plan.reasons.map((r) => <li key={r.code}>{r.text}</li>)}</ul>
+        </div>
+      )}
+      {plan.warnings.map((w) => <p key={w} className="text-xs text-amber-700 dark:text-amber-300">{w}</p>)}
+      {open && !expired && !wrongPage && <p className="text-[11px] text-slate-500 dark:text-slate-400">Chưa có gì thay đổi. Kế hoạch hết hạn lúc {formatTime(plan.expiresAt)}.</p>}
+      {plan.status === 'EXECUTING' && <p className="text-xs text-slate-600 dark:text-slate-300">Kế hoạch đang được thực hiện…</p>}
+      {expired && <p className="text-xs text-slate-600 dark:text-slate-300">Kế hoạch đã hết hạn. Hãy gửi lại lệnh. Chưa thay đổi gì.</p>}
+      {wrongPage && <p className="text-xs text-slate-600 dark:text-slate-300">Kế hoạch này thuộc bảng khác với bảng đang mở nên không áp dụng được ở đây. Chưa thay đổi gì.</p>}
+      {turn.actionError && <p role="alert" className="text-xs text-red-600 dark:text-red-400">{turn.actionError}</p>}
+      {open && (
+        <div className="flex gap-2">
+          <button type="button" disabled={disabled} onClick={() => onConfirm(turn)} className="flex-1 rounded-md bg-primary py-1.5 text-xs font-medium text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50">
+            {turn.actionBusy ? 'Đang áp dụng…' : 'Áp dụng'}
+          </button>
+          <button type="button" disabled={busy || expired} onClick={() => onCancel(turn)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs transition hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-700">
+            Hủy
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+const RESULT_LABEL: Record<ChatActionResult['status'], { text: string; tone: string }> = {
+  EXECUTED: { text: 'Đã thực hiện', tone: 'text-emerald-700 dark:text-emerald-300' },
+  FAILED: { text: 'Chưa thực hiện được', tone: 'text-red-600 dark:text-red-400' },
+  STALE: { text: 'Dữ liệu đã thay đổi', tone: 'text-amber-700 dark:text-amber-300' },
+  CANCELLED: { text: 'Đã hủy', tone: 'text-slate-600 dark:text-slate-300' },
+  EXPIRED: { text: 'Đã hết hạn', tone: 'text-slate-600 dark:text-slate-300' },
+};
+
+function ResultCard({ result }: { result: ChatActionResult }) {
+  const label = RESULT_LABEL[result.status];
+  return (
+    <section aria-label="Kết quả thao tác" className={`space-y-1 rounded-lg border p-2 ${PANEL_BORDER}`}>
+      <p className={`text-xs font-medium ${label.tone}`}>
+        {label.text}
+        {result.autoExecuted && result.status === 'EXECUTED' && ' · theo lệnh của bạn'}
+      </p>
+      <p className="break-words text-sm">{result.summary}</p>
+      {result.alreadyApplied && <p className="text-[11px] text-slate-500 dark:text-slate-400">Kế hoạch này đã được áp dụng trước đó, không ghi thêm lần nữa.</p>}
+      {result.warnings.map((w) => <p key={w} className="text-xs text-amber-700 dark:text-amber-300">{w}</p>)}
+      {result.status === 'EXECUTED' && result.cardId && (
+        <Link to={cardLink({ id: result.cardId, boardId: result.boardId })} onClick={(e) => e.currentTarget.blur()} className="text-xs text-primary-ink hover:underline">Mở thẻ</Link>
+      )}
+    </section>
+  );
+}
+
+export default function ActionCard({ turn, scope, busy, onConfirm, onCancel }: {
+  turn: AssistantTurn; scope: ChatScope; busy: boolean; onConfirm: (t: AssistantTurn) => void; onCancel: (t: AssistantTurn) => void;
+}) {
+  const action = turn.reply?.answer.action;
+  if (!action) return null;
+  return (
+    <div aria-live="polite">
+      {action.kind === 'PLAN'
+        ? <PlanCard turn={turn} plan={action.plan} scope={scope} busy={busy} onConfirm={onConfirm} onCancel={onCancel} />
+        : <ResultCard result={action.result} />}
+    </div>
+  );
+}

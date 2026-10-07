@@ -36,10 +36,12 @@ export async function sendChatMessage(input: {
 
 // Answer an entity clarification. v2 may replan with AI after rechecking the chosen entity.
 // Gui DUNG MOT trong userId / workspaceId / targetId theo loai lua chon.
+// `scope` (v2, tuy chon): pham vi giao dien HIEN TAI khi dang o trang bang - nut cua mot luot cu o trang khac se bi tu choi (409).
 export async function sendChatChoice(
   conversationId: string,
   option: { kind: 'USER' | 'WORKSPACE' | 'TARGET'; id: string },
-  engine: 'legacy' | 'v2' = 'legacy'
+  engine: 'legacy' | 'v2' = 'legacy',
+  scope?: ChatScope
 ): Promise<ChatReply> {
   const body =
     option.kind === 'USER'
@@ -47,12 +49,25 @@ export async function sendChatChoice(
       : option.kind === 'WORKSPACE'
         ? { conversationId, workspaceId: option.id }
         : { conversationId, targetId: option.id };
-  const res = await api.post<{ data: ChatReply }>(engine === 'v2' ? '/chat/v2/messages/choice' : '/chat/messages/choice', engine === 'v2' ? { conversationId, optionId: option.id } : body);
+  const res = await api.post<{ data: ChatReply }>(engine === 'v2' ? '/chat/v2/messages/choice' : '/chat/messages/choice', engine === 'v2' ? { conversationId, optionId: option.id, ...(scope ? { scope } : {}) } : body);
   return res.data.data;
 }
 
 // Next page of a server-owned query (v2: one block). Never calls AI.
-export async function fetchMoreAnswer(conversationId: string, page: number, blockId?: string, engine: 'legacy' | 'v2' = 'legacy'): Promise<ChatReply> {
-  const res = await api.post<{ data: ChatReply }>(engine === 'v2' ? '/chat/v2/messages/more' : '/chat/messages/more', { conversationId, page, ...(blockId ? { blockId } : {}) });
+export async function fetchMoreAnswer(conversationId: string, page: number, blockId?: string, engine: 'legacy' | 'v2' = 'legacy', scope?: ChatScope): Promise<ChatReply> {
+  const res = await api.post<{ data: ChatReply }>(engine === 'v2' ? '/chat/v2/messages/more' : '/chat/messages/more', { conversationId, page, ...(blockId ? { blockId } : {}), ...(engine === 'v2' && scope ? { scope } : {}) });
+  return res.data.data;
+}
+
+// Nut "Ap dung" cua ban xem truoc (v2, khong goi AI). Gui lai checksum cua chinh ban xem truoc va pham vi giao dien HIEN TAI:
+// ke hoach cua bang khac voi trang dang mo bi huy. Tra loi co answer.action.kind = 'RESULT'.
+export async function confirmChatAction(plan: { planId: string; checksum: string }, conversationId: string, scope: ChatScope): Promise<ChatReply> {
+  const res = await api.post<{ data: ChatReply }>(`/chat/v2/actions/${encodeURIComponent(plan.planId)}/confirm`, { conversationId, checksum: plan.checksum, scope });
+  return res.data.data;
+}
+
+// Nut "Huy" cua ban xem truoc.
+export async function cancelChatAction(planId: string, conversationId: string): Promise<ChatReply> {
+  const res = await api.post<{ data: ChatReply }>(`/chat/v2/actions/${encodeURIComponent(planId)}/cancel`, { conversationId });
   return res.data.data;
 }

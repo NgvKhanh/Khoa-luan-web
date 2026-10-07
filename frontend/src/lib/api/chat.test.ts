@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 vi.mock('../axios', () => ({ api: { get: mocks.get, post: mocks.post } }));
 
-import { fetchChatStatus, fetchChatConversations, fetchChatConversation, fetchMoreAnswer, sendChatChoice, sendChatMessage } from './chat';
+import { cancelChatAction, confirmChatAction, fetchChatStatus, fetchChatConversations, fetchChatConversation, fetchMoreAnswer, sendChatChoice, sendChatMessage } from './chat';
 
 // Lop goi API cua tro ly: dung DUONG DAN, dung THAN yeu cau (khong kem gi ngoai hop dong §12),
 // boc `res.data.data`. Cac test giao dien mock lop nay nen day la cho DUY NHAT kiem tra no.
@@ -29,6 +29,28 @@ describe('lib/api/chat', () => {
     await fetchMoreAnswer('session', 2, 'block', 'v2');
     expect(mocks.post).toHaveBeenLastCalledWith('/chat/v2/messages/more', { conversationId: 'session', page: 2, blockId: 'block' });
   });
+  it('thao tac: Ap dung gui DUNG {conversationId, checksum, scope}, Huy gui {conversationId}; id ke hoach duoc ma hoa trong duong dan', async () => {
+    const reply = { conversationId: 'c1', understood: {}, answer: { action: { kind: 'RESULT' } } };
+    mocks.post.mockResolvedValue({ data: { data: reply } });
+    await expect(confirmChatAction({ planId: 'p/1', checksum: 'a'.repeat(64) }, 'c1', { kind: 'BOARD', boardId: 'b1' })).resolves.toEqual(reply);
+    expect(mocks.post).toHaveBeenLastCalledWith('/chat/v2/actions/p%2F1/confirm', { conversationId: 'c1', checksum: 'a'.repeat(64), scope: { kind: 'BOARD', boardId: 'b1' } });
+    await expect(cancelChatAction('p1', 'c1')).resolves.toEqual(reply);
+    expect(mocks.post).toHaveBeenLastCalledWith('/chat/v2/actions/p1/cancel', { conversationId: 'c1' });
+  });
+
+  it('nut chon / xem them v2 chi gui them pham vi khi duoc truyen (trang bang); ban cu khong bao gio gui', async () => {
+    mocks.post.mockResolvedValue({ data: { data: {} } });
+    const board = { kind: 'BOARD' as const, boardId: 'b1' };
+    await sendChatChoice('c1', { kind: 'TARGET', id: 'x' }, 'v2', board);
+    expect(mocks.post).toHaveBeenLastCalledWith('/chat/v2/messages/choice', { conversationId: 'c1', optionId: 'x', scope: board });
+    await fetchMoreAnswer('c1', 2, 'blk', 'v2', board);
+    expect(mocks.post).toHaveBeenLastCalledWith('/chat/v2/messages/more', { conversationId: 'c1', page: 2, blockId: 'blk', scope: board });
+    await fetchMoreAnswer('c1', 2, undefined, 'legacy', board);
+    expect(mocks.post).toHaveBeenLastCalledWith('/chat/messages/more', { conversationId: 'c1', page: 2 });
+    await sendChatChoice('c1', { kind: 'USER', id: 'u1' }, 'legacy', board);
+    expect(mocks.post).toHaveBeenLastCalledWith('/chat/messages/choice', { conversationId: 'c1', userId: 'u1' });
+  });
+
   it('fetchChatStatus: GET /chat/status, tra data.data', async () => {
     mocks.get.mockResolvedValue({ data: { data: { llmAvailable: true } } });
     await expect(fetchChatStatus()).resolves.toEqual({ llmAvailable: true });

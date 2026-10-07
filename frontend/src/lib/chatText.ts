@@ -26,6 +26,9 @@ export const QUICK_QUESTIONS = [
   'Tôi đang ở bao nhiêu bảng?',
 ];
 
+/** Ke hoach cu bi thay boi mot lenh moi (khop errorText('SUPERSEDED') o server). */
+export const SUPERSEDED_TEXT = 'Đã có lệnh mới hơn nên kế hoạch này bị thay thế. Chưa thay đổi gì.';
+
 export const PRIVACY_NOTE = 'AI có thể nhận câu hỏi, tên bảng/thành viên, tiêu đề, hạn, trạng thái và nhật ký liên quan mà bạn được phép xem.';
 
 /** Mui gio cua moi dinh nghia "hôm nay / tuần này" o server (§5). */
@@ -161,7 +164,7 @@ export function appendCards(shown: readonly ChatCard[], next: readonly ChatCard[
 
 // ===================== Loi =====================
 
-export type ChatRequestKind = 'MESSAGE' | 'CHOICE' | 'MORE';
+export type ChatRequestKind = 'MESSAGE' | 'CHOICE' | 'MORE' | 'ACTION';
 
 /**
  * Thong diep loi tieng Viet co dau theo ma HTTP (server tra thong diep khong dau).
@@ -173,13 +176,25 @@ export function chatErrorText(err: unknown, kind: ChatRequestKind): { text: stri
   if (!err.response) return plain('Không kết nối được máy chủ. Hãy kiểm tra mạng rồi thử lại.');
   const status = err.response.status;
   if (status === 429) return plain('Bạn hỏi hơi nhiều trong thời gian ngắn. Hãy thử lại sau ít phút.');
-  if (status === 403) return plain('Bạn không có quyền xem phạm vi này. Hãy chọn phạm vi khác.');
+  if (status === 403) {
+    return plain(kind === 'ACTION'
+      ? 'Bạn không có quyền thực hiện thao tác này, hoặc trợ lý đang tắt chức năng thay đổi dữ liệu. Chưa thay đổi gì.'
+      : 'Bạn không có quyền xem phạm vi này. Hãy chọn phạm vi khác.');
+  }
+  // 409: kế hoạch đổi / đang chạy (ACTION) hoặc nút của một lượt ở trang khác (CHOICE, MORE) - luôn chưa ghi gì
+  if (status === 409) {
+    return plain(kind === 'ACTION'
+      ? 'Kế hoạch đã thay đổi hoặc đang được xử lý. Chưa thay đổi gì thêm; hãy gửi lại lệnh nếu cần.'
+      : 'Bạn đã chuyển sang trang khác nên lựa chọn này không còn dùng được. Hãy hỏi lại ở trang này.');
+  }
   if (status === 404) {
+    if (kind === 'ACTION') return plain('Không tìm thấy kế hoạch này (có thể đã hết hạn). Hãy gửi lại lệnh.');
     return kind === 'MESSAGE'
       ? plain('Không tìm thấy không gian hoặc bảng này. Hãy chọn phạm vi khác.')
       : { text: 'Hội thoại đã hết hạn. Hãy hỏi lại câu hỏi.', conversationGone: true };
   }
   if (status === 400) {
+    if (kind === 'ACTION') return plain('Yêu cầu không hợp lệ nên chưa thay đổi gì. Hãy gửi lại lệnh.');
     if (kind === 'CHOICE') return plain('Lựa chọn này không còn dùng được. Hãy hỏi lại.');
     if (kind === 'MORE') return plain('Không còn gì để xem thêm. Hãy hỏi lại.');
     return plain('Câu hỏi chưa hợp lệ. Hãy viết lại ngắn hơn.');

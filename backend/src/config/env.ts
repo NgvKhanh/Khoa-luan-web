@@ -65,6 +65,19 @@ function getPositiveInt(key: string, defaultValue: number): number {
   return parsed;
 }
 
+/**
+ * Lay 1 bien moi truong dang bat / tat: true/false, 1/0, on/off, yes/no (khong phan biet hoa thuong).
+ * Gia tri la khac -> nem loi ngay khi khoi dong (tranh bat nham mot tinh nang co the GHI du lieu).
+ */
+function getBoolean(key: string, defaultValue: boolean): boolean {
+  const raw = process.env[key];
+  if (raw === undefined || raw.trim() === '') return defaultValue;
+  const value = raw.trim().toLowerCase();
+  if (['true', '1', 'on', 'yes'].includes(value)) return true;
+  if (['false', '0', 'off', 'no'].includes(value)) return false;
+  throw new Error(`Bien moi truong ${key} phai la true/false (hoac 1/0, on/off), dang nhan duoc: "${raw}"`);
+}
+
 const nodeEnv = getString('NODE_ENV', 'development');
 const chatEngine = getString('CHAT_ENGINE', nodeEnv === 'production' ? 'legacy' : 'v2');
 if (!['legacy', 'v2'].includes(chatEngine)) throw new Error('CHAT_ENGINE phải là legacy hoặc v2');
@@ -78,6 +91,15 @@ if (!allowedNodeEnv.includes(nodeEnv)) {
 
 export const env = {
   chatEngine: chatEngine as 'legacy' | 'v2',
+  /**
+   * Chatbot v2 duoc phep THUC HIEN thao tac (tao the, doi ten, chuyen cot...)? Tat -> chi doc nhu truoc.
+   * Mac dinh BAT o development/test, TAT o production (bat khi da nghiem thu).
+   */
+  chatActions: getBoolean('CHAT_ACTIONS', nodeEnv !== 'production'),
+  /**
+   * Thao tac du an toan co duoc TU CHAY khong can bam "Ap dung"? Tat -> moi thao tac deu hien xem truoc va doi xac nhan.
+   */
+  chatAutoExecute: getBoolean('CHAT_AUTO_EXECUTE', nodeEnv !== 'production'),
   nodeEnv,
   isProduction: nodeEnv === 'production',
   port: getPort('PORT', 4000),

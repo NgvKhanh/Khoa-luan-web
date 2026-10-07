@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
 import type { AssistantTurn } from '../../context/AssistantContext';
-import type { ChatV2Block, ChatV2Event, ChatClarifyOption } from '../../types/chat';
+import type { ChatV2Block, ChatV2Event, ChatClarifyOption, ChatScope } from '../../types/chat';
 import { cardLink, formatDateTime } from '../../lib/chatText';
 import StatusBadge from '../board/StatusBadge';
+import ActionCard from './ActionCard';
 
 const EVENT_NAMES: Record<string, string> = { 'card.rename': 'Đổi tên', 'card.move': 'Chuyển cột', 'card.done': 'Hoàn thành', 'card.undone': 'Mở lại', 'card.status': 'Đổi trạng thái', 'card.due.set': 'Đặt hạn', 'card.due.clear': 'Bỏ hạn', 'member.add': 'Thêm người phụ trách', 'member.remove': 'Bỏ người phụ trách', 'card.archive': 'Lưu trữ', 'card.restore': 'Khôi phục', 'card.create': 'Tạo thẻ', 'comment.create': 'Bình luận', 'checklist.add': 'Thêm checklist', 'attachment.add': 'Thêm tệp' };
 function EventRow({ event }: { event: ChatV2Event }) {
@@ -60,12 +61,15 @@ function Contents({ block }: { block: Extract<ChatV2Block, { status: 'OK' }> }) 
   const d = block.data;
   return <><p className="text-xs">Tổng: {d.total}</p><ul className="space-y-1 text-xs">{d.rows.map((r) => <li key={r.id}>{d.kind === 'BOARDS' ? <Link className="text-primary-ink hover:underline" to={`/boards/${encodeURIComponent(r.id)}`}>{r.name}</Link> : r.name}</li>)}</ul></>;
 }
-export default function V2AnswerView({ turn, latest, busy, onMore, onChoose }: {
-  turn: AssistantTurn; latest: boolean; busy: boolean; onMore: (t: AssistantTurn, blockId?: string) => void; onChoose: (o: ChatClarifyOption) => void;
+export default function V2AnswerView({ turn, latest, busy, scope, onMore, onChoose, onConfirm, onCancel }: {
+  turn: AssistantTurn; latest: boolean; busy: boolean; scope: ChatScope; onMore: (t: AssistantTurn, blockId?: string) => void; onChoose: (o: ChatClarifyOption) => void;
+  onConfirm: (t: AssistantTurn) => void; onCancel: (t: AssistantTurn) => void;
 }) {
   const answer = turn.reply!.answer;
+  // Ket qua thao tac da co cau tom tat trong khoi ket qua: khong lap lai cung mot cau o dong dan
+  const echoed = answer.action?.kind === 'RESULT' && answer.action.result.summary === answer.text;
   return <div className="space-y-3 text-slate-700 dark:text-slate-200">
-    {turn.reply?.mode === 'BASIC' && <p className="text-[11px] text-slate-500">Chế độ cơ bản · dùng các truy vấn có sẵn</p>}<p className="text-sm">{answer.text}</p>
+    {turn.reply?.mode === 'BASIC' && <p className="text-[11px] text-slate-500">Chế độ cơ bản · dùng các truy vấn có sẵn</p>}{!echoed && <p className="text-sm">{answer.text}</p>}
     {answer.blocks?.map((b) => <section key={b.id} aria-label={b.title} className="space-y-2 rounded-lg border border-slate-200 p-2 dark:border-slate-700">
       <h4 className="text-sm font-semibold">{b.title}</h4>
       {b.status === 'ERROR' ? <p role="alert" className="text-xs text-red-600">{b.error}</p> : <>
@@ -77,6 +81,7 @@ export default function V2AnswerView({ turn, latest, busy, onMore, onChoose }: {
         <details className="text-[11px] text-slate-500"><summary className="cursor-pointer">Nguồn và thời điểm tra cứu</summary><p>{b.source.scopeLabel} · {formatDateTime(b.source.generatedAt, b.source.generatedAt)}</p></details>
       </>}
     </section>)}
+    {answer.action && <ActionCard turn={turn} scope={scope} busy={busy} onConfirm={onConfirm} onCancel={onCancel} />}
     {answer.clarify && <div role="group" aria-label={answer.clarify.question} className="flex flex-wrap gap-1.5">{answer.clarify.options.map((o) => <button key={o.id} type="button" disabled={!latest || busy} onClick={() => onChoose(o)} className="rounded-full bg-primary px-3 py-1 text-xs text-white disabled:opacity-50">{o.label}</button>)}</div>}
     {turn.moreError && <p role="alert" className="text-xs text-red-600">{turn.moreError}</p>}{answer.notes.map((n) => <p key={n} className="text-xs text-amber-700 dark:text-amber-300">{n}</p>)}
   </div>;

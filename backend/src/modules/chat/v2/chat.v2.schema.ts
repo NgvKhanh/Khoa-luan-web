@@ -8,7 +8,7 @@ export const CHANGE_TYPES = [
   'card.archive', 'card.restore',
 ] as const;
 export const EVENT_TYPES = [...CHANGE_TYPES, 'card.create', 'comment.create', 'checklist.add', 'attachment.add', 'ai.board.create'] as const;
-export const ENTITY_KINDS = ['BOARD', 'WORKSPACE', 'CARD', 'COLUMN', 'MEMBER'] as const;
+export const ENTITY_KINDS = ['BOARD', 'WORKSPACE', 'CARD', 'COLUMN', 'MEMBER', 'LABEL'] as const;
 const id = z.string().trim().min(1).max(128);
 const ids = z.array(id).min(1).max(100);
 const date = z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.string().datetime({ offset: true })]);

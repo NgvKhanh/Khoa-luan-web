@@ -15,7 +15,8 @@ describe('chatbot v2 steps 1–3: tools on the real test database', () => {
   it('answers both parts of board 1234 with ties, zero members, multi-assignees and all unassigned pages', async () => {
     const w = await seedChatV2();
     const ctx = context(w);
-    const entity = await executeChatTool({ ...ctx, scope: { kind: 'BOARD', boardId: w.secret.id } }, 'resolve_entities', { kind: 'BOARD', text: '1234' });
+    // trang chủ (MY) thì tìm bảng theo tên trên mọi bảng đọc được; trang bảng thì bị khóa trong bảng đó (xem chat.v2.ceiling.test.ts)
+    const entity = await executeChatTool({ ...ctx, scope: { kind: 'MY' } }, 'resolve_entities', { kind: 'BOARD', text: '1234' });
     expect(entity.data.options[0].id).toBe(w.board.id); // Name wins over another board's numeric ID.
     const workload = await executeChatTool(ctx, 'aggregate_tasks', { groupBy: 'ASSIGNEE', pageSize: 1 });
     expect(workload.data.totalCards).toBe(30);
@@ -42,14 +43,16 @@ describe('chatbot v2 steps 1–3: tools on the real test database', () => {
   it('resolves duplicate and unaccented entities, checks chosen IDs and respects explicit > conversation > UI scope', async () => {
     const w = await seedChatV2(); const ctx = context(w);
     const duplicate = await prisma.board.create({ data: { name: '1234', ownerId: w.owner.id, workspaceId: w.ws.id } });
-    expect((await executeChatTool(ctx, 'resolve_entities', { kind: 'BOARD', text: '1234' })).data.status).toBe('CLARIFY');
+    const my = { ...ctx, scope: { kind: 'MY' as const } };
+    expect((await executeChatTool(my, 'resolve_entities', { kind: 'BOARD', text: '1234' })).data.status).toBe('CLARIFY');
     expect((await executeChatTool(ctx, 'resolve_entities', { kind: 'MEMBER', text: 'anh Tuan' })).data.options[0].id).toBe(w.tuan.id);
     expect((await executeChatTool(ctx, 'resolve_entities', { kind: 'COLUMN', text: 'Can lam' })).data.options[0].id).toBe(w.columnId);
     expect((await executeChatTool(ctx, 'resolve_entities', { kind: 'CARD', text: 'Việc chung' })).data.options[0].id).toBe(w.shared.id);
     expect((await executeChatTool(ctx, 'resolve_entities', { kind: 'BOARD', text: 'Riêng tư bí mật' })).data.status).toBe('NOT_FOUND');
-    expect((await executeChatTool({ ...ctx, conversationScope: { kind: 'BOARD', boardId: duplicate.id } }, 'query_tasks', {})).data.total).toBe(0);
-    expect((await executeChatTool({ ...ctx, conversationScope: { kind: 'BOARD', boardId: duplicate.id } }, 'query_tasks', { scope: ctx.scope })).data.total).toBe(30);
-    expect((await executeChatTool(ctx, 'query_tasks', { scope: { kind: 'BOARD', boardId: duplicate.id } })).data.total).toBe(0);
+    // thứ tự ưu tiên "nêu rõ > hội thoại > giao diện" áp dụng khi giao diện ở trang chủ (MY); từ trang bảng, trần phạm vi chặn việc ra ngoài bảng
+    expect((await executeChatTool({ ...my, conversationScope: { kind: 'BOARD', boardId: duplicate.id } }, 'query_tasks', {})).data.total).toBe(0);
+    expect((await executeChatTool({ ...my, conversationScope: { kind: 'BOARD', boardId: duplicate.id } }, 'query_tasks', { scope: ctx.scope })).data.total).toBe(30);
+    expect((await executeChatTool(my, 'query_tasks', { scope: { kind: 'BOARD', boardId: duplicate.id } })).data.total).toBe(0);
     const changed = withUiScope({ ...ctx, conversationScope: { kind: 'BOARD', boardId: duplicate.id } }, { kind: 'WORKSPACE', workspaceId: w.ws.id });
     expect(changed.conversationScope).toBeUndefined();
   });

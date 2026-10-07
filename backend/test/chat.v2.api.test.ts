@@ -68,7 +68,7 @@ describe('v2 API and orchestration', () => {
     expect((await agent().post('/api/chat/v2/messages').send({ message: 'hi', scope: MY })).status).toBe(401);
     const f = await seedChatV2();
     const status = await agent().get('/api/chat/v2/status').set('Cookie', f.owner.cookie);
-    expect(status.body.data).toEqual({ engine: 'v2', version: 'v2', llmAvailable: false });
+    expect(status.body.data).toEqual({ engine: 'v2', version: 'v2', llmAvailable: false, actions: false });
     for (const extra of [{ userId: f.owner.id }, { tools: [] }, { role: 'OWNER' }]) expect((await agent().post('/api/chat/v2/messages').set('Cookie', f.owner.cookie).send({ message: SENTENCE, scope: MY, ...extra })).status).toBe(400);
   });
   it.each([SENTENCE, ASSIGNED_SENTENCE])('answers assignment questions through HTTP without AI and paginates only selected block: %s', async (message) => {
@@ -208,7 +208,8 @@ describe('v2 API and orchestration', () => {
     const shouldNotRun = vi.fn<ModelStep>();
     const vague = await handleV2Message(f.owner.id, { message: 'Trong bảng 1234 công việc nào đã thay đổi?', scope: MY }, context(shouldNotRun));
     expect(vague.answer.kind).toBe('CLARIFY'); expect(shouldNotRun).not.toHaveBeenCalled();
-    const write = await handleV2Message(f.owner.id, { message: 'Đổi hạn giúp tôi trong bảng 1234', scope: MY }, context(shouldNotRun));
+    // CHAT_ACTIONS tắt: lệnh ghi vẫn bị từ chối trước mọi lượt gọi mô hình (khi bật thì lệnh đi qua propose_actions - xem chat.actions.api.test.ts)
+    const write = await handleV2Message(f.owner.id, { message: 'Đổi hạn giúp tôi trong bảng 1234', scope: MY }, { ...context(shouldNotRun), actions: false });
     expect(write.answer.kind).toBe('UNSUPPORTED'); expect(write.answer.text).toContain('chỉ đọc');
     expect(shouldNotRun).not.toHaveBeenCalled();
   });

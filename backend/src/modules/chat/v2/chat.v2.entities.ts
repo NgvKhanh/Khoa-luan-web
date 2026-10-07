@@ -10,9 +10,9 @@ export type EntityResolution = {
   status: 'RESOLVED' | 'CLARIFY' | 'NOT_FOUND'; total: number; options: EntityOption[]; truncated: boolean;
 };
 /** Full names are compared without truncating long titles into false exact matches. */
-function selectMatches(text: string, pool: EntityOption[]): EntityOption[] {
+export function selectMatches<T extends { id: string; name: string }>(text: string, pool: T[]): T[] {
   const original = tokenize(text);
-  const cues = [['khong', 'gian'], ['bang'], ['board'], ['workspace'], ['cot'], ['the'], ['cong', 'viec'], ['anh'], ['chi'], ['ban']];
+  const cues = [['khong', 'gian'], ['bang'], ['board'], ['workspace'], ['cot'], ['the'], ['cong', 'viec'], ['anh'], ['chi'], ['ban'], ['nhan'], ['label']];
   const cue = cues.find((c) => original.length > c.length && c.every((s, i) => original[i].fold === s));
   const variants = cue ? [original, original.slice(cue.length)] : [original];
   const matches = pool.map((item) => ({ item, words: tokenize(item.name) }));
@@ -52,6 +52,11 @@ export async function resolveEntities(ctx: ExecutionContext, kind: typeof ENTITY
         .map((c) => ({ id: c.id, name: c.title, kind, parentName: c.list.board.name }));
       break;
     case 'MEMBER': pool = ctx.roster.map((m) => ({ id: m.userId, name: m.name, kind })); break;
+    case 'LABEL':
+      // chỉ nhãn CÓ TÊN (nhãn mặc định chỉ có màu thì không gọi được bằng lời)
+      pool = (await prisma.label.findMany({ where: { name: { not: '' }, board: ctx.scope.boardWhere }, select: { id: true, name: true, board: { select: { name: true } } } }))
+        .map((l) => ({ id: l.id, name: l.name, kind, parentName: l.board.name }));
+      break;
   }
   const found = selectMatches(text, pool).sort((a, b) => a.name.localeCompare(b.name, 'vi') || a.id.localeCompare(b.id));
   return { status: found.length === 0 ? 'NOT_FOUND' : found.length === 1 ? 'RESOLVED' : 'CLARIFY', total: found.length, options: found.slice(0, 100), truncated: found.length > 100 };

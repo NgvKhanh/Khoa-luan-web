@@ -142,6 +142,19 @@ export const chatLimiter = rateLimit({
   message: TOO_MANY,
 });
 
+/**
+ * Chatbot: ap dung / huy mot thao tac da xem truoc (POST /api/chat/v2/actions/:id/confirm). Khong goi LLM nhung GHI du lieu:
+ * 30 lan / user / 10 phut.
+ */
+export const chatActionLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: byUser,
+  message: TOO_MANY,
+});
+
 /** Ap dung ke hoach thanh bang that (khong goi LLM, nhe hon): 30 lan / user / 10 phut. */
 export const aiApplyLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,

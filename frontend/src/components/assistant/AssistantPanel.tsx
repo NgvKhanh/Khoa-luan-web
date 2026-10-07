@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { createPortal } from 'react-dom';
 import { useAssistant } from '../../context/AssistantContext';
 import { MAX_QUESTION_CHARS, PRIVACY_NOTE, QUICK_QUESTIONS } from '../../lib/chatText';
+import { scopeChipText, scopeChipTitle } from '../../lib/chatScope';
+import type { ChatStatus } from '../../types/chat';
 import AnswerView from './AnswerView';
 
 /**
@@ -17,13 +19,25 @@ export default function AssistantPanel() {
   return open ? createPortal(<PanelBody />, document.body) : null;
 }
 
-function Intro({ busy, onAsk }: { busy: boolean; onAsk: (q: string) => void }) {
+const ACTION_EXAMPLES = ['Chuyển task Login sang Đang làm', 'Giao thẻ Báo cáo tuần cho Lan', 'Đặt hạn thẻ Thiết kế là thứ sáu'];
+
+function Intro({ busy, status, onAsk }: { busy: boolean; status: ChatStatus | null; onAsk: (q: string) => void }) {
   return (
     <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
       <p>
         Trợ lý tra cứu công việc, người phụ trách, khối lượng của từng thành viên và lịch sử thay đổi trên các bảng
-        bạn được phép xem. Bạn có thể hỏi nhiều nội dung trong một câu và nêu tên bảng hoặc không gian cần xem. Trợ lý hiện chỉ đọc dữ liệu.
+        bạn được phép xem. Bạn có thể hỏi nhiều nội dung trong một câu và nêu tên bảng hoặc không gian cần xem.
+        {status?.actions !== true && ' Trợ lý hiện chỉ đọc dữ liệu.'}
       </p>
+      {status?.actions === true && (
+        <div className="space-y-1">
+          <p>
+            Trợ lý cũng làm giúp một số thao tác trên một bảng: tạo thẻ, đổi tên, đặt hạn, chuyển cột, đổi trạng thái, giao người, gắn nhãn.
+            Lệnh rõ ràng thì làm ngay; lệnh còn mơ hồ thì hiện bản xem trước để bạn bấm Áp dụng. Trợ lý không xóa gì.
+          </p>
+          <ul className="list-disc pl-4 text-xs text-slate-500 dark:text-slate-400">{ACTION_EXAMPLES.map((e) => <li key={e}>{e}</li>)}</ul>
+        </div>
+      )}
       <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Thử hỏi:</p>
       <div className="flex flex-col items-start gap-1.5">
         {QUICK_QUESTIONS.map((q) => (
@@ -43,8 +57,8 @@ function Intro({ busy, onAsk }: { busy: boolean; onAsk: (q: string) => void }) {
 }
 
 function PanelBody() {
-  const { turns, busy, status, notice, conversations, activeConversationId, historyLoading, historyError, historyHasMore, olderHasMore,
-    refreshHistory, selectConversation, loadOlder, closePanel, ask, choose, loadMore, newConversation } = useAssistant();
+  const { turns, busy, scope, status, notice, conversations, activeConversationId, historyLoading, historyError, historyHasMore, olderHasMore,
+    refreshHistory, selectConversation, loadOlder, closePanel, ask, choose, loadMore, confirmAction, cancelAction, newConversation } = useAssistant();
   const [draft, setDraft] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -108,6 +122,12 @@ function PanelBody() {
     >
       <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2.5 dark:border-slate-700">
         <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Trợ lý công việc</h2>
+        <span
+          title={scopeChipTitle(scope)}
+          className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+        >
+          {scopeChipText(scope)}
+        </span>
         {status && !status.llmAvailable && (
           <span
             title="Chưa cấu hình AI: trợ lý hiểu câu hỏi bằng bộ luật."
@@ -184,7 +204,7 @@ function PanelBody() {
             {historyHasMore && <button type="button" disabled={busy} onClick={() => void refreshHistory(true)} className="text-xs text-primary-ink disabled:opacity-50">Xem thêm hội thoại</button>}
           </section>
         ) : turns.length === 0 ? (
-          <Intro busy={busy} onAsk={(q) => void ask(q)} />
+          <Intro busy={busy} status={status} onAsk={(q) => void ask(q)} />
         ) : (
           <>
           {olderHasMore && <button type="button" disabled={busy} onClick={() => {
@@ -199,6 +219,9 @@ function PanelBody() {
                 turn={t}
                 latest={i === turns.length - 1}
                 busy={busy}
+                scope={scope}
+                onConfirm={(turn) => void confirmAction(turn)}
+                onCancel={(turn) => void cancelAction(turn)}
                 onChoose={(o) => void choose(o)}
                 onMore={(turn, blockId) => void loadMore(turn, blockId)}
                 onAsk={(q) => void ask(q)}
@@ -219,7 +242,7 @@ function PanelBody() {
             maxLength={MAX_QUESTION_CHARS}
             rows={2}
             aria-label="Câu hỏi cho trợ lý"
-            placeholder="Hỏi về việc của bạn hoặc của nhóm…"
+            placeholder={status?.actions === true ? 'Hỏi hoặc ra lệnh, ví dụ: chuyển Login sang Đang làm…' : 'Hỏi về việc của bạn hoặc của nhóm…'}
             className="min-h-0 flex-1 resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
           />
           <button

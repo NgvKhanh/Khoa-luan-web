@@ -10,7 +10,8 @@ export interface V2Session {
   bindings: EntityOption[]; queries: SavedQuery[]; lastQuestion?: string;
   legacyId?: string;
   legacyOptions?: { id: string; kind: 'USER' | 'WORKSPACE' | 'TARGET' }[];
-  pending?: { kind: 'ENTITY' | 'QUESTION'; question: string; original: string; options: EntityOption[]; resolveInput?: Record<string, unknown> };
+  // PLAN_REF: dang cho nguoi dung chon doi tuong cho MOT ke hoach hanh dong (planId); chon xong khong goi lai LLM.
+  pending?: { kind: 'ENTITY' | 'QUESTION' | 'PLAN_REF'; question: string; original: string; options: EntityOption[]; resolveInput?: Record<string, unknown>; planId?: string };
   touched: number;
 }
 export class V2SessionStore {

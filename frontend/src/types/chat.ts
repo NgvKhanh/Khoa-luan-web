@@ -1,6 +1,7 @@
 import type { CardStatus } from './card';
 
-// Hop dong API /api/chat (CHATBOT_MODULE.md §12). Chi doc: tro ly khong tao / sua / xoa gi.
+// Hop dong API /api/chat (CHATBOT_MODULE.md §12). Doc la chinh; "hanh dong" (Phase 1) chi la 7 thao tac an toan tren MOT bang,
+// qua xem truoc + nut Ap dung hoac tu chay khi cau lenh ro rang (CHATBOT_V2_ACTIONS_PLAN.md).
 
 export type ChatScope =
   | { kind: 'MY' }
@@ -29,7 +30,58 @@ export type PriorityReason = 'OVERDUE' | 'DUE_TODAY' | 'DUE_SOON' | 'LATER';
 export interface ChatStatus {
   llmAvailable: boolean;
   engine?: 'legacy' | 'v2';
+  /** Lenh GHI chay duoc: server bat CHAT_ACTIONS va co AI. Khong co truong = may chu cu, coi nhu chi doc. */
+  actions?: boolean;
 }
+
+// ===================== Hanh dong (Phase 1) =====================
+// Khoi xem truoc / ket qua do SERVER dung tu ke hoach da phan giai (ten lay tu CSDL), khong phai chu AI viet.
+
+export type ChatPlanStatus = 'NEEDS_CHOICE' | 'PROPOSED' | 'EXECUTING' | 'EXECUTED' | 'FAILED' | 'STALE' | 'CANCELLED' | 'EXPIRED';
+export type ChatPlanRisk = 'LOW' | 'MEDIUM' | 'HIGH';
+export interface ChatPlanReason {
+  code: 'AUTO_DISABLED' | 'DELEGATED_TO_DATA' | 'NOT_GROUNDED' | 'FUZZY_DATE' | 'QUESTION_FORM';
+  /** Cau giai thich vi sao lenh nay chua tu chay (hien nguyen van cho nguoi dung). */
+  text: string;
+}
+export interface ChatPlanItem {
+  index: number;
+  verb: string;
+  text: string;
+  detail?: string;
+  cardId?: string;
+}
+export interface ChatActionPlan {
+  planId: string;
+  /** Dau van tay cua ban xem truoc: gui lai khi bam Ap dung. */
+  checksum: string;
+  status: ChatPlanStatus;
+  risk: ChatPlanRisk;
+  requiresConfirmation: boolean;
+  /** Nut "Ap dung" con dung duoc (cho xac nhan va chua het han). */
+  canConfirm: boolean;
+  reasons: ChatPlanReason[];
+  expiresAt: string;
+  boardId: string;
+  boardName: string;
+  items: ChatPlanItem[];
+  warnings: string[];
+}
+export type ChatResultStatus = 'EXECUTED' | 'FAILED' | 'STALE' | 'CANCELLED' | 'EXPIRED';
+export interface ChatActionResult {
+  planId: string;
+  status: ChatResultStatus;
+  /** Da tu chay vi lenh ro rang va du an toan (khong qua nut Ap dung). */
+  autoExecuted: boolean;
+  /** Ap dung lan hai tro di: ket qua luu tu lan dau. */
+  alreadyApplied?: boolean;
+  summary: string;
+  boardId: string;
+  cardId?: string;
+  error?: { code: string; text: string };
+  warnings: string[];
+}
+export type ChatActionView = { kind: 'PLAN'; plan: ChatActionPlan } | { kind: 'RESULT'; result: ChatActionResult };
 
 export interface ChatConversationSummary {
   id: string;
@@ -111,6 +163,8 @@ export interface ChatTable {
 
 export interface ChatAnswer {
   blocks?: ChatV2Block[];
+  /** Ban xem truoc hoac ket qua cua MOT thao tac (khong nam trong blocks). */
+  action?: ChatActionView;
   kind: 'ANSWER' | 'CLARIFY' | 'UNSUPPORTED';
   text: string;
   scopeLabel: string;

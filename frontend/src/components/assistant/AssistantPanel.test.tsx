@@ -5,7 +5,7 @@ import { MemoryRouter, Outlet, Route, Routes, useLocation } from 'react-router-d
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssistantProvider } from '../../context/AssistantContext';
 import { QUICK_QUESTIONS } from '../../lib/chatText';
-import type { ChatAnswer, ChatCard, ChatConversationHistory, ChatReply, ChatUnderstood } from '../../types/chat';
+import type { ChatActionPlan, ChatActionResult, ChatAnswer, ChatCard, ChatConversationHistory, ChatReply, ChatUnderstood } from '../../types/chat';
 import type { ChatV2Block } from '../../types/chat';
 import AssistantButton from './AssistantButton';
 import AssistantPanel from './AssistantPanel';
@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   fetchMoreAnswer: vi.fn(),
   fetchChatConversations: vi.fn(),
   fetchChatConversation: vi.fn(),
+  confirmChatAction: vi.fn(),
+  cancelChatAction: vi.fn(),
 }));
 vi.mock('../../lib/api/chat', () => mocks);
 
@@ -214,31 +216,34 @@ describe('AssistantPanel: mo / dong', () => {
 });
 
 describe('AssistantPanel: pham vi', () => {
-  it('mot luong chat chung tren moi trang: tim tren tat ca bang duoc phep, giu hoi thoai cho cau noi tiep', async () => {
+  it('pham vi THEO TRANG: trang chu / khong gian tim tren moi bang duoc phep (MY); trang bang khoa cung trong bang do (BOARD); giu hoi thoai cho cau noi tiep', async () => {
     mocks.sendChatMessage.mockResolvedValue(reply());
-    for (const path of ['/home', '/workspaces/ws2', '/boards/b1']) {
+    const expected = { '/home': { kind: 'MY' }, '/workspaces/ws2': { kind: 'MY' }, '/boards/b1': { kind: 'BOARD', boardId: 'b1' } } as const;
+    for (const [path, scope] of Object.entries(expected)) {
       const view = renderAt(path);
       await openPanel();
       expect(within(panel()).queryByRole('radio')).not.toBeInTheDocument();
       expect(within(panel()).queryByRole('combobox')).not.toBeInTheDocument();
+      // nhan pham vi o tieu de panel noi ro dang lam viec trong dau
+      expect(within(panel()).getByText(scope.kind === 'BOARD' ? 'Trong bảng đang mở' : 'Mọi bảng của bạn')).toBeInTheDocument();
       await askQuestion('Việc của tôi?');
-      await waitFor(() => expect(mocks.sendChatMessage).toHaveBeenLastCalledWith({ message: 'Việc của tôi?', scope: { kind: 'MY' }, conversationId: undefined }));
+      await waitFor(() => expect(mocks.sendChatMessage).toHaveBeenLastCalledWith({ message: 'Việc của tôi?', scope, conversationId: undefined }));
       await askQuestion('còn tuần sau?');
-      await waitFor(() => expect(mocks.sendChatMessage).toHaveBeenLastCalledWith({ message: 'còn tuần sau?', scope: { kind: 'MY' }, conversationId: 'conv-1' }));
+      await waitFor(() => expect(mocks.sendChatMessage).toHaveBeenLastCalledWith({ message: 'còn tuần sau?', scope, conversationId: 'conv-1' }));
       view.unmount();
     }
   });
 
-  it('gui ten bang/khong gian trong cau hoi de backend xac dinh, khong gioi han vao bang dang mo', async () => {
+  it('o trang bang: moi cau gui kem pham vi BOARD cua bang dang mo - backend khoa cung trong bang, ten bang khac trong cau khong mo rong duoc', async () => {
     mocks.sendChatMessage.mockResolvedValue(reply());
     renderAt('/boards/b1');
     await openPanel();
     await askQuestion('Trong bảng 1234 ai đang có nhiều việc nhất?');
     await waitFor(() => expect(mocks.sendChatMessage).toHaveBeenCalledTimes(1));
-    expect(mocks.sendChatMessage.mock.calls[0]![0]).toEqual({ message: 'Trong bảng 1234 ai đang có nhiều việc nhất?', scope: { kind: 'MY' }, conversationId: undefined });
+    expect(mocks.sendChatMessage.mock.calls[0]![0]).toEqual({ message: 'Trong bảng 1234 ai đang có nhiều việc nhất?', scope: { kind: 'BOARD', boardId: 'b1' }, conversationId: undefined });
     await askQuestion('Còn trong không gian Nhóm A?');
     await waitFor(() => expect(mocks.sendChatMessage).toHaveBeenCalledTimes(2));
-    expect(mocks.sendChatMessage.mock.calls[1]![0]).toEqual({ message: 'Còn trong không gian Nhóm A?', scope: { kind: 'MY' }, conversationId: 'conv-1' });
+    expect(mocks.sendChatMessage.mock.calls[1]![0]).toEqual({ message: 'Còn trong không gian Nhóm A?', scope: { kind: 'BOARD', boardId: 'b1' }, conversationId: 'conv-1' });
   });
 });
 
@@ -502,7 +507,7 @@ describe('AssistantPanel: hoi lai + xem them', () => {
 });
 
 describe('AssistantPanel: giu hoi thoai khi doi trang', () => {
-  it('bam lien ket the doi layout van giu hoi thoai; hoi thoai moi tren trang bang van tra cuu tat ca bang duoc phep', async () => {
+  it('bam lien ket the doi layout van giu hoi thoai; sang trang bang thi cau tiep theo mang pham vi BOARD (khoa trong bang do)', async () => {
     mocks.sendChatMessage.mockResolvedValue(reply());
     renderAt('/home');
     await openPanel();
@@ -525,13 +530,13 @@ describe('AssistantPanel: giu hoi thoai khi doi trang', () => {
 
     await askQuestion('còn tuần sau?');
     await waitFor(() => expect(mocks.sendChatMessage).toHaveBeenCalledTimes(2));
-    expect(mocks.sendChatMessage.mock.calls[1]![0]).toEqual({ message: 'còn tuần sau?', scope: { kind: 'MY' }, conversationId: 'conv-1' });
+    expect(mocks.sendChatMessage.mock.calls[1]![0]).toEqual({ message: 'còn tuần sau?', scope: { kind: 'BOARD', boardId: 'b1' }, conversationId: 'conv-1' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Hội thoại mới' }));
     expect(within(panel()).queryByRole('list', { name: 'Hội thoại' })).not.toBeInTheDocument();
     await askQuestion('Những việc nào chưa được phân công?');
     await waitFor(() => expect(mocks.sendChatMessage).toHaveBeenCalledTimes(3));
-    expect(mocks.sendChatMessage.mock.calls[2]![0]).toEqual({ message: 'Những việc nào chưa được phân công?', scope: { kind: 'MY' }, conversationId: undefined });
+    expect(mocks.sendChatMessage.mock.calls[2]![0]).toEqual({ message: 'Những việc nào chưa được phân công?', scope: { kind: 'BOARD', boardId: 'b1' }, conversationId: undefined });
   });
 });
 
@@ -696,11 +701,11 @@ describe('AssistantPanel v2', () => {
     await clickAsync(within(panel()).getByRole('button', { name: /Hội thoại trước/ }));
     expect(await within(panel()).findByText('Câu hỏi trước')).toBeInTheDocument();
     await askQuestion('còn việc nào?');
-    expect(mocks.sendChatMessage).toHaveBeenLastCalledWith({ message: 'còn việc nào?', scope: { kind: 'MY' }, conversationId: 'older' }, 'v2');
+    expect(mocks.sendChatMessage).toHaveBeenLastCalledWith({ message: 'còn việc nào?', scope: { kind: 'BOARD', boardId: 'b1' }, conversationId: 'older' }, 'v2');
     fireEvent.click(within(panel()).getByRole('button', { name: 'Hội thoại mới' }));
     expect(within(panel()).queryByText('Câu hỏi trước')).not.toBeInTheDocument();
     await askQuestion('Câu hỏi mới');
-    expect(mocks.sendChatMessage).toHaveBeenLastCalledWith({ message: 'Câu hỏi mới', scope: { kind: 'MY' }, conversationId: undefined }, 'v2');
+    expect(mocks.sendChatMessage).toHaveBeenLastCalledWith({ message: 'Câu hỏi mới', scope: { kind: 'BOARD', boardId: 'b1' }, conversationId: undefined }, 'v2');
     await clickAsync(within(panel()).getByRole('button', { name: 'Lịch sử trò chuyện' }));
     expect(within(panel()).getByRole('button', { name: /Hội thoại trước/ })).toBeInTheDocument();
   });
@@ -768,5 +773,220 @@ describe('AssistantPanel v2', () => {
     expect(within(panel()).getByRole('alert')).toHaveTextContent('Không thể tra cứu phần này lúc này.');
     await clickAsync(within(panel()).getByRole('button', { name: '1234 · Nhóm A' }));
     expect(mocks.sendChatChoice).toHaveBeenCalledWith('conv-1', { id: 'b1', label: '1234 · Nhóm A', kind: 'TARGET' }, 'v2');
+  });
+});
+
+// ===================== Thao tac (Phase 1): xem truoc / Ap dung / Huy / ket qua =====================
+
+describe('AssistantPanel: thao tac cua tro ly', () => {
+  const plan = (over: Partial<ChatActionPlan> = {}): ChatActionPlan => ({
+    planId: 'p1', checksum: 'a'.repeat(64), status: 'PROPOSED', risk: 'LOW', requiresConfirmation: true, canConfirm: true,
+    reasons: [{ code: 'AUTO_DISABLED', text: 'Chế độ tự chạy đang tắt nên mọi thao tác cần bạn xác nhận.' }],
+    expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), boardId: 'b1', boardName: 'Bảng Marketing',
+    items: [{ index: 0, verb: 'Chuyển thẻ', text: '“Login UI”', detail: '“Cần làm” → “Đang làm”', cardId: 'c1' }], warnings: [], ...over,
+  });
+  const result = (over: Partial<ChatActionResult> = {}): ChatActionResult => ({
+    planId: 'p1', status: 'EXECUTED', autoExecuted: false, summary: 'Đã chuyển thẻ “Login UI” từ cột “Cần làm” sang “Đang làm”.', boardId: 'b1', cardId: 'c1', warnings: [], ...over,
+  });
+  const actionReply = (action: NonNullable<ChatAnswer['action']>, text = 'Mình sẽ làm như sau.', cid = 'conv-1'): ChatReply =>
+    ({ ...reply({ cards: [], total: 0, blocks: [], notes: [], suggestions: [], facts: [], text, action }, {}, cid), version: 'v2', mode: 'AI' });
+  const planBlock = () => within(panel()).getByRole('region', { name: 'Kế hoạch thao tác' });
+  const resultBlock = () => within(panel()).getByRole('region', { name: 'Kết quả thao tác' });
+
+  beforeEach(() => {
+    mocks.fetchChatStatus.mockResolvedValue({ llmAvailable: true, engine: 'v2', actions: true });
+  });
+
+  it('gioi thieu: bat hanh dong thi neu 7 thao tac + vi du, tat thi noi ro chi doc', async () => {
+    renderAt('/home'); await openPanel();
+    expect(await within(panel()).findByText(/tạo thẻ, đổi tên, đặt hạn, chuyển cột, đổi trạng thái, giao người, gắn nhãn/)).toBeInTheDocument();
+    expect(within(panel()).getByText('Chuyển task Login sang Đang làm')).toBeInTheDocument();
+    expect(within(panel()).queryByText(/Trợ lý hiện chỉ đọc dữ liệu/)).not.toBeInTheDocument();
+    expect(within(panel()).getByRole('textbox', { name: 'Câu hỏi cho trợ lý' })).toHaveAttribute('placeholder', expect.stringContaining('ra lệnh'));
+  });
+  it('gioi thieu: may chu khong bat hanh dong (hoac chua biet) -> chi doc', async () => {
+    mocks.fetchChatStatus.mockResolvedValue({ llmAvailable: true, engine: 'v2', actions: false });
+    renderAt('/home'); await openPanel();
+    expect(await within(panel()).findByText(/Trợ lý hiện chỉ đọc dữ liệu/)).toBeInTheDocument();
+    expect(within(panel()).queryByText(/tạo thẻ, đổi tên/)).not.toBeInTheDocument();
+  });
+
+  it('lenh chua du chac chan -> khoi xem truoc (ten bang, tung thao tac, ly do, gio het han); bam Ap dung -> thay bang ket qua, KHONG them luot moi', async () => {
+    mocks.sendChatMessage.mockResolvedValue(actionReply({ kind: 'PLAN', plan: plan() }));
+    mocks.confirmChatAction.mockResolvedValue(actionReply({ kind: 'RESULT', result: result() }, 'Đã chuyển thẻ.'));
+    renderAt('/home'); await openPanel();
+    await askQuestion('Chuyển Login UI sang Đang làm');
+    const block = planBlock();
+    expect(within(block).getByRole('link', { name: 'Bảng Marketing' })).toHaveAttribute('href', '/boards/b1');
+    expect(within(block).getByText('Chuyển thẻ')).toBeInTheDocument();
+    expect(within(block).getByText('“Cần làm” → “Đang làm”')).toBeInTheDocument();
+    expect(within(block).getByRole('link', { name: 'Mở thẻ' })).toHaveAttribute('href', '/boards/b1?card=c1');
+    expect(within(block).getByRole('note')).toHaveTextContent('Chế độ tự chạy đang tắt nên mọi thao tác cần bạn xác nhận.');
+    expect(within(block).getByText(/Chưa có gì thay đổi\. Kế hoạch hết hạn lúc/)).toBeInTheDocument();
+    expect(within(block).getByRole('button', { name: 'Áp dụng' })).toBeEnabled();
+
+    await clickAsync(within(block).getByRole('button', { name: 'Áp dụng' }));
+    expect(mocks.confirmChatAction).toHaveBeenCalledWith({ planId: 'p1', checksum: 'a'.repeat(64) }, 'conv-1', { kind: 'MY' });
+    expect(within(panel()).queryByRole('region', { name: 'Kế hoạch thao tác' })).not.toBeInTheDocument();
+    const done = resultBlock();
+    expect(within(done).getByText('Đã thực hiện')).toBeInTheDocument();
+    expect(within(done).getByText('Đã chuyển thẻ “Login UI” từ cột “Cần làm” sang “Đang làm”.')).toBeInTheDocument();
+    expect(within(done).getByRole('link', { name: 'Mở thẻ' })).toHaveAttribute('href', '/boards/b1?card=c1');
+    expect(within(panel()).queryByRole('button', { name: 'Áp dụng' })).not.toBeInTheDocument();
+    expect(within(panel()).getAllByRole('listitem').filter((li) => li.textContent?.includes('Chuyển Login UI sang Đang làm'))).toHaveLength(1);
+    expect(mocks.sendChatMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('lenh ro rang tu chay: hien ket qua ngay, ghi "theo lenh cua ban", khong co nut', async () => {
+    mocks.sendChatMessage.mockResolvedValue(actionReply({ kind: 'RESULT', result: result({ autoExecuted: true }) }, result().summary));
+    renderAt('/boards/b1'); await openPanel();
+    await askQuestion('Chuyển Login UI sang Đang làm');
+    const done = resultBlock();
+    expect(within(done).getByText('Đã thực hiện · theo lệnh của bạn')).toBeInTheDocument();
+    // câu tóm tắt chỉ hiện MỘT lần (khối kết quả), không lặp lại ở dòng dẫn
+    expect(within(panel()).getAllByText(result().summary)).toHaveLength(1);
+    expect(within(panel()).queryByRole('button', { name: 'Áp dụng' })).not.toBeInTheDocument();
+    expect(mocks.sendChatMessage).toHaveBeenCalledWith({ message: 'Chuyển Login UI sang Đang làm', scope: { kind: 'BOARD', boardId: 'b1' }, conversationId: undefined }, 'v2');
+  });
+
+  it('nut Huy: goi huy dung ke hoach va thay the khoi bang ket qua da huy', async () => {
+    mocks.sendChatMessage.mockResolvedValue(actionReply({ kind: 'PLAN', plan: plan() }));
+    mocks.cancelChatAction.mockResolvedValue(actionReply({ kind: 'RESULT', result: result({ status: 'CANCELLED', summary: 'Đã hủy kế hoạch. Chưa thay đổi gì.', cardId: undefined }) }));
+    renderAt('/home'); await openPanel();
+    await askQuestion('Chuyển Login UI sang Đang làm');
+    await clickAsync(within(planBlock()).getByRole('button', { name: 'Hủy' }));
+    expect(mocks.cancelChatAction).toHaveBeenCalledWith('p1', 'conv-1');
+    expect(mocks.confirmChatAction).not.toHaveBeenCalled();
+    expect(within(resultBlock()).getByText('Đã hủy')).toBeInTheDocument();
+    expect(within(resultBlock()).getByText('Đã hủy kế hoạch. Chưa thay đổi gì.')).toBeInTheDocument();
+  });
+
+  it('Ap dung bi tu choi (409 / 403 / mang): the van o trang thai xem truoc, hien loi tieng Viet co "chua thay doi", bam lai duoc', async () => {
+    mocks.sendChatMessage.mockResolvedValue(actionReply({ kind: 'PLAN', plan: plan() }));
+    renderAt('/home'); await openPanel();
+    await askQuestion('Chuyển Login UI sang Đang làm');
+    for (const [error, text] of [
+      [httpError(409), 'Kế hoạch đã thay đổi hoặc đang được xử lý.'],
+      [httpError(403), 'Bạn không có quyền thực hiện thao tác này'],
+      [httpError(404), 'Không tìm thấy kế hoạch này'],
+    ] as const) {
+      mocks.confirmChatAction.mockRejectedValueOnce(error);
+      await clickAsync(within(planBlock()).getByRole('button', { name: 'Áp dụng' }));
+      expect(within(planBlock()).getByRole('alert')).toHaveTextContent(text);
+      expect(within(planBlock()).getByRole('button', { name: 'Áp dụng' })).toBeEnabled();
+    }
+    expect(mocks.confirmChatAction).toHaveBeenCalledTimes(3);
+  });
+
+  it('Ap dung o TRANG BANG gui kem pham vi BOARD hien tai (server dung de huy ke hoach cua bang khac voi trang dang mo)', async () => {
+    mocks.sendChatMessage.mockResolvedValue(actionReply({ kind: 'PLAN', plan: plan() }));
+    mocks.confirmChatAction.mockResolvedValue(actionReply({ kind: 'RESULT', result: result() }));
+    renderAt('/boards/b1'); await openPanel();
+    await askQuestion('Chuyển Login UI sang Đang làm');
+    await clickAsync(within(planBlock()).getByRole('button', { name: 'Áp dụng' }));
+    expect(mocks.confirmChatAction).toHaveBeenCalledWith({ planId: 'p1', checksum: 'a'.repeat(64) }, 'conv-1', { kind: 'BOARD', boardId: 'b1' });
+  });
+
+  it('dang ap dung: nut khoa, hien "Dang ap dung..."; chi gui mot yeu cau du bam nhieu lan', async () => {
+    mocks.sendChatMessage.mockResolvedValue(actionReply({ kind: 'PLAN', plan: plan() }));
+    let finish!: (r: ChatReply) => void;
+    mocks.confirmChatAction.mockReturnValue(new Promise<ChatReply>((r) => (finish = r)));
+    renderAt('/home'); await openPanel();
+    await askQuestion('Chuyển Login UI sang Đang làm');
+    await clickAsync(within(planBlock()).getByRole('button', { name: 'Áp dụng' }));
+    const pending = within(planBlock()).getByRole('button', { name: 'Đang áp dụng…' });
+    expect(pending).toBeDisabled();
+    expect(within(planBlock()).getByRole('button', { name: 'Hủy' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Gửi' })).toBeDisabled();
+    fireEvent.click(pending);
+    await act(async () => { finish(actionReply({ kind: 'RESULT', result: result() })); });
+    expect(mocks.confirmChatAction).toHaveBeenCalledTimes(1);
+    expect(within(panel()).getByRole('region', { name: 'Kết quả thao tác' })).toBeInTheDocument();
+  });
+
+  it('ke hoach het han (canConfirm=false hoac qua gio): khong cho Ap dung, noi ro chua thay doi gi', async () => {
+    mocks.sendChatMessage.mockResolvedValue(actionReply({ kind: 'PLAN', plan: plan({ canConfirm: false, expiresAt: new Date(Date.now() - 60_000).toISOString() }) }));
+    renderAt('/home'); await openPanel();
+    await askQuestion('Chuyển Login UI sang Đang làm');
+    expect(within(planBlock()).getByText('Kế hoạch đã hết hạn. Hãy gửi lại lệnh. Chưa thay đổi gì.')).toBeInTheDocument();
+    expect(within(planBlock()).getByRole('button', { name: 'Áp dụng' })).toBeDisabled();
+  });
+
+  it('o trang bang khac voi bang cua ke hoach: khoa nut Ap dung (tran pham vi), khong goi API', async () => {
+    mocks.sendChatMessage.mockResolvedValue(actionReply({ kind: 'PLAN', plan: plan({ boardId: 'b9' }) }));
+    renderAt('/boards/b1'); await openPanel();
+    await askQuestion('Chuyển Login UI sang Đang làm');
+    expect(within(planBlock()).getByText(/thuộc bảng khác với bảng đang mở nên không áp dụng được ở đây/)).toBeInTheDocument();
+    expect(within(planBlock()).getByRole('button', { name: 'Áp dụng' })).toBeDisabled();
+    fireEvent.click(within(planBlock()).getByRole('button', { name: 'Áp dụng' }));
+    expect(mocks.confirmChatAction).not.toHaveBeenCalled();
+  });
+
+  it('lenh moi tao ke hoach moi: ke hoach cu ngay lap tuc thanh "da bi thay the" (khop server), nut cu mat', async () => {
+    mocks.sendChatMessage
+      .mockResolvedValueOnce(actionReply({ kind: 'PLAN', plan: plan() }))
+      .mockResolvedValueOnce(actionReply({ kind: 'PLAN', plan: plan({ planId: 'p2', checksum: 'b'.repeat(64) }) }, 'Mình sẽ làm như sau (2).'));
+    renderAt('/home'); await openPanel();
+    await askQuestion('Chuyển Login UI sang Đang làm');
+    await askQuestion('Chuyển Login API sang Cần làm');
+    expect(within(panel()).getAllByRole('button', { name: 'Áp dụng' })).toHaveLength(1);
+    expect(within(panel()).getByText('Đã có lệnh mới hơn nên kế hoạch này bị thay thế. Chưa thay đổi gì.')).toBeInTheDocument();
+    mocks.confirmChatAction.mockResolvedValue(actionReply({ kind: 'RESULT', result: result({ planId: 'p2' }) }));
+    await clickAsync(within(panel()).getByRole('button', { name: 'Áp dụng' }));
+    expect(mocks.confirmChatAction).toHaveBeenCalledWith({ planId: 'p2', checksum: 'b'.repeat(64) }, 'conv-1', { kind: 'MY' });
+  });
+
+  it('go "huy" -> server tra ket qua da huy cua dung ke hoach dang mo: the xem truoc cu doi theo', async () => {
+    mocks.sendChatMessage
+      .mockResolvedValueOnce(actionReply({ kind: 'PLAN', plan: plan() }))
+      .mockResolvedValueOnce(actionReply({ kind: 'RESULT', result: result({ status: 'CANCELLED', summary: 'Đã hủy kế hoạch. Chưa thay đổi gì.', cardId: undefined }) }, 'Đã hủy kế hoạch. Chưa thay đổi gì.'));
+    renderAt('/home'); await openPanel();
+    await askQuestion('Chuyển Login UI sang Đang làm');
+    await askQuestion('hủy');
+    expect(within(panel()).queryByRole('button', { name: 'Áp dụng' })).not.toBeInTheDocument();
+    expect(within(panel()).queryByRole('region', { name: 'Kế hoạch thao tác' })).not.toBeInTheDocument();
+    expect(within(panel()).getAllByText('Đã hủy kế hoạch. Chưa thay đổi gì.').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('ket qua that bai / lech du lieu / da ap dung truoc do duoc the hien dung mau va loi giai thich', async () => {
+    mocks.sendChatMessage.mockResolvedValue(actionReply({ kind: 'PLAN', plan: plan() }));
+    mocks.confirmChatAction.mockResolvedValue(actionReply({ kind: 'RESULT', result: result({ status: 'STALE', cardId: undefined, summary: 'Thẻ đã được chuyển sang cột khác kể từ lúc xem trước. Chưa thay đổi gì.', error: { code: 'STALE', text: 'x' } }) }));
+    renderAt('/home'); await openPanel();
+    await askQuestion('Chuyển Login UI sang Đang làm');
+    await clickAsync(within(planBlock()).getByRole('button', { name: 'Áp dụng' }));
+    expect(within(resultBlock()).getByText('Dữ liệu đã thay đổi')).toBeInTheDocument();
+    expect(within(resultBlock()).queryByRole('link', { name: 'Mở thẻ' })).not.toBeInTheDocument();
+  });
+
+  it('lich su mo lai: the xem truoc cu da co trang thai that tu server (ket qua) thi khong con nut', async () => {
+    mocks.fetchChatConversations.mockResolvedValue({ conversations: [{ id: 'saved', title: 'Hội thoại', createdAt: GENERATED, updatedAt: GENERATED, turnCount: 2 }], page: 1, hasMore: false });
+    const turn = (id: number, question: string, action: NonNullable<ChatAnswer['action']>) => ({ id, question, reply: actionReply(action, 'x', 'saved'), error: null, createdAt: GENERATED });
+    mocks.fetchChatConversation.mockResolvedValue({ conversation: { id: 'saved', title: 'Hội thoại', updatedAt: GENERATED }, hasMore: false, before: 1,
+      turns: [turn(1, 'Chuyển Login UI sang Đang làm', { kind: 'RESULT', result: result() }), turn(2, 'Áp dụng: Chuyển thẻ “Login UI”', { kind: 'RESULT', result: result({ alreadyApplied: true }) })] });
+    renderAt('/home'); await openPanel();
+    expect(await within(panel()).findAllByRole('region', { name: 'Kết quả thao tác' })).toHaveLength(2);
+    expect(within(panel()).queryByRole('button', { name: 'Áp dụng' })).not.toBeInTheDocument();
+    expect(within(panel()).getByText(/đã được áp dụng trước đó/)).toBeInTheDocument();
+  });
+
+  it('nut chon / xem them o TRANG BANG gui kem pham vi BOARD hien tai (de server vo hieu nut cua trang khac); o trang chu thi khong gui', async () => {
+    const withClarify = (cid = 'conv-1'): ChatReply => ({ ...reply({ cards: [], total: 0, blocks: [v2Block('q', 'Công việc', ['a'], 1, true)], clarify: { question: 'Chọn thẻ nào?', options: [{ id: 'o1', label: 'Login UI · Cần làm', kind: 'TARGET' }] } }, {}, cid), version: 'v2', mode: 'AI' });
+    mocks.sendChatMessage.mockResolvedValue(withClarify());
+    mocks.sendChatChoice.mockResolvedValue(actionReply({ kind: 'RESULT', result: result({ autoExecuted: true }) }));
+    mocks.fetchMoreAnswer.mockResolvedValue({ ...reply({ cards: [], blocks: [v2Block('q', 'Công việc', ['b'], 2)] }), version: 'v2' });
+    const board = renderAt('/boards/b1'); await openPanel();
+    await askQuestion('Chuyển Login sang Đang làm');
+    await clickAsync(within(panel()).getByRole('button', { name: 'Xem thêm: Công việc' }));
+    expect(mocks.fetchMoreAnswer).toHaveBeenLastCalledWith('conv-1', 2, 'q', 'v2', { kind: 'BOARD', boardId: 'b1' });
+    await clickAsync(within(panel()).getByRole('button', { name: 'Login UI · Cần làm' }));
+    expect(mocks.sendChatChoice).toHaveBeenLastCalledWith('conv-1', { id: 'o1', label: 'Login UI · Cần làm', kind: 'TARGET' }, 'v2', { kind: 'BOARD', boardId: 'b1' });
+    board.unmount();
+    mocks.sendChatChoice.mockClear();
+    mocks.sendChatMessage.mockResolvedValue(withClarify('conv-2'));
+    renderAt('/home'); await openPanel();
+    await clickAsync(within(panel()).getByRole('button', { name: 'Hội thoại mới' }));
+    await askQuestion('Chuyển Login sang Đang làm');
+    await clickAsync(within(panel()).getByRole('button', { name: 'Login UI · Cần làm' }));
+    expect(mocks.sendChatChoice).toHaveBeenLastCalledWith('conv-2', { id: 'o1', label: 'Login UI · Cần làm', kind: 'TARGET' }, 'v2');
   });
 });

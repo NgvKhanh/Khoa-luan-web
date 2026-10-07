@@ -1,14 +1,18 @@
 import { z } from 'zod';
 import { isDeepStrictEqual } from 'node:util';
+import { env } from '../../../config/env';
 import { prisma } from '../../../config/prisma';
 import { Prisma } from '../../../generated/prisma/client';
 import { AppError } from '../../../utils/AppError';
 import { liveCardWhere, type ChatScopeInput } from '../chat.scope';
 import { resolveExecutionContext } from './chat.v2.scope';
 import { v2Sessions, type V2Session } from './chat.v2.session';
+import { plansByIds } from './actions/actions.plan.repo';
+import { cancelPlan, confirmPlan, viewFromRow, type PlanDecision } from './actions/actions.service';
+import { bindEntity } from './chat.v2.orchestrator';
 import { handleV2Message, handleV2Choice, handleV2More, type V2ServiceContext } from './chat.v2.service';
 import { v2Reply } from './chat.v2.answer';
-import { v2MessageSchema, v2ChoiceSchema, v2MoreSchema, type V2Reply, type V2Block } from './chat.v2.contract';
+import { v2MessageSchema, v2ChoiceSchema, v2MoreSchema, v2ConfirmSchema, type V2Reply, type V2Block } from './chat.v2.contract';
 
 export const historyListSchema = z.object({ page: z.coerce.number().int().min(1).max(10000).default(1) }).strict();
 export const historyTurnsSchema = z.object({ before: z.coerce.number().int().positive().optional() }).strict();
@@ -114,6 +118,25 @@ export async function persistentChoice(userId: string, input: z.infer<typeof v2C
   await append(s, `Chọn: ${option?.name ?? 'đối tượng'}`, reply, null, context.now);
   return reply;
 }
+/** Ap dung / huy bang NUT: ghi mot luot lich su rieng ("Ap dung: ...") de mo lai hoi thoai thay duoc ket qua. Khong goi LLM. */
+async function recordDecision(s: V2Session, decision: PlanDecision, question: string, now: Date): Promise<V2Reply> {
+  for (const entity of decision.bind) bindEntity(s, entity);
+  const reply = v2Reply(s, now, [], 'AI', decision.text, [], { action: { kind: 'RESULT', result: decision.result } });
+  await append(s, question, reply, null, now);
+  return reply;
+}
+export async function persistentConfirm(userId: string, planId: string, input: z.infer<typeof v2ConfirmSchema>, context: V2ServiceContext): Promise<V2Reply> {
+  // Công tắc tổng: tắt CHAT_ACTIONS là dừng MỌI thao tác ghi của trợ lý, kể cả kế hoạch đã xem trước từ trước đó.
+  if (!(context.actions ?? env.chatActions)) throw new AppError('Trợ lý đang tắt chức năng thay đổi dữ liệu nên chưa áp dụng được. Chưa thay đổi gì.', 403);
+  const s = await resume(userId, input.conversationId, context);
+  const decision = await confirmPlan({ userId, planId, conversationId: s.id, checksum: input.checksum, scope: input.scope, now: context.now });
+  return recordDecision(s, decision, `Áp dụng: ${decision.label}`, context.now);
+}
+export async function persistentCancel(userId: string, planId: string, conversationId: string, context: V2ServiceContext): Promise<V2Reply> {
+  const s = await resume(userId, conversationId, context);
+  const decision = await cancelPlan({ userId, planId, conversationId: s.id, now: context.now });
+  return recordDecision(s, decision, `Hủy: ${decision.label}`, context.now);
+}
 function mergeRows<T extends { id: string }>(a: T[], b: T[]): T[] { return [...new Map([...a, ...b].map((row) => [row.id, row])).values()]; }
 function mergeBlock(a: V2Block, b: V2Block): V2Block {
   if (a.status !== 'OK' || b.status !== 'OK' || a.tool !== b.tool) return b;
@@ -178,6 +201,9 @@ export async function conversationHistory(userId: string, id: string, before: nu
     if (access.users.length && await prisma.user.count({ where: { id: { in: access.users }, deletedAt: null } }) !== access.users.length) return false;
     return true;
   }
+  // Ban xem truoc da luu chi la anh chup: phu TRANG THAI THAT (da ap dung / huy / het han) de nut cu khong bat lai.
+  const planIds = rows.flatMap((row) => { const a = (row.reply as unknown as V2Reply | null)?.answer.action; return a?.kind === 'PLAN' ? [a.plan.planId] : []; });
+  const livePlans = await plansByIds(userId, planIds);
   const turns = [];
   for (const row of rows.slice(0, 50).reverse()) {
     let reply = row.reply as unknown as V2Reply | null;
@@ -188,6 +214,8 @@ export async function conversationHistory(userId: string, id: string, before: nu
       reply.answer.blocks = reply.answer.blocks?.map((b) => b.status === 'OK' ? { ...b, pagination: { ...b.pagination,
         hasMore: b.pagination.hasMore && state.queries.some((q) => q.blockId === b.id && q.hasMore && q.page === b.pagination.page),
       } } : b);
+      const saved = reply.answer.action;
+      if (saved?.kind === 'PLAN') { const live = livePlans.get(saved.plan.planId); if (live) reply.answer.action = viewFromRow(live, now); }
       // v1 page/choice handles cannot survive a backend restart; display saved data only.
       if (!reply.answer.blocks) { reply.answer.total = reply.answer.cards.length; delete reply.answer.clarify; }
       if (row.id !== rows[0]?.id || before) delete reply.answer.clarify;

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PROPOSE_ACTIONS_PROVIDER_SCHEMA, proposeActionsSchema } from './actions/actions.schema';
 import { TOOL_SCHEMAS } from './chat.v2.schema';
 import { TOOL_DESCRIPTIONS } from './chat.v2.tools';
 
@@ -46,5 +47,25 @@ export const modelTools = Object.entries(MODEL_SCHEMAS).map(([name, schema]) => 
   },
   });
 });
+
+// Cong cu GHI duy nhat (Phase 1). KHONG nam trong MODEL_SCHEMAS / modelTools: chi duoc gui cho LLM khi CHAT_ACTIONS bat, co AI va
+// nguoi dung sua duoc (xem chat.v2.service). Luoc do gui di la ban VIET TAY phang (khong sinh tu Zod vi preprocess + union object);
+// Zod ben server (`proposeActionsSchema`, .strict()) van la nguon su that: khoa la nhu cardId / boardId bi tu choi.
+export const PROPOSE_TOOL = 'propose_actions';
+export const proposeActionsTool = {
+  type: 'function',
+  function: {
+    name: PROPOSE_TOOL,
+    description:
+      'Đề xuất ĐÚNG MỘT thay đổi dữ liệu theo lệnh của người dùng: CREATE_CARD, RENAME_CARD, SET_CARD_DUE, MOVE_CARD, SET_CARD_STATUS, ASSIGN_MEMBER, ADD_LABEL. Dùng tham chiếu tượng trưng (TEXT/CONTEXT/SELF), KHÔNG điền id. Đây là lệnh kết thúc: backend tự tìm đối tượng, kiểm quyền rồi tự chạy hoặc hiện bản xem trước.',
+    parameters: PROPOSE_ACTIONS_PROVIDER_SCHEMA,
+  },
+} as const;
+export const ACTION_MODEL_SCHEMAS = { [PROPOSE_TOOL]: proposeActionsSchema } as const;
+
 export interface ModelCall { id: string; name: string; arguments: unknown }
-export const plannerSchema = z.object({ calls: z.array(z.object({ name: z.enum(Object.keys(MODEL_SCHEMAS) as [keyof typeof MODEL_SCHEMAS, ...Array<keyof typeof MODEL_SCHEMAS>]), arguments: z.record(z.string(), z.unknown()) }).strict()).min(1).max(8) }).strict();
+const plannerCall = (names: [string, ...string[]]) => z.object({ name: z.enum(names), arguments: z.record(z.string(), z.unknown()) }).strict();
+const READ_TOOL_NAMES = Object.keys(MODEL_SCHEMAS) as [keyof typeof MODEL_SCHEMAS, ...Array<keyof typeof MODEL_SCHEMAS>];
+export const plannerSchema = z.object({ calls: z.array(plannerCall(READ_TOOL_NAMES)).min(1).max(8) }).strict();
+/** Ban du phong JSON khi cho phep cong cu ghi: cung hinh dang, them ten `propose_actions`. */
+export const plannerSchemaWithActions = z.object({ calls: z.array(plannerCall([...READ_TOOL_NAMES, PROPOSE_TOOL])).min(1).max(8) }).strict();

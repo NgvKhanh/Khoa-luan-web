@@ -1,7 +1,9 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import { fetchChatStatus, fetchChatConversations, fetchChatConversation, fetchMoreAnswer, sendChatChoice, sendChatMessage } from '../lib/api/chat';
-import { appendCards, chatErrorText } from '../lib/chatText';
-import type { ChatCard, ChatClarifyOption, ChatConversationHistory, ChatConversationSummary, ChatReply, ChatScope, ChatStatus } from '../types/chat';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
+import { cancelChatAction, confirmChatAction, fetchChatStatus, fetchChatConversations, fetchChatConversation, fetchMoreAnswer, sendChatChoice, sendChatMessage } from '../lib/api/chat';
+import { appendCards, chatErrorText, SUPERSEDED_TEXT } from '../lib/chatText';
+import { assistantScopeFor, guardScope } from '../lib/chatScope';
+import type { ChatActionView, ChatCard, ChatClarifyOption, ChatConversationHistory, ChatConversationSummary, ChatReply, ChatScope, ChatStatus } from '../types/chat';
 import { mergeV2Block } from '../lib/chatV2';
 
 // Hoi thoai cua tro ly (CHATBOT_MODULE.md §13). Provider dat o ProtectedRoute (TREN cac layout) de
@@ -22,12 +24,17 @@ export interface AssistantTurn {
   loadingMore: boolean;
   moreError: string | null;
   loadingBlockId?: string;
+  /** Dang gui Ap dung / Huy cua khoi xem truoc trong luot nay. */
+  actionBusy: boolean;
+  actionError: string | null;
 }
 
 interface AssistantValue {
   open: boolean;
   turns: AssistantTurn[];
   busy: boolean;
+  /** Pham vi theo trang dang mo: trang bang -> BOARD (khoa cung trong bang), con lai -> MY. */
+  scope: ChatScope;
   /** null = chua biet (chua tai hoac tai loi). */
   status: ChatStatus | null;
   notice: string | null;
@@ -46,16 +53,30 @@ interface AssistantValue {
   ask: (text: string) => Promise<void>;
   choose: (option: ChatClarifyOption) => Promise<void>;
   loadMore: (turn: AssistantTurn, blockId?: string) => Promise<void>;
+  /** Nut "Ap dung" / "Huy" cua khoi xem truoc (khong goi AI). */
+  confirmAction: (turn: AssistantTurn) => Promise<void>;
+  cancelAction: (turn: AssistantTurn) => Promise<void>;
   newConversation: () => void;
 }
 
 const AssistantContext = createContext<AssistantValue | undefined>(undefined);
-// MY is the API's scope for all readable boards. Personal-task filters and named boards
-// are resolved from the question and conversation by the backend.
-const CHAT_SCOPE: ChatScope = { kind: 'MY' };
+// Pham vi theo TRANG (assistantScopeFor): trang bang -> BOARD (doc va ghi chi trong bang do); trang khac -> MY (moi bang duoc
+// phep; ten bang nhac trong cau do backend phan giai). Backend kiem lai moi lan, day chi la tran giao dien dang o.
 
 function newTurn(id: number, question: string): AssistantTurn {
-  return { id, question, status: 'loading', reply: null, cards: [], page: 1, error: null, loadingMore: false, moreError: null };
+  return { id, question, status: 'loading', reply: null, cards: [], page: 1, error: null, loadingMore: false, moreError: null, actionBusy: false, actionError: null };
+}
+const planIdOf = (a: ChatActionView): string => (a.kind === 'PLAN' ? a.plan.planId : a.result.planId);
+/** Lenh moi (hoac go "huy") lam cac ban xem truoc cu het tac dung: cap nhat the cu cho khop voi server. */
+function settleOlderPlans(turns: AssistantTurn[], currentId: number, action: ChatActionView): AssistantTurn[] {
+  return turns.map((t) => {
+    const old = t.reply?.answer.action;
+    if (t.id === currentId || !t.reply || old?.kind !== 'PLAN' || old.plan.status !== 'PROPOSED') return t;
+    const next: ChatActionView = planIdOf(action) === old.plan.planId
+      ? action
+      : { kind: 'RESULT', result: { planId: old.plan.planId, status: 'CANCELLED', autoExecuted: false, summary: SUPERSEDED_TEXT, boardId: old.plan.boardId, error: { code: 'SUPERSEDED', text: SUPERSEDED_TEXT }, warnings: [] } };
+    return { ...t, reply: { ...t.reply, answer: { ...t.reply.answer, action: next } } };
+  });
 }
 function restoredTurns(history: ChatConversationHistory): AssistantTurn[] {
   return history.turns.map((t) => ({ ...newTurn(t.id, t.question), status: t.error ? 'error' : 'done',
@@ -64,6 +85,10 @@ function restoredTurns(history: ChatConversationHistory): AssistantTurn[] {
 }
 
 export function AssistantProvider({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  const scope = useMemo(() => assistantScopeFor(pathname), [pathname]);
+  const scopeRef = useRef<ChatScope>(scope);
+  useEffect(() => { scopeRef.current = scope; }, [scope]);
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<AssistantTurn[]>([]);
   const [status, setStatus] = useState<ChatStatus | null>(null);
@@ -83,7 +108,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const statusPromise = useRef<Promise<ChatStatus> | null>(null);
   const engine = useRef<'legacy' | 'v2'>('v2');
 
-  const busy = historyLoading || turns.some((t) => t.status === 'loading' || t.loadingMore);
+  const busy = historyLoading || turns.some((t) => t.status === 'loading' || t.loadingMore || t.actionBusy);
 
   const applyHistory = useCallback((history: ChatConversationHistory) => {
     conversationId.current = history.conversation.id;
@@ -136,6 +161,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       conversationId.current = reply.conversationId;
       setActiveConversationId(reply.conversationId);
       patch(id, () => ({ status: 'done', reply, cards: reply.answer.cards, page: reply.answer.page }));
+      const action = reply.answer.action;
+      if (action) setTurns((ts) => settleOlderPlans(ts, id, action));
       if (engine.current === 'v2') void refreshList().catch(() => setHistoryError('Không thể cập nhật danh sách lịch sử. Hãy thử lại.'));
     },
     [patch, refreshList]
@@ -182,7 +209,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           try { const next = await statusPromise.current; engine.current = next.engine ?? 'v2'; }
           catch { /* Keep the selected engine; a failed discovery must not silently downgrade. */ }
         }
-        const body = { message, scope: CHAT_SCOPE, conversationId: conversationId.current ?? undefined };
+        const body = { message, scope: scopeRef.current, conversationId: conversationId.current ?? undefined };
         const reply = engine.current === 'v2' ? await sendChatMessage(body, 'v2') : await sendChatMessage(body);
         if (reply.conversationReset) {
           setNotice('Hội thoại trước đã hết hạn nên trợ lý bắt đầu hội thoại mới: câu này không nối tiếp câu trước.');
@@ -203,7 +230,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       const id = nextId.current++;
       setTurns((ts) => [...ts, newTurn(id, `Chọn: ${option.label}`)]);
       try {
-        finish(id, engine.current === 'v2' ? await sendChatChoice(cid, option, 'v2') : await sendChatChoice(cid, option));
+        const guard = guardScope(scopeRef.current);
+        finish(id, engine.current === 'v2' ? await (guard ? sendChatChoice(cid, option, 'v2', guard) : sendChatChoice(cid, option, 'v2')) : await sendChatChoice(cid, option));
       } catch (err) {
         const e = chatErrorText(err, 'CHOICE');
         if (e.conversationGone) conversationId.current = null;
@@ -222,7 +250,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       patch(turn.id, () => ({ loadingMore: true, loadingBlockId: blockId, moreError: null }));
       try {
         const page = block?.status === 'OK' ? block.pagination.page + 1 : turn.page + 1;
-        const next = engine.current === 'v2' ? await fetchMoreAnswer(cid, page, blockId, 'v2') : await fetchMoreAnswer(cid, page);
+        const guard = guardScope(scopeRef.current);
+        const next = engine.current === 'v2' ? await (guard ? fetchMoreAnswer(cid, page, blockId, 'v2', guard) : fetchMoreAnswer(cid, page, blockId, 'v2')) : await fetchMoreAnswer(cid, page);
         if (blockId && next.answer.blocks) {
           const incoming = next.answer.blocks.find((b) => b.id === blockId);
           if (!incoming) throw new Error('Missing answer block');
@@ -252,6 +281,41 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     [busy, patch]
   );
 
+  // "Ap dung" / "Huy" cua ban xem truoc: thay chinh the xem truoc bang ket qua server tra ve (khong them luot moi).
+  const settleAction = useCallback((turnId: number, next: ChatActionView | undefined) => {
+    patch(turnId, (t) => ({ actionBusy: false, actionError: null, ...(next && t.reply ? { reply: { ...t.reply, answer: { ...t.reply.answer, action: next } } } : {}) }));
+  }, [patch]);
+  const confirmAction = useCallback(
+    async (turn: AssistantTurn) => {
+      const cid = conversationId.current;
+      const action = turn.reply?.answer.action;
+      if (!cid || busy || action?.kind !== 'PLAN') return;
+      patch(turn.id, () => ({ actionBusy: true, actionError: null }));
+      try {
+        const reply = await confirmChatAction({ planId: action.plan.planId, checksum: action.plan.checksum }, cid, scopeRef.current);
+        settleAction(turn.id, reply.answer.action);
+        if (engine.current === 'v2') void refreshList().catch(() => setHistoryError('Không thể cập nhật danh sách lịch sử. Hãy thử lại.'));
+      } catch (err) {
+        patch(turn.id, () => ({ actionBusy: false, actionError: chatErrorText(err, 'ACTION').text }));
+      }
+    },
+    [busy, patch, refreshList, settleAction]
+  );
+  const cancelAction = useCallback(
+    async (turn: AssistantTurn) => {
+      const cid = conversationId.current;
+      const action = turn.reply?.answer.action;
+      if (!cid || busy || action?.kind !== 'PLAN') return;
+      patch(turn.id, () => ({ actionBusy: true, actionError: null }));
+      try {
+        settleAction(turn.id, (await cancelChatAction(action.plan.planId, cid)).answer.action);
+      } catch (err) {
+        patch(turn.id, () => ({ actionBusy: false, actionError: chatErrorText(err, 'ACTION').text }));
+      }
+    },
+    [busy, patch, settleAction]
+  );
+
   const newConversation = useCallback(() => {
     conversationId.current = null;
     setActiveConversationId(null);
@@ -261,10 +325,10 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AssistantValue>(
-    () => ({ open, turns, busy, status, notice, conversations, activeConversationId, historyLoading, historyError, historyHasMore, olderHasMore,
-      refreshHistory, selectConversation, loadOlder, openPanel, closePanel, togglePanel, ask, choose, loadMore, newConversation }),
-    [open, turns, busy, status, notice, conversations, activeConversationId, historyLoading, historyError, historyHasMore, olderHasMore,
-      refreshHistory, selectConversation, loadOlder, openPanel, closePanel, togglePanel, ask, choose, loadMore, newConversation]
+    () => ({ open, turns, busy, scope, status, notice, conversations, activeConversationId, historyLoading, historyError, historyHasMore, olderHasMore,
+      refreshHistory, selectConversation, loadOlder, openPanel, closePanel, togglePanel, ask, choose, loadMore, confirmAction, cancelAction, newConversation }),
+    [open, turns, busy, scope, status, notice, conversations, activeConversationId, historyLoading, historyError, historyHasMore, olderHasMore,
+      refreshHistory, selectConversation, loadOlder, openPanel, closePanel, togglePanel, ask, choose, loadMore, confirmAction, cancelAction, newConversation]
   );
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>;

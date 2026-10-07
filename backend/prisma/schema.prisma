@@ -168,6 +168,7 @@ model User {
   automationActions      AutomationAction[]
   aiRuns                 AiRun[]
   chatConversations      ChatConversation[]
+  chatActionPlans        ChatActionPlan[]
 
   @@index([email])
 }
@@ -198,6 +199,81 @@ model ChatTurn {
   conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, id])
+}
+
+// Muc do rui ro khi chay mot ke hoach khong co nguoi kiem tra. Phase 1: chi LOW (lenh truc tiep, ro rang) va MEDIUM
+// (nguon lenh khong ro / ngay mo ho); HIGH danh cho cac giai doan co thao tac hang loat / huy hoai.
+enum ChatPlanRisk {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ChatPlanStatus {
+  NEEDS_CHOICE // con tham chieu nhap nhang, doi nguoi dung bam chon
+  PROPOSED // da xem truoc, doi bam "Ap dung" (chi trang thai nay moi confirm duoc)
+  EXECUTING // da nhan cho (nguyen tu), dang chay
+  EXECUTED
+  FAILED // loi nghiep vu / mat quyen / dich vu bao loi
+  STALE // du lieu doi tu luc xem truoc (tien dieu kien khong con dung)
+  CANCELLED
+  EXPIRED
+}
+
+// Nguon goc cua LENH (khong phai nguon cua tham chieu): nguoi dung tu viet, hay do noi dung trong du lieu chi dan.
+enum ChatPlanProvenance {
+  USER_DIRECT // dong tu + tham so deu nam trong chinh cau cua nguoi dung
+  DELEGATED_TO_DATA // nguoi dung bao "lam theo noi dung the / mo ta / binh luan..."
+  UNGROUNDED // co dong tu nhung tham so khong khop cau (AI dien giai lai)
+  NOT_REQUESTED // cau khong yeu cau thao tac nay (khong co dong tu / bi phu dinh): bi tu choi, khong co xem truoc
+}
+
+// Nhat ky + vong doi cua moi KE HOACH THAO TAC cua chatbot (tao the, doi ten, chuyen cot...). Khoa ngoai SetNull + actorKey
+// (ban sao userId khong khoa ngoai) - cung khuon AiRun: xoa nguoi dung / bang khong lam mat so lieu thuc nghiem.
+// Ke hoach duoc luu NGUYEN VAN luc xem truoc; xac nhan chi chay dung ke hoach nay, khong phan tich lai cau lenh.
+model ChatActionPlan {
+  id                   String             @id @default(uuid())
+  userId               String?
+  actorKey             String             @default("")
+  // Khong dat khoa ngoai: ChatConversation chi duoc tao SAU khi tra loi xong (chat.v2.history append), trong khi ke hoach
+  // phai ghi ngay khi de xuat; xoa hoi thoai cung khong duoc lam mat nhat ky thao tac.
+  conversationId       String?
+  boardId              String?
+  scopeKind            String // MY | BOARD (pham vi giao dien luc de xuat)
+  prompt               String // cau lenh goc cua nguoi dung (<= 500 ky tu)
+  plan                 Json // ke hoach da resolve (id, before, display) + de xuat tuong trung cua LLM
+  checksum             String
+  risk                 ChatPlanRisk
+  requiresConfirmation Boolean
+  reasons              Json               @default("[]") // vi sao chua tu chay
+  provenance           ChatPlanProvenance
+  status               ChatPlanStatus
+  autoExecuted         Boolean            @default(false)
+
+  // do dac LLM (cung nhom cot voi AiRun)
+  provider         String @default("")
+  model            String @default("")
+  adapter          String @default("") // NATIVE | JSON
+  promptTokens     Int?
+  completionTokens Int?
+  latencyMs        Int?
+
+  proposedOps Int       @default(1)
+  executedOps Int?
+  result      Json?
+  errorCode   String?
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  decidedAt   DateTime?
+  executedAt  DateTime?
+
+  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  board Board? @relation(fields: [boardId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([status, expiresAt])
+  @@index([conversationId, status])
+  @@index([boardId, createdAt])
 }
 
 // Tuy chinh thong bao ca nhan. 3 nhom: "card" (hoat dong tren the: binh luan,
@@ -491,6 +567,7 @@ model Board {
   automationRules AutomationRule[]
   aiRuns          AiRun[]
   assignRuns      AssignRun[]
+  chatActionPlans ChatActionPlan[]
 
   @@index([ownerId])
   @@index([workspaceId])
