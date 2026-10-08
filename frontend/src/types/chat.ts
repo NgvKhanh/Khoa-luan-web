@@ -40,7 +40,7 @@ export interface ChatStatus {
 export type ChatPlanStatus = 'NEEDS_CHOICE' | 'PROPOSED' | 'EXECUTING' | 'EXECUTED' | 'FAILED' | 'STALE' | 'CANCELLED' | 'EXPIRED';
 export type ChatPlanRisk = 'LOW' | 'MEDIUM' | 'HIGH';
 export interface ChatPlanReason {
-  code: 'AUTO_DISABLED' | 'DELEGATED_TO_DATA' | 'NOT_GROUNDED' | 'FUZZY_DATE' | 'QUESTION_FORM' | 'MULTI_OP' | 'NEW_STRUCTURE';
+  code: 'AUTO_DISABLED' | 'DELEGATED_TO_DATA' | 'NOT_GROUNDED' | 'FUZZY_DATE' | 'QUESTION_FORM' | 'MULTI_OP' | 'NEW_STRUCTURE' | 'BOARD_PATCH';
   /** Cau giai thich vi sao lenh nay chua tu chay (hien nguyen van cho nguoi dung). */
   text: string;
 }
@@ -50,6 +50,23 @@ export interface ChatPlanItem {
   text: string;
   detail?: string;
   cardId?: string;
+}
+/** Phase 3 (Board Patch): mot muc AI de xuat nhung KHONG dua vao ke hoach (da co / trung / khong hop le). */
+export interface ChatPatchSkipped {
+  kind: 'LIST' | 'CARD';
+  title: string;
+  reason: 'EXISTS' | 'SIMILAR' | 'DUPLICATE_IN_PATCH' | 'UNKNOWN_LIST';
+  /** Ten muc co san ma muc nay trung, va ten cot chua no. */
+  existing?: string;
+  where?: string;
+}
+export interface ChatPatchView {
+  newLists: number;
+  newCards: number;
+  skipped: ChatPatchSkipped[];
+  /** So cot / the CO SAN cua bang - khong bi dung toi. */
+  untouched: { lists: number; cards: number };
+  context: { cardsShown: number; cardsTotal: number; truncated: boolean };
 }
 export interface ChatActionPlan {
   planId: string;
@@ -68,6 +85,8 @@ export interface ChatActionPlan {
   /** So thao tac cua ke hoach (may chu cu khong gui: coi nhu bang so dong). */
   opCount?: number;
   warnings: string[];
+  /** Co khi la ke hoach mo rong bang do AI de xuat (Board Patch). */
+  patch?: ChatPatchView;
 }
 export type ChatResultStatus = 'EXECUTED' | 'FAILED' | 'STALE' | 'CANCELLED' | 'EXPIRED';
 export interface ChatActionResult {

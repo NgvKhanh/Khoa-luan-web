@@ -8,6 +8,7 @@ import type { ActionType } from './actions.schema';
 import type {
   ActionErrorCode,
   ConfirmReason,
+  PatchView,
   PlanItemView,
   PlanRisk,
   PlanStatus,
@@ -170,6 +171,14 @@ export function summarizeExecuted(op: StoredOp, extra: { movedTo?: string; creat
   }
 }
 
+/** Cau ket qua cua Board Patch: dem cot / the vua THEM va nhac lai rang du lieu cu khong bi dung toi. */
+export function summarizePatch(boardName: string, lists: number, cards: number): string {
+  const parts = [lists > 0 ? `${lists} cột` : '', cards > 0 ? `${cards} thẻ` : ''].filter((p) => p !== '');
+  return parts.length === 0
+    ? 'Không có gì mới để thêm.'
+    : `Đã thêm ${parts.join(' và ')} vào bảng ${q(boardName)}. Dữ liệu cũ được giữ nguyên.`;
+}
+
 /** Cau tom tat ket qua ca ke hoach: mot thao tac -> cau cua thao tac do (nhu Phase 1); nhieu thao tac -> dem + danh sach ben `details`. */
 export function summarizePlan(boardName: string, details: readonly { text: string; changed: boolean }[]): string {
   if (details.length === 1) return details[0].text;
@@ -236,6 +245,12 @@ export function failureCategoryOf(code: ActionErrorCode | null | undefined): str
     case 'SERVICE_ERROR':
     case 'INTERRUPTED':
       return 'EXECUTION';
+    case 'NO_CHANGE':
+      return 'NO_CHANGE';
+    case 'UNSAFE_CONTENT':
+      return 'UNSAFE';
+    case 'DESTRUCTIVE':
+      return 'DESTRUCTIVE';
     case 'EXPIRED':
       return 'EXPIRED';
     case 'SUPERSEDED':
@@ -262,6 +277,7 @@ export interface PlanViewInput {
   ops: readonly StoredOp[];
   warnings: readonly string[];
   now: Date;
+  patch?: PatchView;
 }
 
 export function buildPlanView(input: PlanViewInput): PlanView {
@@ -279,6 +295,7 @@ export function buildPlanView(input: PlanViewInput): PlanView {
     items: input.ops.map((op, i) => describeOp(op, i)),
     opCount: input.ops.length,
     warnings: [...input.warnings],
+    ...(input.patch !== undefined ? { patch: input.patch } : {}),
   };
 }
 

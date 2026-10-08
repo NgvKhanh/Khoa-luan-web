@@ -88,7 +88,7 @@ const WHAT: Record<PendingChoice['kind'], string> = { card: 'thẻ', list: 'cộ
 // Bang dich + tran pham vi
 // ---------------------------------------------------------------------------------------------------------------------
 
-interface Target {
+export interface Target {
   exec: ExecutionContext;
   boardId: string;
   boardName: string;
@@ -99,7 +99,7 @@ type TargetResult = { ok: true; target: Target } | { ok: false; code: ActionErro
  * Bang cua ke hoach = bang ma `exec` da kep ve (trang bang: dung bang do; trang chu: bang da nhac ten trong hoi thoai). Khong biet
  * bang nao -> NO_BOARD (hoi lai). Moi ke hoach CHI tac dong mot bang (D5).
  */
-async function targetBoard(session: ActionSession, now: Date): Promise<TargetResult> {
+export async function targetBoard(session: ActionSession, now: Date): Promise<TargetResult> {
   let exec: ExecutionContext;
   try {
     exec = await resolveExecutionContext({ userId: session.userId, now, scope: session.uiScope, conversationScope: session.scope });
@@ -128,7 +128,7 @@ export async function boardInCeiling(scope: ChatScopeInput, boardId: string): Pr
 // Ghi ke hoach
 // ---------------------------------------------------------------------------------------------------------------------
 
-interface Base {
+export interface Base {
   session: ActionSession;
   now: Date;
   message: string;
@@ -146,7 +146,7 @@ interface Run {
   existing: PlanRow | null;
 }
 
-interface PlanData {
+export interface PlanData {
   plan: StoredPlan;
   risk: PlanRisk;
   requiresConfirmation: boolean;
@@ -160,7 +160,7 @@ interface PlanData {
   resolve?: boolean | null;
 }
 
-function storedPlan(base: Base, target: Target | null, ops: StoredOp[], extra: Partial<StoredPlan> = {}): StoredPlan {
+export function storedPlan(base: Base, target: Target | null, ops: StoredOp[], extra: Partial<StoredPlan> = {}): StoredPlan {
   return {
     version: 2,
     boardId: target?.boardId ?? '',
@@ -175,7 +175,7 @@ function storedPlan(base: Base, target: Target | null, ops: StoredOp[], extra: P
   };
 }
 
-async function persist(base: Base, target: Target | null, data: PlanData, existing: PlanRow | null): Promise<PlanRow> {
+export async function persist(base: Base, target: Target | null, data: PlanData, existing: PlanRow | null): Promise<PlanRow> {
   const userId = base.session.userId;
   const input: NewPlan = {
     userId,
@@ -207,7 +207,7 @@ async function persist(base: Base, target: Target | null, data: PlanData, existi
 }
 
 /** Ghi vet mot lan TU CHOI (khong chay gi) va tra loi bang chu. */
-async function refuse(
+export async function refuse(
   base: Base,
   target: Target | null,
   code: ActionErrorCode,
@@ -220,13 +220,15 @@ async function refuse(
     pending?: ActionOutcome['pending'];
     parse?: boolean;
     resolve?: boolean | null;
+    /** Phan them vao ban ghi ke hoach (vd kind: 'PATCH' + thong tin Board Patch) de lan tu choi van duoc do dac dung loai. */
+    stored?: Partial<StoredPlan>;
   } = {}
 ): Promise<ActionOutcome> {
   await persist(
     base,
     target,
     {
-      plan: storedPlan(base, target, extra.ops ?? [], { presets: extra.presets ?? {} }),
+      plan: storedPlan(base, target, extra.ops ?? [], { presets: extra.presets ?? {}, ...(extra.stored ?? {}) }),
       risk: 'LOW',
       requiresConfirmation: false,
       reasons: [],
@@ -242,6 +244,10 @@ async function refuse(
 }
 
 function labelOf(stored: StoredPlan): string {
+  if (stored.kind === 'PATCH' && stored.patch) {
+    const parts = [stored.patch.newLists > 0 ? `${stored.patch.newLists} cột` : '', stored.patch.newCards > 0 ? `${stored.patch.newCards} thẻ` : ''].filter((p) => p !== '');
+    return `thêm ${parts.join(' và ')} vào bảng “${stored.boardName}”`;
+  }
   if (stored.ops.length > 1) return `${stored.ops.length} thay đổi trên bảng “${stored.boardName}”`;
   const first = stored.ops[0];
   if (!first) return 'kế hoạch';

@@ -25,6 +25,15 @@ export const MAX_CREATE_LISTS = 3;
 /** So doi tuong CO SAN (the / cot / nguoi / nhan khac nhau) ma mot ke hoach duoc nhac toi. */
 export const MAX_REFERENCED = 20;
 
+/** Bo gioi han cua mot ke hoach. Ke hoach thuong dung `DEFAULT_LIMITS`; Board Patch (Phase 3) co han muc rieng (actions.patch.schema). */
+export interface PlanLimits {
+  maxOps: number;
+  maxLists: number;
+  maxCards: number;
+  maxRefs: number;
+}
+export const DEFAULT_LIMITS: PlanLimits = { maxOps: MAX_OPS_PER_PLAN, maxLists: MAX_CREATE_LISTS, maxCards: MAX_CREATE_CARDS, maxRefs: MAX_REFERENCED };
+
 export const REF_SLOTS = ['LAST_CARD', 'LAST_LIST', 'LAST_MEMBER'] as const;
 export type RefSlot = (typeof REF_SLOTS)[number];
 

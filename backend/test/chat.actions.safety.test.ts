@@ -5,7 +5,7 @@ import { agent } from './helpers';
 import { handleV2Message } from '../src/modules/chat/v2/chat.v2.service';
 import { conversationHistory, persistentCancel, persistentChoice, persistentConfirm, persistentMessage, persistentMore } from '../src/modules/chat/v2/chat.v2.history';
 import { cancelPlan, confirmPlan, planView } from '../src/modules/chat/v2/actions/actions.service';
-import { proposeActionsTool } from '../src/modules/chat/v2/chat.v2.registry';
+import { proposeActionsTool, proposeBoardPatchTool } from '../src/modules/chat/v2/chat.v2.registry';
 import { V2SessionStore } from '../src/modules/chat/v2/chat.v2.session';
 import type { V2Reply } from '../src/modules/chat/v2/chat.v2.contract';
 import type { ModelResult, ModelStep } from '../src/modules/chat/v2/chat.v2.llm';
@@ -420,8 +420,9 @@ describe('công tắc và cổng năng lực: CHAT_ACTIONS, AI, quyền sửa', 
     const reply = await handleV2Message(f.owner.id, { message: 'Chuyển Login UI sang Đang làm', scope: onBoard(f.alpha) }, { now: ACT_NOW, sessions: new V2SessionStore(), available: true, actions: true, autoExecute: true });
     expect(resultOf(reply).status).toBe('EXECUTED');
     const [messages, , , , extra] = mocks.call.mock.calls[0];
-    expect(extra).toEqual([proposeActionsTool]);
+    expect(extra).toEqual([proposeActionsTool, proposeBoardPatchTool]); // Phase 3: them cong cu Board Patch, cung cong cap nang luc
     expect(messages[0].content).toContain('propose_actions');
+    expect(messages[0].content).toContain('propose_board_patch');
     expect(JSON.parse(messages[1].content).canModify).toBe(true);
 
     // CHAT_ACTIONS tắt: không gửi công cụ ghi, prompt là bản chỉ đọc
@@ -431,6 +432,7 @@ describe('công tắc và cổng năng lực: CHAT_ACTIONS, AI, quyền sửa', 
     expect(mocks.call.mock.calls[0][4]).toBeUndefined();
     expect(mocks.call.mock.calls[0][0][0].content).toContain('chỉ đọc');
     expect(mocks.call.mock.calls[0][0][0].content).not.toContain('propose_actions');
+    expect(mocks.call.mock.calls[0][0][0].content).not.toContain('propose_board_patch');
     expect(JSON.parse(mocks.call.mock.calls[0][0][1].content).canModify).toBeUndefined();
 
     // VIEWER: cũng không gửi công cụ ghi

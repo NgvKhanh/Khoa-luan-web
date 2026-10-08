@@ -58,6 +58,7 @@ export const CONFIRM_REASON_TEXT: Record<ConfirmReason['code'], string> = {
   QUESTION_FORM: 'Câu của bạn có dạng câu hỏi nên mình chỉ làm khi bạn xác nhận.',
   MULTI_OP: 'Lệnh gồm nhiều thay đổi cùng lúc nên mình luôn cho bạn xem lại trước khi áp dụng (áp dụng là làm tất cả hoặc không làm gì).',
   NEW_STRUCTURE: 'Tạo cột làm thay đổi cấu trúc của bảng nên cần bạn xác nhận.',
+  BOARD_PATCH: 'Nội dung cột và thẻ này do AI đề xuất (không phải chữ bạn gõ) nên mình luôn cho bạn xem trước và chỉ thêm mới, không đụng tới dữ liệu cũ.',
 };
 
 const refuse = (code: ActionErrorCode, text: string): Decision => ({ mode: 'REFUSE', code, text });
@@ -84,6 +85,32 @@ export function riskOf(opCount: number, reasons: readonly ConfirmReason[]): Plan
   if (opCount >= HIGH_RISK_OPS) return 'HIGH';
   if (opCount >= 2 || reasons.some((r) => r.code !== 'AUTO_DISABLED')) return 'MEDIUM';
   return 'LOW';
+}
+
+export interface PatchDecisionInput {
+  opTypes: readonly string[];
+  provenance: ProvenanceReport;
+  boardIds: readonly string[];
+  inCeiling: boolean;
+  guard: GuardVerdict;
+  /** Han muc so thao tac cua Board Patch (PATCH_LIMITS.maxOps). */
+  maxOps: number;
+}
+
+/**
+ * Quyet dinh cho BOARD PATCH (Phase 3): KHONG BAO GIO tu chay, ke ca khi CHAT_AUTO_EXECUTE bat va ke hoach chi co MOT the - noi dung do AI nghi ra
+ * nen nguoi dung phai thay truoc. Chi con hai ket qua: CONFIRM (xem truoc + Ap dung) hoac REFUSE. Chi cho phep CREATE_LIST / CREATE_CARD.
+ */
+export function decidePatch(input: PatchDecisionInput): Decision {
+  const count = input.opTypes.length;
+  if (!input.guard.ok) return refuse(input.guard.code, input.guard.text);
+  if (count < 1 || count > input.maxOps) return refuse('TOO_MANY_OPS', `Một lần chỉ thêm tối đa ${input.maxOps} thao tác. Hãy nêu phạm vi hẹp hơn. Chưa thay đổi gì.`);
+  if (input.opTypes.some((t) => t !== 'CREATE_LIST' && t !== 'CREATE_CARD')) return refuse('INVALID', 'Mở rộng bảng chỉ được thêm cột và thẻ mới. Chưa thay đổi gì.');
+  if (input.boardIds.length !== 1 || !input.inCeiling) return refuse('OUT_OF_SCOPE', 'Thao tác nằm ngoài phạm vi bảng hiện tại. Chưa thay đổi gì.');
+  const notRequested = refusalBeforeResolve(input.provenance);
+  if (notRequested) return notRequested;
+  const reasons: ConfirmReason[] = [{ code: 'BOARD_PATCH', text: CONFIRM_REASON_TEXT.BOARD_PATCH }];
+  return { mode: 'CONFIRM', risk: riskOf(Math.max(count, 2), reasons), reasons };
 }
 
 export function decideExecution(input: DecisionInput): Decision {

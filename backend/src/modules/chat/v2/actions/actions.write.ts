@@ -13,6 +13,7 @@
 import { Prisma } from '../../../../generated/prisma/client';
 import type { CardStatus } from '../../../../generated/prisma/enums';
 import { initialStatusData, statusWrite } from '../../../card/cardStatus';
+import { findPatchCollision } from './actions.patch.build';
 import { summarizeExecuted } from './actions.plan';
 import type { Effects } from './actions.effects';
 import type { ActionErrorCode, StoredOp } from './actions.types';
@@ -33,6 +34,8 @@ export class PlanAbort extends Error {
 export interface WriteContext {
   userId: string;
   boardId: string;
+  /** Board Patch: khoa ca bang va kiem trung cot / the ngay trong transaction (nguoi khac co the vua them sau luc xem truoc). */
+  patch?: boolean;
 }
 
 interface CardState {
@@ -109,6 +112,9 @@ export async function lockAndVerify(tx: Tx, ctx: WriteContext, ops: readonly Sto
   if (!board) throw new PlanAbort('STALE', 'Bảng không còn tồn tại.');
   if (!(await canEditInTx(tx, ctx.boardId, ctx.userId))) throw new PlanAbort('FORBIDDEN', 'Bạn không còn quyền sửa bảng này.');
 
+  // Board Patch: khoa dong bang TRUOC (thu tu khoa co dinh: bang -> cot -> the) de hai Board Patch dong thoi tren cung bang khong cung tao mot cot / the
+  if (ctx.patch === true) await tx.$queryRaw`SELECT id FROM "Board" WHERE id = ${ctx.boardId} FOR UPDATE`;
+
   const cardIds = unique(ops.flatMap((o) => (o.ids.card !== undefined ? [o.ids.card] : [])));
   const listIds = unique(ops.flatMap((o) => (o.ids.list !== undefined ? [o.ids.list] : [])));
   const labelIds = unique(ops.flatMap((o) => (o.ids.label !== undefined ? [o.ids.label] : [])));
@@ -124,6 +130,12 @@ export async function lockAndVerify(tx: Tx, ctx: WriteContext, ops: readonly Sto
   if (listIds.length > 0) {
     const alive = await tx.list.count({ where: { id: { in: listIds }, boardId: ctx.boardId, deletedAt: null, archivedAt: null } });
     if (alive !== listIds.length) throw new PlanAbort('STALE', 'Một cột trong kế hoạch không còn trong bảng.');
+  }
+  if (ctx.patch === true) {
+    const lists = await tx.list.findMany({ where: { boardId: ctx.boardId, deletedAt: null, archivedAt: null }, select: { id: true, name: true } });
+    const cards = await tx.card.findMany({ where: { listId: { in: lists.map((l) => l.id) }, deletedAt: null, archivedAt: null }, select: { listId: true, title: true } });
+    const collision = findPatchCollision(ops, { lists, cards });
+    if (collision !== null) throw new PlanAbort('STALE', collision);
   }
   if (labelIds.length > 0) {
     const alive = await tx.label.count({ where: { id: { in: labelIds }, boardId: ctx.boardId } });

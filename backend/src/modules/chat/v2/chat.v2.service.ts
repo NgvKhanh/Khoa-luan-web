@@ -7,7 +7,8 @@ import { chatSessions } from '../chat.session';
 import type { ChatMessageInput } from '../chat.schema';
 import { basicStep, bindEntity, explicitBoardName, orchestrate, validateBindings } from './chat.v2.orchestrator';
 import { callChatModel, v2LlmAvailable, type ModelStep } from './chat.v2.llm';
-import { proposeActionsTool } from './chat.v2.registry';
+import type { PatchPlanner } from './actions/actions.patch.context';
+import { proposeActionsTool, proposeBoardPatchTool } from './chat.v2.registry';
 import { choosePlanRef, typedPlanCommand, type ActionOutcome } from './actions/actions.service';
 import { cancelOpenPlans, cancelPlanRow } from './actions/actions.plan.repo';
 import { v2Sessions, type V2Session, type V2SessionStore } from './chat.v2.session';
@@ -17,7 +18,7 @@ import { OUT_OF_CEILING, resolveExecutionContext } from './chat.v2.scope';
 import { v2ChoiceSchema, v2MoreSchema, type V2Reply } from './chat.v2.contract';
 
 // `actions` / `autoExecute`: ghi de co CHAT_ACTIONS / CHAT_AUTO_EXECUTE (de kiem thu); mac dinh doc tu env.
-export interface V2ServiceContext { now: Date; sessions?: V2SessionStore; step?: ModelStep; available?: boolean; actions?: boolean; autoExecute?: boolean }
+export interface V2ServiceContext { now: Date; sessions?: V2SessionStore; step?: ModelStep; available?: boolean; actions?: boolean; autoExecute?: boolean; patchPlanner?: PatchPlanner }
 
 const ACTIONS_OFF_TEXT = 'Trợ lý hiện chỉ đọc dữ liệu. Bạn cần thực hiện tạo, sửa hoặc giao việc trực tiếp trên website.';
 const NEEDS_AI_TEXT = 'Cần bật AI để thực hiện thao tác; hiện trợ lý chỉ tra cứu được. Bạn có thể thao tác trực tiếp trên website.';
@@ -88,7 +89,7 @@ async function answerQuestion(s: V2Session, message: string, context: V2ServiceC
   // Mot LENH ghi ("doi han ... sang thu sau", "Trong bang X, doi ten the A thanh Da doi...") khong phai cau hoi lich su: co dong tu ghi o bat ky
   // dau trong cau ma khong co chu nghi van thi bo loi tat "ban muon xem khoang thoi gian nao" (cau hoi that luon co ? hoac nao / gi / ai...).
   const asksQuestion = /\?|(?:^|\s)(?:nao|gi|ai|bao nhieu|khi nao)(?:\s|$)/.test(folded);
-  const commandLike = canModify && !asksQuestion && /(?:doi ten|doi han|thay doi han|dat han|chuyen |giao |gan (?!day)|them |tao |sua |keo |danh dau|cap nhat|di chuyen|phan cong)/.test(folded);
+  const commandLike = canModify && !asksQuestion && /(?:doi ten|doi han|thay doi han|dat han|chuyen |giao |gan (?!day)|them |tao |sua |keo |danh dau|cap nhat|di chuyen|phan cong|bo sung|mo rong|len ke hoach|viet them)/.test(folded);
   const historyQuestion = !writeRequest && !commandLike && /(?:thay doi|da doi|doi han|nhat ky|lich su)/.test(folded);
   const hasHistoryTime = /(?:hom nay|hom qua|tuan|thang|gan day|\bngay\b|\d{1,4}[/-]\d{1,2}|\bvua\b)/.test(folded);
   if (historyQuestion && !hasHistoryTime) {
@@ -97,8 +98,8 @@ async function answerQuestion(s: V2Session, message: string, context: V2ServiceC
   }
   if (available) {
     // Co cong cu ghi thi gui kem propose_actions; ngoai ra giu nguyen buoc goi mo hinh nhu truoc.
-    const step: ModelStep = context.step ?? (canModify ? (messages, timeoutMs) => callChatModel(messages, timeoutMs, env.ai, true, [proposeActionsTool]) : callChatModel);
-    const response = await orchestrate(s, message, now, step, 'AI', canModify ? { actions: { autoExecute } } : {});
+    const step: ModelStep = context.step ?? (canModify ? (messages, timeoutMs) => callChatModel(messages, timeoutMs, env.ai, true, [proposeActionsTool, proposeBoardPatchTool]) : callChatModel);
+    const response = await orchestrate(s, message, now, step, 'AI', canModify ? { actions: { autoExecute, ...(context.patchPlanner ? { patchPlanner: context.patchPlanner } : {}) } } : {});
     if (response.mode !== 'BASIC') { s.legacyId = undefined; return response; }
     // Mot LENH ghi khong duoc de roi xuong cac nhanh doc / v1: noi ro la chua thay doi gi.
     if (writeRequest) { s.pending = undefined; s.queries = []; s.legacyId = undefined; return v2Reply(s, now, [], 'BASIC', AI_FAILED_TEXT); }

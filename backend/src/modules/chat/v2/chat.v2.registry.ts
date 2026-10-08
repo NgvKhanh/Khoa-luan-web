@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PROPOSE_BOARD_PATCH_PROVIDER_SCHEMA, proposeBoardPatchSchema } from './actions/actions.patch.schema';
 import { PROPOSE_ACTIONS_PROVIDER_SCHEMA, proposeActionsSchema } from './actions/actions.schema';
 import { TOOL_SCHEMAS } from './chat.v2.schema';
 import { TOOL_DESCRIPTIONS } from './chat.v2.tools';
@@ -61,11 +62,22 @@ export const proposeActionsTool = {
     parameters: PROPOSE_ACTIONS_PROVIDER_SCHEMA,
   },
 } as const;
-export const ACTION_MODEL_SCHEMAS = { [PROPOSE_TOOL]: proposeActionsSchema } as const;
+// Cong cu GHI thu hai (Phase 3): AI mo rong bang. Mo hinh chi khai muc tieu; noi dung do bo lap ke hoach rieng cua server sinh ra (khong co cong cu).
+export const PATCH_TOOL = 'propose_board_patch';
+export const proposeBoardPatchTool = {
+  type: 'function',
+  function: {
+    name: PATCH_TOOL,
+    description:
+      'Mở rộng bảng đang mở bằng cột/thẻ MỚI do AI nghĩ ra, khi người dùng chỉ nêu mục tiêu hoặc chủ đề và nhờ trợ lý đề xuất thêm (vd "bổ sung các việc còn thiếu cho giai đoạn kiểm thử", "lên danh sách việc cho tính năng thanh toán"), KHÔNG tự liệt kê tên cột/thẻ. Chỉ THÊM cột/thẻ, không xóa hay sửa dữ liệu cũ. Đây là lệnh kết thúc: backend tự đọc bảng, lập đề xuất, lọc trùng rồi hiện bản xem trước (luôn phải bấm Áp dụng).',
+    parameters: PROPOSE_BOARD_PATCH_PROVIDER_SCHEMA,
+  },
+} as const;
+export const ACTION_MODEL_SCHEMAS = { [PROPOSE_TOOL]: proposeActionsSchema, [PATCH_TOOL]: proposeBoardPatchSchema } as const;
 
 export interface ModelCall { id: string; name: string; arguments: unknown }
 const plannerCall = (names: [string, ...string[]]) => z.object({ name: z.enum(names), arguments: z.record(z.string(), z.unknown()) }).strict();
 const READ_TOOL_NAMES = Object.keys(MODEL_SCHEMAS) as [keyof typeof MODEL_SCHEMAS, ...Array<keyof typeof MODEL_SCHEMAS>];
 export const plannerSchema = z.object({ calls: z.array(plannerCall(READ_TOOL_NAMES)).min(1).max(8) }).strict();
 /** Ban du phong JSON khi cho phep cong cu ghi: cung hinh dang, them ten `propose_actions`. */
-export const plannerSchemaWithActions = z.object({ calls: z.array(plannerCall([...READ_TOOL_NAMES, PROPOSE_TOOL])).min(1).max(8) }).strict();
+export const plannerSchemaWithActions = z.object({ calls: z.array(plannerCall([...READ_TOOL_NAMES, PROPOSE_TOOL, PATCH_TOOL])).min(1).max(8) }).strict();

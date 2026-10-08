@@ -7,6 +7,7 @@ import { prisma } from '../src/config/prisma';
 import { makeDirectUser } from './helpers';
 import { V2SessionStore } from '../src/modules/chat/v2/chat.v2.session';
 import type { ModelMessage, ModelResult, ModelStep } from '../src/modules/chat/v2/chat.v2.llm';
+import type { PatchPlanner } from '../src/modules/chat/v2/actions/actions.patch.context';
 
 export const ACT_NOW = new Date('2026-10-07T03:00:00.000Z');
 export const minutesAfter = (m: number) => new Date(ACT_NOW.getTime() + m * 60_000);
@@ -123,6 +124,8 @@ export interface ActionContextOptions {
   actions?: boolean;
   available?: boolean;
   sessions?: V2SessionStore;
+  /** Bo lap ke hoach Board Patch gia (mac dinh khong tiem: se goi LLM that neu co cau hinh). */
+  patchPlanner?: PatchPlanner;
 }
 export function actionContext(opts: ActionContextOptions = {}) {
   return {
@@ -132,5 +135,6 @@ export function actionContext(opts: ActionContextOptions = {}) {
     actions: opts.actions ?? true,
     autoExecute: opts.autoExecute ?? true,
     ...(opts.step ? { step: opts.step } : {}),
+    ...(opts.patchPlanner ? { patchPlanner: opts.patchPlanner } : {}),
   };
 }

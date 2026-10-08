@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import type { AssistantTurn } from '../../context/AssistantContext';
 import { planOutOfScope } from '../../lib/chatScope';
 import { cardLink, formatTime } from '../../lib/chatText';
-import type { ChatActionPlan, ChatActionResult, ChatScope } from '../../types/chat';
+import type { ChatActionPlan, ChatActionResult, ChatPatchSkipped, ChatScope } from '../../types/chat';
 
 // Khoi THAO TAC cua tro ly (Phase 1 + 2): ban xem truoc co nut Ap dung / Huy (mot hoac NHIEU thao tac tren cung mot bang), hoac ket
 // qua cua ke hoach da chay. Nhieu thao tac: danh sach danh so, "lam tat ca hoac khong lam gi".
@@ -23,6 +23,42 @@ function useNow(active: boolean, everyMs = 15_000): number {
   return now;
 }
 
+/** Cau giai thich vi sao mot muc AI de xuat khong duoc dua vao ke hoach (server da loc trung tren TOAN BO bang). */
+function skippedText(s: ChatPatchSkipped): string {
+  const what = s.kind === 'LIST' ? 'Cột' : 'Thẻ';
+  const at = s.where ? ` (cột “${s.where}”)` : '';
+  switch (s.reason) {
+    case 'EXISTS':
+      return s.kind === 'LIST' ? `${what} “${s.title}” đã có (“${s.existing ?? s.title}”), dùng cột này` : `${what} “${s.title}” đã có${s.existing ? ` — thẻ “${s.existing}”` : ''}${at}`;
+    case 'SIMILAR':
+      return `${what} “${s.title}” gần giống thẻ “${s.existing ?? ''}”${at}`;
+    case 'DUPLICATE_IN_PATCH':
+      return `${what} “${s.title}” trùng một mục khác trong đề xuất`;
+    case 'UNKNOWN_LIST':
+      return `Thẻ “${s.title}” bị bỏ vì không chọn được cột phù hợp`;
+  }
+}
+
+function PatchSummary({ patch }: { patch: NonNullable<ChatActionPlan['patch']> }) {
+  const parts = [patch.newLists > 0 ? `${patch.newLists} cột mới` : '', patch.newCards > 0 ? `${patch.newCards} thẻ mới` : ''].filter((p) => p !== '');
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs text-slate-600 dark:text-slate-300">
+        <span className="font-medium">Nội dung do AI đề xuất</span>: {parts.join(' · ')}. Chỉ thêm mới, không sửa hay xóa dữ liệu hiện có.
+      </p>
+      {patch.skipped.length > 0 && (
+        <details className="rounded-md border border-slate-200 p-1.5 text-xs dark:border-slate-700">
+          <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-200">Đã có — bỏ qua ({patch.skipped.length})</summary>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-slate-600 dark:text-slate-300">
+            {patch.skipped.map((s, i) => <li key={`${i}-${s.title}`} className="break-words">{skippedText(s)}</li>)}
+          </ul>
+        </details>
+      )}
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">Không đụng tới: {patch.untouched.cards} thẻ và {patch.untouched.lists} cột hiện có.</p>
+    </div>
+  );
+}
+
 function PlanCard({ turn, plan, scope, busy, onConfirm, onCancel }: {
   turn: AssistantTurn; plan: ChatActionPlan; scope: ChatScope; busy: boolean; onConfirm: (t: AssistantTurn) => void; onCancel: (t: AssistantTurn) => void;
 }) {
@@ -37,9 +73,10 @@ function PlanCard({ turn, plan, scope, busy, onConfirm, onCancel }: {
   return (
     <section aria-label="Kế hoạch thao tác" className={`space-y-2 rounded-lg border p-2 ${PANEL_BORDER}`}>
       <h4 className="text-sm font-semibold">
-        {multi ? `${count} thay đổi trên bảng` : 'Thao tác trên bảng'}{' '}
+        {plan.patch ? 'Thêm vào bảng' : multi ? `${count} thay đổi trên bảng` : 'Thao tác trên bảng'}{' '}
         <Link to={`/boards/${encodeURIComponent(plan.boardId)}`} onClick={(e) => e.currentTarget.blur()} className="text-primary-ink hover:underline">{plan.boardName}</Link>
       </h4>
+      {plan.patch && <PatchSummary patch={plan.patch} />}
       {multi && <p className="text-xs text-slate-500 dark:text-slate-400">Áp dụng là làm tất cả hoặc không làm gì: nếu một bước không làm được thì không có thay đổi nào được ghi.</p>}
       <List className={multi ? 'list-decimal space-y-1.5 pl-5' : 'space-y-1.5'}>
         {plan.items.map((item) => (

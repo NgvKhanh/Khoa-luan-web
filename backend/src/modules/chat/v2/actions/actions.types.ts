@@ -29,6 +29,9 @@ export type ActionErrorCode =
   | 'INVALID_PLAN' // do thi phu thuoc sai: trung key / tham chieu thieu / vong / sai loai / trung ten
   | 'CONFLICT' // hai thao tac mau thuan nhau tren cung mot doi tuong, hoac trung voi du lieu co san
   | 'INTERRUPTED' // hang EXECUTING tu Phase 1 bi bo do (tien trinh chet) - Phase 2 khong sinh ra nua
+  | 'NO_CHANGE' // Phase 3 (Board Patch): bang da co du moi muc AI de xuat -> khong co gi de them
+  | 'UNSAFE_CONTENT' // Phase 3: noi dung AI sinh ra giong chi dan / lien ket / thu tu dong (dau hieu bi tiem chi dan tu du lieu)
+  | 'DESTRUCTIVE' // Phase 3: cau yeu cau xoa / thay the du lieu cu - Board Patch chi THEM
   | 'NOT_REQUESTED'
   | 'NOT_FOUND'
   | 'AMBIGUOUS'
@@ -51,7 +54,8 @@ export type ConfirmReasonCode =
   | 'FUZZY_DATE'
   | 'QUESTION_FORM'
   | 'MULTI_OP' // tu hai thao tac tro len = hang loat -> khong bao gio tu chay
-  | 'NEW_STRUCTURE'; // tao cot: doi cau truc bang
+  | 'NEW_STRUCTURE' // tao cot: doi cau truc bang
+  | 'BOARD_PATCH'; // Phase 3: noi dung do AI de xuat -> luon xem truoc, khong bao gio tu chay
 export interface ConfirmReason {
   code: ConfirmReasonCode;
   text: string;
@@ -91,7 +95,40 @@ export interface PendingChoice {
   options: { id: string; label: string }[];
 }
 
+/** Mot muc AI de xuat nhung KHONG dua vao ke hoach (da co / trung / khong hop le) - hien o muc "Da co - bo qua". */
+export interface PatchSkipped {
+  kind: 'LIST' | 'CARD';
+  title: string;
+  /** EXISTS: trung het ten da co; SIMILAR: gan giong the da co; DUPLICATE_IN_PATCH: trung mot muc khac trong chinh de xuat; UNKNOWN_LIST: AI chon cot khong ton tai. */
+  reason: 'EXISTS' | 'SIMILAR' | 'DUPLICATE_IN_PATCH' | 'UNKNOWN_LIST';
+  /** Ten muc co san (hoac muc trong de xuat) ma muc nay trung. */
+  existing?: string;
+  /** Ten cot chua muc co san. */
+  where?: string;
+}
+
+/** Thong tin rieng cua mot ke hoach Board Patch (luu trong StoredPlan, khong co cot rieng trong CSDL). */
+export interface PatchInfo {
+  /** Muc tieu mo hinh khai khi chon cong cu (chi de do dac, KHONG hien cho nguoi dung nhu su that). */
+  goal: string;
+  /** So cot / the MOI se tao. */
+  newLists: number;
+  newCards: number;
+  /** So cot / the mo hinh de xuat truoc khi loc trung. */
+  draftLists: number;
+  draftCards: number;
+  skipped: PatchSkipped[];
+  /** So cot / the CO SAN cua bang (khong bi dung toi). */
+  untouched: { lists: number; cards: number };
+  /** Cac the AI duoc xem la bao nhieu tren tong so (khi bang lon, chi mot phan duoc gui cho AI; kiem trung luon chay tren TOAN BO the). */
+  context: { cardsShown: number; cardsTotal: number; truncated: boolean };
+  plannerMs: number | null;
+}
+
 export interface StoredPlan {
+  /** Phan loai ke hoach: vang = cac thao tac thuong; PATCH = Board Patch (Phase 3, chi CREATE_LIST + CREATE_CARD do AI sinh noi dung). */
+  kind?: 'PATCH';
+  patch?: PatchInfo;
   /** 1 = Phase 1 (mot thao tac, presets theo ten o), 2 = Phase 2 (nhieu thao tac, presets theo dau van tay). */
   version: 1 | 2;
   boardId: string;
@@ -139,6 +176,17 @@ export interface PlanView {
   /** Phase 2 (them, tuong thich nguoc): so thao tac. */
   opCount: number;
   warnings: string[];
+  /** Phase 3 (them, tuong thich nguoc): co khi la Board Patch. */
+  patch?: PatchView;
+}
+
+/** Phan hien thi rieng cua ban xem truoc Board Patch. */
+export interface PatchView {
+  newLists: number;
+  newCards: number;
+  skipped: PatchSkipped[];
+  untouched: { lists: number; cards: number };
+  context: { cardsShown: number; cardsTotal: number; truncated: boolean };
 }
 
 export type ResultStatus = 'EXECUTED' | 'FAILED' | 'STALE' | 'CANCELLED' | 'EXPIRED';

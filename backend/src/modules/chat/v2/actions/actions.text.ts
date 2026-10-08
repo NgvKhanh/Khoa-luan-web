@@ -374,3 +374,74 @@ export function groundedIn(text: string, words: readonly string[], ratio = 0.8, 
   const hit = tokens.filter((t) => have.has(t)).length;
   return hit / tokens.length >= ratio;
 }
+
+// ===================== Board Patch (Phase 3): cau YEU CAU mo rong bang =====================
+// Board Patch khong co "ten the / ten cot" do nguoi dung go (noi dung do AI de xuat), nen nguon cua hanh dong chi con la CAU: co dong tu
+// "them / bo sung / mo rong / len ke hoach..." khong bi phu dinh, khong phai cau hoi, khong bao xoa / thay the du lieu cu.
+
+const PATCH_VERBS: readonly Phrase[] = [
+  ...CREATE_VERBS,
+  ['len', 'ke', 'hoach'],
+  ['len', 'danh', 'sach'],
+  ['mo', 'rong'],
+  ['viet', 'them'],
+  ['goi', 'y'],
+  ['de', 'xuat'],
+  ['soan'],
+  ['generate'],
+  ['expand'],
+  ['extend'],
+];
+
+/** Dong tu muon XOA / THAY THE / LUU TRU du lieu co san. Chi tinh khi theo sau (toi da 3 tu) la mot danh tu cua bang. */
+const DESTRUCTIVE_VERBS: readonly Phrase[] = [
+  ['xoa'],
+  ['loai', 'bo'],
+  ['go', 'bo'],
+  ['don', 'sach'],
+  ['don', 'dep'],
+  ['bo', 'het'],
+  ['delete'],
+  ['remove'],
+  ['clear'],
+  ['wipe'],
+  ['reset'],
+  ['ghi', 'de'],
+  ['thay', 'the'],
+  ['luu', 'tru'],
+  ['archive'],
+  ['lam', 'lai', 'tu', 'dau'],
+  ['tao', 'lai'],
+  ['viet', 'lai'],
+  ['sinh', 'lai'],
+];
+const BOARD_ENTITY_WORDS: ReadonlySet<string> = new Set(['the', 'card', 'cards', 'task', 'tasks', 'cot', 'list', 'lists', 'column', 'columns', 'bang', 'board', 'boards', 'viec', 'cu', 'het', 'tat', 'all', 'everything', 'toan', 'moi', 'cac', 'nhung']);
+const DESTRUCTIVE_SPAN = 3;
+const NEW_BOARD_SPAN = 2;
+const BOARD_PARTS: readonly Phrase[] = [['cot'], ['the'], ['task'], ['viec'], ['list'], ['card'], ['danh', 'sach'], ['column']];
+
+/** Cau co dong tu "them / bo sung / mo rong..." cho viec mo rong bang khong (chua xet phu dinh o ngoai, xem `negated`). */
+export function licenceForPatch(words: readonly string[]): Licence {
+  const at = indexesOfAny(words, PATCH_VERBS);
+  if (at.length === 0) return { licensed: false, negated: false };
+  return { licensed: true, negated: at.every((i) => negatedAt(words, i)) };
+}
+
+/** Cau yeu cau XOA / thay the du lieu cu cua bang ("xoa het the cu roi tao lai"). "Dung xoa gi ca" (bi phu dinh) khong tinh. */
+export function asksDestructive(words: readonly string[]): boolean {
+  for (const verb of DESTRUCTIVE_VERBS) {
+    for (const start of phraseIndexes(words, verb)) {
+      if (negatedAt(words, start)) continue;
+      const end = start + verb.length;
+      if (words.slice(end, end + DESTRUCTIVE_SPAN).some((w) => BOARD_ENTITY_WORDS.has(w))) return true;
+    }
+  }
+  return false;
+}
+
+/** "Tao bang moi cho du an X": tao CA BANG (viec cua module AI sinh bang), khong phai mo rong bang dang mo. */
+export function asksNewBoard(words: readonly string[]): boolean {
+  if (hasAny(words, BOARD_PARTS)) return false;
+  const boards = indexesOfAny(words, [['bang'], ['board']]);
+  return indexesOfAny(words, CREATE_VERBS).some((v) => boards.some((b) => b > v && b - v <= NEW_BOARD_SPAN));
+}

@@ -12,6 +12,9 @@ import { resolveEntities } from '../chat.v2.entities';
 import type { EntityOption } from '../chat.v2.entities';
 import type { ExecutionContext } from '../chat.v2.scope';
 import { shapePlan, type LimitErrorCode } from './actions.graph';
+import { findPatchCollision } from './actions.patch.build';
+import { loadBoardContext } from './actions.patch.context';
+import { assessPatchProvenance, PATCH_LIMITS, PATCH_SPLIT_HINT } from './actions.patch.schema';
 import { assessPlanProvenance, type PlanProvenance } from './actions.provenance';
 import { slotsOf } from './actions.refs';
 import { resolveOps, type Presets, type ResolveOpsResult } from './actions.resolve';
@@ -29,13 +32,17 @@ export interface Prepared {
   notes: string[];
 }
 
+/** ACTIONS: ke hoach thuong (Phase 1-2). PATCH: Board Patch (Phase 3) - han muc rieng, nguon goc theo CAU, cot tu do, kiem trung khi ap dung. */
+export type PlanMode = 'ACTIONS' | 'PATCH';
+export const modeOf = (stored: Pick<StoredPlan, 'kind'>): PlanMode => (stored.kind === 'PATCH' ? 'PATCH' : 'ACTIONS');
+
 export type PrepareResult = { ok: true; prepared: Prepared } | { ok: false; code: ActionErrorCode; text: string };
 
 const LIMIT_CODES: ReadonlySet<string> = new Set<LimitErrorCode>(['TOO_MANY_OPS', 'TOO_MANY_CARDS', 'TOO_MANY_LISTS', 'TOO_MANY_REFS']);
 
 /** Pha thuan: hinh dang + nguon goc. `today` = ngay lich o Viet Nam luc LAP ke hoach (khong doc dong ho o day). */
-export function prepare(proposed: readonly ActionOp[], message: string, today: IsoDate): PrepareResult {
-  const shaped = shapePlan(proposed);
+export function prepare(proposed: readonly ActionOp[], message: string, today: IsoDate, mode: PlanMode = 'ACTIONS'): PrepareResult {
+  const shaped = mode === 'PATCH' ? shapePlan(proposed, PATCH_LIMITS, PATCH_SPLIT_HINT) : shapePlan(proposed);
   if (!shaped.ok) {
     const code: ActionErrorCode = LIMIT_CODES.has(shaped.code) ? (shaped.code as LimitErrorCode) : 'INVALID_PLAN';
     return { ok: false, code, text: shaped.text };
@@ -49,7 +56,8 @@ export function prepare(proposed: readonly ActionOp[], message: string, today: I
       if (after.find((s) => s.name === slot.name)?.ref?.by === 'PLAN' && !linkedCardTexts.includes(slot.ref.text)) linkedCardTexts.push(slot.ref.text);
     }
   }
-  return { ok: true, prepared: { ordered, prov: assessPlanProvenance(ordered, message, today), linkedCardTexts, notes: shaped.notes } };
+  const prov = mode === 'PATCH' ? assessPatchProvenance(ordered, message) : assessPlanProvenance(ordered, message, today);
+  return { ok: true, prepared: { ordered, prov, linkedCardTexts, notes: shaped.notes } };
 }
 
 export interface ResolveArgs {
@@ -59,6 +67,7 @@ export interface ResolveArgs {
   bindings: readonly EntityOption[];
   prepared: Prepared;
   presets: Presets;
+  mode?: PlanMode;
 }
 
 export type ResolvedPlan =
@@ -68,13 +77,19 @@ export type ResolvedPlan =
 /** Pha CSDL: phan giai moi tham chieu, tim trung / mau thuan. Chua kiem quyen (guardPlan lam o buoc sau). */
 export async function resolvePrepared(args: ResolveArgs): Promise<ResolvedPlan> {
   const { prepared } = args;
+  const patch = args.mode === 'PATCH';
   const res = await resolveOps(
-    { userId: args.userId, exec: args.exec, boardId: args.boardId, bindings: args.bindings },
+    { userId: args.userId, exec: args.exec, boardId: args.boardId, bindings: args.bindings, ...(patch ? { freeLists: true } : {}) },
     prepared.ordered,
     args.presets,
     prepared.prov.perOp.map((p) => p.due)
   );
   if (res.kind !== 'OK') return res;
+  if (patch) {
+    // cot / the cua Board Patch khong duoc trung thu da co (ke ca thu nguoi khac vua them sau luc xem truoc)
+    const collision = findPatchCollision(res.ops, (await loadBoardContext(args.boardId)).context);
+    if (collision !== null) return { kind: 'FAIL', code: 'CONFLICT', text: `${collision} Chưa thay đổi gì.`, ops: res.ops };
+  }
   const warnings = [...res.warnings, ...prepared.notes];
   // "giao Unit Test cho Nam" hieu la the MOI sap tao; neu bang da co the gan ten do thi noi ro de nguoi dung kiem tra o ban xem truoc
   for (const text of prepared.linkedCardTexts) {
@@ -101,9 +116,10 @@ export async function rebuildAndCompare(args: {
   today: IsoDate;
 }): Promise<RebuildResult> {
   const { stored } = args;
-  const prep = prepare(stored.symbolic, stored.message, args.today);
+  const mode = modeOf(stored);
+  const prep = prepare(stored.symbolic, stored.message, args.today, mode);
   if (!prep.ok) return { kind: 'UNRESOLVABLE', code: prep.code, reason: prep.text };
-  const res = await resolvePrepared({ userId: args.userId, exec: args.exec, boardId: stored.boardId, bindings: [], prepared: prep.prepared, presets: stored.presets });
+  const res = await resolvePrepared({ userId: args.userId, exec: args.exec, boardId: stored.boardId, bindings: [], prepared: prep.prepared, presets: stored.presets, mode });
   if (res.kind === 'CHOICE') return { kind: 'CHANGED', reason: 'Có thêm đối tượng cùng tên kể từ lúc xem trước nên mình không còn chắc bạn muốn đối tượng nào.' };
   if (res.kind === 'FAIL') return { kind: 'UNRESOLVABLE', code: res.code === 'NOT_FOUND' ? 'STALE' : res.code, reason: res.text };
   const seen = stored.ops;

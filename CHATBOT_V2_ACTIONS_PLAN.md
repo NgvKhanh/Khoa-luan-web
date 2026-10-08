@@ -1,6 +1,6 @@
 # Kế hoạch mở rộng chatbot v2: từ chỉ-đọc sang trợ lý hành động
 
-Ngày lập: 07/10/2026 · Trạng thái: **Phase 1 (7 thao tác an toàn, một bảng, một thao tác/kế hoạch) ĐÃ TRIỂN KHAI cuối ngày 07/10/2026 — hợp đồng thực tế ở `CHATBOT_V2_MODULE.md` §9**; **Phase 2 (đa thao tác trên một bảng + transaction + kế hoạch cũ + idempotent + khôi phục sự cố) ĐÃ TRIỂN KHAI 08/10/2026 — hợp đồng thực tế ở `CHATBOT_V2_MODULE.md` §9B**; các phần còn lại (công cụ đọc mở rộng, Board Patch, phân công, luật tự động, đánh giá diện rộng, hoàn tác) vẫn là thiết kế dưới đây, chưa có mã.
+Ngày lập: 07/10/2026 · Trạng thái: **Phase 1 (7 thao tác an toàn, một bảng, một thao tác/kế hoạch) ĐÃ TRIỂN KHAI cuối ngày 07/10/2026 — hợp đồng thực tế ở `CHATBOT_V2_MODULE.md` §9**; **Phase 2 (đa thao tác trên một bảng + transaction + kế hoạch cũ + idempotent + khôi phục sự cố) ĐÃ TRIỂN KHAI 08/10/2026 — hợp đồng thực tế ở `CHATBOT_V2_MODULE.md` §9B**; **Phase 3 (Board Patch rút gọn: AI chỉ THÊM cột / thẻ mới, luôn xem trước, lọc trùng, không đụng dữ liệu cũ) ĐÃ TRIỂN KHAI 09/10/2026 — hợp đồng thực tế ở `CHATBOT_V2_MODULE.md` §9C**; các phần còn lại (công cụ đọc mở rộng, phân công, luật tự động, đánh giá diện rộng, hoàn tác) vẫn là thiết kế dưới đây, chưa có mã.
 
 > **Khác biệt giữa thiết kế gốc và Phase 1 đã làm** (do user chốt D0–D7 và chỉnh chính sách tự chạy):
 > - **Quy tắc "nhiễm" (TAINTED_CONTEXT) được thay bằng phân biệt DATA / INSTRUCTION**: chữ lấy từ CSDL trong ngữ cảnh *không* làm mất quyền tự chạy của một lệnh trực tiếp; nguồn của lệnh phải là câu của người dùng (`actions.provenance.ts`: giấy phép động từ, phủ định, tham số gắn vào câu, "làm theo nội dung thẻ", dạng câu hỏi, ngày gắn vào câu). Tám điều kiện tự chạy ở `actions.autorun.ts`.
@@ -17,6 +17,13 @@ Ngày lập: 07/10/2026 · Trạng thái: **Phase 1 (7 thao tác an toàn, một
 > - Tham chiếu cục bộ là `{by:'PLAN', key}` (không phải `planKey`); chữ khớp đúng tên cột / thẻ do kế hoạch tạo được **tự nối** thành tham chiếu cục bộ, và "nó" sau lệnh tạo là thẻ / cột mới gần nhất.
 > - Giới hạn: 15 thao tác / 10 thẻ mới / 3 cột mới / 20 đối tượng có sẵn (kiểm ở backend); từ hai thao tác trở lên **luôn xem trước** và `CREATE_LIST` luôn xem trước.
 > - "Kế hoạch cũ" được kiểm bằng **dựng lại** kế hoạch từ phần tượng trưng + id đã ghim rồi so `stateDigest`, cộng so lại giá trị cũ **trong transaction** sau khi khóa dòng theo thứ tự id; mã trả về vẫn là `STALE`.
+
+> **Khác biệt giữa §7 (thiết kế gốc Board Patch) và Phase 3 đã làm:**
+> - Chỉ `CREATE_LIST` + `CREATE_CARD` (không `CREATE_LABEL` / `ATTACH_LABEL`, không gắn người / hạn / checklist lên thẻ mới); **không** có `selectedOps` (bỏ chọn từng thao tác): áp dụng tất cả hoặc hủy; không có `covered[]` / `redirects[]` / `assumptions[]`.
+> - Công cụ là `propose_board_patch {goal}` (không phải `plan_board_patch {requirement}`): **lệnh là câu của người dùng**, mô hình chính chỉ chọn công cụ; nội dung do một bộ lập kế hoạch riêng (một lượt `callLlm`, `json_schema`, không công cụ) sinh ra.
+> - Ngữ cảnh gửi AI không dùng TF-IDF: cắt theo thứ tự (≤30 cột, ≤12 tiêu đề / cột, ≤150 thẻ) và đánh dấu `truncated`; **kiểm trùng luôn chạy trên toàn bộ thẻ**. Trùng / gần giống = cùng chữ sau khi bỏ dấu hoặc Jaccard ≥ 0,8 trên tập từ chính (không dùng cosine TF-IDF), trên **mọi cột**.
+> - Cột mới là cột **tự do** (không đoán trạng thái theo tên). Hạn mức riêng 5 cột / 25 thẻ / 30 thao tác. Không migration (`plan.kind = 'PATCH'` + `plan.patch` nằm trong JSON của `ChatActionPlan`).
+> - Thêm lớp chống tiêm chỉ dẫn không có trong thiết kế gốc: giấy phép chỉ từ câu của người dùng, sàng lọc đầu ra (`looksUnsafe`), từ chối yêu cầu xóa / thay thế (`DESTRUCTIVE`), khóa dòng `Board` + kiểm trùng trong transaction.
 
 Nền kiểm tra: nhánh `giao-dien-nang-cap` (`251ceca`) cộng chatbot v2 **chưa commit** (phiên 04/10). Đã chạy lại ngày 06/10: `tsc --noEmit` sạch; 5 tệp / 42 test chat v2 xanh (không phải toàn bộ test repo). Mọi dẫn chiếu `tệp:dòng` dưới đây được đọc từ mã thực tế; chỗ nào là **đề xuất** thì ghi rõ "đề xuất".
 

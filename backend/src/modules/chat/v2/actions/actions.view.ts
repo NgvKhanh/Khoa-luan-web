@@ -20,6 +20,9 @@ export function planViewOf(row: PlanRow, stored: StoredPlan, status: PlanStatus,
     ops: stored.ops,
     warnings: stored.warnings ?? [],
     now,
+    ...(stored.kind === 'PATCH' && stored.patch !== undefined
+      ? { patch: { newLists: stored.patch.newLists, newCards: stored.patch.newCards, skipped: stored.patch.skipped, untouched: stored.patch.untouched, context: stored.patch.context } }
+      : {}),
   });
 }
 

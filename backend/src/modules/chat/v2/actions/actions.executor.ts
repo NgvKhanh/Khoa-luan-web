@@ -21,7 +21,7 @@ import type { EntityOption } from '../chat.v2.entities';
 import { resolveExecutionContext, type ExecutionContext } from '../chat.v2.scope';
 import { dispatchEffects, newEffects, type DispatchReport } from './actions.effects';
 import { guardBoard, guardPlan, mapServiceError } from './actions.guard';
-import { buildResultView, errorText, STALE_TAIL, summarizePlan } from './actions.plan';
+import { buildResultView, errorText, STALE_TAIL, summarizePatch, summarizePlan } from './actions.plan';
 import { claimPlan, expireIfNeeded, findOwnedPlan, recoverIfStuck, settlePlan, type PlanRow } from './actions.plan.repo';
 import { rebuildAndCompare } from './actions.preflight';
 import type { ActionErrorCode, ResultStatus, ResultView, StoredPlan } from './actions.types';
@@ -74,7 +74,8 @@ export async function executePlan(input: ExecInput): Promise<ExecOutcome> {
   const stored = row.plan as unknown as StoredPlan;
   const userId = row.userId as string;
   const ops = stored.ops;
-  const ctx = { userId, boardId: stored.boardId };
+  const patchPlan = stored.kind === 'PATCH';
+  const ctx = { userId, boardId: stored.boardId, ...(patchPlan ? { patch: true } : {}) };
   const warnings = stored.warnings ?? [];
 
   /** Chot THAT BAI (chua ghi gi). Neu ke hoach da bi yeu cau khac chot truoc thi tra ket qua cua yeu cau do. */
@@ -108,6 +109,8 @@ export async function executePlan(input: ExecInput): Promise<ExecOutcome> {
   };
 
   if (ops.length === 0) return fail('FAILED', 'INVALID', errorText('INVALID'));
+  // Board Patch chi THEM cot / the: hang da luu co thao tac nao khac thi KHONG chay (kiem lai dung luc ap dung, khong tin du lieu da luu)
+  if (patchPlan && ops.some((o) => o.type !== 'CREATE_LIST' && o.type !== 'CREATE_CARD')) return fail('FAILED', 'INVALID', errorText('INVALID'));
 
   const refuseGuard = (g: { code: ActionErrorCode; text: string }) => {
     const stale = g.code === 'NOT_FOUND';
@@ -154,11 +157,12 @@ export async function executePlan(input: ExecInput): Promise<ExecOutcome> {
         const changed = outcomes.filter((o) => o.changed).length;
         const cardIds = unique(outcomes.flatMap((o) => (o.cardId !== undefined ? [o.cardId] : [])));
         const multi = ops.length > 1;
+        const made = (type: string) => outcomes.filter((o, i) => o.changed && ops[i].type === type).length;
         const result = buildResultView({
           planId: row.id,
           status: 'EXECUTED',
           autoExecuted: input.autoExecuted,
-          summary: summarizePlan(stored.boardName, outcomes.map((o) => ({ text: o.text, changed: o.changed }))),
+          summary: patchPlan ? summarizePatch(stored.boardName, made('CREATE_LIST'), made('CREATE_CARD')) : summarizePlan(stored.boardName, outcomes.map((o) => ({ text: o.text, changed: o.changed }))),
           boardId: stored.boardId,
           ...(cardIds.length > 0 ? { cardId: cardIds[0] } : {}),
           warnings,

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { AssistantTurn } from '../../context/AssistantContext';
@@ -226,5 +226,98 @@ describe('ActionCard: ket qua NHIEU thao tac', () => {
   it('đã áp dụng trước đó (bấm đúp): báo không ghi thêm', () => {
     renderCard(turnOf({ kind: 'RESULT', result: result({ alreadyApplied: true, summary: 'Đã áp dụng 3 thay đổi trên bảng “Dự án Alpha”.', details: lines, opCount: 3 }) }));
     expect(screen.getByText('Kế hoạch này đã được áp dụng trước đó, không ghi thêm lần nữa.')).toBeInTheDocument();
+  });
+});
+
+// ===================== Phase 3: Board Patch (AI mo rong bang) =====================
+
+const patchPlan = (over: Partial<ChatActionPlan> = {}): ChatActionPlan =>
+  plan({
+    risk: 'MEDIUM',
+    reasons: [{ code: 'BOARD_PATCH', text: 'Nội dung cột và thẻ này do AI đề xuất (không phải chữ bạn gõ) nên mình luôn cho bạn xem trước và chỉ thêm mới, không đụng tới dữ liệu cũ.' }],
+    opCount: 3,
+    items: [
+      { index: 0, verb: 'Tạo cột', text: '“Kiểm thử”' },
+      { index: 1, verb: 'Tạo thẻ', text: '“Viết kịch bản kiểm thử”', detail: 'Trong cột mới “Kiểm thử”' },
+      { index: 2, verb: 'Tạo thẻ', text: '“Chuẩn bị dữ liệu”', detail: 'Trong cột “Cần làm”' },
+    ],
+    warnings: [],
+    patch: {
+      newLists: 1,
+      newCards: 2,
+      skipped: [
+        { kind: 'CARD', title: 'thiet ke giao dien', reason: 'EXISTS', existing: 'Thiết kế giao diện', where: 'Cần làm' },
+        { kind: 'CARD', title: 'Thanh toán API', reason: 'SIMILAR', existing: 'API thanh toán', where: 'Cần làm' },
+        { kind: 'LIST', title: 'cot can lam', reason: 'EXISTS', existing: 'Cần làm' },
+        { kind: 'CARD', title: 'Viết test', reason: 'DUPLICATE_IN_PATCH', existing: 'Viết test' },
+        { kind: 'CARD', title: 'Việc lạc cột', reason: 'UNKNOWN_LIST' },
+      ],
+      untouched: { lists: 3, cards: 5 },
+      context: { cardsShown: 5, cardsTotal: 5, truncated: false },
+    },
+    ...over,
+  });
+
+describe('ActionCard: Board Patch (AI mo rong bang)', () => {
+  it('ban xem truoc: tieu de "Them vao bang", noi ro noi dung do AI de xuat, so cot / the moi, "Khong dung toi" du lieu cu va ly do BOARD_PATCH', () => {
+    const turn = turnOf({ kind: 'PLAN', plan: patchPlan() });
+    const { onConfirm, onCancel } = renderCard(turn);
+    const block = screen.getByRole('region', { name: 'Kế hoạch thao tác' });
+    expect(within(block).getByRole('heading')).toHaveTextContent('Thêm vào bảng Dự án Alpha');
+    expect(within(block).getByText('Nội dung do AI đề xuất')).toBeInTheDocument();
+    expect(block).toHaveTextContent('1 cột mới · 2 thẻ mới');
+    expect(block).toHaveTextContent('Chỉ thêm mới, không sửa hay xóa dữ liệu hiện có.');
+    expect(block).toHaveTextContent('Không đụng tới: 5 thẻ và 3 cột hiện có.');
+    expect(within(block).getAllByRole('listitem').map((li) => li.textContent)).toEqual(
+      expect.arrayContaining(['Tạo cột “Kiểm thử”', 'Tạo thẻ “Viết kịch bản kiểm thử”Trong cột mới “Kiểm thử”']) as unknown as string[]
+    );
+    expect(within(block).getByRole('note')).toHaveTextContent('do AI đề xuất');
+    fireEvent.click(within(block).getByRole('button', { name: 'Áp dụng 3 thay đổi' }));
+    expect(onConfirm).toHaveBeenCalledWith(turn);
+    fireEvent.click(within(block).getByRole('button', { name: 'Hủy' }));
+    expect(onCancel).toHaveBeenCalledWith(turn);
+  });
+
+  it('muc "Da co - bo qua": dem va giai thich tung ly do (da co, gan giong, trung trong de xuat, khong chon duoc cot)', () => {
+    renderCard(turnOf({ kind: 'PLAN', plan: patchPlan() }));
+    const summary = screen.getByText('Đã có — bỏ qua (5)');
+    const details = summary.closest('details') as HTMLElement;
+    expect(details).not.toHaveAttribute('open'); // gap lai de khong chiem cho
+    const text = details.textContent ?? '';
+    expect(text).toContain('Thẻ “thiet ke giao dien” đã có — thẻ “Thiết kế giao diện” (cột “Cần làm”)');
+    expect(text).toContain('Thẻ “Thanh toán API” gần giống thẻ “API thanh toán” (cột “Cần làm”)');
+    expect(text).toContain('Cột “cot can lam” đã có (“Cần làm”), dùng cột này');
+    expect(text).toContain('Thẻ “Viết test” trùng một mục khác trong đề xuất');
+    expect(text).toContain('Thẻ “Việc lạc cột” bị bỏ vì không chọn được cột phù hợp');
+  });
+
+  it('khong co muc nao bi bo qua thi khong ve muc "Da co - bo qua"; chi 1 thao tac van la Board Patch (nut "Ap dung")', () => {
+    renderCard(turnOf({ kind: 'PLAN', plan: patchPlan({ opCount: 1, items: [{ index: 0, verb: 'Tạo thẻ', text: '“Kiểm thử đăng nhập”', detail: 'Trong cột “Cần làm”' }], patch: { newLists: 0, newCards: 1, skipped: [], untouched: { lists: 3, cards: 5 }, context: { cardsShown: 5, cardsTotal: 5, truncated: false } } }) }));
+    expect(screen.queryByText(/Đã có — bỏ qua/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Áp dụng' })).toBeEnabled();
+    expect(screen.getByRole('region', { name: 'Kế hoạch thao tác' })).toHaveTextContent('1 thẻ mới');
+    expect(screen.getByRole('region', { name: 'Kế hoạch thao tác' })).not.toHaveTextContent('cột mới');
+  });
+
+  it('canh bao cua may chu (vd AI chi xem mot phan bang) van hien; ke hoach thuong KHONG co ghi chu "do AI de xuat"', () => {
+    renderCard(turnOf({ kind: 'PLAN', plan: patchPlan({ warnings: ['AI chỉ xem 150/420 thẻ của bảng; mình vẫn kiểm tra trùng trên toàn bộ thẻ.'] }) }));
+    expect(screen.getByText('AI chỉ xem 150/420 thẻ của bảng; mình vẫn kiểm tra trùng trên toàn bộ thẻ.')).toBeInTheDocument();
+    cleanup();
+    renderCard(turnOf({ kind: 'PLAN', plan: plan() }));
+    expect(screen.queryByText('Nội dung do AI đề xuất')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading')).toHaveTextContent('Thao tác trên bảng');
+  });
+
+  it('o trang bang khac thi khoa nut Ap dung (tran pham vi theo trang) du la Board Patch', () => {
+    const { onConfirm } = renderCard(turnOf({ kind: 'PLAN', plan: patchPlan() }), { kind: 'BOARD', boardId: 'b2' });
+    expect(screen.getByRole('button', { name: 'Áp dụng 3 thay đổi' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Áp dụng 3 thay đổi' }));
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('ket qua cua Board Patch: hien cau tom tat "Da them ..." va tung buoc', () => {
+    renderCard(turnOf({ kind: 'RESULT', result: result({ opCount: 3, cardId: undefined, summary: 'Đã thêm 1 cột và 2 thẻ vào bảng “Dự án Alpha”. Dữ liệu cũ được giữ nguyên.', details: ['Đã tạo cột “Kiểm thử”.', 'Đã tạo thẻ “A” trong cột “Kiểm thử”.', 'Đã tạo thẻ “B” trong cột “Cần làm”.'] }) }));
+    expect(screen.getByText('Đã thêm 1 cột và 2 thẻ vào bảng “Dự án Alpha”. Dữ liệu cũ được giữ nguyên.')).toBeInTheDocument();
+    expect(screen.getAllByRole('listitem')).toHaveLength(3);
   });
 });

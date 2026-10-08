@@ -7,7 +7,7 @@
 // Kiem tra theo THU TU nay (loi dau tien thang): trung key -> tham chieu thieu -> VONG (ke ca tu tro chinh minh) -> sai loai
 // (khoa the dua vao o cot...) -> vuot gioi han. Tach `analyzeGraph` ra khoi loai thao tac de kiem thu duoc bang du lieu tong hop.
 
-import { MAX_CREATE_CARDS, MAX_CREATE_LISTS, MAX_OPS_PER_PLAN, MAX_REFERENCED, type ActionOp, type Ref } from './actions.schema';
+import { DEFAULT_LIMITS, type ActionOp, type PlanLimits, type Ref } from './actions.schema';
 import { foldedName, referencedSignatures, slotsOf, withRef, type Slot } from './actions.refs';
 
 export type GraphErrorCode = 'DUPLICATE_KEY' | 'MISSING_REF' | 'CYCLE' | 'WRONG_KIND' | 'DUPLICATE_NAME';
@@ -103,22 +103,21 @@ export function graphNodesOf(ops: readonly ActionOp[]): GraphNode[] {
 export type LimitResult = { ok: true } | { ok: false; code: LimitErrorCode; text: string };
 
 /** Gioi han cua mot ke hoach. Nam o backend: LLM co "lam ngo" de xuat bao nhieu thao tac thi cung khong qua duoc day. */
-export function checkLimits(ops: readonly ActionOp[]): LimitResult {
-  const split = 'Hãy chia nhỏ lệnh và gửi từng phần. Chưa thay đổi gì.';
-  if (ops.length > MAX_OPS_PER_PLAN) {
-    return { ok: false, code: 'TOO_MANY_OPS', text: `Lệnh này có ${ops.length} thao tác, nhiều hơn mức tối đa ${MAX_OPS_PER_PLAN} thao tác mỗi lần. ${split}` };
+export function checkLimits(ops: readonly ActionOp[], limits: PlanLimits = DEFAULT_LIMITS, split = 'Hãy chia nhỏ lệnh và gửi từng phần. Chưa thay đổi gì.'): LimitResult {
+  if (ops.length > limits.maxOps) {
+    return { ok: false, code: 'TOO_MANY_OPS', text: `Lệnh này có ${ops.length} thao tác, nhiều hơn mức tối đa ${limits.maxOps} thao tác mỗi lần. ${split}` };
   }
   const cards = ops.filter((o) => o.type === 'CREATE_CARD').length;
-  if (cards > MAX_CREATE_CARDS) {
-    return { ok: false, code: 'TOO_MANY_CARDS', text: `Lệnh này tạo ${cards} thẻ, nhiều hơn mức tối đa ${MAX_CREATE_CARDS} thẻ mỗi lần. ${split}` };
+  if (cards > limits.maxCards) {
+    return { ok: false, code: 'TOO_MANY_CARDS', text: `Lệnh này tạo ${cards} thẻ, nhiều hơn mức tối đa ${limits.maxCards} thẻ mỗi lần. ${split}` };
   }
   const lists = ops.filter((o) => o.type === 'CREATE_LIST').length;
-  if (lists > MAX_CREATE_LISTS) {
-    return { ok: false, code: 'TOO_MANY_LISTS', text: `Lệnh này tạo ${lists} cột, nhiều hơn mức tối đa ${MAX_CREATE_LISTS} cột mỗi lần. ${split}` };
+  if (lists > limits.maxLists) {
+    return { ok: false, code: 'TOO_MANY_LISTS', text: `Lệnh này tạo ${lists} cột, nhiều hơn mức tối đa ${limits.maxLists} cột mỗi lần. ${split}` };
   }
   const refs = referencedSignatures(ops).size;
-  if (refs > MAX_REFERENCED) {
-    return { ok: false, code: 'TOO_MANY_REFS', text: `Lệnh này nhắc tới ${refs} thẻ / cột / người / nhãn có sẵn, nhiều hơn mức tối đa ${MAX_REFERENCED}. ${split}` };
+  if (refs > limits.maxRefs) {
+    return { ok: false, code: 'TOO_MANY_REFS', text: `Lệnh này nhắc tới ${refs} thẻ / cột / người / nhãn có sẵn, nhiều hơn mức tối đa ${limits.maxRefs}. ${split}` };
   }
   return { ok: true };
 }
@@ -197,9 +196,9 @@ function localTarget(slot: Slot, lists: ReadonlyMap<string, number>, cards: Read
 export type PlanShape = { ok: true; ops: ActionOp[]; /** thu tu chay: chi so vao `ops` */ order: number[]; linked: number; notes: string[] } | { ok: false; code: GraphErrorCode | LimitErrorCode; text: string };
 
 /** Hinh dang cua de xuat: gioi han -> tu noi -> do thi. Chua cham CSDL. `ops` tra ve da duoc gan key + noi tham chieu. */
-export function shapePlan(proposed: readonly ActionOp[]): PlanShape {
-  const limits = checkLimits(proposed);
-  if (!limits.ok) return limits;
+export function shapePlan(proposed: readonly ActionOp[], limits: PlanLimits = DEFAULT_LIMITS, split?: string): PlanShape {
+  const within = checkLimits(proposed, limits, split);
+  if (!within.ok) return within;
   const linked = linkLocalRefs(proposed);
   if (!linked.ok) return linked;
   const graph = analyzeGraph(graphNodesOf(linked.ops));

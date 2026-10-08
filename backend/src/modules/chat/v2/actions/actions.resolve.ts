@@ -55,6 +55,8 @@ export interface ResolveEnv {
   cache?: Map<string, Outcome>;
   /** Cac "no / the vua roi" da hieu thanh id: ghi vao ke hoach de dung lai khong can phien. */
   pins?: Record<string, string>;
+  /** Board Patch: cot MOI la cot tu do (khong doan trang thai theo ten, de the do AI tao khong bi gan trang thai bat ngo). */
+  freeLists?: boolean;
 }
 
 export type ResolveResult =
@@ -282,7 +284,7 @@ export async function resolveOp(env: ResolveEnv, symbolic: ActionOp, presets: Pr
         return { kind: 'FAIL', code: 'CONFLICT', text: `Bảng đã có cột “${name}”. Hãy dùng tên khác, hoặc nhờ mình thêm thẻ vào cột đã có. Chưa thay đổi gì.` };
       }
       // doan trang thai theo ten, GIONG tao cot bang tay (createList): "Hoan thanh" -> DONE, "Kiem thu" -> Cho duyet...
-      return ok({ type: 'CREATE_LIST', ...key, ids: {}, params: { name, listStatus: guessListStatus(name) }, before: null, display: { listName: name } });
+      return ok({ type: 'CREATE_LIST', ...key, ids: {}, params: { name, listStatus: env.freeLists === true ? null : guessListStatus(name) }, before: null, display: { listName: name } });
     }
     case 'CREATE_CARD': {
       const list = await listTarget(env, symbolic.list, presets);
