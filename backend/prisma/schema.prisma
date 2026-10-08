@@ -258,7 +258,7 @@ model ChatActionPlan {
   completionTokens Int?
   latencyMs        Int?
 
-  proposedOps Int       @default(1)
+  proposedOps Int       @default(1) // so thao tac (operationCount)
   executedOps Int?
   result      Json?
   errorCode   String?
@@ -266,6 +266,15 @@ model ChatActionPlan {
   expiresAt   DateTime
   decidedAt   DateTime?
   executedAt  DateTime?
+
+  // Phase 2 - do dac (khong chua noi dung nhay cam: chi loai thao tac, co / khong, thoi gian, nhom loi)
+  opTypes            String[]  @default([]) // loai tung thao tac theo thu tu chay (CREATE_LIST, CREATE_CARD, ...)
+  parseSuccess       Boolean? // de xuat cua LLM qua duoc schema + do thi
+  resolveSuccess     Boolean? // moi tham chieu resolve duoc (null = con dang cho nguoi dung chon)
+  executionSuccess   Boolean? // da chay xong (null = chua chay)
+  failureCategory    String? // PARSE | LIMIT | GRAPH | NOT_REQUESTED | RESOLVE | PERMISSION | STALE | EXECUTION | SCOPE | EXPIRED | CANCELLED
+  executionStartedAt DateTime? // luc nhan cho (nam trong CUNG transaction voi viec ghi nen khong bao gio thay "dang chay" tu ngoai)
+  executionMs        Int? // thoi gian chay transaction
 
   user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
   board Board? @relation(fields: [boardId], references: [id], onDelete: SetNull)

@@ -1,6 +1,6 @@
 # Kế hoạch mở rộng chatbot v2: từ chỉ-đọc sang trợ lý hành động
 
-Ngày lập: 07/10/2026 · Trạng thái: **Phase 1 (7 thao tác an toàn, một bảng, một thao tác/kế hoạch) ĐÃ TRIỂN KHAI cuối ngày 07/10/2026 — hợp đồng thực tế ở `CHATBOT_V2_MODULE.md` §9**; các phần còn lại (đa thao tác + transaction, công cụ đọc mở rộng, Board Patch, phân công, luật tự động, đánh giá diện rộng) vẫn là thiết kế dưới đây, chưa có mã.
+Ngày lập: 07/10/2026 · Trạng thái: **Phase 1 (7 thao tác an toàn, một bảng, một thao tác/kế hoạch) ĐÃ TRIỂN KHAI cuối ngày 07/10/2026 — hợp đồng thực tế ở `CHATBOT_V2_MODULE.md` §9**; **Phase 2 (đa thao tác trên một bảng + transaction + kế hoạch cũ + idempotent + khôi phục sự cố) ĐÃ TRIỂN KHAI 08/10/2026 — hợp đồng thực tế ở `CHATBOT_V2_MODULE.md` §9B**; các phần còn lại (công cụ đọc mở rộng, Board Patch, phân công, luật tự động, đánh giá diện rộng, hoàn tác) vẫn là thiết kế dưới đây, chưa có mã.
 
 > **Khác biệt giữa thiết kế gốc và Phase 1 đã làm** (do user chốt D0–D7 và chỉnh chính sách tự chạy):
 > - **Quy tắc "nhiễm" (TAINTED_CONTEXT) được thay bằng phân biệt DATA / INSTRUCTION**: chữ lấy từ CSDL trong ngữ cảnh *không* làm mất quyền tự chạy của một lệnh trực tiếp; nguồn của lệnh phải là câu của người dùng (`actions.provenance.ts`: giấy phép động từ, phủ định, tham số gắn vào câu, "làm theo nội dung thẻ", dạng câu hỏi, ngày gắn vào câu). Tám điều kiện tự chạy ở `actions.autorun.ts`.
@@ -9,6 +9,14 @@ Ngày lập: 07/10/2026 · Trạng thái: **Phase 1 (7 thao tác an toàn, một
 > - **Từ chối trước khi có kế hoạch cũng được ghi vết** thành hàng `FAILED` (kèm mã lỗi) để đo đạc; khối hiển thị chỉ có `PLAN` và `RESULT`.
 > - Xác nhận nhận thêm **`scope` hiện tại** của giao diện; `choice` / `more` nhận `scope` tùy chọn (trang bảng) để vô hiệu nút cũ của trang khác. Thêm công tắc tổng: tắt `CHAT_ACTIONS` cũng chặn nút Áp dụng của kế hoạch cũ.
 > - Ngày hạn: ngoài `DateSpec` còn có **lớp nhận "thứ sáu" / "cuối tuần" gọi trơn** (`bareDueDates`), vì bộ luật ngày của module AI cố ý bỏ qua hai cách nói này trong văn bản dài.
+
+> **Khác biệt giữa thiết kế gốc và Phase 2 đã làm:**
+> - **Không có TxStrategy qua service cũ**: các service ghi của giao diện vẫn không nhận `tx` (D2). Thay vào đó có bộ hàm ghi riêng trong transaction (`actions.write.ts`) và một bài kiểm thử **tương đương thao tác tay** (`chat.actions.parity.test.ts`) so sánh dữ liệu, Activity, thông báo giữa service thật và hàm ghi mới. Executor dùng đường này cho **mọi** kế hoạch (kể cả một thao tác); Phase 1 gọi service thật cho thao tác đơn.
+> - **`Activity` nằm trong transaction** (không phát sau commit) vì là dòng CSDL: rollback thì Activity cũng mất, không có Activity "sai". Thông báo, tự động hóa và socket thì phát **sau COMMIT** từ một outbox trong bộ nhớ.
+> - **Nhận chỗ `PROPOSED → EXECUTING` nằm trong chính transaction ghi** (không còn commit riêng): tiến trình chết thì kế hoạch quay về `PROPOSED`; hai lần Áp dụng đồng thời trả kết quả đã lưu thay vì 409.
+> - Tham chiếu cục bộ là `{by:'PLAN', key}` (không phải `planKey`); chữ khớp đúng tên cột / thẻ do kế hoạch tạo được **tự nối** thành tham chiếu cục bộ, và "nó" sau lệnh tạo là thẻ / cột mới gần nhất.
+> - Giới hạn: 15 thao tác / 10 thẻ mới / 3 cột mới / 20 đối tượng có sẵn (kiểm ở backend); từ hai thao tác trở lên **luôn xem trước** và `CREATE_LIST` luôn xem trước.
+> - "Kế hoạch cũ" được kiểm bằng **dựng lại** kế hoạch từ phần tượng trưng + id đã ghim rồi so `stateDigest`, cộng so lại giá trị cũ **trong transaction** sau khi khóa dòng theo thứ tự id; mã trả về vẫn là `STALE`.
 
 Nền kiểm tra: nhánh `giao-dien-nang-cap` (`251ceca`) cộng chatbot v2 **chưa commit** (phiên 04/10). Đã chạy lại ngày 06/10: `tsc --noEmit` sạch; 5 tệp / 42 test chat v2 xanh (không phải toàn bộ test repo). Mọi dẫn chiếu `tệp:dòng` dưới đây được đọc từ mã thực tế; chỗ nào là **đề xuất** thì ghi rõ "đề xuất".
 

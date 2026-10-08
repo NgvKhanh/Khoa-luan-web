@@ -5,7 +5,8 @@ import { planOutOfScope } from '../../lib/chatScope';
 import { cardLink, formatTime } from '../../lib/chatText';
 import type { ChatActionPlan, ChatActionResult, ChatScope } from '../../types/chat';
 
-// Khoi THAO TAC cua tro ly (Phase 1): ban xem truoc co nut Ap dung / Huy, hoac ket qua cua mot thao tac da chay.
+// Khoi THAO TAC cua tro ly (Phase 1 + 2): ban xem truoc co nut Ap dung / Huy (mot hoac NHIEU thao tac tren cung mot bang), hoac ket
+// qua cua ke hoach da chay. Nhieu thao tac: danh sach danh so, "lam tat ca hoac khong lam gi".
 // Moi chu mo ta thao tac do SERVER dung tu ke hoach da phan giai (ten lay tu CSDL) - AI khong viet duoc chu o day.
 // Xac nhan CHI bang nut (go "ok" khong chay gi). Vung bao ngoai la aria-live nen ket qua duoc doc khi the xem truoc doi thanh ket qua.
 
@@ -30,13 +31,17 @@ function PlanCard({ turn, plan, scope, busy, onConfirm, onCancel }: {
   const expired = open && (!plan.canConfirm || Date.parse(plan.expiresAt) <= now);
   const wrongPage = open && planOutOfScope(scope, plan.boardId);
   const disabled = !open || expired || wrongPage || busy;
+  const count = plan.opCount ?? plan.items.length;
+  const multi = count > 1;
+  const List = multi ? 'ol' : 'ul';
   return (
     <section aria-label="Kế hoạch thao tác" className={`space-y-2 rounded-lg border p-2 ${PANEL_BORDER}`}>
       <h4 className="text-sm font-semibold">
-        Thao tác trên bảng{' '}
+        {multi ? `${count} thay đổi trên bảng` : 'Thao tác trên bảng'}{' '}
         <Link to={`/boards/${encodeURIComponent(plan.boardId)}`} onClick={(e) => e.currentTarget.blur()} className="text-primary-ink hover:underline">{plan.boardName}</Link>
       </h4>
-      <ul className="space-y-1.5">
+      {multi && <p className="text-xs text-slate-500 dark:text-slate-400">Áp dụng là làm tất cả hoặc không làm gì: nếu một bước không làm được thì không có thay đổi nào được ghi.</p>}
+      <List className={multi ? 'list-decimal space-y-1.5 pl-5' : 'space-y-1.5'}>
         {plan.items.map((item) => (
           <li key={item.index} className="text-sm">
             <span className="font-medium">{item.verb}</span> <span className="break-words">{item.text}</span>
@@ -46,7 +51,7 @@ function PlanCard({ turn, plan, scope, busy, onConfirm, onCancel }: {
             )}
           </li>
         ))}
-      </ul>
+      </List>
       {plan.reasons.length > 0 && (
         <div role="note" className="rounded-md bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-400/10 dark:text-amber-200">
           <p className="font-medium">Cần bạn xem lại trước khi áp dụng</p>
@@ -62,7 +67,7 @@ function PlanCard({ turn, plan, scope, busy, onConfirm, onCancel }: {
       {open && (
         <div className="flex gap-2">
           <button type="button" disabled={disabled} onClick={() => onConfirm(turn)} className="flex-1 rounded-md bg-primary py-1.5 text-xs font-medium text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50">
-            {turn.actionBusy ? 'Đang áp dụng…' : 'Áp dụng'}
+            {turn.actionBusy ? 'Đang áp dụng…' : multi ? `Áp dụng ${count} thay đổi` : 'Áp dụng'}
           </button>
           <button type="button" disabled={busy || expired} onClick={() => onCancel(turn)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs transition hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-700">
             Hủy
@@ -90,6 +95,11 @@ function ResultCard({ result }: { result: ChatActionResult }) {
         {result.autoExecuted && result.status === 'EXECUTED' && ' · theo lệnh của bạn'}
       </p>
       <p className="break-words text-sm">{result.summary}</p>
+      {result.details && result.details.length > 1 && (
+        <ol className="list-decimal space-y-0.5 pl-5 text-sm text-slate-700 dark:text-slate-200">
+          {result.details.map((line, i) => <li key={`${i}-${line}`} className="break-words">{line}</li>)}
+        </ol>
+      )}
       {result.alreadyApplied && <p className="text-[11px] text-slate-500 dark:text-slate-400">Kế hoạch này đã được áp dụng trước đó, không ghi thêm lần nữa.</p>}
       {result.warnings.map((w) => <p key={w} className="text-xs text-amber-700 dark:text-amber-300">{w}</p>)}
       {result.status === 'EXECUTED' && result.cardId && (

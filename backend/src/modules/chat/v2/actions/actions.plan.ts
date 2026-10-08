@@ -4,6 +4,7 @@
 import { createHash } from 'node:crypto';
 import { STATUS_LABEL } from '../../../card/cardStatus';
 import { formatDueDate, vnDayOfIso } from './actions.dates';
+import type { ActionType } from './actions.schema';
 import type {
   ActionErrorCode,
   ConfirmReason,
@@ -21,6 +22,18 @@ export const PLAN_TTL_MS = 10 * 60_000;
 
 const q = (s: string | undefined): string => `“${s ?? ''}”`;
 
+/** Ten ngan cua tung loai thao tac (dung khi noi ro thao tac nao khong duoc yeu cau). */
+export const OP_LABEL: Record<ActionType, string> = {
+  CREATE_LIST: 'tạo cột',
+  CREATE_CARD: 'tạo thẻ',
+  RENAME_CARD: 'đổi tên thẻ',
+  SET_CARD_DUE: 'đặt hạn cho thẻ',
+  MOVE_CARD: 'chuyển thẻ sang cột khác',
+  SET_CARD_STATUS: 'đổi trạng thái thẻ',
+  ASSIGN_MEMBER: 'giao thẻ cho người',
+  ADD_LABEL: 'gắn nhãn vào thẻ',
+};
+
 /** JSON on dinh: khoa sap xep, bo undefined - de checksum khong phu thuoc thu tu khoa. */
 export function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
@@ -31,51 +44,101 @@ export function canonicalJson(value: unknown): string {
   return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`;
 }
 
-/** Dau van tay cua ke hoach: chu nhan, bang, va tung thao tac (loai + id + tham so). Xac nhan phai gui lai dung gia tri nay. */
+/** Dau van tay cua ke hoach: chu nhan, bang, va tung thao tac (loai + key + id + tham chieu noi bo + tham so). Xac nhan phai gui lai dung gia tri nay. */
 export function planChecksum(input: { userId: string; boardId: string; ops: readonly StoredOp[] }): string {
   const payload = {
     userId: input.userId,
     boardId: input.boardId,
-    ops: input.ops.map((o) => ({ type: o.type, ids: o.ids, params: o.params })),
+    ops: input.ops.map((o) => ({ type: o.type, key: o.key, ids: o.ids, local: o.local, params: o.params })),
   };
   return createHash('sha256').update(canonicalJson(payload)).digest('hex');
+}
+
+/**
+ * Dau van tay TRANG THAI: nhu checksum nhung them gia tri CU, ten hien thi va co "da dung roi". Dung lai ke hoach luc ap dung phai ra
+ * DUNG chuoi nay; khac di (the bi doi ten / chuyen / doi han, cot bi xoa, nguoi bi go, xuat hien the cung ten moi...) thi ke hoach
+ * da CU (STALE) - khong ghi de thay doi moi cua nguoi khac chi vi ke hoach duoc lap truoc.
+ */
+export function stateDigest(ops: readonly StoredOp[]): string {
+  const payload = ops.map((o) => ({ type: o.type, key: o.key, ids: o.ids, local: o.local, params: o.params, before: o.before, display: o.display, noop: o.noop }));
+  return createHash('sha256').update(canonicalJson(payload)).digest('hex');
+}
+
+/** Cau giai thich vi sao thao tac `fresh` (dung lai luc ap dung) khac thao tac `seen` (luc xem truoc). */
+export function staleReasonOf(seen: StoredOp, fresh: StoredOp): string {
+  if (canonicalJson(seen.ids) !== canonicalJson(fresh.ids) || canonicalJson(seen.local) !== canonicalJson(fresh.local)) {
+    return 'Đối tượng được chọn đã khác so với lúc xem trước.';
+  }
+  switch (seen.type) {
+    case 'RENAME_CARD':
+      return 'Thẻ đã được đổi tên kể từ lúc xem trước.';
+    case 'SET_CARD_DUE':
+      return 'Hạn của thẻ đã thay đổi kể từ lúc xem trước.';
+    case 'MOVE_CARD':
+      return 'Thẻ đã được chuyển sang cột khác kể từ lúc xem trước.';
+    case 'SET_CARD_STATUS':
+      return 'Trạng thái của thẻ đã thay đổi kể từ lúc xem trước.';
+    case 'ASSIGN_MEMBER':
+      return 'Thành viên của thẻ đã thay đổi kể từ lúc xem trước.';
+    case 'ADD_LABEL':
+      return 'Nhãn của thẻ đã thay đổi kể từ lúc xem trước.';
+    default:
+      return 'Dữ liệu đã thay đổi kể từ lúc xem trước.';
+  }
 }
 
 function dueLabel(op: StoredOp): string {
   return op.params.due === null || op.params.due === undefined ? 'bỏ hạn' : formatDueDate(vnDayOfIso(op.params.due));
 }
 
+/** Ghi chu cho thao tac nham vao the do CHINH ke hoach tao ra (chua co trong bang luc xem truoc). */
+const fresh = (op: StoredOp): string => (op.local?.card !== undefined ? ' (thẻ mới)' : '');
+const listOf = (op: StoredOp, name: string | undefined): string => `${op.local?.list !== undefined ? 'cột mới ' : 'cột '}${q(name)}`;
+
 /** Mot dong trong khung xem truoc. */
 export function describeOp(op: StoredOp, index: number): PlanItemView {
   const d = op.display;
   const cardId = op.ids.card;
   switch (op.type) {
+    case 'CREATE_LIST':
+      return {
+        index,
+        verb: 'Tạo cột',
+        text: q(op.params.name),
+        ...(op.params.listStatus ? { detail: `Trạng thái cột: ${STATUS_LABEL[op.params.listStatus]} (đoán theo tên, thẻ trong cột sẽ theo trạng thái này)` } : {}),
+      };
     case 'CREATE_CARD':
-      return { index, verb: 'Tạo thẻ', text: q(op.params.title), detail: `Trong cột ${q(d.listName)}` };
+      return { index, verb: 'Tạo thẻ', text: q(op.params.title), detail: `Trong ${listOf(op, d.listName)}` };
     case 'RENAME_CARD':
-      return { index, verb: 'Đổi tên thẻ', text: `${q(op.before?.title)} → ${q(op.params.title)}`, cardId };
+      return { index, verb: 'Đổi tên thẻ', text: `${q(op.before?.title)}${fresh(op)} → ${q(op.params.title)}`, cardId };
     case 'SET_CARD_DUE':
       return {
         index,
         verb: op.params.due === null ? 'Bỏ hạn' : 'Đặt hạn',
-        text: q(d.cardTitle),
+        text: `${q(d.cardTitle)}${fresh(op)}`,
         detail: op.params.due === null ? undefined : `${dueLabel(op)}${op.before?.due ? ` (trước: ${formatDueDate(vnDayOfIso(op.before.due))})` : ''}`,
         cardId,
       };
     case 'MOVE_CARD':
-      return { index, verb: 'Chuyển thẻ', text: q(d.cardTitle), detail: `${q(op.before?.listName)} → ${q(d.toListName)}`, cardId };
+      return {
+        index,
+        verb: 'Chuyển thẻ',
+        text: `${q(d.cardTitle)}${fresh(op)}`,
+        detail: op.before ? `${q(op.before.listName)} → ${listOf(op, d.toListName)}` : `→ ${listOf(op, d.toListName)}`,
+        cardId,
+      };
     case 'SET_CARD_STATUS':
       return {
         index,
         verb: 'Đổi trạng thái',
-        text: q(d.cardTitle),
-        detail: `${op.before?.status ? STATUS_LABEL[op.before.status] : '—'} → ${op.params.status ? STATUS_LABEL[op.params.status] : '—'}`,
+        text: `${q(d.cardTitle)}${fresh(op)}`,
+        detail: `${op.before?.status ? `${STATUS_LABEL[op.before.status]} → ` : '→ '}${op.params.status ? STATUS_LABEL[op.params.status] : '—'}`,
         cardId,
       };
     case 'ASSIGN_MEMBER':
-      return { index, verb: 'Giao thẻ', text: `${q(d.cardTitle)} cho ${d.memberName ?? ''}`, cardId };
+      return { index, verb: 'Giao thẻ', text: `${q(d.cardTitle)}${fresh(op)} cho ${d.memberName ?? ''}`, cardId };
     case 'ADD_LABEL':
-      return { index, verb: 'Gắn nhãn', text: `${q(d.labelName)} vào thẻ ${q(d.cardTitle)}`, cardId };
+      return { index, verb: 'Gắn nhãn', text: `${q(d.labelName)} vào thẻ ${q(d.cardTitle)}${fresh(op)}`, cardId };
   }
 }
 
@@ -84,6 +147,8 @@ export function summarizeExecuted(op: StoredOp, extra: { movedTo?: string; creat
   if (op.noop !== undefined) return op.noop;
   const d = op.display;
   switch (op.type) {
+    case 'CREATE_LIST':
+      return `Đã tạo cột ${q(op.params.name)}.`;
     case 'CREATE_CARD':
       return `Đã tạo thẻ ${q(extra.createdTitle ?? op.params.title)} trong cột ${q(d.listName)}.`;
     case 'RENAME_CARD':
@@ -91,7 +156,9 @@ export function summarizeExecuted(op: StoredOp, extra: { movedTo?: string; creat
     case 'SET_CARD_DUE':
       return op.params.due === null ? `Đã bỏ hạn của thẻ ${q(d.cardTitle)}.` : `Đã đặt hạn cho thẻ ${q(d.cardTitle)}: ${dueLabel(op)}.`;
     case 'MOVE_CARD':
-      return `Đã chuyển thẻ ${q(d.cardTitle)} từ cột ${q(op.before?.listName)} sang ${q(d.toListName)}.`;
+      return op.before
+        ? `Đã chuyển thẻ ${q(d.cardTitle)} từ cột ${q(op.before.listName)} sang ${q(d.toListName)}.`
+        : `Đã chuyển thẻ ${q(d.cardTitle)} sang cột ${q(d.toListName)}.`;
     case 'SET_CARD_STATUS': {
       const base = `Đã đổi trạng thái thẻ ${q(d.cardTitle)} thành “${op.params.status ? STATUS_LABEL[op.params.status] : ''}”.`;
       return extra.movedTo === undefined ? base : `${base} Thẻ tự chuyển sang cột ${q(extra.movedTo)}.`;
@@ -103,21 +170,83 @@ export function summarizeExecuted(op: StoredOp, extra: { movedTo?: string; creat
   }
 }
 
+/** Cau tom tat ket qua ca ke hoach: mot thao tac -> cau cua thao tac do (nhu Phase 1); nhieu thao tac -> dem + danh sach ben `details`. */
+export function summarizePlan(boardName: string, details: readonly { text: string; changed: boolean }[]): string {
+  if (details.length === 1) return details[0].text;
+  const changed = details.filter((d) => d.changed).length;
+  if (changed === 0) return 'Mọi thao tác đều đã có sẵn nên chưa cần thay đổi gì.';
+  const skipped = details.length - changed;
+  return `Đã áp dụng ${changed} thay đổi trên bảng ${q(boardName)}.${skipped > 0 ? ` Bỏ qua ${skipped} thao tác đã có sẵn.` : ''}`;
+}
+
 const ERROR_TEXT: Partial<Record<ActionErrorCode, string>> = {
   FORBIDDEN: 'Bạn không còn quyền sửa bảng này nên chưa thay đổi gì.',
   NOT_FOUND: 'Thẻ, cột hoặc bảng này không còn tồn tại nên chưa thay đổi gì.',
-  STALE: 'Dữ liệu đã thay đổi kể từ lúc xem trước nên chưa thay đổi gì. Hãy gửi lại lệnh.',
+  STALE: 'Dữ liệu đã thay đổi kể từ lúc xem trước nên chưa thay đổi gì. Hãy gửi lại lệnh để tạo kế hoạch mới.',
   EXPIRED: 'Kế hoạch đã hết hạn nên chưa thay đổi gì. Hãy gửi lại lệnh.',
   ALREADY_DECIDED: 'Kế hoạch này đã được xử lý.',
   SUPERSEDED: 'Đã có lệnh mới hơn nên kế hoạch này bị thay thế. Chưa thay đổi gì.',
   SCOPE_CHANGED: 'Bạn đã chuyển sang trang khác nên kế hoạch này đã bị hủy. Chưa thay đổi gì.',
-  SERVICE_ERROR: 'Hệ thống chưa thực hiện được thao tác này. Chưa thay đổi gì.',
+  SERVICE_ERROR: 'Hệ thống chưa thực hiện được thao tác này nên đã hoàn tác toàn bộ. Chưa thay đổi gì.',
+  INTERRUPTED: 'Kế hoạch bị gián đoạn giữa chừng. Hãy kiểm tra bảng và gửi lại lệnh nếu cần.',
   INVALID: 'Thao tác không hợp lệ nên chưa thay đổi gì.',
   OUT_OF_SCOPE: 'Thao tác nằm ngoài phạm vi bảng hiện tại nên chưa thay đổi gì.',
 };
 
+/** Đuôi câu khi một lý do cụ thể làm kế hoạch cũ: lý do đã nói "đã thay đổi kể từ lúc xem trước" nên không lặp lại. */
+export const STALE_TAIL = 'Chưa thay đổi gì. Hãy gửi lại lệnh để tạo kế hoạch mới.';
+
 export function errorText(code: ActionErrorCode, fallback?: string): string {
   return fallback ?? ERROR_TEXT[code] ?? 'Chưa thay đổi gì.';
+}
+
+/**
+ * Nhom loi de do dac (ChatActionPlan.failureCategory): cho phep dem "bao nhieu ke hoach hong vi AI de xuat sai / vuot gioi han /
+ * khong tim thay / mat quyen / du lieu doi / loi he thong" ma khong can doc noi dung.
+ */
+export function failureCategoryOf(code: ActionErrorCode | null | undefined): string | null {
+  switch (code) {
+    case undefined:
+    case null:
+      return null;
+    case 'TOO_MANY_OPS':
+    case 'TOO_MANY_CARDS':
+    case 'TOO_MANY_LISTS':
+    case 'TOO_MANY_REFS':
+    case 'MULTI_OP':
+      return 'LIMIT';
+    case 'INVALID_PLAN':
+      return 'GRAPH';
+    case 'CONFLICT':
+      return 'CONFLICT';
+    case 'NOT_REQUESTED':
+      return 'NOT_REQUESTED';
+    case 'NOT_FOUND':
+    case 'AMBIGUOUS':
+    case 'NO_BOARD':
+      return 'RESOLVE';
+    case 'FORBIDDEN':
+    case 'VIEWER_ASSIGN':
+      return 'PERMISSION';
+    case 'OUT_OF_SCOPE':
+    case 'SCOPE_CHANGED':
+      return 'SCOPE';
+    case 'STALE':
+      return 'STALE';
+    case 'SERVICE_ERROR':
+    case 'INTERRUPTED':
+      return 'EXECUTION';
+    case 'EXPIRED':
+      return 'EXPIRED';
+    case 'SUPERSEDED':
+    case 'ALREADY_DECIDED':
+      return 'CANCELLED';
+    case 'ACTIONS_DISABLED':
+    case 'AI_UNAVAILABLE':
+      return 'DISABLED';
+    case 'INVALID':
+      return 'INVALID';
+  }
 }
 
 export interface PlanViewInput {
@@ -148,6 +277,7 @@ export function buildPlanView(input: PlanViewInput): PlanView {
     boardId: input.boardId,
     boardName: input.boardName,
     items: input.ops.map((op, i) => describeOp(op, i)),
+    opCount: input.ops.length,
     warnings: [...input.warnings],
   };
 }
@@ -162,6 +292,9 @@ export interface ResultViewInput {
   cardId?: string;
   error?: { code: ActionErrorCode; text: string };
   warnings?: readonly string[];
+  opCount?: number;
+  details?: readonly string[];
+  cardIds?: readonly string[];
 }
 
 export function buildResultView(input: ResultViewInput): ResultView {
@@ -175,5 +308,8 @@ export function buildResultView(input: ResultViewInput): ResultView {
     ...(input.cardId !== undefined ? { cardId: input.cardId } : {}),
     ...(input.error !== undefined ? { error: input.error } : {}),
     warnings: [...(input.warnings ?? [])],
+    ...(input.opCount !== undefined ? { opCount: input.opCount } : {}),
+    ...(input.details !== undefined && input.details.length > 1 ? { details: [...input.details] } : {}),
+    ...(input.cardIds !== undefined && input.cardIds.length > 1 ? { cardIds: [...input.cardIds] } : {}),
   };
 }

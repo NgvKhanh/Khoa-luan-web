@@ -26,7 +26,7 @@ import {
 } from '../src/modules/chat/v2/actions/actions.text';
 import { dueDatesInMessage, dueIso, formatDueDate, groundDue, resolveDateSpec, vnDayOfIso } from '../src/modules/chat/v2/actions/actions.dates';
 import { assessProvenance, type ProvenanceReport } from '../src/modules/chat/v2/actions/actions.provenance';
-import { decideExecution, refusalBeforeResolve, SAFE_ACTION_TYPES, type DecisionInput } from '../src/modules/chat/v2/actions/actions.autorun';
+import { decideExecution, refusalBeforeResolve, riskOf, SAFE_ACTION_TYPES, type DecisionInput } from '../src/modules/chat/v2/actions/actions.autorun';
 import {
   buildPlanView,
   buildResultView,
@@ -54,11 +54,14 @@ const label = (card: string, name: string): ActionOp => ({ type: 'ADD_LABEL', ca
 const verdict = (op: ActionOp, message: string): ProvenanceReport => assessProvenance(op, message, TODAY);
 
 describe('schema đề xuất: chỉ có 7 thao tác, KHÔNG có ô nào để điền id', () => {
-  it('nhận đúng 7 loại thao tác an toàn của Phase 1 và mỗi kế hoạch một thao tác', () => {
-    expect([...ACTION_TYPES]).toEqual(['CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL']);
-    expect([...SAFE_ACTION_TYPES]).toEqual([...ACTION_TYPES]);
-    expect(MAX_OPS_PER_PLAN).toBe(1);
+  it('nhận 7 loại thao tác của Phase 1 + CREATE_LIST; chỉ 7 loại Phase 1 được phép tự chạy', () => {
+    expect([...ACTION_TYPES]).toEqual(['CREATE_LIST', 'CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL']);
+    expect([...SAFE_ACTION_TYPES]).toEqual(ACTION_TYPES.filter((t) => t !== 'CREATE_LIST'));
+    expect(MAX_OPS_PER_PLAN).toBe(15);
     const ops = [
+      { type: 'CREATE_LIST', name: 'Kiểm thử' } as ActionOp,
+      { type: 'CREATE_LIST', key: 'c1', name: 'Kiểm thử' } as ActionOp,
+      { type: 'CREATE_CARD', title: 'Unit Test', list: { by: 'PLAN', key: 'c1' } } as ActionOp,
       create('Họp nhóm', 'Cần làm'),
       create('Họp nhóm'),
       rename('Login', 'Đăng nhập'),
@@ -91,7 +94,7 @@ describe('schema đề xuất: chỉ có 7 thao tác, KHÔNG có ô nào để �
     ];
     for (const op of bad) expect(ActionOpSchema.safeParse(op).success, JSON.stringify(op)).toBe(false);
     expect(proposeActionsSchema.safeParse({ operations: [] }).success).toBe(false);
-    expect(proposeActionsSchema.safeParse({ operations: Array.from({ length: 6 }, () => create('A', 'B')) }).success).toBe(false);
+    expect(proposeActionsSchema.safeParse({ operations: Array.from({ length: 31 }, () => create('A', 'B')) }).success).toBe(false);
     expect(proposeActionsSchema.safeParse({ operations: [create('A', 'B')], userId: 'u1' }).success).toBe(false);
   });
 
@@ -403,8 +406,7 @@ describe('nguồn gốc hành động: DỮ LIỆU chỉ dùng để TÌM đối
 });
 
 const baseDecision = (over: Partial<DecisionInput> = {}): DecisionInput => ({
-  opsCount: 1,
-  opType: 'MOVE_CARD',
+  opTypes: ['MOVE_CARD'],
   provenance: { verdict: 'USER_DIRECT', failures: [] },
   dueFuzzy: false,
   refsUnique: true,
@@ -421,17 +423,38 @@ describe('chính sách tự chạy an toàn: 8 điều kiện (AUTO / CONFIRM / 
   });
 
   it('điều kiện 8: backend không cho phép thì từ chối trước mọi điều kiện khác', () => {
-    const d = decideExecution(baseDecision({ guard: { ok: false, code: 'FORBIDDEN', text: 'không có quyền' }, opsCount: 3, refsUnique: false }));
+    const d = decideExecution(baseDecision({ guard: { ok: false, code: 'FORBIDDEN', text: 'không có quyền' }, opTypes: ['MOVE_CARD', 'MOVE_CARD', 'MOVE_CARD'], refsUnique: false }));
     expect(d).toEqual({ mode: 'REFUSE', code: 'FORBIDDEN', text: 'không có quyền' });
   });
 
-  it('điều kiện 5: không hàng loạt (đúng một thao tác)', () => {
-    for (const opsCount of [0, 2, 5]) expect(decideExecution(baseDecision({ opsCount }))).toMatchObject({ mode: 'REFUSE', code: 'MULTI_OP' });
+  it('điều kiện 5: không hàng loạt - từ hai thao tác trở lên KHÔNG BAO GIỜ tự chạy; 0 hoặc quá giới hạn thì từ chối', () => {
+    for (const n of [0, 16, 40]) expect(decideExecution(baseDecision({ opTypes: Array.from({ length: n }, () => 'MOVE_CARD') })), String(n)).toMatchObject({ mode: 'REFUSE', code: 'TOO_MANY_OPS' });
+    for (const n of [2, 3, 15]) {
+      const d = decideExecution(baseDecision({ opTypes: Array.from({ length: n }, () => 'CREATE_CARD') }));
+      expect(d, String(n)).toMatchObject({ mode: 'CONFIRM' });
+      expect(d.mode === 'CONFIRM' && d.reasons.map((r) => r.code), String(n)).toEqual(['MULTI_OP']);
+    }
+  });
+
+  it('nhiều thao tác: rủi ro tăng theo số thay đổi (2-7 MEDIUM, từ 8 HIGH) và cả kế hoạch toàn thao tác "nhẹ" vẫn phải xem trước', () => {
+    expect(decideExecution(baseDecision({ opTypes: ['CREATE_CARD', 'CREATE_CARD'] }))).toMatchObject({ mode: 'CONFIRM', risk: 'MEDIUM' });
+    expect(decideExecution(baseDecision({ opTypes: Array.from({ length: 7 }, () => 'ADD_LABEL') }))).toMatchObject({ mode: 'CONFIRM', risk: 'MEDIUM' });
+    expect(decideExecution(baseDecision({ opTypes: Array.from({ length: 8 }, () => 'ADD_LABEL') }))).toMatchObject({ mode: 'CONFIRM', risk: 'HIGH' });
+    expect(riskOf(1, [])).toBe('LOW');
+    expect(riskOf(1, [{ code: 'AUTO_DISABLED', text: 'x' }])).toBe('LOW');
+    expect(riskOf(1, [{ code: 'FUZZY_DATE', text: 'x' }])).toBe('MEDIUM');
+  });
+
+  it('tạo cột (CREATE_LIST) đổi cấu trúc bảng nên kể cả đứng một mình cũng phải xem trước', () => {
+    const d = decideExecution(baseDecision({ opTypes: ['CREATE_LIST'] }));
+    expect(d).toMatchObject({ mode: 'CONFIRM', risk: 'MEDIUM' });
+    expect(d.mode === 'CONFIRM' && d.reasons.map((r) => r.code)).toEqual(['NEW_STRUCTURE']);
   });
 
   it('điều kiện 2 và 6: thao tác ngoài whitelist (xóa, vai trò, quyền, chủ sở hữu, hiển thị...) luôn bị từ chối', () => {
     for (const opType of ['DELETE_CARD', 'ARCHIVE_CARD', 'SET_ROLE', 'SET_VISIBILITY', 'TRANSFER_OWNERSHIP', 'CREATE_AUTOMATION_RULE', '']) {
-      expect(decideExecution(baseDecision({ opType })), opType).toMatchObject({ mode: 'REFUSE', code: 'INVALID' });
+      expect(decideExecution(baseDecision({ opTypes: [opType] })), opType).toMatchObject({ mode: 'REFUSE', code: 'INVALID' });
+      expect(decideExecution(baseDecision({ opTypes: ['CREATE_CARD', opType] })), `1 trong nhiều: ${opType}`).toMatchObject({ mode: 'REFUSE', code: 'INVALID' });
     }
   });
 
@@ -512,7 +535,7 @@ describe('kế hoạch: checksum, mô tả xem trước, câu kết quả', () =
     expect(items[0]).toMatchObject({ text: '“Họp nhóm”', detail: 'Trong cột “Cần làm”' });
     expect(items[1].text).toBe('“Cũ” → “Mới”');
     expect(items[2].detail).toBe('Thứ Sáu, 09/10/2026');
-    expect(items[4].detail).toBe('“Cần làm” → “Đang làm”');
+    expect(items[4].detail).toBe('“Cần làm” → cột “Đang làm”');
     expect(items[5].detail).toBe('Chưa làm → Hoàn thành');
     expect(items[6].text).toBe('“Login” cho Lan');
     expect(items[7].text).toBe('“Backend” vào thẻ “Login”');

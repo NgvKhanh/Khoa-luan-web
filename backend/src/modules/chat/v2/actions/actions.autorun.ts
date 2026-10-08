@@ -2,25 +2,34 @@
 //
 // Tam dieu kien (theo yeu cau 07/10) de mot thao tac duoc TU CHAY, khong can bam "Ap dung":
 //   1. nguon cua hanh dong la lenh truc tiep cua nguoi dung        -> provenance = USER_DIRECT
-//   2. thao tac thuoc whitelist an toan (7 thao tac)               -> ACTION_TYPES
+//   2. thao tac thuoc whitelist an toan (7 thao tac cua Phase 1)   -> AUTO_RUN_TYPES
 //   3. moi tham chieu resolve DUNG MOT doi tuong                   -> refsUnique
 //   4. chi tac dong MOT bang, nam trong tran pham vi               -> boardIds / inCeiling
-//   5. khong hang loat, khong huy hoai                             -> opsCount === MAX_OPS_PER_PLAN, khong co bo chon / xoa
+//   5. khong hang loat, khong huy hoai                             -> DUNG MOT thao tac, khong co bo chon / xoa
 //   6. khong doi quyen / vai tro / chu so huu / hien thi           -> khong the dien dat (schema dong)
 //   7. khong thuc thi chi dan lay tu du lieu                       -> provenance khong phai DELEGATED_TO_DATA / UNGROUNDED
 //   8. backend kiem quyen + nghiep vu truoc khi chay               -> guard
 // Khong dat -> CONFIRM (xem truoc + bam Ap dung, kem ly do) hoac REFUSE (khong ghi gi). Ten the xuat hien trong ngu canh hoi
 // thoai KHONG con lam mat tu cach tu chay: chi NGUON CUA LENH moi duoc xet.
+//
+// Phase 2 - NHIEU THAO TAC: tu hai thao tac tro len la HANG LOAT (dieu kien 5) nen KHONG BAO GIO tu chay, ke ca khi moi thao tac deu
+// nhe (vd chi toan "tao the"): mot lenh tao nham 10 the + 3 cot khong co nut hoan tac, phai doi nguoi dung tu don. Muon cho phep
+// mot lop da thao tac cuc an toan tu chay thi phai dua bang chung truoc (xem CHATBOT_V2_MODULE.md §9, muc "Tu chay nhieu thao tac").
+// Tao cot (CREATE_LIST) cung luon xem truoc: no doi cau truc bang va ten cot co the keo theo trang thai (vd "Hoan thanh" -> DONE).
 
-import { ACTION_TYPES, MAX_OPS_PER_PLAN, type ActionType } from './actions.schema';
+import { ACTION_TYPES, AUTO_RUN_TYPES, MAX_OPS_PER_PLAN } from './actions.schema';
 import type { ProvenanceReport } from './actions.provenance';
 import type { ActionErrorCode, ConfirmReason, GuardVerdict, PlanRisk } from './actions.types';
 
-export const SAFE_ACTION_TYPES: readonly ActionType[] = ACTION_TYPES;
+/** Cac thao tac duoc phep TU CHAY khi la thao tac duy nhat. */
+export const SAFE_ACTION_TYPES: readonly string[] = AUTO_RUN_TYPES;
+
+/** Tu muc nay tro len ke hoach duoc coi la co rui ro CAO (nhieu thay doi cung luc). */
+export const HIGH_RISK_OPS = 8;
 
 export interface DecisionInput {
-  opsCount: number;
-  opType: string;
+  /** Loai tung thao tac theo thu tu chay. */
+  opTypes: readonly string[];
   provenance: ProvenanceReport;
   /** Ngay han la moc mo ("cuoi tuan") -> nen cho nguoi dung xem lai. */
   dueFuzzy: boolean;
@@ -47,6 +56,8 @@ export const CONFIRM_REASON_TEXT: Record<ConfirmReason['code'], string> = {
   NOT_GROUNDED: 'Mình đã diễn giải lại câu của bạn (tên hoặc nội dung chưa khớp hẳn với chữ bạn gõ) nên cần bạn xác nhận.',
   FUZZY_DATE: 'Ngày hạn bạn nói còn mơ hồ (ví dụ “cuối tuần”). Hãy kiểm tra ngày mình đã hiểu.',
   QUESTION_FORM: 'Câu của bạn có dạng câu hỏi nên mình chỉ làm khi bạn xác nhận.',
+  MULTI_OP: 'Lệnh gồm nhiều thay đổi cùng lúc nên mình luôn cho bạn xem lại trước khi áp dụng (áp dụng là làm tất cả hoặc không làm gì).',
+  NEW_STRUCTURE: 'Tạo cột làm thay đổi cấu trúc của bảng nên cần bạn xác nhận.',
 };
 
 const refuse = (code: ActionErrorCode, text: string): Decision => ({ mode: 'REFUSE', code, text });
@@ -54,25 +65,37 @@ const refuse = (code: ActionErrorCode, text: string): Decision => ({ mode: 'REFU
 /**
  * Cau khong yeu cau thao tac nay (khong co dong tu / bi phu dinh) -> tu choi NGAY, truoc ca khi tim doi tuong: khong hien nut
  * chon cho mot lenh ma nguoi dung khong he ra. Dung chung voi decideExecution de van ban chi nam o mot cho.
+ * `opLabel`: ten thao tac khong duoc yeu cau (chi dung khi ke hoach co nhieu thao tac de noi ro la thao tac nao).
  */
-export function refusalBeforeResolve(provenance: ProvenanceReport): Extract<Decision, { mode: 'REFUSE' }> | null {
+export function refusalBeforeResolve(provenance: ProvenanceReport, opLabel?: string): Extract<Decision, { mode: 'REFUSE' }> | null {
   if (provenance.verdict !== 'NOT_REQUESTED') return null;
   return {
     mode: 'REFUSE',
     code: 'NOT_REQUESTED',
-    text: 'Mình chưa thấy câu của bạn yêu cầu thao tác này nên chưa thay đổi gì. Hãy nói rõ lệnh, ví dụ: “Chuyển Login sang Done”.',
+    text:
+      opLabel === undefined
+        ? 'Mình chưa thấy câu của bạn yêu cầu thao tác này nên chưa thay đổi gì. Hãy nói rõ lệnh, ví dụ: “Chuyển Login sang Done”.'
+        : `Mình chưa thấy câu của bạn yêu cầu “${opLabel}” nên không thực hiện kế hoạch này (áp dụng là làm tất cả hoặc không làm gì). Chưa thay đổi gì. Hãy nói rõ từng việc bạn muốn.`,
   };
 }
 
+/** Rui ro hien cho nguoi dung (khong dieu khien chinh sach): 1 thao tac ro rang LOW; nhieu thao tac / can xem lai MEDIUM; hang loat lon HIGH. */
+export function riskOf(opCount: number, reasons: readonly ConfirmReason[]): PlanRisk {
+  if (opCount >= HIGH_RISK_OPS) return 'HIGH';
+  if (opCount >= 2 || reasons.some((r) => r.code !== 'AUTO_DISABLED')) return 'MEDIUM';
+  return 'LOW';
+}
+
 export function decideExecution(input: DecisionInput): Decision {
+  const count = input.opTypes.length;
   // A8: quyen + nghiep vu truoc het - khong co quyen thi khong co gi de ban
   if (!input.guard.ok) return refuse(input.guard.code, input.guard.text);
-  // A5: mot thao tac moi lan
-  if (input.opsCount !== MAX_OPS_PER_PLAN) {
-    return refuse('MULTI_OP', 'Hiện trợ lý chỉ thực hiện một thao tác mỗi lần. Hãy gửi từng lệnh một. Chưa thay đổi gì.');
+  // A5: gioi han so thao tac (gioi han that nam o actions.graph.checkLimits; day la lop thu hai)
+  if (count < 1 || count > MAX_OPS_PER_PLAN) {
+    return refuse('TOO_MANY_OPS', `Một kế hoạch chỉ có từ 1 đến ${MAX_OPS_PER_PLAN} thao tác. Hãy chia nhỏ lệnh. Chưa thay đổi gì.`);
   }
   // A2 + A6: whitelist (schema da dong; kiem lai de ham nay tu bao ve)
-  if (!(SAFE_ACTION_TYPES as readonly string[]).includes(input.opType)) {
+  if (input.opTypes.some((t) => !(ACTION_TYPES as readonly string[]).includes(t))) {
     return refuse('INVALID', 'Thao tác này chưa được trợ lý hỗ trợ. Chưa thay đổi gì.');
   }
   // A4: mot bang, trong tran
@@ -93,9 +116,11 @@ export function decideExecution(input: DecisionInput): Decision {
     if (input.provenance.failures.some((f) => f.code !== 'QUESTION_FORM')) push('NOT_GROUNDED');
   }
   if (input.dueFuzzy) push('FUZZY_DATE');
+  if (count >= 2) push('MULTI_OP');
+  if (input.opTypes.some((t) => !AUTO_RUN_TYPES.includes(t as (typeof AUTO_RUN_TYPES)[number]))) push('NEW_STRUCTURE');
   if (!input.autoExecute) push('AUTO_DISABLED');
 
   if (reasons.length === 0) return { mode: 'AUTO', risk: 'LOW', reasons };
-  // chi vi tat tu chay thi van la lenh ro rang cua nguoi dung -> LOW; con lai la lenh can xem lai -> MEDIUM
-  return { mode: 'CONFIRM', risk: reasons.every((r) => r.code === 'AUTO_DISABLED') ? 'LOW' : 'MEDIUM', reasons };
+  // chi vi tat tu chay thi van la lenh ro rang cua nguoi dung -> LOW; con lai la lenh can xem lai -> MEDIUM / HIGH
+  return { mode: 'CONFIRM', risk: riskOf(count, reasons), reasons };
 }

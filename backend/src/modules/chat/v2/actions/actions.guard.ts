@@ -43,18 +43,33 @@ async function liveList(boardId: string, listId: string | undefined) {
   return prisma.list.findFirst({ where: { id: listId, boardId, deletedAt: null, archivedAt: null }, select: { id: true } });
 }
 
-export async function guardOp(args: { userId: string; boardId: string; op: StoredOp }): Promise<GuardVerdict> {
-  const { userId, boardId, op } = args;
-
+/** Quyen SUA bang + tai khoan con hoat dong (VIEWER / nguoi ngoai bi chan o assertBoardAccess). Moi ke hoach chi can kiem MOT lan. */
+export async function guardBoard(userId: string, boardId: string): Promise<GuardVerdict> {
   const active = await prisma.user.count({ where: { id: userId, deletedAt: null } });
   if (active === 0) return fail('FORBIDDEN', 'Tài khoản không còn hoạt động.');
+  return attempt(() => assertBoardAccess(userId, boardId));
+}
 
-  // quyen SUA bang (VIEWER / nguoi ngoai bi chan o day)
-  const board = await attempt(() => assertBoardAccess(userId, boardId));
-  if (!board.ok) return board;
+/**
+ * Kiem tra MOT thao tac. Thao tac nham vao cot / the do CHINH ke hoach tao (`op.local`) thi bo qua kiem tra "con ton tai trong bang"
+ * (chua co id) - nhung moi dieu kien khac (quyen, nhan / nguoi thuoc bang, ten hop le) van kiem. `skipBoard`: nguoi goi da kiem quyen
+ * bang roi (guardPlan). `checked`: cac the da kiem trong cung ke hoach (khong kiem lai).
+ */
+export async function guardOp(args: { userId: string; boardId: string; op: StoredOp; skipBoard?: boolean; checked?: Set<string> }): Promise<GuardVerdict> {
+  const { userId, boardId, op } = args;
+
+  if (args.skipBoard !== true) {
+    const board = await guardBoard(userId, boardId);
+    if (!board.ok) return board;
+  }
+
+  if (op.type === 'CREATE_LIST') {
+    const name = op.params.name ?? '';
+    return name.trim() === '' || name.length > 100 ? fail('INVALID', `Tên cột phải từ 1 đến 100 ký tự. ${NO_CHANGE}`) : { ok: true };
+  }
 
   if (op.type === 'CREATE_CARD') {
-    if (!(await liveList(boardId, op.ids.list))) return fail('NOT_FOUND', `Cột này không còn trong bảng. ${NO_CHANGE}`);
+    if (op.local?.list === undefined && !(await liveList(boardId, op.ids.list))) return fail('NOT_FOUND', `Cột này không còn trong bảng. ${NO_CHANGE}`);
     const title = op.params.title ?? '';
     if (title.trim() === '' || title.length > 500) return fail('INVALID', `Tiêu đề thẻ phải từ 1 đến 500 ký tự. ${NO_CHANGE}`);
     return { ok: true };
@@ -62,16 +77,19 @@ export async function guardOp(args: { userId: string; boardId: string; op: Store
 
   // moi thao tac con lai nham vao MOT the
   const cardId = op.ids.card;
-  if (cardId === undefined) return fail('INVALID', `Thiếu thẻ cần thao tác. ${NO_CHANGE}`);
-  let cardBoardId: string;
-  try {
-    const card = await assertCardAccess(userId, cardId);
-    cardBoardId = card.list.boardId;
-  } catch (e) {
-    return mapServiceError(e);
+  if (cardId === undefined && op.local?.card === undefined) return fail('INVALID', `Thiếu thẻ cần thao tác. ${NO_CHANGE}`);
+  if (cardId !== undefined && args.checked?.has(cardId) !== true) {
+    let cardBoardId: string;
+    try {
+      const card = await assertCardAccess(userId, cardId);
+      cardBoardId = card.list.boardId;
+    } catch (e) {
+      return mapServiceError(e);
+    }
+    // the phai thuoc DUNG bang cua ke hoach (mot ke hoach chi cham mot bang)
+    if (cardBoardId !== boardId) return fail('OUT_OF_SCOPE', `Thẻ này không thuộc bảng của kế hoạch. ${NO_CHANGE}`);
+    args.checked?.add(cardId);
   }
-  // the phai thuoc DUNG bang cua ke hoach (mot ke hoach chi cham mot bang)
-  if (cardBoardId !== boardId) return fail('OUT_OF_SCOPE', `Thẻ này không thuộc bảng của kế hoạch. ${NO_CHANGE}`);
 
   switch (op.type) {
     case 'RENAME_CARD': {
@@ -80,7 +98,7 @@ export async function guardOp(args: { userId: string; boardId: string; op: Store
     }
     case 'MOVE_CARD': {
       // cot dich phai con song va CUNG bang: cam chuyen xuyen bang (moveCard cho phep, chatbot thi khong)
-      if (!(await liveList(boardId, op.ids.list))) {
+      if (op.local?.list === undefined && !(await liveList(boardId, op.ids.list))) {
         return fail('OUT_OF_SCOPE', `Cột đích không thuộc bảng này (trợ lý không chuyển thẻ sang bảng khác). ${NO_CHANGE}`);
       }
       return { ok: true };
@@ -106,4 +124,23 @@ export async function guardOp(args: { userId: string; boardId: string; op: Store
     default:
       return fail('INVALID', `Thao tác không hợp lệ. ${NO_CHANGE}`);
   }
+}
+
+export type PlanGuardVerdict = GuardVerdict | { ok: false; code: Extract<GuardVerdict, { ok: false }>['code']; text: string; index: number };
+
+/**
+ * Kiem quyen + nghiep vu cho TOAN BO ke hoach. Mot thao tac bi tu choi -> ca ke hoach bi tu choi (khong ai chay mot phan). Quyen bang
+ * kiem mot lan; ke hoach nhieu thao tac noi ro la thao tac nao bi chan.
+ */
+export async function guardPlan(args: { userId: string; boardId: string; ops: readonly StoredOp[] }): Promise<PlanGuardVerdict> {
+  const board = await guardBoard(args.userId, args.boardId);
+  if (!board.ok) return board;
+  const checked = new Set<string>();
+  for (const [index, op] of args.ops.entries()) {
+    const verdict = await guardOp({ userId: args.userId, boardId: args.boardId, op, skipBoard: true, checked });
+    if (!verdict.ok) {
+      return { ok: false, code: verdict.code, index, text: args.ops.length > 1 ? `Thao tác ${index + 1}: ${verdict.text}` : verdict.text };
+    }
+  }
+  return { ok: true };
 }

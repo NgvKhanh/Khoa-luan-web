@@ -6,7 +6,7 @@
 
 import { prisma } from '../../../../config/prisma';
 import type { Prisma } from '../../../../generated/prisma/client';
-import { PLAN_TTL_MS } from './actions.plan';
+import { failureCategoryOf, PLAN_TTL_MS } from './actions.plan';
 import type { ActionErrorCode, ConfirmReason, PlanRisk, PlanStatus, Provenance, StoredPlan } from './actions.types';
 
 export type PlanRow = Prisma.ChatActionPlanGetPayload<Record<string, never>>;
@@ -29,8 +29,25 @@ export interface NewPlan {
   status: PlanStatus;
   autoExecuted?: boolean;
   errorCode?: ActionErrorCode;
+  /** Do dac (Phase 2): loai tung thao tac theo thu tu chay, so thao tac LLM de xuat, va ba co "qua duoc buoc nao". */
+  opTypes?: readonly string[];
+  proposedOps?: number;
+  parseSuccess?: boolean | null;
+  resolveSuccess?: boolean | null;
+  /** Ghi de nhom loi (mac dinh suy ra tu errorCode). */
+  failureCategory?: string | null;
   now: Date;
   meta: { provider: string; model: string; adapter: string; promptTokens: number | null; completionTokens: number | null; latencyMs: number | null };
+}
+
+function evalFields(input: NewPlan) {
+  return {
+    opTypes: [...(input.opTypes ?? [])],
+    ...(input.proposedOps !== undefined ? { proposedOps: input.proposedOps } : {}),
+    parseSuccess: input.parseSuccess ?? null,
+    resolveSuccess: input.resolveSuccess ?? null,
+    failureCategory: input.failureCategory !== undefined ? input.failureCategory : failureCategoryOf(input.errorCode),
+  };
 }
 
 export async function createPlanRow(input: NewPlan): Promise<PlanRow> {
@@ -59,6 +76,7 @@ export async function createPlanRow(input: NewPlan): Promise<PlanRow> {
       errorCode: input.errorCode ?? null,
       createdAt: input.now,
       expiresAt: new Date(input.now.getTime() + PLAN_TTL_MS),
+      ...evalFields(input),
       ...(input.status === 'FAILED' ? { decidedAt: input.now } : {}),
     },
   });
@@ -84,6 +102,7 @@ export async function replacePlan(planId: string, input: NewPlan): Promise<PlanR
       autoExecuted: input.autoExecuted ?? false,
       errorCode: input.errorCode ?? null,
       expiresAt: new Date(input.now.getTime() + PLAN_TTL_MS),
+      ...evalFields(input),
       ...(input.status === 'FAILED' ? { decidedAt: input.now } : {}),
     },
   });
@@ -107,13 +126,73 @@ export async function updatePlan(planId: string, data: Prisma.ChatActionPlanUnch
   return prisma.chatActionPlan.update({ where: { id: planId }, data });
 }
 
-/** PROPOSED -> EXECUTING nguyen tu va con han. true = minh thang cuoc dua. */
-export async function claimPlan(planId: string, userId: string, now: Date): Promise<boolean> {
-  const res = await prisma.chatActionPlan.updateMany({
+/** Client Prisma thuong HOAC client trong mot transaction ($transaction(async (tx) => ...)). */
+export type PlanDb = Pick<Prisma.TransactionClient, 'chatActionPlan'>;
+
+/**
+ * PROPOSED -> EXECUTING nguyen tu va con han. true = minh thang cuoc dua.
+ *
+ * Phase 2 goi ham nay BEN TRONG transaction ghi du lieu (db = tx): viec nhan cho, du lieu va trang thai EXECUTED cung commit hoac cung
+ * rollback. Process chet giua chung -> Postgres rollback tat ca, ke hoach quay ve PROPOSED (khong bao gio ket o EXECUTING); hai yeu cau
+ * dong thoi: yeu cau sau doi dong nay duoc nha roi thay status khac PROPOSED -> thua cuoc va nhan lai ket qua da luu.
+ */
+export async function claimPlan(planId: string, userId: string, now: Date, db: PlanDb = prisma): Promise<boolean> {
+  const res = await db.chatActionPlan.updateMany({
     where: { id: planId, userId, status: 'PROPOSED', expiresAt: { gt: now } },
-    data: { status: 'EXECUTING', decidedAt: now },
+    data: { status: 'EXECUTING', decidedAt: now, executionStartedAt: now },
   });
   return res.count === 1;
+}
+
+/** Cac cot chot ket qua cua mot ke hoach (EXECUTED / FAILED / STALE). */
+export interface Settlement {
+  status: 'EXECUTED' | 'FAILED' | 'STALE';
+  result: Prisma.InputJsonValue;
+  errorCode: ActionErrorCode | null;
+  executedOps: number;
+  executionMs: number | null;
+  now: Date;
+}
+
+/**
+ * Chot ket qua. `from`: trang thai ma ke hoach PHAI dang o (PROPOSED khi that bai truoc / sau rollback; EXECUTING khi chot cung
+ * transaction). Co dieu kien nen khong ghi de ket qua do yeu cau khac da chot. true = minh chot duoc.
+ */
+export async function settlePlan(planId: string, userId: string, from: 'PROPOSED' | 'EXECUTING', s: Settlement, db: PlanDb = prisma): Promise<boolean> {
+  const res = await db.chatActionPlan.updateMany({
+    where: { id: planId, userId, status: from },
+    data: {
+      status: s.status,
+      result: s.result,
+      errorCode: s.errorCode,
+      executedOps: s.executedOps,
+      executionMs: s.executionMs,
+      executionSuccess: s.status === 'EXECUTED',
+      failureCategory: failureCategoryOf(s.errorCode),
+      decidedAt: s.now,
+      ...(s.status === 'EXECUTED' ? { executedAt: s.now } : {}),
+    },
+  });
+  return res.count === 1;
+}
+
+/** Hang EXECUTING bi bo qua 2 phut la do tien trinh chet (Phase 1) hoac ma cu: coi la gian doan. */
+export const EXECUTING_STUCK_MS = 2 * 60_000;
+
+/**
+ * Luoi an toan cho hang EXECUTING con sot lai (ma Phase 1: nhan cho commit rieng nen tien trinh chet de lai EXECUTING). Phase 2 khong
+ * con tao ra trang thai nay (nhan cho nam trong transaction ghi), nhung hang cu van phai thoat duoc. Chot FAILED / INTERRUPTED.
+ */
+export async function recoverIfStuck(row: PlanRow, now: Date): Promise<PlanRow> {
+  if (row.status !== 'EXECUTING') return row;
+  const started = row.executionStartedAt ?? row.decidedAt ?? row.createdAt;
+  if (now.getTime() - started.getTime() < EXECUTING_STUCK_MS) return row;
+  const res = await prisma.chatActionPlan.updateMany({
+    where: { id: row.id, status: 'EXECUTING' },
+    data: { status: 'FAILED', errorCode: 'INTERRUPTED', failureCategory: 'EXECUTION', executionSuccess: false, decidedAt: now },
+  });
+  if (res.count === 1) return { ...row, status: 'FAILED', errorCode: 'INTERRUPTED', decidedAt: now };
+  return (await prisma.chatActionPlan.findUnique({ where: { id: row.id } })) ?? row;
 }
 
 /** Ke hoach dang cho (PROPOSED / NEEDS_CHOICE) da qua han -> EXPIRED (danh dau khi cham toi). */
@@ -121,7 +200,7 @@ export async function expireIfNeeded(row: PlanRow, now: Date): Promise<PlanRow> 
   if ((row.status === 'PROPOSED' || row.status === 'NEEDS_CHOICE') && row.expiresAt.getTime() <= now.getTime()) {
     const res = await prisma.chatActionPlan.updateMany({
       where: { id: row.id, status: row.status },
-      data: { status: 'EXPIRED', errorCode: 'EXPIRED', decidedAt: now },
+      data: { status: 'EXPIRED', errorCode: 'EXPIRED', failureCategory: 'EXPIRED', decidedAt: now },
     });
     if (res.count === 1) return { ...row, status: 'EXPIRED', errorCode: 'EXPIRED', decidedAt: now };
     return (await prisma.chatActionPlan.findUnique({ where: { id: row.id } })) ?? row;
@@ -144,7 +223,7 @@ export async function cancelOpenPlans(
       status: { in: [...(opts.onlyStatuses ?? ['PROPOSED', 'NEEDS_CHOICE'])] },
       ...(opts.except !== undefined ? { id: { not: opts.except } } : {}),
     },
-    data: { status: 'CANCELLED', errorCode: reason, decidedAt: now },
+    data: { status: 'CANCELLED', errorCode: reason, failureCategory: failureCategoryOf(reason) ?? 'CANCELLED', decidedAt: now },
   });
   return res.count;
 }
@@ -153,7 +232,7 @@ export async function cancelOpenPlans(
 export async function cancelPlanRow(planId: string, userId: string, reason: ActionErrorCode | null, now: Date): Promise<boolean> {
   const res = await prisma.chatActionPlan.updateMany({
     where: { id: planId, userId, status: { in: ['PROPOSED', 'NEEDS_CHOICE'] } },
-    data: { status: 'CANCELLED', errorCode: reason, decidedAt: now },
+    data: { status: 'CANCELLED', errorCode: reason, failureCategory: failureCategoryOf(reason) ?? 'CANCELLED', decidedAt: now },
   });
   return res.count === 1;
 }

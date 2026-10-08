@@ -62,6 +62,9 @@ function indexesOfAny(words: readonly string[], phrases: readonly Phrase[]): num
 // Chi la dong tu chi VIEC LAM (khong phai ten rieng): "chuyen", "giao", "doi han"... Chu da bo dau, thuong.
 
 const CREATE_VERBS: readonly Phrase[] = [['tao'], ['them'], ['add'], ['create'], ['new'], ['bo', 'sung'], ['lap']];
+const LIST_NOUNS: readonly Phrase[] = [['cot'], ['list'], ['danh', 'sach'], ['column']];
+/** Dong tu tao phai dung SAT danh tu "cot" (toi da 3 tu: "tao cot", "them mot cot moi"): "them 3 task vao cot X" khong phai lenh tao cot. */
+const CREATE_LIST_SPAN = 3;
 const RENAME_VERBS: readonly Phrase[] = [
   ['doi', 'ten'],
   ['sua', 'ten'],
@@ -181,9 +184,14 @@ export interface Licence {
  * "Giay phep dong tu": cau cua NGUOI DUNG co dong tu cho loai thao tac nay khong? Thao tac khong co dong tu trong cau
  * (vd mo ta the bao "giao het cho X" + cau hoi binh thuong) khong bao gio duoc tu chay.
  */
-export function licenceFor(type: string, words: readonly string[], status?: CardStatus): Licence {
+export function licenceFor(type: string, words: readonly string[], status?: CardStatus, strictLast = true): Licence {
   let at: number[] = [];
   switch (type) {
+    case 'CREATE_LIST': {
+      const nouns = indexesOfAny(words, LIST_NOUNS);
+      at = indexesOfAny(words, CREATE_VERBS).filter((v) => nouns.some((n) => n > v && n - v <= CREATE_LIST_SPAN));
+      break;
+    }
     case 'CREATE_CARD':
       at = indexesOfAny(words, CREATE_VERBS);
       break;
@@ -207,8 +215,11 @@ export function licenceFor(type: string, words: readonly string[], status?: Card
       at = hasAny(words, LABEL_WORDS) ? indexesOfAny(words, LABEL_VERBS) : [];
       break;
     case 'SET_CARD_STATUS': {
-      // trang thai muc tieu phai la trang thai DUOC NHAC CUOI; can dong tu (tru DONE: "xong" tu no da la lenh)
-      if (status === undefined || lastStatusMention(words) !== status) return { licensed: false, negated: false };
+      // trang thai muc tieu phai la trang thai DUOC NHAC CUOI ("tu Dang lam sang Xong" -> Xong); can dong tu (tru DONE: "xong" tu no
+      // da la lenh). Ke hoach co NHIEU thao tac doi trang thai ("Login la dang lam, Register la xong") thi chi can duoc nhac den (strictLast = false).
+      if (status === undefined) return { licensed: false, negated: false };
+      const mentioned = strictLast ? lastStatusMention(words) === status : statusMentions(words).some((m) => m.status === status);
+      if (!mentioned) return { licensed: false, negated: false };
       at = indexesOfAny(words, STATUS_VERBS);
       if (at.length === 0 && status === 'DONE') at = statusMentions(words).filter((m) => m.status === 'DONE').map((m) => m.start);
       break;

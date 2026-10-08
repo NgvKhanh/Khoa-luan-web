@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { prisma } from '../src/config/prisma';
 import { guardOp } from '../src/modules/chat/v2/actions/actions.guard';
 import { cancelOpenPlans, claimPlan, createPlanRow, expireIfNeeded, findOwnedPlan, type NewPlan } from '../src/modules/chat/v2/actions/actions.plan.repo';
+import { refSignature } from '../src/modules/chat/v2/actions/actions.refs';
 import { resolveOp, type ResolveEnv } from '../src/modules/chat/v2/actions/actions.resolve';
 import type { StoredOp, StoredPlan } from '../src/modules/chat/v2/actions/actions.types';
 import { resolveExecutionContext } from '../src/modules/chat/v2/chat.v2.scope';
@@ -153,11 +154,17 @@ describe('resolveOp: chỉ tìm trong bảng của kế hoạch, kể cả với
     const env = await envFor(f);
     const betaLabel = await prisma.label.create({ data: { boardId: f.beta.id, name: 'Nhãn Beta', color: '#61BD4F' } });
     const byText = { by: 'TEXT' as const, text: 'Login UI' };
-    expect(await resolveOp(env, { type: 'RENAME_CARD', card: byText, title: 'X' }, { card: f.loginBeta.id })).toMatchObject({ kind: 'FAIL', code: 'NOT_FOUND' });
-    expect(await resolveOp(env, { type: 'MOVE_CARD', card: byText, toList: text('Đang làm') }, { toList: f.betaDoing.id })).toMatchObject({ kind: 'FAIL', code: 'NOT_FOUND' });
-    expect(await resolveOp(env, { type: 'ADD_LABEL', card: byText, label: text('Nhãn Beta') }, { label: betaLabel.id })).toMatchObject({ kind: 'FAIL', code: 'NOT_FOUND' });
-    expect(await resolveOp(env, { type: 'ASSIGN_MEMBER', card: byText, member: text('Người Ngoài') }, { member: f.outsider.id })).toMatchObject({ kind: 'FAIL', code: 'NOT_FOUND' });
+    // lựa chọn được ghim theo DẤU VÂN TAY của tham chiếu (loại + chữ đã bỏ dấu / từ chung)
+    const card = refSignature('card', byText) as string;
+    const toList = refSignature('list', text('Đang làm')) as string;
+    const labelSig = refSignature('label', text('Nhãn Beta')) as string;
+    const memberSig = refSignature('member', text('Người Ngoài')) as string;
+    expect(card).toBe('card:t:login ui');
+    expect(await resolveOp(env, { type: 'RENAME_CARD', card: byText, title: 'X' }, { [card]: f.loginBeta.id })).toMatchObject({ kind: 'FAIL', code: 'NOT_FOUND' });
+    expect(await resolveOp(env, { type: 'MOVE_CARD', card: byText, toList: text('Đang làm') }, { [toList]: f.betaDoing.id })).toMatchObject({ kind: 'FAIL', code: 'NOT_FOUND' });
+    expect(await resolveOp(env, { type: 'ADD_LABEL', card: byText, label: text('Nhãn Beta') }, { [labelSig]: betaLabel.id })).toMatchObject({ kind: 'FAIL', code: 'NOT_FOUND' });
+    expect(await resolveOp(env, { type: 'ASSIGN_MEMBER', card: byText, member: text('Người Ngoài') }, { [memberSig]: f.outsider.id })).toMatchObject({ kind: 'FAIL', code: 'NOT_FOUND' });
     // đối chứng: cùng thao tác với id đúng bảng thì tìm thấy
-    expect(await resolveOp(env, { type: 'MOVE_CARD', card: byText, toList: text('Đang làm') }, { toList: f.doing.id })).toMatchObject({ kind: 'OK' });
+    expect(await resolveOp(env, { type: 'MOVE_CARD', card: byText, toList: text('Đang làm') }, { [toList]: f.doing.id })).toMatchObject({ kind: 'OK' });
   });
 });

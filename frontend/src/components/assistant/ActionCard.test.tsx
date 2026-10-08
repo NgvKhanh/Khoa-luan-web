@@ -128,3 +128,103 @@ describe('ActionCard: ket qua', () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+// ---------- Phase 2: ke hoach NHIEU thao tac ----------
+const multiPlan = (over: Partial<ChatActionPlan> = {}): ChatActionPlan =>
+  plan({
+    risk: 'MEDIUM',
+    opCount: 4,
+    reasons: [
+      { code: 'MULTI_OP', text: 'Lệnh gồm nhiều thay đổi cùng lúc nên mình luôn cho bạn xem lại trước khi áp dụng.' },
+      { code: 'NEW_STRUCTURE', text: 'Tạo cột làm thay đổi cấu trúc của bảng nên cần bạn xác nhận.' },
+    ],
+    warnings: [],
+    items: [
+      { index: 0, verb: 'Tạo cột', text: '“Kiểm thử”', detail: 'Trạng thái cột: Chờ duyệt' },
+      { index: 1, verb: 'Tạo thẻ', text: '“Unit Test”', detail: 'Trong cột mới “Kiểm thử”' },
+      { index: 2, verb: 'Tạo thẻ', text: '“API Test”', detail: 'Trong cột mới “Kiểm thử”' },
+      { index: 3, verb: 'Giao thẻ', text: '“API Test” (thẻ mới) cho Nguyễn Lan', cardId: 'c9' },
+    ],
+    ...over,
+  });
+
+describe('ActionCard: ban xem truoc NHIEU thao tac', () => {
+  it('hien so thay doi, danh sach danh so theo thu tu chay, ly do va nut ghi ro so thay doi; Ap dung / Huy van goi dung', () => {
+    const turn = turnOf({ kind: 'PLAN', plan: multiPlan() });
+    const { onConfirm, onCancel } = renderCard(turn);
+    const block = screen.getByRole('region', { name: 'Kế hoạch thao tác' });
+    expect(within(block).getByRole('heading')).toHaveTextContent('4 thay đổi trên bảng Dự án Alpha');
+    const steps = within(block.querySelector('ol') as HTMLElement).getAllByRole('listitem'); // danh sách bước (khác danh sách lý do trong khung ghi chú)
+    expect(steps).toHaveLength(4);
+    expect(steps.map((s) => s.textContent)).toEqual([
+      'Tạo cột “Kiểm thử”Trạng thái cột: Chờ duyệt',
+      'Tạo thẻ “Unit Test”Trong cột mới “Kiểm thử”',
+      'Tạo thẻ “API Test”Trong cột mới “Kiểm thử”',
+      'Giao thẻ “API Test” (thẻ mới) cho Nguyễn LanMở thẻ',
+    ]);
+    expect(within(block).getByText(/làm tất cả hoặc không làm gì/)).toBeInTheDocument();
+    expect(within(block).getByRole('note')).toHaveTextContent('Lệnh gồm nhiều thay đổi cùng lúc');
+    expect(within(block).getByRole('note')).toHaveTextContent('Tạo cột làm thay đổi cấu trúc');
+    fireEvent.click(within(block).getByRole('button', { name: 'Áp dụng 4 thay đổi' }));
+    expect(onConfirm).toHaveBeenCalledWith(turn);
+    fireEvent.click(within(block).getByRole('button', { name: 'Hủy' }));
+    expect(onCancel).toHaveBeenCalledWith(turn);
+  });
+
+  it('đúng hai thao tác đã là kế hoạch nhiều thao tác (danh sách đánh số, nút ghi "2 thay đổi")', () => {
+    const two = multiPlan({ opCount: 2, items: multiPlan().items.slice(0, 2), reasons: [{ code: 'MULTI_OP', text: 'Lệnh gồm nhiều thay đổi cùng lúc nên mình luôn cho bạn xem lại trước khi áp dụng.' }] });
+    renderCard(turnOf({ kind: 'PLAN', plan: two }));
+    expect(screen.getByRole('heading')).toHaveTextContent('2 thay đổi trên bảng Dự án Alpha');
+    expect(screen.getByRole('button', { name: 'Áp dụng 2 thay đổi' })).toBeInTheDocument();
+  });
+
+  it('máy chủ cũ không gửi opCount: dùng số dòng; một thao tác giữ giao diện cũ (ul, nút "Áp dụng")', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <ActionCard turn={turnOf({ kind: 'PLAN', plan: plan() })} scope={{ kind: 'MY' }} busy={false} onConfirm={vi.fn()} onCancel={vi.fn()} />
+      </MemoryRouter>
+    );
+    expect(container.querySelector('ol')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Áp dụng' })).toBeInTheDocument();
+    expect(screen.getByRole('heading')).toHaveTextContent('Thao tác trên bảng Dự án Alpha');
+  });
+
+  it('đang áp dụng: khóa cả hai nút; hết hạn: khóa và nói rõ chưa thay đổi gì; khác bảng: khóa', () => {
+    renderCard(turnOf({ kind: 'PLAN', plan: multiPlan() }, { actionBusy: true }), { kind: 'MY' }, true);
+    expect(screen.getByRole('button', { name: 'Đang áp dụng…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Hủy' })).toBeDisabled();
+  });
+
+  it('hết hạn hoặc sai bảng thì không bấm được Áp dụng', () => {
+    const { onConfirm } = renderCard(turnOf({ kind: 'PLAN', plan: multiPlan({ canConfirm: false, expiresAt: new Date(Date.now() - 1000).toISOString() }) }));
+    expect(screen.getByText('Kế hoạch đã hết hạn. Hãy gửi lại lệnh. Chưa thay đổi gì.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Áp dụng 4 thay đổi' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Áp dụng 4 thay đổi' }));
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+});
+
+describe('ActionCard: ket qua NHIEU thao tac', () => {
+  const lines = ['Đã tạo cột “Kiểm thử”.', 'Đã tạo thẻ “Unit Test” trong cột “Kiểm thử”.', 'Đã tạo thẻ “API Test” trong cột “Kiểm thử”.'];
+
+  it('đã áp dụng: tóm tắt + từng bước đã làm theo thứ tự', () => {
+    renderCard(turnOf({ kind: 'RESULT', result: result({ summary: 'Đã áp dụng 3 thay đổi trên bảng “Dự án Alpha”.', opCount: 3, details: lines, cardIds: ['c1', 'c2'] }) }));
+    const block = screen.getByRole('region', { name: 'Kết quả thao tác' });
+    expect(within(block).getByText('Đã áp dụng 3 thay đổi trên bảng “Dự án Alpha”.')).toBeInTheDocument();
+    expect(within(block).getAllByRole('listitem').map((l) => l.textContent)).toEqual(lines);
+  });
+
+  it('kế hoạch cũ (STALE) và lỗi (FAILED): hiện đúng nhãn, câu giải thích của máy chủ, không liệt kê bước nào đã làm', () => {
+    renderCard(turnOf({ kind: 'RESULT', result: result({ status: 'STALE', summary: 'Thẻ đã được chuyển sang cột khác kể từ lúc xem trước. Dữ liệu đã thay đổi nên chưa thay đổi gì.', cardId: undefined, opCount: 3 }) }));
+    const block = screen.getByRole('region', { name: 'Kết quả thao tác' });
+    expect(within(block).getByText('Dữ liệu đã thay đổi')).toBeInTheDocument();
+    expect(within(block).getByText(/chuyển sang cột khác kể từ lúc xem trước/)).toBeInTheDocument();
+    expect(within(block).queryByRole('listitem')).not.toBeInTheDocument();
+    expect(within(block).queryByRole('link', { name: 'Mở thẻ' })).not.toBeInTheDocument();
+  });
+
+  it('đã áp dụng trước đó (bấm đúp): báo không ghi thêm', () => {
+    renderCard(turnOf({ kind: 'RESULT', result: result({ alreadyApplied: true, summary: 'Đã áp dụng 3 thay đổi trên bảng “Dự án Alpha”.', details: lines, opCount: 3 }) }));
+    expect(screen.getByText('Kế hoạch này đã được áp dụng trước đó, không ghi thêm lần nữa.')).toBeInTheDocument();
+  });
+});

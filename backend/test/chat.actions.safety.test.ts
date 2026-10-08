@@ -133,12 +133,13 @@ describe('quyền: backend kiểm lại bằng chính hàm assert của giao di�
     expect(await prisma.chatActionPlan.findUniqueOrThrow({ where: { id: p.plan.planId } })).toMatchObject({ status: 'FAILED', errorCode: 'FORBIDDEN', executedOps: 0 });
   });
 
-  it('thẻ bị người khác chuyển sang BẢNG KHÁC giữa xem trước và áp dụng → chặn (một kế hoạch chỉ tác động một bảng), không đổi tên', async () => {
+  it('thẻ bị người khác chuyển sang BẢNG KHÁC giữa xem trước và áp dụng → STALE (một kế hoạch chỉ tác động một bảng), không đổi tên', async () => {
     const f = await seedActions();
     const p = await preview(f, MSG_RENAME, renameLogin);
     await prisma.card.update({ where: { id: f.loginUi.id }, data: { listId: f.betaTodo.id } });
     const reply = await persistentConfirm(f.owner.id, p.plan.planId, p.body(), actionContext({ sessions: p.sessions, now: minutesAfter(1) }));
-    expect(resultOf(reply)).toMatchObject({ status: 'FAILED', error: { code: 'OUT_OF_SCOPE' } });
+    // Phase 2: dữ liệu đổi (thẻ không còn thuộc bảng của kế hoạch) là kế hoạch CŨ → STALE (Phase 1 trả FAILED/OUT_OF_SCOPE từ guard); vẫn chặn, không ghi gì
+    expect(resultOf(reply)).toMatchObject({ status: 'STALE', error: { code: 'STALE' } });
     expect((await prisma.card.findUniqueOrThrow({ where: { id: f.loginUi.id } })).title).toBe('Login UI');
     expect(await prisma.activity.count({ where: { type: 'card.rename' } })).toBe(0);
   });
@@ -378,15 +379,15 @@ describe('đầu ra của mô hình không đáng tin: schema đóng, một thao
     expect(await prisma.boardMember.count({ where: { boardId: f.alpha.id } })).toBe(1);
   });
 
-  it('nhiều thao tác một lúc → từ chối "một thao tác mỗi lần" (MULTI_OP), không chạy thao tác nào', async () => {
+  it('nhiều thao tác một lúc (Phase 2) → luôn xem trước, KHÔNG thao tác nào tự chạy dù từng thao tác đều an toàn', async () => {
     const f = await seedActions();
     const step = script([propose(
       { type: 'MOVE_CARD', card: text('Login UI'), toList: text('Đang làm') },
       { type: 'ASSIGN_MEMBER', card: text('Login UI'), member: text('Lan') },
     )]);
     const reply = await handleV2Message(f.owner.id, { message: 'Chuyển Login UI sang Đang làm và giao cho Lan', scope: onBoard(f.alpha) }, actionContext({ step }));
-    expect(reply.answer.text).toContain('chỉ thực hiện một thao tác mỗi lần');
-    expect(await planRows()).toMatchObject([{ status: 'FAILED', errorCode: 'MULTI_OP' }]);
+    expect(reply.answer.action).toMatchObject({ kind: 'PLAN', plan: { opCount: 2, status: 'PROPOSED', canConfirm: true, requiresConfirmation: true, reasons: [{ code: 'MULTI_OP' }] } });
+    expect(await planRows()).toMatchObject([{ status: 'PROPOSED', errorCode: null, requiresConfirmation: true, proposedOps: 2 }]);
     expect((await prisma.card.findUniqueOrThrow({ where: { id: f.loginUi.id } })).listId).toBe(f.todo.id);
     expect(await prisma.cardMember.count()).toBe(0);
   });

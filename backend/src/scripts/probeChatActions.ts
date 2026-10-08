@@ -9,7 +9,7 @@
 import { writeFileSync } from 'node:fs';
 import { env } from '../config/env';
 import { decideExecution } from '../modules/chat/v2/actions/actions.autorun';
-import { assessProvenance } from '../modules/chat/v2/actions/actions.provenance';
+import { assessPlanProvenance } from '../modules/chat/v2/actions/actions.provenance';
 import { ACTION_TYPES, proposeActionsSchema, type ActionOp } from '../modules/chat/v2/actions/actions.schema';
 import { periodRange, vnToday } from '../modules/chat/chat.period';
 import { callChatModel, v2LlmAvailable, type ModelMessage } from '../modules/chat/v2/chat.v2.llm';
@@ -129,13 +129,14 @@ async function runCase(c: Case, run: number, now: Date): Promise<Outcome> {
   }
   const ops = parsed.data.operations;
   const today = vnToday(now);
-  const prov = assessProvenance(ops[0], c.message, today);
+  const prov = assessPlanProvenance(ops, c.message, today);
   const decision = decideExecution({
-    opsCount: ops.length, opType: ops[0].type, provenance: prov, dueFuzzy: prov.due?.fuzzy ?? false, refsUnique: true,
+    opTypes: ops.map((o) => o.type), provenance: prov, dueFuzzy: prov.dueFuzzy, refsUnique: true,
     boardIds: ['probe-board'], inCeiling: true, guard: { ok: true }, autoExecute: true,
   });
   const verdict = judge(c, ops[0], decision.mode, firstTools);
-  const due = prov.due?.resolution.kind === 'DATE' ? prov.due.resolution.date : prov.due?.resolution.kind;
+  const firstDue = prov.perOp[0]?.due;
+  const due = firstDue?.resolution.kind === 'DATE' ? firstDue.resolution.date : firstDue?.resolution.kind;
   return {
     ...base, firstTools, schemaOk: true, type: ops.length > 1 ? `${ops[0].type}+${ops.length - 1}` : ops[0].type, provenance: prov.verdict,
     decision: decision.mode, reasons: decision.mode === 'CONFIRM' ? decision.reasons.map((r) => r.code) : decision.mode === 'REFUSE' ? [decision.code] : [],

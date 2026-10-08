@@ -1,13 +1,14 @@
-// DICH VU HANH DONG cua chatbot v2 - Phase 1 (CHATBOT_V2_ACTIONS_PLAN.md §6).
+// DICH VU HANH DONG cua chatbot v2 - Phase 1 (mot thao tac) + Phase 2 (nhieu thao tac trong MOT bang) (CHATBOT_V2_ACTIONS_PLAN.md §6).
 //
 // Cac cua vao (chi cua dau tien dung LLM; tu do ve sau LLM khong con tham gia):
-//   proposeActions : LLM da de xuat 1 thao tac tuong trung -> phan giai -> kiem quyen -> TU CHAY hoac XEM TRUOC
+//   proposeActions : LLM da de xuat cac thao tac tuong trung -> preflight -> kiem quyen -> TU CHAY (1 thao tac an toan) hoac XEM TRUOC
 //   choosePlanRef  : nguoi dung bam nut chon (tham chieu nhap nhang) -> tiep tuc DUNG ke hoach dang do
 //   confirmPlan    : nut "Ap dung"          cancelPlan : nut "Huy"          planView : xem lai trang thai that
 //   typedPlanCommand : go "huy" -> huy ke hoach dang mo; go "ok / ap dung" -> KHONG xac nhan, nhac bam nut
 //
 // Moi ke hoach nam o bang ChatActionPlan nen khong phu thuoc phien trong bo nho (may chu khoi dong lai van xac nhan duoc).
-// Moi lan cham toi ke hoach deu kiem lai: chu so huu, hoi thoai, han, checksum, tran pham vi, quyen. Executor chi goi service co san.
+// Moi lan cham toi ke hoach deu kiem lai: chu so huu, hoi thoai, han, checksum, tran pham vi, quyen. Viec ghi nam trong
+// actions.executor (mot transaction); o day khong co lenh ghi nao.
 
 import { prisma } from '../../../../config/prisma';
 import { AppError } from '../../../../utils/AppError';
@@ -17,38 +18,30 @@ import type { EntityOption } from '../chat.v2.entities';
 import { OUT_OF_CEILING, resolveExecutionContext, type ExecutionContext } from '../chat.v2.scope';
 import type { V2Session } from '../chat.v2.session';
 import { decideExecution, refusalBeforeResolve } from './actions.autorun';
-import { runClaimedPlan } from './actions.executor';
-import { guardOp } from './actions.guard';
-import { buildPlanView, buildResultView, describeOp, errorText, planChecksum } from './actions.plan';
+import { executePlan } from './actions.executor';
+import { guardPlan } from './actions.guard';
+import { describeOp, errorText, OP_LABEL, planChecksum, stateDigest } from './actions.plan';
 import {
   cancelOpenPlans,
   cancelPlanRow,
-  claimPlan,
   createPlanRow,
   expireIfNeeded,
   findOpenPlan,
   findOwnedPlan,
+  recoverIfStuck,
   replacePlan,
   type NewPlan,
   type PlanRow,
 } from './actions.plan.repo';
-import { assessProvenance, type ProvenanceReport } from './actions.provenance';
-import { resolveOp, type Presets, type ResolveResult } from './actions.resolve';
-import { MAX_OPS_PER_PLAN, type ActionOp } from './actions.schema';
+import { prepare, resolvePrepared, type Prepared, type ResolvedPlan } from './actions.preflight';
+import type { PlanProvenance } from './actions.provenance';
+import type { Presets } from './actions.resolve';
+import type { ActionOp } from './actions.schema';
 import { foldWords } from './actions.text';
-import type {
-  ActionErrorCode,
-  ActionView,
-  ConfirmReason,
-  PendingChoice,
-  PlanRisk,
-  PlanStatus,
-  Provenance,
-  ResultStatus,
-  ResultView,
-  StoredOp,
-  StoredPlan,
-} from './actions.types';
+import type { ActionErrorCode, ActionView, ConfirmReason, PendingChoice, PlanRisk, PlanStatus, Provenance, ResultView, StoredOp, StoredPlan } from './actions.types';
+import { planViewOf, resultFromRow, viewFromRow } from './actions.view';
+
+export { resultFromRow, viewFromRow };
 
 /** Thong tin ve lan goi LLM da sinh ra de xuat (ghi vao ChatActionPlan de do dac / truy vet). */
 export interface PlanMeta {
@@ -82,19 +75,14 @@ export interface ActionOutcome {
 }
 
 export const PREVIEW_TEXT = 'Mình sẽ làm như sau. Bấm “Áp dụng” để thực hiện hoặc “Hủy” để bỏ qua.';
+/** Cau dan cua ban xem truoc nhieu thao tac ("Tôi sẽ thực hiện N thay đổi"); danh sach tung buoc nam o khoi ke hoach. */
+export const previewText = (count: number): string =>
+  count <= 1 ? PREVIEW_TEXT : `Mình sẽ thực hiện ${count} thay đổi trên cùng một bảng (làm tất cả hoặc không làm gì). Bấm “Áp dụng” để thực hiện hoặc “Hủy” để bỏ qua.`;
 const NO_BOARD_TEXT =
   'Bạn muốn thao tác ở bảng nào? Hãy trả lời dạng “bảng Marketing” (hoặc mở bảng đó rồi nhờ mình). Chưa thay đổi gì.';
-const MULTI_OP_TEXT = 'Hiện trợ lý chỉ thực hiện một thao tác mỗi lần. Hãy gửi từng lệnh một. Chưa thay đổi gì.';
-const CANCELLED_TEXT = 'Đã hủy kế hoạch. Chưa thay đổi gì.';
 
-const KIND_OF_PATH: Record<PendingChoice['path'], EntityOption['kind']> = {
-  card: 'CARD',
-  list: 'COLUMN',
-  toList: 'COLUMN',
-  member: 'MEMBER',
-  label: 'LABEL',
-};
-const WHAT: Record<PendingChoice['path'], string> = { card: 'thẻ', list: 'cột', toList: 'cột đích', member: 'người', label: 'nhãn' };
+const KIND_OF: Record<PendingChoice['kind'], EntityOption['kind']> = { card: 'CARD', list: 'COLUMN', member: 'MEMBER', label: 'LABEL' };
+const WHAT: Record<PendingChoice['kind'], string> = { card: 'thẻ', list: 'cột', member: 'người', label: 'nhãn' };
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Bang dich + tran pham vi
@@ -152,8 +140,7 @@ interface Base {
 interface Run {
   base: Base;
   target: Target;
-  op: ActionOp;
-  prov: ProvenanceReport;
+  prepared: Prepared;
   inCeiling: boolean;
   presets: Presets;
   existing: PlanRow | null;
@@ -168,11 +155,14 @@ interface PlanData {
   status: PlanStatus;
   autoExecuted?: boolean;
   errorCode?: ActionErrorCode;
+  /** Do dac: qua duoc buoc phan tich (schema + do thi) / buoc phan giai chua. */
+  parse?: boolean;
+  resolve?: boolean | null;
 }
 
 function storedPlan(base: Base, target: Target | null, ops: StoredOp[], extra: Partial<StoredPlan> = {}): StoredPlan {
   return {
-    version: 1,
+    version: 2,
     boardId: target?.boardId ?? '',
     boardName: target?.boardName ?? '',
     message: base.message,
@@ -180,6 +170,7 @@ function storedPlan(base: Base, target: Target | null, ops: StoredOp[], extra: P
     ops,
     presets: {},
     warnings: [],
+    ...(ops.length > 0 ? { stateDigest: stateDigest(ops) } : {}),
     ...extra,
   };
 }
@@ -201,6 +192,10 @@ async function persist(base: Base, target: Target | null, data: PlanData, existi
     status: data.status,
     ...(data.autoExecuted !== undefined ? { autoExecuted: data.autoExecuted } : {}),
     ...(data.errorCode !== undefined ? { errorCode: data.errorCode } : {}),
+    opTypes: (data.plan.ops.length > 0 ? data.plan.ops.map((o) => o.type) : base.symbolic.map((o) => o.type)),
+    proposedOps: base.symbolic.length,
+    parseSuccess: data.parse ?? true,
+    resolveSuccess: data.resolve ?? null,
     now: base.now,
     meta: base.meta,
   };
@@ -217,7 +212,15 @@ async function refuse(
   target: Target | null,
   code: ActionErrorCode,
   text: string,
-  extra: { ops?: StoredOp[]; provenance?: Provenance; presets?: Presets; existing?: PlanRow | null; pending?: ActionOutcome['pending'] } = {}
+  extra: {
+    ops?: StoredOp[];
+    provenance?: Provenance;
+    presets?: Presets;
+    existing?: PlanRow | null;
+    pending?: ActionOutcome['pending'];
+    parse?: boolean;
+    resolve?: boolean | null;
+  } = {}
 ): Promise<ActionOutcome> {
   await persist(
     base,
@@ -230,88 +233,16 @@ async function refuse(
       provenance: extra.provenance ?? 'UNGROUNDED',
       status: 'FAILED',
       errorCode: code,
+      ...(extra.parse !== undefined ? { parse: extra.parse } : {}),
+      ...(extra.resolve !== undefined ? { resolve: extra.resolve } : {}),
     },
     extra.existing ?? null
   );
   return { text, refusal: code, bind: [], ...(extra.pending !== undefined ? { pending: extra.pending } : {}) };
 }
 
-// ---------------------------------------------------------------------------------------------------------------------
-// Dung khoi hien thi
-// ---------------------------------------------------------------------------------------------------------------------
-
-function planViewOf(row: PlanRow, stored: StoredPlan, status: PlanStatus, now: Date) {
-  return buildPlanView({
-    planId: row.id,
-    checksum: row.checksum,
-    status,
-    risk: row.risk,
-    requiresConfirmation: row.requiresConfirmation,
-    reasons: (row.reasons as unknown as ConfirmReason[] | null) ?? [],
-    expiresAt: row.expiresAt,
-    boardId: stored.boardId,
-    boardName: stored.boardName,
-    ops: stored.ops,
-    warnings: stored.warnings ?? [],
-    now,
-  });
-}
-
-function bindingsOf(op: StoredOp, result: ResultView, boardName: string): EntityOption[] {
-  if (result.status !== 'EXECUTED') return [];
-  const out: EntityOption[] = [];
-  const cardId = result.cardId ?? op.ids.card;
-  const title = op.type === 'CREATE_CARD' || op.type === 'RENAME_CARD' ? op.params.title : op.display.cardTitle;
-  if (cardId !== undefined && title !== undefined) out.push({ id: cardId, name: title, kind: 'CARD', parentName: boardName });
-  if ((op.type === 'MOVE_CARD' || op.type === 'CREATE_CARD') && op.ids.list !== undefined) {
-    const name = op.display.toListName ?? op.display.listName;
-    if (name !== undefined) out.push({ id: op.ids.list, name, kind: 'COLUMN', parentName: boardName });
-  }
-  return out;
-}
-
-/** Ket qua da luu (hoac suy ra tu trang thai) cua mot ke hoach DA CHOT. `replay` = lan tra loi thu hai tro di. */
-export function resultFromRow(row: PlanRow, replay = false): ResultView {
-  const plan = row.plan as unknown as StoredPlan;
-  const saved = row.result as unknown as (ResultView & { detail?: string }) | null;
-  if (saved && (row.status === 'EXECUTED' || row.status === 'FAILED' || row.status === 'STALE')) {
-    const { detail: _detail, ...view } = saved;
-    return { ...view, planId: row.id, status: row.status, ...(replay && row.status === 'EXECUTED' ? { alreadyApplied: true } : {}) };
-  }
-  const code = row.errorCode as ActionErrorCode | null;
-  const status: ResultStatus =
-    row.status === 'EXECUTED' || row.status === 'FAILED' || row.status === 'STALE' || row.status === 'CANCELLED' || row.status === 'EXPIRED'
-      ? row.status
-      : 'FAILED';
-  let summary: string;
-  if (status === 'CANCELLED') summary = code === 'SCOPE_CHANGED' || code === 'SUPERSEDED' ? errorText(code) : CANCELLED_TEXT;
-  else if (status === 'EXPIRED') summary = errorText('EXPIRED');
-  else summary = errorText(code ?? 'INVALID');
-  return buildResultView({
-    planId: row.id,
-    status,
-    autoExecuted: row.autoExecuted,
-    summary,
-    boardId: plan.boardId,
-    ...(code !== null && ['SCOPE_CHANGED', 'SUPERSEDED', 'EXPIRED', 'STALE', 'FORBIDDEN', 'NOT_FOUND', 'INVALID'].includes(code)
-      ? { error: { code, text: summary } }
-      : {}),
-    warnings: plan.warnings ?? [],
-  });
-}
-
-/** Khoi hien thi THAT cua mot ke hoach (de phu len ban chup cu khi mo lai lich su). Het han tinh theo `now`, khong ghi CSDL. */
-export function viewFromRow(row: PlanRow, now: Date): ActionView {
-  const stored = row.plan as unknown as StoredPlan;
-  const open = row.status === 'PROPOSED' || row.status === 'NEEDS_CHOICE';
-  const status: PlanStatus = open && row.expiresAt.getTime() <= now.getTime() ? 'EXPIRED' : row.status;
-  if (status === 'PROPOSED' || status === 'NEEDS_CHOICE' || status === 'EXECUTING') {
-    return { kind: 'PLAN', plan: planViewOf(row, stored, status, now) };
-  }
-  return { kind: 'RESULT', result: resultFromRow({ ...row, status }, false) };
-}
-
 function labelOf(stored: StoredPlan): string {
+  if (stored.ops.length > 1) return `${stored.ops.length} thay đổi trên bảng “${stored.boardName}”`;
   const first = stored.ops[0];
   if (!first) return 'kế hoạch';
   const item = describeOp(first, 0);
@@ -332,26 +263,28 @@ export interface ProposeInput {
   meta: PlanMeta;
 }
 
-async function needsChoice(run: Run, pending: PendingChoice): Promise<ActionOutcome> {
+async function needsChoice(run: Run, pending: PendingChoice, pins: Record<string, string>): Promise<ActionOutcome> {
   const { base, target } = run;
   const row = await persist(
     base,
     target,
     {
-      plan: storedPlan(base, target, [], { presets: run.presets, pending }),
+      plan: storedPlan(base, target, [], { presets: { ...run.presets, ...pins }, pending }),
       risk: 'LOW',
       requiresConfirmation: true,
       reasons: [],
-      provenance: run.prov.verdict,
+      provenance: run.prepared.prov.verdict,
       status: 'NEEDS_CHOICE',
     },
     run.existing
   );
   // tao the ma khong noi cot nao: khong co gi "khop" ca, chi la chua noi
-  const noColumnNamed = pending.path === 'list' && run.op.type === 'CREATE_CARD' && run.op.list === undefined;
-  const question = noColumnNamed
-    ? 'Bạn muốn tạo thẻ trong cột nào?'
-    : `Có nhiều ${WHAT[pending.path]} khớp với câu của bạn. Bạn muốn chọn ${WHAT[pending.path]} nào?`;
+  const question =
+    pending.sig === 'list:none'
+      ? 'Bạn muốn tạo thẻ trong cột nào?'
+      : pending.text === ''
+        ? `Có nhiều ${WHAT[pending.kind]} phù hợp. Bạn muốn chọn ${WHAT[pending.kind]} nào?`
+        : `Có nhiều ${WHAT[pending.kind]} khớp “${pending.text}”. Bạn muốn chọn ${WHAT[pending.kind]} nào?`;
   return {
     text: question,
     bind: [],
@@ -360,39 +293,39 @@ async function needsChoice(run: Run, pending: PendingChoice): Promise<ActionOutc
       planId: row.id,
       original: base.message,
       question,
-      options: pending.options.map((o) => ({ id: o.id, name: o.label, kind: KIND_OF_PATH[pending.path] })),
+      options: pending.options.map((o) => ({ id: o.id, name: o.label, kind: KIND_OF[pending.kind] })),
     },
   };
 }
 
 /** Ket qua phan giai -> chinh sach tu chay -> luu ke hoach -> (tu chay | xem truoc | tu choi). */
-async function conclude(run: Run, resolved: ResolveResult): Promise<ActionOutcome> {
-  const { base, target } = run;
+async function conclude(run: Run, resolved: ResolvedPlan): Promise<ActionOutcome> {
+  const { base, target, prepared } = run;
   const userId = base.session.userId;
-  const fail = (code: ActionErrorCode, text: string, ops: StoredOp[]) =>
-    refuse(base, target, code, text, { ops, provenance: run.prov.verdict, presets: run.presets, existing: run.existing });
+  const verdict = prepared.prov.verdict;
+  const fail = (code: ActionErrorCode, text: string, ops: StoredOp[], resolve: boolean) =>
+    refuse(base, target, code, text, { ops, provenance: verdict, presets: run.presets, existing: run.existing, resolve });
 
-  if (resolved.kind === 'FAIL') return fail(resolved.code, resolved.text, []);
-  if (resolved.kind === 'CHOICE') return needsChoice(run, resolved.pending);
+  if (resolved.kind === 'FAIL') return fail(resolved.code, resolved.text, resolved.ops, false);
+  if (resolved.kind === 'CHOICE') return needsChoice(run, resolved.pending, resolved.pins);
 
-  const op = resolved.op;
-  const guard = await guardOp({ userId, boardId: target.boardId, op });
+  const ops = resolved.ops;
+  const guard = await guardPlan({ userId, boardId: target.boardId, ops });
   const decision = decideExecution({
-    opsCount: base.symbolic.length,
-    opType: op.type,
-    provenance: run.prov,
-    dueFuzzy: run.prov.due?.fuzzy ?? false,
-    refsUnique: true, // resolveOp chi tra OK khi moi tham chieu da la DUNG MOT (hoac nguoi dung vua tu chon bang nut)
+    opTypes: ops.map((o) => o.type),
+    provenance: prepared.prov,
+    dueFuzzy: prepared.prov.dueFuzzy,
+    refsUnique: true, // resolveOps chi tra OK khi moi tham chieu da la DUNG MOT (hoac nguoi dung vua tu chon bang nut)
     boardIds: [target.boardId],
     inCeiling: run.inCeiling,
     guard,
     autoExecute: base.autoExecute,
   });
-  if (decision.mode === 'REFUSE') return fail(decision.code, decision.text, [op]);
+  if (decision.mode === 'REFUSE') return fail(decision.code, decision.text, ops, true);
 
-  // thao tac KHONG doi gi (da dung roi) thi khong co gi de xac nhan: chay thang (executor khong goi service)
-  const auto = decision.mode === 'AUTO' || op.noop !== undefined;
-  const stored = storedPlan(base, target, [op], { presets: run.presets, warnings: resolved.warnings });
+  // moi thao tac deu KHONG doi gi (da dung roi) thi khong co gi de xac nhan: chay thang (khong ghi gi)
+  const auto = decision.mode === 'AUTO' || ops.every((o) => o.noop !== undefined);
+  const stored = storedPlan(base, target, ops, { presets: { ...run.presets, ...resolved.pins }, warnings: resolved.warnings });
   const row = await persist(
     base,
     target,
@@ -401,20 +334,19 @@ async function conclude(run: Run, resolved: ResolveResult): Promise<ActionOutcom
       risk: auto ? 'LOW' : decision.risk,
       requiresConfirmation: !auto,
       reasons: auto ? [] : decision.reasons,
-      provenance: run.prov.verdict,
+      provenance: verdict,
       status: 'PROPOSED',
       autoExecuted: auto,
+      resolve: true,
     },
     run.existing
   );
   // mot lenh moi thay the cac ke hoach dang mo truoc do trong hoi thoai
   await cancelOpenPlans(userId, base.session.id, 'SUPERSEDED', base.now, { except: row.id });
 
-  if (!auto || !(await claimPlan(row.id, userId, base.now))) {
-    return { text: PREVIEW_TEXT, action: { kind: 'PLAN', plan: planViewOf(row, stored, 'PROPOSED', base.now) }, bind: [] };
-  }
-  const out = await runClaimedPlan(row, base.now, true);
-  return { text: out.result.summary, action: { kind: 'RESULT', result: out.result }, bind: bindingsOf(op, out.result, target.boardName) };
+  if (!auto) return { text: previewText(ops.length), action: { kind: 'PLAN', plan: planViewOf(row, stored, 'PROPOSED', base.now) }, bind: [] };
+  const out = await executePlan({ row, now: base.now, autoExecuted: true, scope: base.session.uiScope, skipRebuild: true });
+  return { text: out.result.summary, action: { kind: 'RESULT', result: out.result }, bind: out.bind };
 }
 
 export async function proposeActions(input: ProposeInput): Promise<ActionOutcome> {
@@ -422,32 +354,27 @@ export async function proposeActions(input: ProposeInput): Promise<ActionOutcome
   const symbolic = [...input.operations];
   const base: Base = { session, now, message, symbolic, meta, autoExecute: input.autoExecute };
 
-  // mot ke hoach = mot thao tac (Phase 1); schema van nhan toi vai thao tac de tu choi RO RANG thay vi bao loi cu phap
-  if (symbolic.length !== MAX_OPS_PER_PLAN) return refuse(base, null, 'MULTI_OP', MULTI_OP_TEXT);
-  const op = symbolic[0];
-
-  // Nguon goc chi phu thuoc cau + de xuat (khong can biet bang): tinh TRUOC de (1) lenh khong he duoc yeu cau bi tu choi ngay, khong
-  // hoi "bang nao?" cho mot viec nguoi dung khong nhờ, (2) dong kiem toan luon ghi dung nguon goc ke ca khi thieu bang.
-  const prov = assessProvenance(op, message, vnToday(now));
-  const early = refusalBeforeResolve(prov);
+  // Hinh dang + nguon goc chi phu thuoc cau + de xuat (khong can biet bang): tinh TRUOC de (1) de xuat vuot gioi han / sai do thi / lenh
+  // khong he duoc yeu cau bi tu choi ngay, khong hoi "bang nao?" cho mot viec nguoi dung khong nho, (2) dong kiem toan luon ghi dung
+  // nguon goc ke ca khi thieu bang.
+  const prep = prepare(symbolic, message, vnToday(now));
+  if (!prep.ok) return refuse(base, null, prep.code, prep.text, { parse: false });
+  const { prepared } = prep;
+  const prov: PlanProvenance = prepared.prov;
+  const multi = prepared.ordered.length > 1;
+  const early = refusalBeforeResolve(prov, multi && prov.firstNotRequested !== undefined ? OP_LABEL[prepared.ordered[prov.firstNotRequested].type] : undefined);
   const found = await targetBoard(session, now);
   if (early) return refuse(base, found.ok ? found.target : null, early.code, early.text, { provenance: prov.verdict });
   if (!found.ok) {
     return refuse(base, null, found.code, found.text, {
       provenance: prov.verdict,
-      ...(found.code === 'NO_BOARD'
-        ? { pending: { kind: 'QUESTION', original: message, question: found.text, options: [] } as const }
-        : {}),
+      ...(found.code === 'NO_BOARD' ? { pending: { kind: 'QUESTION', original: message, question: found.text, options: [] } as const } : {}),
     });
   }
   const { target } = found;
 
-  const run: Run = { base, target, op, prov, inCeiling: await boardInCeiling(session.uiScope, target.boardId), presets: {}, existing: null };
-  const resolved = await resolveOp(
-    { userId: session.userId, exec: target.exec, boardId: target.boardId, bindings: session.bindings, due: prov.due },
-    op,
-    {}
-  );
+  const run: Run = { base, target, prepared, inCeiling: await boardInCeiling(session.uiScope, target.boardId), presets: {}, existing: null };
+  const resolved = await resolvePrepared({ userId: session.userId, exec: target.exec, boardId: target.boardId, bindings: session.bindings, prepared, presets: {} });
   return conclude(run, resolved);
 }
 
@@ -457,7 +384,7 @@ export async function recordRefusal(
   code: ActionErrorCode,
   text: string
 ): Promise<ActionOutcome> {
-  return refuse({ ...input, symbolic: [], autoExecute: false }, null, code, text);
+  return refuse({ ...input, symbolic: [], autoExecute: false }, null, code, text, { parse: false });
 }
 
 export interface ChoiceInput {
@@ -478,8 +405,15 @@ export async function choosePlanRef(input: ChoiceInput): Promise<ActionOutcome> 
 
   const stored = row.plan as unknown as StoredPlan;
   const pending = stored.pending;
-  if (!pending || !pending.options.some((o) => o.id === optionId)) throw new AppError('Lựa chọn không hợp lệ', 400);
-  const presets: Presets = { ...stored.presets, [pending.path]: optionId };
+  if (stored.version !== 2 || !pending || !pending.options.some((o) => o.id === optionId)) {
+    if (stored.version !== 2) {
+      // cau hoi chon do ma Phase 1 de lai: khong dung duoc voi bo phan giai moi
+      await cancelPlanRow(row.id, session.userId, 'SUPERSEDED', now);
+      throw new AppError('Lựa chọn này đã cũ. Hãy gửi lại lệnh.', 409);
+    }
+    throw new AppError('Lựa chọn không hợp lệ', 400);
+  }
+  const presets: Presets = { ...stored.presets, [pending.sig]: optionId };
   const meta: PlanMeta = {
     provider: row.provider ?? 'unknown',
     model: row.model ?? 'unknown',
@@ -498,14 +432,11 @@ export async function choosePlanRef(input: ChoiceInput): Promise<ActionOutcome> 
     await cancelPlanRow(row.id, session.userId, 'SCOPE_CHANGED', now);
     return { text: errorText('SCOPE_CHANGED'), refusal: 'SCOPE_CHANGED', bind: [] };
   }
-  const op = stored.symbolic[0];
-  const prov = assessProvenance(op, stored.message, vnToday(now));
-  const run: Run = { base, target, op, prov, inCeiling: await boardInCeiling(session.uiScope, target.boardId), presets, existing: row };
-  const resolved = await resolveOp(
-    { userId: session.userId, exec: target.exec, boardId: target.boardId, bindings: session.bindings, due: prov.due },
-    op,
-    presets
-  );
+  // ngay "hom nay" cua ke hoach la ngay LAP ke hoach (khong troi neu nguoi dung bam chon muon)
+  const prep = prepare(stored.symbolic, stored.message, vnToday(row.createdAt));
+  if (!prep.ok) return refuse(base, target, prep.code, prep.text, { presets, existing: row, parse: false });
+  const run: Run = { base, target, prepared: prep.prepared, inCeiling: await boardInCeiling(session.uiScope, target.boardId), presets, existing: row };
+  const resolved = await resolvePrepared({ userId: session.userId, exec: target.exec, boardId: target.boardId, bindings: session.bindings, prepared: prep.prepared, presets });
   return conclude(run, resolved);
 }
 
@@ -545,10 +476,13 @@ export interface ConfirmInput {
   now: Date;
 }
 
-/** Nut "Ap dung". Khong goi LLM. Nhan cho nguyen tu: bam hai lan / hai tab chi chay mot lan, lan sau nhan lai ket qua da luu. */
+/**
+ * Nut "Ap dung". Khong goi LLM. Viec nhan cho nam TRONG transaction ghi (actions.executor): bam hai lan / hai tab chi chay mot lan,
+ * lan sau doi lan dau xong roi nhan lai ket qua da luu (alreadyApplied) - khong tao ban sao.
+ */
 export async function confirmPlan(input: ConfirmInput): Promise<PlanDecision> {
   const { userId, planId, now } = input;
-  let row = await expireIfNeeded(await ownedPlan(userId, planId, input.conversationId), now);
+  const row = await recoverIfStuck(await expireIfNeeded(await ownedPlan(userId, planId, input.conversationId), now), now);
 
   if (row.status === 'NEEDS_CHOICE') throw new AppError('Hãy chọn đối tượng trước khi áp dụng.', 409);
   if (row.status === 'EXECUTING') throw new AppError('Kế hoạch đang được thực hiện. Hãy chờ một chút.', 409);
@@ -561,21 +495,8 @@ export async function confirmPlan(input: ConfirmInput): Promise<PlanDecision> {
     return decided((await findOwnedPlan(userId, planId)) ?? row, false);
   }
 
-  if (!(await claimPlan(planId, userId, now))) {
-    // co nguoi / tien trinh khac thang cuoc dua (hoac vua het han)
-    row = (await findOwnedPlan(userId, planId)) ?? row;
-    row = await expireIfNeeded(row, now);
-    if (row.status === 'EXECUTING') throw new AppError('Kế hoạch đang được thực hiện. Hãy chờ một chút.', 409);
-    return decided(row, true);
-  }
-  const out = await runClaimedPlan(row, now, false);
-  const op = stored.ops[0];
-  return {
-    result: out.result,
-    text: out.result.summary,
-    bind: op ? bindingsOf(op, out.result, stored.boardName) : [],
-    label: labelOf(stored),
-  };
+  const out = await executePlan({ row, now, autoExecuted: false, scope: input.scope });
+  return { result: out.result, text: out.result.summary, bind: out.bind, label: labelOf(stored) };
 }
 
 export interface CancelInput {
@@ -588,7 +509,7 @@ export interface CancelInput {
 /** Nut "Huy" (hoac go "huy"). Lap lai an toan: huy hai lan van la "da huy"; ke hoach da chay thi tra ket qua that. */
 export async function cancelPlan(input: CancelInput): Promise<PlanDecision> {
   const { userId, planId, now } = input;
-  let row = await expireIfNeeded(await ownedPlan(userId, planId, input.conversationId), now);
+  let row = await recoverIfStuck(await expireIfNeeded(await ownedPlan(userId, planId, input.conversationId), now), now);
   if (row.status === 'PROPOSED' || row.status === 'NEEDS_CHOICE') {
     await cancelPlanRow(row.id, userId, null, now);
     row = (await findOwnedPlan(userId, planId)) ?? row;

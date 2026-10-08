@@ -34,13 +34,13 @@ export interface ChatStatus {
   actions?: boolean;
 }
 
-// ===================== Hanh dong (Phase 1) =====================
+// ===================== Hanh dong (Phase 1: mot thao tac, Phase 2: nhieu thao tac trong mot bang) =====================
 // Khoi xem truoc / ket qua do SERVER dung tu ke hoach da phan giai (ten lay tu CSDL), khong phai chu AI viet.
 
 export type ChatPlanStatus = 'NEEDS_CHOICE' | 'PROPOSED' | 'EXECUTING' | 'EXECUTED' | 'FAILED' | 'STALE' | 'CANCELLED' | 'EXPIRED';
 export type ChatPlanRisk = 'LOW' | 'MEDIUM' | 'HIGH';
 export interface ChatPlanReason {
-  code: 'AUTO_DISABLED' | 'DELEGATED_TO_DATA' | 'NOT_GROUNDED' | 'FUZZY_DATE' | 'QUESTION_FORM';
+  code: 'AUTO_DISABLED' | 'DELEGATED_TO_DATA' | 'NOT_GROUNDED' | 'FUZZY_DATE' | 'QUESTION_FORM' | 'MULTI_OP' | 'NEW_STRUCTURE';
   /** Cau giai thich vi sao lenh nay chua tu chay (hien nguyen van cho nguoi dung). */
   text: string;
 }
@@ -65,6 +65,8 @@ export interface ChatActionPlan {
   boardId: string;
   boardName: string;
   items: ChatPlanItem[];
+  /** So thao tac cua ke hoach (may chu cu khong gui: coi nhu bang so dong). */
+  opCount?: number;
   warnings: string[];
 }
 export type ChatResultStatus = 'EXECUTED' | 'FAILED' | 'STALE' | 'CANCELLED' | 'EXPIRED';
@@ -80,6 +82,10 @@ export interface ChatActionResult {
   cardId?: string;
   error?: { code: string; text: string };
   warnings: string[];
+  /** Ke hoach nhieu thao tac: so thao tac va mot cau cho moi thao tac (da lam / da co san). */
+  opCount?: number;
+  details?: string[];
+  cardIds?: string[];
 }
 export type ChatActionView = { kind: 'PLAN'; plan: ChatActionPlan } | { kind: 'RESULT'; result: ChatActionResult };
 

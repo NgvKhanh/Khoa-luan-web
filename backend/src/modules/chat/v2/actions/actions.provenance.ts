@@ -9,6 +9,7 @@
 
 import type { IsoDate } from '../../../ai/ai.dates';
 import { groundDue, type DueGrounding } from './actions.dates';
+import { slotsOf } from './actions.refs';
 import type { ActionOp, Ref } from './actions.schema';
 import {
   delegatesToData,
@@ -46,32 +47,6 @@ export interface ProvenanceReport {
   due?: DueGrounding;
 }
 
-function refsOf(op: ActionOp): Array<[string, Ref]> {
-  switch (op.type) {
-    case 'CREATE_CARD':
-      return op.list ? [['list', op.list]] : [];
-    case 'RENAME_CARD':
-    case 'SET_CARD_DUE':
-    case 'SET_CARD_STATUS':
-      return [['card', op.card]];
-    case 'MOVE_CARD':
-      return [
-        ['card', op.card],
-        ['toList', op.toList],
-      ];
-    case 'ASSIGN_MEMBER':
-      return [
-        ['card', op.card],
-        ['member', op.member],
-      ];
-    case 'ADD_LABEL':
-      return [
-        ['card', op.card],
-        ['label', op.label],
-      ];
-  }
-}
-
 function refGrounded(ref: Ref, words: readonly string[], message: string): boolean {
   switch (ref.by) {
     case 'TEXT':
@@ -80,11 +55,14 @@ function refGrounded(ref: Ref, words: readonly string[], message: string): boole
       return hasContextCue(ref.slot, words);
     case 'SELF':
       return hasSelfCue(message);
+    case 'PLAN':
+      // thuc the do CHINH ke hoach tao: khong phai du lieu co san nen khong co "chu de gan vao cau"
+      return true;
   }
 }
 
 /** `message` la cau CUA NGUOI DUNG (da gop phan bo sung neu co), `today` la ngay lich hien tai o Viet Nam. */
-export function assessProvenance(op: ActionOp, message: string, today: IsoDate): ProvenanceReport {
+export function assessProvenance(op: ActionOp, message: string, today: IsoDate, strictStatus = true): ProvenanceReport {
   const words = foldWords(message);
   const failures: ProvenanceFailure[] = [];
   const due = op.type === 'SET_CARD_DUE' ? groundDue(op.due, message, today) : undefined;
@@ -92,22 +70,56 @@ export function assessProvenance(op: ActionOp, message: string, today: IsoDate):
   const delegated = delegatesToData(words);
   if (delegated) failures.push({ code: 'DELEGATION_PHRASE' });
 
-  const licence = licenceFor(op.type, words, op.type === 'SET_CARD_STATUS' ? op.status : undefined);
+  const licence = licenceFor(op.type, words, op.type === 'SET_CARD_STATUS' ? op.status : undefined, strictStatus);
   if (!licence.licensed) failures.push({ code: 'OP_NOT_LICENSED' });
   else if (licence.negated) failures.push({ code: 'NEGATED' });
 
   if (delegated) return { verdict: 'DELEGATED_TO_DATA', failures, due };
   if (!licence.licensed || licence.negated) return { verdict: 'NOT_REQUESTED', failures, due };
 
-  for (const [name, ref] of refsOf(op)) {
-    if (!refGrounded(ref, words, message)) failures.push({ code: 'REF_NOT_GROUNDED', detail: name });
+  for (const slot of slotsOf(op)) {
+    if (slot.ref !== undefined && !refGrounded(slot.ref, words, message)) failures.push({ code: 'REF_NOT_GROUNDED', detail: slot.name });
   }
   if ((op.type === 'CREATE_CARD' || op.type === 'RENAME_CARD') && !groundedIn(op.title, words, 0.8, false)) {
     failures.push({ code: 'TITLE_NOT_GROUNDED' });
   }
-  if (op.type === 'SET_CARD_STATUS' && lastStatusMention(words) !== op.status) failures.push({ code: 'STATUS_NOT_GROUNDED' });
+  if (op.type === 'CREATE_LIST' && !groundedIn(op.name, words, 0.8, false)) failures.push({ code: 'TITLE_NOT_GROUNDED' });
+  if (op.type === 'SET_CARD_STATUS' && strictStatus && lastStatusMention(words) !== op.status) failures.push({ code: 'STATUS_NOT_GROUNDED' });
   if (due !== undefined && !due.grounded) failures.push({ code: 'DATE_NOT_GROUNDED' });
   if (isQuestionForm(message, words)) failures.push({ code: 'QUESTION_FORM' });
 
   return { verdict: failures.length === 0 ? 'USER_DIRECT' : 'UNGROUNDED', failures, due };
+}
+
+export interface PlanProvenance extends ProvenanceReport {
+  /** Nguon goc tung thao tac (cung thu tu voi danh sach thao tac duoc danh gia). */
+  perOp: ProvenanceReport[];
+  /** Co thao tac nao dung ngay mo ("cuoi tuan"). */
+  dueFuzzy: boolean;
+  /** Chi so thao tac dau tien khong duoc yeu cau (neu co). */
+  firstNotRequested?: number;
+}
+
+const RANK: Record<ProvenanceVerdict, number> = { USER_DIRECT: 0, UNGROUNDED: 1, DELEGATED_TO_DATA: 2, NOT_REQUESTED: 3 };
+
+/**
+ * Nguon goc cua CA ke hoach = nguon goc TE NHAT trong cac thao tac: chi can mot thao tac khong duoc cau nguoi dung yeu cau (NOT_REQUESTED)
+ * la tu choi ca ke hoach (khong am tham bo mot phan roi chay phan con lai); mot thao tac giao cho du lieu / dien giai lai -> ca ke hoach
+ * phai xem lai. Moi thao tac duoc xet doc lap tren CUNG cau cua nguoi dung.
+ */
+export function assessPlanProvenance(ops: readonly ActionOp[], message: string, today: IsoDate): PlanProvenance {
+  // nhieu thao tac doi trang thai trong cung mot cau thi khong the doi moi trang thai la trang thai nhac CUOI
+  const strictStatus = ops.filter((op) => op.type === 'SET_CARD_STATUS').length <= 1;
+  const perOp = ops.map((op) => assessProvenance(op, message, today, strictStatus));
+  let verdict: ProvenanceVerdict = 'USER_DIRECT';
+  for (const r of perOp) if (RANK[r.verdict] > RANK[verdict]) verdict = r.verdict;
+  const failures = perOp.flatMap((r, i) => r.failures.map((f) => ({ ...f, detail: f.detail !== undefined ? `op${i + 1}:${f.detail}` : `op${i + 1}` })));
+  const firstNotRequested = perOp.findIndex((r) => r.verdict === 'NOT_REQUESTED');
+  return {
+    verdict,
+    failures,
+    perOp,
+    dueFuzzy: perOp.some((r) => r.due?.fuzzy === true),
+    ...(firstNotRequested >= 0 ? { firstNotRequested } : {}),
+  };
 }

@@ -48,7 +48,7 @@ export const modelTools = Object.entries(MODEL_SCHEMAS).map(([name, schema]) => 
   });
 });
 
-// Cong cu GHI duy nhat (Phase 1). KHONG nam trong MODEL_SCHEMAS / modelTools: chi duoc gui cho LLM khi CHAT_ACTIONS bat, co AI va
+// Cong cu GHI duy nhat (Phase 1 mot thao tac, Phase 2 nhieu thao tac). KHONG nam trong MODEL_SCHEMAS / modelTools: chi duoc gui cho LLM khi CHAT_ACTIONS bat, co AI va
 // nguoi dung sua duoc (xem chat.v2.service). Luoc do gui di la ban VIET TAY phang (khong sinh tu Zod vi preprocess + union object);
 // Zod ben server (`proposeActionsSchema`, .strict()) van la nguon su that: khoa la nhu cardId / boardId bi tu choi.
 export const PROPOSE_TOOL = 'propose_actions';
@@ -57,7 +57,7 @@ export const proposeActionsTool = {
   function: {
     name: PROPOSE_TOOL,
     description:
-      'Đề xuất ĐÚNG MỘT thay đổi dữ liệu theo lệnh của người dùng: CREATE_CARD, RENAME_CARD, SET_CARD_DUE, MOVE_CARD, SET_CARD_STATUS, ASSIGN_MEMBER, ADD_LABEL. Dùng tham chiếu tượng trưng (TEXT/CONTEXT/SELF), KHÔNG điền id. Đây là lệnh kết thúc: backend tự tìm đối tượng, kiểm quyền rồi tự chạy hoặc hiện bản xem trước.',
+      'Đề xuất các thay đổi dữ liệu (1-15 thao tác, CÙNG MỘT bảng) theo lệnh của người dùng: CREATE_LIST, CREATE_CARD, RENAME_CARD, SET_CARD_DUE, MOVE_CARD, SET_CARD_STATUS, ASSIGN_MEMBER, ADD_LABEL. Dùng tham chiếu tượng trưng (TEXT/CONTEXT/SELF/PLAN), KHÔNG điền id; cột/thẻ do chính lệnh tạo ra thì đặt key rồi tham chiếu {by:PLAN,key}. Đây là lệnh kết thúc: backend tự tìm đối tượng, kiểm quyền rồi tự chạy (một thao tác an toàn) hoặc hiện bản xem trước.',
     parameters: PROPOSE_ACTIONS_PROVIDER_SCHEMA,
   },
 } as const;

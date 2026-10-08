@@ -1,8 +1,13 @@
-// RESOLVER: tham chieu tuong trung (TEXT / CONTEXT / SELF) -> id THAT trong bang cua ke hoach (CHATBOT_V2_ACTIONS_PLAN.md §6, §7).
+// RESOLVER: tham chieu tuong trung (TEXT / CONTEXT / SELF / PLAN) -> id THAT trong bang cua ke hoach (CHATBOT_V2_ACTIONS_PLAN.md §6, §7).
 //
-// LLM khong bao gio thay ket qua nay va khong co o nao de dien id. Moi tham chieu tim trong `exec` (da kep boi tran pham vi va
+// LLM khong bao gio thay ket qua nay va khong co o nao de dien id. Moi tham chieu CO SAN tim trong `exec` (da kep boi tran pham vi va
 // chi gom DUNG bang cua ke hoach) nen "Login" o bang khac khong bao gio khop. Ket qua moi tham chieu: ONE / MANY (nhap nhang ->
-// nut chon) / NONE (khong tim thay, khong goi y bang khac).
+// nut chon) / NONE (khong tim thay, khong goi y bang khac). Tham chieu PLAN (cot / the do chinh ke hoach tao) KHONG di qua CSDL:
+// no tro toi mot thao tac tao, id chi co khi thao tac do chay trong transaction.
+//
+// Phase 2: mot ke hoach co nhieu thao tac nen (1) moi tham chieu CUNG DAU VAN TAY (actions.refs) chi tim mot lan - "Giao Login cho
+// Nam va Register cho Nam" tim Nam mot lan - va mot lan nguoi dung bam chon ap dung cho moi cho nhac cung chu; (2) "no / the vua
+// roi" duoc GHIM thanh id (`pins`) de ap dung sau van dung dung thuc the du phien hoi thoai da doi.
 
 import { prisma } from '../../../../config/prisma';
 import { guessListStatus } from '../../../card/cardStatus';
@@ -11,14 +16,30 @@ import { liveCardWhere } from '../../chat.scope';
 import { resolveEntities, type EntityOption } from '../chat.v2.entities';
 import type { ExecutionContext } from '../chat.v2.scope';
 import { dueIso, formatDueDate, vnDayOfIso, type DueGrounding } from './actions.dates';
+import { refSignature, type SlotKind } from './actions.refs';
 import type { ActionOp, Ref } from './actions.schema';
-import { stripLeadingGeneric } from './actions.text';
+import { foldWords, stripLeadingGeneric } from './actions.text';
 import type { ActionErrorCode, PendingChoice, StoredOp } from './actions.types';
 
 /** Toi da bay nhieu nut chon; nhieu hon thi bao nguoi dung neu ro hon (khong cat danh sach am tham). */
 export const MAX_CHOICES = 8;
 
-export type Presets = Partial<Record<PendingChoice['path'], string>>;
+/** dau van tay tham chieu -> id da chot (nut chon hoac "no" da hieu). */
+export type Presets = Record<string, string>;
+
+export interface LocalEntity {
+  kind: 'LIST' | 'CARD';
+  name: string;
+}
+
+interface Hit {
+  id: string;
+  name: string;
+  parentName?: string;
+  /** Co: thuc the do chinh ke hoach tao (id = key cua thao tac tao). */
+  local?: string;
+}
+export type Outcome = { kind: 'ONE'; hit: Hit } | { kind: 'MANY'; hits: Hit[] } | { kind: 'NONE'; text: string };
 
 export interface ResolveEnv {
   userId: string;
@@ -28,6 +49,12 @@ export interface ResolveEnv {
   bindings: readonly EntityOption[];
   /** Chi SET_CARD_DUE: ngay da hieu tu cau cua nguoi dung. */
   due?: DueGrounding;
+  /** Thuc the do chinh ke hoach tao: key -> ten (de hien thi + de biet tham chieu PLAN hop le). */
+  local?: ReadonlyMap<string, LocalEntity>;
+  /** Nho ket qua tim theo dau van tay trong MOT lan dung ke hoach. */
+  cache?: Map<string, Outcome>;
+  /** Cac "no / the vua roi" da hieu thanh id: ghi vao ke hoach de dung lai khong can phien. */
+  pins?: Record<string, string>;
 }
 
 export type ResolveResult =
@@ -35,14 +62,7 @@ export type ResolveResult =
   | { kind: 'CHOICE'; pending: PendingChoice }
   | { kind: 'FAIL'; code: ActionErrorCode; text: string };
 
-interface Hit {
-  id: string;
-  name: string;
-  parentName?: string;
-}
-type Outcome = { kind: 'ONE'; hit: Hit } | { kind: 'MANY'; hits: Hit[] } | { kind: 'NONE'; text: string };
-
-const WHAT: Record<PendingChoice['path'], string> = { card: 'thẻ', list: 'cột', toList: 'cột', member: 'thành viên', label: 'nhãn' };
+const WHAT: Record<SlotKind, string> = { card: 'thẻ', list: 'cột', member: 'thành viên', label: 'nhãn' };
 
 function fromOptions(options: readonly EntityOption[], text: string): Outcome {
   if (options.length === 0) return { kind: 'NONE', text };
@@ -89,7 +109,7 @@ function binding(env: ResolveEnv, kind: EntityOption['kind']): EntityOption | un
   return env.bindings.find((b) => b.kind === kind);
 }
 
-async function findCard(env: ResolveEnv, ref: Ref, preset?: string): Promise<Outcome> {
+async function locateCard(env: ResolveEnv, ref: Ref, preset?: string): Promise<Outcome> {
   if (preset !== undefined) {
     const c = await loadCard(env, preset);
     return c ? { kind: 'ONE', hit: { id: c.id, name: c.title } } : { kind: 'NONE', text: 'thẻ đã chọn' };
@@ -108,7 +128,7 @@ async function findCard(env: ResolveEnv, ref: Ref, preset?: string): Promise<Out
   return { kind: 'MANY', hits: out.hits.map((h) => ({ id: h.id, name: h.name, parentName: listOf.get(h.id) })) };
 }
 
-async function findList(env: ResolveEnv, ref: Ref | undefined, preset?: string): Promise<Outcome> {
+async function locateList(env: ResolveEnv, ref: Ref | undefined, preset?: string): Promise<Outcome> {
   if (preset !== undefined) {
     const l = await loadList(env, preset);
     return l ? { kind: 'ONE', hit: l } : { kind: 'NONE', text: 'cột đã chọn' };
@@ -144,7 +164,7 @@ async function findList(env: ResolveEnv, ref: Ref | undefined, preset?: string):
   return lists.length === 1 ? { kind: 'ONE', hit: lists[0] } : { kind: 'MANY', hits: lists };
 }
 
-async function findMember(env: ResolveEnv, ref: Ref, preset?: string): Promise<Outcome> {
+async function locateMember(env: ResolveEnv, ref: Ref, preset?: string): Promise<Outcome> {
   const person = (id: string): Outcome => {
     const m = env.exec.roster.find((r) => r.userId === id);
     return m ? { kind: 'ONE', hit: { id: m.userId, name: m.name } } : { kind: 'NONE', text: 'thành viên' };
@@ -155,11 +175,12 @@ async function findMember(env: ResolveEnv, ref: Ref, preset?: string): Promise<O
     const b = binding(env, 'MEMBER');
     return b ? person(b.id) : { kind: 'NONE', text: 'người vừa nhắc' };
   }
+  if (ref.by !== 'TEXT') return { kind: 'NONE', text: 'thành viên' };
   if (isSelfReference(ref.text)) return person(env.userId);
   return byName(env.exec, 'MEMBER', ref.text);
 }
 
-async function findLabel(env: ResolveEnv, ref: Ref, preset?: string): Promise<Outcome> {
+async function locateLabel(env: ResolveEnv, ref: Ref, preset?: string): Promise<Outcome> {
   if (preset !== undefined) {
     const l = await prisma.label.findFirst({ where: { id: preset, boardId: env.boardId }, select: { id: true, name: true } });
     return l ? { kind: 'ONE', hit: l } : { kind: 'NONE', text: 'nhãn đã chọn' };
@@ -168,179 +189,286 @@ async function findLabel(env: ResolveEnv, ref: Ref, preset?: string): Promise<Ou
   return byName(env.exec, 'LABEL', ref.text);
 }
 
+/** Tim mot tham chieu CO SAN, co nho theo dau van tay. */
+async function findExisting(env: ResolveEnv, kind: SlotKind, ref: Ref | undefined, presets: Presets): Promise<{ sig: string; out: Outcome }> {
+  const sig = refSignature(kind, ref) as string;
+  const seen = env.cache?.get(sig);
+  if (seen) return { sig, out: seen };
+  const preset = presets[sig];
+  let out: Outcome;
+  if (kind === 'card') out = await locateCard(env, ref as Ref, preset);
+  else if (kind === 'list') out = await locateList(env, ref, preset);
+  else if (kind === 'member') out = await locateMember(env, ref as Ref, preset);
+  else out = await locateLabel(env, ref as Ref, preset);
+  // "no / the vua roi" da hieu: ghim thanh id de lan dung lai ke hoach khong phu thuoc phien
+  if (out.kind === 'ONE' && ref?.by === 'CONTEXT' && env.pins) env.pins[sig] = out.hit.id;
+  env.cache?.set(sig, out);
+  return { sig, out };
+}
+
 const isResult = (x: Hit | ResolveResult): x is ResolveResult => 'kind' in x;
+const textOf = (ref: Ref | undefined): string => (ref !== undefined && ref.by === 'TEXT' ? ref.text : '');
 
 /** Mot tham chieu -> mot Hit, hoac mot ket qua dung som (nut chon / loi). */
-async function slot(path: PendingChoice['path'], text: string, find: () => Promise<Outcome>): Promise<Hit | ResolveResult> {
-  const out = await find();
+async function pick(env: ResolveEnv, kind: SlotKind, ref: Ref | undefined, presets: Presets): Promise<Hit | ResolveResult> {
+  if (ref?.by === 'PLAN') {
+    const made = env.local?.get(ref.key);
+    if (!made || made.kind !== (kind === 'list' ? 'LIST' : 'CARD')) {
+      return { kind: 'FAIL', code: 'INVALID_PLAN', text: `Tham chiếu “${ref.key}” không trỏ tới ${WHAT[kind]} nào được tạo trong kế hoạch. Chưa thay đổi gì.` };
+    }
+    return { id: ref.key, name: made.name, local: ref.key };
+  }
+  const { sig, out } = await findExisting(env, kind, ref, presets);
   if (out.kind === 'ONE') return out.hit;
+  const text = textOf(ref);
   if (out.kind === 'NONE') {
-    return { kind: 'FAIL', code: 'NOT_FOUND', text: `Không tìm thấy ${WHAT[path]} “${out.text === '' ? text : out.text}” trong bảng này. Chưa thay đổi gì.` };
+    return { kind: 'FAIL', code: 'NOT_FOUND', text: `Không tìm thấy ${WHAT[kind]} “${out.text === '' ? text : out.text}” trong bảng này. Chưa thay đổi gì.` };
   }
   if (out.hits.length > MAX_CHOICES) {
-    const which = text === '' ? `Hãy nói rõ tên ${WHAT[path]}` : `Có ${out.hits.length} ${WHAT[path]} khớp “${text}”. Hãy nêu rõ hơn (thêm tên đầy đủ)`;
+    const which = text === '' ? `Hãy nói rõ tên ${WHAT[kind]}` : `Có ${out.hits.length} ${WHAT[kind]} khớp “${text}”. Hãy nêu rõ hơn (thêm tên đầy đủ)`;
     return { kind: 'FAIL', code: 'AMBIGUOUS', text: `${which}. Chưa thay đổi gì.` };
   }
   return {
     kind: 'CHOICE',
-    pending: { path, options: out.hits.map((h) => ({ id: h.id, label: h.parentName ? `${h.name} · ${h.parentName}` : h.name })) },
+    pending: { sig, kind, text, options: out.hits.map((h) => ({ id: h.id, label: h.parentName ? `${h.name} · ${h.parentName}` : h.name })) },
   };
 }
 
-const textOf = (ref: Ref | undefined): string => (ref !== undefined && ref.by === 'TEXT' ? ref.text : '');
+type CardRow = NonNullable<Awaited<ReturnType<typeof loadCard>>>;
+interface CardTarget {
+  ids: { card?: string };
+  local?: { card: string };
+  title: string;
+  row: CardRow | null;
+}
+type ListTarget = { ids: { list?: string }; local?: { list: string }; name: string };
+
+async function cardTarget(env: ResolveEnv, ref: Ref, presets: Presets): Promise<CardTarget | ResolveResult> {
+  const hit = await pick(env, 'card', ref, presets);
+  if (isResult(hit)) return hit;
+  if (hit.local !== undefined) return { ids: {}, local: { card: hit.local }, title: hit.name, row: null };
+  const row = await loadCard(env, hit.id);
+  if (!row) return { kind: 'FAIL', code: 'NOT_FOUND', text: 'Thẻ không còn tồn tại. Chưa thay đổi gì.' };
+  return { ids: { card: row.id }, title: row.title, row };
+}
+
+async function listTarget(env: ResolveEnv, ref: Ref | undefined, presets: Presets): Promise<ListTarget | ResolveResult> {
+  const hit = await pick(env, 'list', ref, presets);
+  if (isResult(hit)) return hit;
+  return hit.local !== undefined ? { ids: {}, local: { list: hit.local }, name: hit.name } : { ids: { list: hit.id }, name: hit.name };
+}
+
+const isFail = (x: object): x is ResolveResult => 'kind' in x;
+
+/** Cac cot cua the / cot tao moi: chi them khoa khi co gia tri that (khong de `undefined` lot vao JSON luu). */
+const localOf = (card?: { card: string }, list?: { list: string }): Pick<StoredOp, 'local'> =>
+  card || list ? { local: { ...(card ?? {}), ...(list ?? {}) } } : {};
 
 /**
- * Phan giai mot thao tac. `presets` = cac id da chot (qua nut chon cua nguoi dung); chung van duoc kiem lai con ton tai trong
- * bang. Tra CHOICE khi con MOT tham chieu nhap nhang (hoi tung cai mot), FAIL khi khong tim thay / qua nhieu.
+ * Phan giai mot thao tac. `presets` = cac id da chot theo dau van tay (nut chon / "no" da ghim); chung van duoc kiem lai con ton tai
+ * trong bang. Tra CHOICE khi con MOT tham chieu nhap nhang (hoi tung cai mot), FAIL khi khong tim thay / qua nhieu.
  */
 export async function resolveOp(env: ResolveEnv, symbolic: ActionOp, presets: Presets = {}): Promise<ResolveResult> {
   const warnings: string[] = [];
-  const base = { ids: {} as StoredOp['ids'], params: {} as StoredOp['params'], display: {} as StoredOp['display'] };
+  const ok = (op: StoredOp): ResolveResult => ({ kind: 'OK', warnings, op });
+  const key = 'key' in symbolic && symbolic.key !== undefined ? { key: symbolic.key } : {};
 
   switch (symbolic.type) {
+    case 'CREATE_LIST': {
+      const name = symbolic.name.trim();
+      const taken = await prisma.list.findMany({ where: { boardId: env.boardId, deletedAt: null, archivedAt: null }, select: { name: true } });
+      const folded = foldWords(name).join(' ');
+      if (taken.some((l) => foldWords(l.name).join(' ') === folded)) {
+        return { kind: 'FAIL', code: 'CONFLICT', text: `Bảng đã có cột “${name}”. Hãy dùng tên khác, hoặc nhờ mình thêm thẻ vào cột đã có. Chưa thay đổi gì.` };
+      }
+      // doan trang thai theo ten, GIONG tao cot bang tay (createList): "Hoan thanh" -> DONE, "Kiem thu" -> Cho duyet...
+      return ok({ type: 'CREATE_LIST', ...key, ids: {}, params: { name, listStatus: guessListStatus(name) }, before: null, display: { listName: name } });
+    }
     case 'CREATE_CARD': {
-      const list = await slot('list', textOf(symbolic.list), () => findList(env, symbolic.list, presets.list));
-      if (isResult(list)) return list;
-      return {
-        kind: 'OK',
-        warnings,
-        op: { ...base, type: 'CREATE_CARD', ids: { list: list.id }, params: { title: symbolic.title.trim() }, before: null, display: { listName: list.name } },
-      };
+      const list = await listTarget(env, symbolic.list, presets);
+      if (isFail(list)) return list;
+      const title = symbolic.title.trim();
+      if (list.ids.list !== undefined) {
+        const same = await prisma.card.count({ where: { listId: list.ids.list, title, deletedAt: null, archivedAt: null } });
+        if (same > 0) warnings.push(`Cột “${list.name}” đã có thẻ “${title}”; mình vẫn tạo thẻ mới cùng tên.`);
+      }
+      return ok({ type: 'CREATE_CARD', ...key, ids: list.ids, ...localOf(undefined, list.local), params: { title }, before: null, display: { listName: list.name } });
     }
     case 'RENAME_CARD': {
-      const card = await slot('card', textOf(symbolic.card), () => findCard(env, symbolic.card, presets.card));
-      if (isResult(card)) return card;
-      const row = await loadCard(env, card.id);
-      if (!row) return { kind: 'FAIL', code: 'NOT_FOUND', text: 'Thẻ không còn tồn tại. Chưa thay đổi gì.' };
+      const card = await cardTarget(env, symbolic.card, presets);
+      if (isFail(card)) return card;
       const title = symbolic.title.trim();
-      return {
-        kind: 'OK',
-        warnings,
-        op: {
-          ...base,
-          type: 'RENAME_CARD',
-          ids: { card: row.id },
-          params: { title },
-          before: { title: row.title },
-          display: { cardTitle: row.title },
-          ...(title === row.title ? { noop: `Thẻ “${row.title}” đã có tên này rồi nên chưa cần đổi.` } : {}),
-        },
-      };
+      return ok({
+        type: 'RENAME_CARD',
+        ids: card.ids,
+        ...localOf(card.local),
+        params: { title },
+        before: { title: card.title },
+        display: { cardTitle: card.title },
+        ...(card.row !== null && title === card.row.title ? { noop: `Thẻ “${card.title}” đã có tên này rồi nên chưa cần đổi.` } : {}),
+      });
     }
     case 'SET_CARD_DUE': {
-      const card = await slot('card', textOf(symbolic.card), () => findCard(env, symbolic.card, presets.card));
-      if (isResult(card)) return card;
-      const row = await loadCard(env, card.id);
-      if (!row) return { kind: 'FAIL', code: 'NOT_FOUND', text: 'Thẻ không còn tồn tại. Chưa thay đổi gì.' };
+      const card = await cardTarget(env, symbolic.card, presets);
+      if (isFail(card)) return card;
       const resolution = env.due?.resolution;
       if (resolution === undefined || resolution.kind === 'INVALID') {
         return { kind: 'FAIL', code: 'INVALID', text: 'Ngày hạn không hợp lệ. Chưa thay đổi gì.' };
       }
       if (env.due?.llmDiffers) warnings.push('Ngày hạn được lấy theo đúng câu của bạn (khác với ngày AI đề xuất).');
-      const before = row.dueDate ? row.dueDate.toISOString() : null;
+      const before = card.row?.dueDate ? card.row.dueDate.toISOString() : null;
       const due = resolution.kind === 'CLEAR' ? null : dueIso(resolution.date);
       let noop: string | undefined;
-      if (due === null && before === null) noop = `Thẻ “${row.title}” chưa có hạn nên không cần bỏ.`;
-      else if (due !== null && before !== null && vnDayOfIso(before) === vnDayOfIso(due)) {
-        noop = `Hạn của thẻ “${row.title}” đã là ${formatDueDate(vnDayOfIso(due))} rồi.`;
+      if (card.row !== null) {
+        if (due === null && before === null) noop = `Thẻ “${card.title}” chưa có hạn nên không cần bỏ.`;
+        else if (due !== null && before !== null && vnDayOfIso(before) === vnDayOfIso(due)) {
+          noop = `Hạn của thẻ “${card.title}” đã là ${formatDueDate(vnDayOfIso(due))} rồi.`;
+        }
       }
-      return {
-        kind: 'OK',
-        warnings,
-        op: {
-          ...base,
-          type: 'SET_CARD_DUE',
-          ids: { card: row.id },
-          params: { due },
-          before: { due: before },
-          display: { cardTitle: row.title },
-          ...(noop !== undefined ? { noop } : {}),
-        },
-      };
+      return ok({ type: 'SET_CARD_DUE', ids: card.ids, ...localOf(card.local), params: { due }, before: { due: before }, display: { cardTitle: card.title }, ...(noop !== undefined ? { noop } : {}) });
     }
     case 'MOVE_CARD': {
-      const card = await slot('card', textOf(symbolic.card), () => findCard(env, symbolic.card, presets.card));
-      if (isResult(card)) return card;
-      const list = await slot('toList', textOf(symbolic.toList), () => findList(env, symbolic.toList, presets.toList));
-      if (isResult(list)) return list;
-      const row = await loadCard(env, card.id);
-      if (!row) return { kind: 'FAIL', code: 'NOT_FOUND', text: 'Thẻ không còn tồn tại. Chưa thay đổi gì.' };
-      return {
-        kind: 'OK',
-        warnings,
-        op: {
-          ...base,
-          type: 'MOVE_CARD',
-          ids: { card: row.id, list: list.id },
-          params: {},
-          before: { listId: row.listId, listName: row.list.name },
-          display: { cardTitle: row.title, toListName: list.name },
-          ...(row.listId === list.id ? { noop: `Thẻ “${row.title}” đã ở cột “${list.name}” rồi.` } : {}),
-        },
-      };
+      const card = await cardTarget(env, symbolic.card, presets);
+      if (isFail(card)) return card;
+      const list = await listTarget(env, symbolic.toList, presets);
+      if (isFail(list)) return list;
+      return ok({
+        type: 'MOVE_CARD',
+        ids: { ...card.ids, ...list.ids },
+        ...localOf(card.local, list.local),
+        params: {},
+        before: card.row ? { listId: card.row.listId, listName: card.row.list.name } : null,
+        display: { cardTitle: card.title, toListName: list.name },
+        ...(card.row !== null && list.ids.list !== undefined && card.row.listId === list.ids.list ? { noop: `Thẻ “${card.title}” đã ở cột “${list.name}” rồi.` } : {}),
+      });
     }
     case 'SET_CARD_STATUS': {
-      const card = await slot('card', textOf(symbolic.card), () => findCard(env, symbolic.card, presets.card));
-      if (isResult(card)) return card;
-      const row = await loadCard(env, card.id);
-      if (!row) return { kind: 'FAIL', code: 'NOT_FOUND', text: 'Thẻ không còn tồn tại. Chưa thay đổi gì.' };
-      return {
-        kind: 'OK',
-        warnings,
-        op: {
-          ...base,
-          type: 'SET_CARD_STATUS',
-          ids: { card: row.id },
-          params: { status: symbolic.status },
-          before: { status: row.status, listId: row.listId, listName: row.list.name },
-          display: { cardTitle: row.title },
-          ...(row.status === symbolic.status ? { noop: `Thẻ “${row.title}” đã ở trạng thái này rồi.` } : {}),
-        },
-      };
+      const card = await cardTarget(env, symbolic.card, presets);
+      if (isFail(card)) return card;
+      return ok({
+        type: 'SET_CARD_STATUS',
+        ids: card.ids,
+        ...localOf(card.local),
+        params: { status: symbolic.status },
+        before: card.row ? { status: card.row.status, listId: card.row.listId, listName: card.row.list.name } : null,
+        display: { cardTitle: card.title },
+        ...(card.row !== null && card.row.status === symbolic.status ? { noop: `Thẻ “${card.title}” đã ở trạng thái này rồi.` } : {}),
+      });
     }
     case 'ASSIGN_MEMBER': {
-      const card = await slot('card', textOf(symbolic.card), () => findCard(env, symbolic.card, presets.card));
-      if (isResult(card)) return card;
-      const member = await slot('member', textOf(symbolic.member), () => findMember(env, symbolic.member, presets.member));
+      const card = await cardTarget(env, symbolic.card, presets);
+      if (isFail(card)) return card;
+      const member = await pick(env, 'member', symbolic.member, presets);
       if (isResult(member)) return member;
-      const row = await loadCard(env, card.id);
-      if (!row) return { kind: 'FAIL', code: 'NOT_FOUND', text: 'Thẻ không còn tồn tại. Chưa thay đổi gì.' };
-      const already = row.members.some((m) => m.userId === member.id);
-      return {
-        kind: 'OK',
-        warnings,
-        op: {
-          ...base,
-          type: 'ASSIGN_MEMBER',
-          ids: { card: row.id, member: member.id },
-          params: {},
-          before: { alreadyAssigned: already },
-          display: { cardTitle: row.title, memberName: member.name },
-          ...(already ? { noop: `${member.name} đã được giao thẻ “${row.title}” rồi.` } : {}),
-        },
-      };
+      const already = card.row?.members.some((m) => m.userId === member.id) ?? false;
+      return ok({
+        type: 'ASSIGN_MEMBER',
+        ids: { ...card.ids, member: member.id },
+        ...localOf(card.local),
+        params: {},
+        before: { alreadyAssigned: already },
+        display: { cardTitle: card.title, memberName: member.name },
+        ...(already ? { noop: `${member.name} đã được giao thẻ “${card.title}” rồi.` } : {}),
+      });
     }
     case 'ADD_LABEL': {
-      const card = await slot('card', textOf(symbolic.card), () => findCard(env, symbolic.card, presets.card));
-      if (isResult(card)) return card;
-      const label = await slot('label', textOf(symbolic.label), () => findLabel(env, symbolic.label, presets.label));
+      const card = await cardTarget(env, symbolic.card, presets);
+      if (isFail(card)) return card;
+      const label = await pick(env, 'label', symbolic.label, presets);
       if (isResult(label)) return label;
-      const row = await loadCard(env, card.id);
-      if (!row) return { kind: 'FAIL', code: 'NOT_FOUND', text: 'Thẻ không còn tồn tại. Chưa thay đổi gì.' };
-      const already = row.labels.some((l) => l.labelId === label.id);
-      return {
-        kind: 'OK',
-        warnings,
-        op: {
-          ...base,
-          type: 'ADD_LABEL',
-          ids: { card: row.id, label: label.id },
-          params: {},
-          before: { alreadyLabeled: already },
-          display: { cardTitle: row.title, labelName: label.name },
-          ...(already ? { noop: `Thẻ “${row.title}” đã có nhãn “${label.name}” rồi.` } : {}),
-        },
-      };
+      const already = card.row?.labels.some((l) => l.labelId === label.id) ?? false;
+      return ok({
+        type: 'ADD_LABEL',
+        ids: { ...card.ids, label: label.id },
+        ...localOf(card.local),
+        params: {},
+        before: { alreadyLabeled: already },
+        display: { cardTitle: card.title, labelName: label.name },
+        ...(already ? { noop: `Thẻ “${card.title}” đã có nhãn “${label.name}” rồi.` } : {}),
+      });
     }
   }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Ca ke hoach
+// ---------------------------------------------------------------------------------------------------------------------
+
+export type ResolveOpsResult =
+  | { kind: 'OK'; ops: StoredOp[]; warnings: string[]; pins: Record<string, string> }
+  | { kind: 'CHOICE'; pending: PendingChoice; pins: Record<string, string> }
+  | { kind: 'FAIL'; code: ActionErrorCode; text: string; ops: StoredOp[] };
+
+/** Thao tac nao KHONG duoc xuat hien hai lan tren cung mot the (hai gia tri khac nhau se mau thuan). */
+const EXCLUSIVE: Partial<Record<StoredOp['type'], string>> = {
+  RENAME_CARD: 'đổi tên',
+  SET_CARD_DUE: 'đổi hạn',
+  MOVE_CARD: 'chuyển cột',
+  SET_CARD_STATUS: 'đổi trạng thái',
+};
+
+const cardKeyOf = (op: StoredOp): string | undefined => op.ids.card ?? (op.local?.card !== undefined ? `local:${op.local.card}` : undefined);
+const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+/**
+ * Hai thao tac mau thuan tren cung mot the -> loi; thao tac TRUNG HET (cung the, cung gia tri / nguoi / nhan) -> bo thao tac sau.
+ * Ham thuan tren cac thao tac da phan giai (the do ke hoach tao duoc nhan dien bang key).
+ */
+export function dedupeOps(ops: readonly StoredOp[]): { ok: true; ops: StoredOp[]; dropped: number } | { ok: false; text: string } {
+  const kept: StoredOp[] = [];
+  let dropped = 0;
+  for (const [i, op] of ops.entries()) {
+    const card = cardKeyOf(op);
+    let duplicate = false;
+    if (card !== undefined) {
+      for (const [j, prior] of kept.entries()) {
+        if (cardKeyOf(prior) !== card) continue;
+        const title = op.display.cardTitle ?? 'này';
+        if (EXCLUSIVE[op.type] !== undefined && prior.type === op.type) {
+          if (same(prior.params, op.params) && same(prior.ids, op.ids)) duplicate = true;
+          else return { ok: false, text: `Có hai thao tác ${EXCLUSIVE[op.type]} khác nhau cho thẻ “${title}” (thao tác ${j + 1} và ${i + 1}). Hãy nói rõ một giá trị. Chưa thay đổi gì.` };
+        }
+        if ((op.type === 'MOVE_CARD' && prior.type === 'SET_CARD_STATUS') || (op.type === 'SET_CARD_STATUS' && prior.type === 'MOVE_CARD')) {
+          return { ok: false, text: `Thẻ “${title}” vừa được chuyển cột vừa được đổi trạng thái (thao tác ${j + 1} và ${i + 1}) và hai việc này ảnh hưởng lẫn nhau. Hãy chọn một. Chưa thay đổi gì.` };
+        }
+        if (op.type === 'ASSIGN_MEMBER' && prior.type === 'ASSIGN_MEMBER' && prior.ids.member === op.ids.member) duplicate = true;
+        if (op.type === 'ADD_LABEL' && prior.type === 'ADD_LABEL' && prior.ids.label === op.ids.label) duplicate = true;
+      }
+    }
+    if (duplicate) dropped += 1;
+    else kept.push(op);
+  }
+  return { ok: true, ops: kept, dropped };
+}
+
+/**
+ * Phan giai ca ke hoach theo THU TU CHAY (da sap topo). Dung o thao tac dau tien can nguoi dung chon / loi. `presets` da chot nen
+ * cac lan goi sau (sau moi lan bam nut) di tiep den tham chieu nhap nhang ke tiep ma khong tim lai nhung cai da xong.
+ */
+export async function resolveOps(
+  env: Omit<ResolveEnv, 'local' | 'cache' | 'pins' | 'due'>,
+  ordered: readonly ActionOp[],
+  presets: Presets,
+  dues: readonly (DueGrounding | undefined)[]
+): Promise<ResolveOpsResult> {
+  const local = new Map<string, LocalEntity>();
+  for (const op of ordered) {
+    if (op.type === 'CREATE_LIST' && op.key !== undefined) local.set(op.key, { kind: 'LIST', name: op.name.trim() });
+    if (op.type === 'CREATE_CARD' && op.key !== undefined) local.set(op.key, { kind: 'CARD', name: op.title.trim() });
+  }
+  const pins: Record<string, string> = {};
+  const cache = new Map<string, Outcome>();
+  const resolved: StoredOp[] = [];
+  const warnings: string[] = [];
+  for (const [i, symbolic] of ordered.entries()) {
+    const res = await resolveOp({ ...env, local, cache, pins, due: dues[i] }, symbolic, presets);
+    if (res.kind === 'CHOICE') return { kind: 'CHOICE', pending: res.pending, pins };
+    if (res.kind === 'FAIL') return { kind: 'FAIL', code: res.code, text: res.text, ops: resolved };
+    resolved.push(res.op);
+    for (const w of res.warnings) if (!warnings.includes(w)) warnings.push(w);
+  }
+  const deduped = dedupeOps(resolved);
+  if (!deduped.ok) return { kind: 'FAIL', code: 'CONFLICT', text: deduped.text, ops: resolved };
+  if (deduped.dropped > 0) warnings.push(`Đã bỏ ${deduped.dropped} thao tác trùng lặp.`);
+  return { kind: 'OK', ops: deduped.ops, warnings, pins };
 }

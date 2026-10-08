@@ -1,151 +1,201 @@
-// THUC THI mot ke hoach da NHAN CHO (status EXECUTING) - CHATBOT_V2_ACTIONS_PLAN.md §4.6 "ServiceStrategy".
+// THUC THI mot ke hoach (CHATBOT_V2_ACTIONS_PLAN.md §4.6, Phase 2).
 //
-// Phase 1: moi ke hoach DUNG MOT thao tac nen goi THANG service ma giao dien dang dung (createCard, updateCard, moveCard,
-// addCardMember, attachLabel), voi `userId` cua chinh nguoi dung -> hanh vi GIONG HET thao tac tay: cung kiem quyen, cung nhat ky
-// Activity, cung thong bao, cung tu dong hoa, cung su kien socket. Executor KHONG tu ghi CSDL, KHONG tu phat socket.
-//
-// Truoc khi goi: kiem lai quyen + nghiep vu (guard), kiem TIEN DIEU KIEN (gia tri cu van dung nhu luc xem truoc - neu khong thi
-// STALE, khong ghi de thay doi moi cua nguoi khac). Mot loi service khong lam ke hoach treo o EXECUTING: luon chot FAILED / STALE.
+// Thu tu, moi buoc deu CHI DOC cho toi khi vao transaction:
+//   1. guardBoard : nguoi ra lenh con quyen SUA bang khong (mat quyen -> FAILED, khong bi che boi "du lieu da doi")
+//   2. dung lai   : phan giai lai tu phan tuong trung da luu + id da ghim, so voi luc xem truoc -> khac thi STALE (bo qua khi vua moi lap)
+//   3. guardPlan  : quyen + nghiep vu cua TAT CA thao tac (mot thao tac bi chan -> ca ke hoach that bai)
+//   4. TRANSACTION (mot lan, tat ca hoac khong gi):
+//        a. nhan cho PROPOSED -> EXECUTING   (nguyen tu; hai yeu cau dong thoi: yeu cau sau doi roi thua cuoc va nhan lai ket qua cu)
+//        b. khoa dong theo thu tu id, kiem lai quyen + ton tai + gia tri cu  (sai -> PlanAbort -> rollback)
+//        c. ghi tung thao tac theo thu tu topo (du lieu + Activity)
+//        d. chot EXECUTED + ket qua   (cung transaction nen process chet giua chung thi ke hoach quay ve PROPOSED, KHONG ket o EXECUTING)
+//   5. SAU COMMIT : phat thong bao / tu dong hoa / socket (actions.effects)
+// That bai o buoc nao cung chot FAILED / STALE (conditional update) va tra cau tieng Viet "chua thay doi gi".
 
 import { prisma } from '../../../../config/prisma';
-import type { Prisma } from '../../../../generated/prisma/client';
-import { createCard, moveCard, updateCard } from '../../../card/card.service';
-import { addCardMember } from '../../../card/cardExtras.service';
-import { attachLabel } from '../../../label/label.service';
-import { guardOp, mapServiceError } from './actions.guard';
-import { buildResultView, errorText, summarizeExecuted } from './actions.plan';
-import { updatePlan, type PlanRow } from './actions.plan.repo';
-import type { ActionErrorCode, ResultStatus, ResultView, StoredOp, StoredPlan } from './actions.types';
+import { Prisma } from '../../../../generated/prisma/client';
+import { AppError } from '../../../../utils/AppError';
+import { vnToday } from '../../chat.period';
+import type { ChatScopeInput } from '../../chat.scope';
+import type { EntityOption } from '../chat.v2.entities';
+import { resolveExecutionContext, type ExecutionContext } from '../chat.v2.scope';
+import { dispatchEffects, newEffects, type DispatchReport } from './actions.effects';
+import { guardBoard, guardPlan, mapServiceError } from './actions.guard';
+import { buildResultView, errorText, STALE_TAIL, summarizePlan } from './actions.plan';
+import { claimPlan, expireIfNeeded, findOwnedPlan, recoverIfStuck, settlePlan, type PlanRow } from './actions.plan.repo';
+import { rebuildAndCompare } from './actions.preflight';
+import type { ActionErrorCode, ResultStatus, ResultView, StoredPlan } from './actions.types';
+import { resultFromRow } from './actions.view';
+import { applyOp, laterAssignees, lockAndVerify, PlanAbort, type OpOutcome, type RunState } from './actions.write';
 
 export interface ExecOutcome {
   status: ResultStatus;
   result: ResultView;
+  /** true: ke hoach da duoc yeu cau khac chot truoc (khong chay lai). */
+  replayed: boolean;
+  /** Doi tuong de hieu "no / the vua roi" o cau sau (the va cot cuoi cung bi tac dong). */
+  bind: EntityOption[];
+  report?: DispatchReport;
 }
 
-interface ServiceEffect {
-  cardId?: string;
-  createdTitle?: string;
-  movedTo?: string;
+export interface ExecInput {
+  row: PlanRow;
+  now: Date;
+  autoExecuted: boolean;
+  /** Pham vi GIAO DIEN luc ap dung (de dung lai ngu canh bang). */
+  scope: ChatScopeInput;
+  /** Ke hoach vua duoc lap trong cung luot (tu chay): khong can dung lai de so sanh. */
+  skipRebuild?: boolean;
 }
 
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 
-/** Gia tri hien tai co con DUNG nhu luc xem truoc khong? Tra ve cau giai thich neu khong (-> STALE). */
-async function staleReason(op: StoredOp): Promise<string | null> {
-  const cardId = op.ids.card;
-  if (cardId === undefined || op.before === null) return null;
-  const card = await prisma.card.findFirst({
-    where: { id: cardId, deletedAt: null, archivedAt: null },
-    select: { title: true, dueDate: true, listId: true, status: true },
-  });
-  if (!card) return 'Thẻ không còn tồn tại.';
-  switch (op.type) {
-    case 'RENAME_CARD':
-      return card.title === op.before.title ? null : 'Thẻ đã được đổi tên kể từ lúc xem trước.';
-    case 'SET_CARD_DUE':
-      return (card.dueDate?.toISOString() ?? null) === (op.before.due ?? null) ? null : 'Hạn của thẻ đã thay đổi kể từ lúc xem trước.';
-    case 'MOVE_CARD':
-      return card.listId === op.before.listId ? null : 'Thẻ đã được chuyển sang cột khác kể từ lúc xem trước.';
-    case 'SET_CARD_STATUS':
-      return card.status === op.before.status ? null : 'Trạng thái của thẻ đã thay đổi kể từ lúc xem trước.';
-    default:
-      return null;
+/** Lan nhan cho that bai: ke hoach khong con PROPOSED (da chay / da huy / het han) hoac vua bi yeu cau khac nhan truoc. */
+class NotClaimed extends Error {}
+
+const unique = <T>(xs: readonly T[]): T[] => [...new Set(xs)];
+
+function bindingsFrom(state: RunState, outcomes: readonly OpOutcome[], boardName: string): EntityOption[] {
+  const out: EntityOption[] = [];
+  const card = [...outcomes].reverse().find((o) => o.cardId !== undefined);
+  const cardState = card?.cardId !== undefined ? state.cards.get(card.cardId) : undefined;
+  if (card?.cardId !== undefined && cardState) out.push({ id: card.cardId, name: cardState.title, kind: 'CARD', parentName: boardName });
+  const lastList = [...outcomes].reverse().find((o) => o.listId !== undefined);
+  if (lastList?.listId !== undefined) {
+    const created = [...state.created.values()].find((c) => c.kind === 'LIST' && c.id === lastList.listId);
+    const name = created?.name ?? (lastList.cardId !== undefined ? state.cards.get(lastList.cardId)?.listName : undefined);
+    if (name !== undefined) out.push({ id: lastList.listId, name, kind: 'COLUMN', parentName: boardName });
   }
+  return out;
 }
 
-/** Goi dung service cua thao tac. Nem lai moi loi (nguoi goi map thanh ma loi). */
-async function callService(userId: string, op: StoredOp): Promise<ServiceEffect> {
-  const cardId = op.ids.card;
-  switch (op.type) {
-    case 'CREATE_CARD': {
-      const card = await createCard(userId, op.ids.list as string, { title: op.params.title as string });
-      return { cardId: card.id, createdTitle: card.title };
-    }
-    case 'RENAME_CARD':
-      await updateCard(userId, cardId as string, { title: op.params.title as string });
-      return { cardId };
-    case 'SET_CARD_DUE':
-      await updateCard(userId, cardId as string, { dueDate: op.params.due ?? null });
-      return { cardId };
-    case 'MOVE_CARD': {
-      const listId = op.ids.list as string;
-      // cuoi cot: dem the con lai (moveCard tu kep vi tri ve [0, so the])
-      const position = await prisma.card.count({ where: { listId, deletedAt: null, archivedAt: null, id: { not: cardId } } });
-      await moveCard(userId, cardId as string, { listId, position });
-      return { cardId };
-    }
-    case 'SET_CARD_STATUS': {
-      await updateCard(userId, cardId as string, { status: op.params.status });
-      // doi trang thai co the keo the sang cot mang trang thai do (quy tac hai chieu cua updateCard)
-      const after = await prisma.card.findUnique({ where: { id: cardId as string }, select: { list: { select: { id: true, name: true } } } });
-      return { cardId, movedTo: after && after.list.id !== op.before?.listId ? after.list.name : undefined };
-    }
-    case 'ASSIGN_MEMBER':
-      await addCardMember(userId, cardId as string, op.ids.member as string);
-      return { cardId };
-    case 'ADD_LABEL':
-      await attachLabel(userId, cardId as string, op.ids.label as string);
-      return { cardId };
-  }
-}
-
-/**
- * Chay ke hoach da nhan cho va CHOT trang thai (EXECUTED / FAILED / STALE) vao bang. `row.status` phai la EXECUTING (claimPlan).
- */
-export async function runClaimedPlan(row: PlanRow, now: Date, autoExecuted: boolean): Promise<ExecOutcome> {
+export async function executePlan(input: ExecInput): Promise<ExecOutcome> {
+  const { row, now } = input;
   const stored = row.plan as unknown as StoredPlan;
-  const op = stored.ops[0];
   const userId = row.userId as string;
-  const base = { planId: row.id, autoExecuted, boardId: stored.boardId, cardId: op.ids.card };
+  const ops = stored.ops;
+  const ctx = { userId, boardId: stored.boardId };
+  const warnings = stored.warnings ?? [];
 
-  const settle = async (
-    status: ResultStatus,
-    summary: string,
-    extra: { code?: ActionErrorCode; detail?: string; cardId?: string; executedOps?: number } = {}
-  ): Promise<ExecOutcome> => {
+  /** Chot THAT BAI (chua ghi gi). Neu ke hoach da bi yeu cau khac chot truoc thi tra ket qua cua yeu cau do. */
+  const fail = async (status: 'FAILED' | 'STALE', code: ActionErrorCode, text: string, detail?: string): Promise<ExecOutcome> => {
     const result = buildResultView({
-      ...base,
-      ...(extra.cardId !== undefined ? { cardId: extra.cardId } : {}),
+      planId: row.id,
+      autoExecuted: input.autoExecuted,
       status,
-      summary,
-      ...(extra.code !== undefined ? { error: { code: extra.code, text: summary } } : {}),
-      warnings: stored.warnings,
+      summary: text,
+      boardId: stored.boardId,
+      error: { code, text },
+      warnings,
     });
-    await updatePlan(row.id, {
+    const won = await settlePlan(row.id, userId, 'PROPOSED', {
       status,
-      result: json({ ...result, ...(extra.detail !== undefined ? { detail: extra.detail.slice(0, 300) } : {}) }),
-      errorCode: extra.code ?? null,
-      executedOps: extra.executedOps ?? (status === 'EXECUTED' ? 1 : 0),
-      ...(status === 'EXECUTED' ? { executedAt: now } : {}),
+      result: json({ ...result, ...(detail !== undefined ? { detail: detail.slice(0, 300) } : {}) }),
+      errorCode: code,
+      executedOps: 0,
+      executionMs: null,
+      now,
     });
-    return { status, result };
+    if (won) return { status, result, replayed: false, bind: [] };
+    return replay((await findOwnedPlan(userId, row.id)) ?? row);
   };
 
-  try {
-    // 1) quyen + nghiep vu, kiem lai DUNG luc chay
-    const guard = await guardOp({ userId, boardId: stored.boardId, op });
-    if (!guard.ok) {
-      const stale = guard.code === 'NOT_FOUND';
-      return settle(stale ? 'STALE' : 'FAILED', stale ? errorText('STALE') : guard.text, { code: stale ? 'STALE' : guard.code });
-    }
-    // 2) gia tri cu con dung khong
-    const reason = await staleReason(op);
-    if (reason !== null) return settle('STALE', `${reason} ${errorText('STALE')}`, { code: 'STALE' });
-    // 3) da dung roi -> khong goi service
-    if (op.noop !== undefined) return settle('EXECUTED', op.noop, { executedOps: 0 });
-    // 4) goi service that
-    const effect = await callService(userId, op);
-    return settle('EXECUTED', summarizeExecuted(op, effect), { cardId: effect.cardId });
-  } catch (e) {
+  const replay = async (current: PlanRow): Promise<ExecOutcome> => {
+    const fresh = await recoverIfStuck(await expireIfNeeded(current, now), now);
+    if (fresh.status === 'EXECUTING') throw new AppError('Kế hoạch đang được thực hiện. Hãy chờ một chút.', 409);
+    const result = resultFromRow(fresh, true);
+    return { status: result.status, result, replayed: true, bind: [] };
+  };
+
+  if (ops.length === 0) return fail('FAILED', 'INVALID', errorText('INVALID'));
+
+  const refuseGuard = (g: { code: ActionErrorCode; text: string }) => {
+    const stale = g.code === 'NOT_FOUND';
+    return fail(stale ? 'STALE' : 'FAILED', stale ? 'STALE' : g.code, stale ? errorText('STALE') : g.text);
+  };
+
+  // 1) quyen SUA bang cua nguoi ra lenh, kiem lai DUNG luc chay (quyen co the vua doi giua hai buoc). Kiem truoc buoc 2 de "mat quyen"
+  //    luon duoc bao la mat quyen chu khong bi che boi "du lieu da doi".
+  const board = await guardBoard(userId, stored.boardId);
+  if (!board.ok) return refuseGuard(board);
+
+  // 2) du lieu co doi ke tu luc xem truoc khong
+  if (input.skipRebuild !== true) {
+    let exec: ExecutionContext;
     try {
-      const mapped = mapServiceError(e);
-      return await settle('FAILED', mapped.text, { code: mapped.code, detail: e instanceof Error ? e.message : undefined });
-    } catch {
-      // loi he thong (khong phai AppError < 500): chot FAILED, KHONG de ke hoach treo o EXECUTING, va khong lo chi tiet cho nguoi dung
-      return settle('FAILED', errorText('SERVICE_ERROR'), {
-        code: 'SERVICE_ERROR',
-        detail: e instanceof Error ? `${e.name}: ${e.message}` : 'unknown',
-      });
+      exec = await resolveExecutionContext({ userId, now, scope: input.scope, conversationScope: { kind: 'BOARD', boardId: stored.boardId } });
+    } catch (e) {
+      if (e instanceof AppError && e.statusCode < 500) {
+        return e.statusCode === 404 ? fail('STALE', 'STALE', errorText('STALE')) : fail('FAILED', 'FORBIDDEN', errorText('FORBIDDEN'));
+      }
+      throw e;
     }
+    const same = await rebuildAndCompare({ userId, exec, stored, today: vnToday(row.createdAt) });
+    if (same.kind === 'CHANGED') return fail('STALE', 'STALE', `${same.reason} ${STALE_TAIL}`);
+    if (same.kind === 'UNRESOLVABLE') return fail('STALE', 'STALE', same.reason.includes('Chưa thay đổi gì') ? `${same.reason} Hãy gửi lại lệnh để tạo kế hoạch mới.` : `${same.reason} ${STALE_TAIL}`);
+  }
+
+  // 3) quyen + nghiep vu cua TAT CA thao tac (mot thao tac bi chan -> ca ke hoach that bai)
+  const guard = await guardPlan({ userId, boardId: stored.boardId, ops });
+  if (!guard.ok) return refuseGuard(guard);
+
+  // 4) transaction: nhan cho + khoa + ghi + chot ket qua cung mot COMMIT
+  const started = Date.now();
+  const attempt = () =>
+    prisma.$transaction(
+      async (tx) => {
+        if (!(await claimPlan(row.id, userId, now, tx))) throw new NotClaimed();
+        const state = await lockAndVerify(tx, ctx, ops);
+        const effects = newEffects();
+        const excl = laterAssignees(ops, state);
+        const outcomes: OpOutcome[] = [];
+        for (const [index, op] of ops.entries()) outcomes.push(await applyOp(tx, ctx, state, effects, op, index, excl(index)));
+
+        const changed = outcomes.filter((o) => o.changed).length;
+        const cardIds = unique(outcomes.flatMap((o) => (o.cardId !== undefined ? [o.cardId] : [])));
+        const multi = ops.length > 1;
+        const result = buildResultView({
+          planId: row.id,
+          status: 'EXECUTED',
+          autoExecuted: input.autoExecuted,
+          summary: summarizePlan(stored.boardName, outcomes.map((o) => ({ text: o.text, changed: o.changed }))),
+          boardId: stored.boardId,
+          ...(cardIds.length > 0 ? { cardId: cardIds[0] } : {}),
+          warnings,
+          ...(multi ? { opCount: ops.length, details: outcomes.map((o) => o.text), cardIds } : {}),
+        });
+        const settled = await settlePlan(row.id, userId, 'EXECUTING', { status: 'EXECUTED', result: json(result), errorCode: null, executedOps: changed, executionMs: Date.now() - started, now }, tx);
+        if (!settled) throw new NotClaimed();
+        return { state, effects, outcomes, result };
+      },
+      { timeout: 30_000, maxWait: 10_000 }
+    );
+
+  try {
+    let done: Awaited<ReturnType<typeof attempt>>;
+    try {
+      done = await attempt();
+    } catch (e) {
+      // xung dot khoa / deadlock voi mot thao tac khac dang sua cung dong: thu lai MOT lan (transaction truoc da rollback han)
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034') done = await attempt();
+      else throw e;
+    }
+    const report = await dispatchEffects(done.effects);
+    return { status: 'EXECUTED', result: done.result, replayed: false, bind: bindingsFrom(done.state, done.outcomes, stored.boardName), report };
+  } catch (e) {
+    if (e instanceof NotClaimed) return replay((await findOwnedPlan(userId, row.id)) ?? row);
+    if (e instanceof PlanAbort) {
+      const stale = e.code === 'STALE' || e.code === 'NOT_FOUND';
+      return fail(stale ? 'STALE' : 'FAILED', stale ? 'STALE' : e.code, stale ? `${e.message} ${STALE_TAIL}` : `${e.message} ${errorText(e.code)}`, e.message);
+    }
+    // loi nghiep vu cua service/assert (AppError < 500) -> ma + cau tieng Viet; loi he thong -> chot FAILED, KHONG lo chi tiet cho nguoi dung
+    let mapped: ReturnType<typeof mapServiceError> | null = null;
+    try {
+      mapped = mapServiceError(e);
+    } catch {
+      mapped = null;
+    }
+    if (mapped) return fail('FAILED', mapped.code, mapped.text, e instanceof Error ? e.message : undefined);
+    return fail('FAILED', 'SERVICE_ERROR', errorText('SERVICE_ERROR'), e instanceof Error ? `${e.name}: ${e.message}` : 'unknown');
   }
 }

@@ -1,26 +1,42 @@
-// Hop dong HANH DONG cua chatbot v2 - Phase 1 (CHATBOT_V2_ACTIONS_PLAN.md §9).
+// Hop dong HANH DONG cua chatbot v2 - Phase 1 (mot thao tac) + Phase 2 (nhieu thao tac trong MOT bang).
 //
 // NGUYEN TAC: rang buoc bang CAU TRUC, khong bang loi dan trong prompt (cung triet ly AI_MODULE.md §3.1). LLM KHONG co o nao de
-// dien id cua the / cot / nguoi / nhan: chi co 3 cach chi toi mot thuc the (TEXT = dung chu nguoi dung go, CONTEXT = "no" / "the
-// vua roi", SELF = "toi"). Backend tu tim (actions.resolve) roi moi co id. Ngay han cung khong do LLM tinh: LLM chi khai DateSpec,
-// server doi (actions.dates). Khoa la (cardId, boardId...) bi .strict() loai ngay o day.
+// dien id cua the / cot / nguoi / nhan: chi co 4 cach chi toi mot thuc the:
+//   TEXT    = dung chu nguoi dung go
+//   CONTEXT = "no" / "the vua roi"
+//   SELF    = "toi"
+//   PLAN    = thuc the do CHINH KE HOACH nay se tao (cot / the moi), tro bang `key` cua thao tac tao ra no
+// Backend tu tim (actions.resolve) roi moi co id. Ngay han cung khong do LLM tinh: LLM chi khai DateSpec, server doi
+// (actions.dates). Khoa la (cardId, boardId...) bi .strict() loai ngay o day.
 
 import { z } from 'zod';
 import { CardStatus } from '../../../../generated/prisma/enums';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
-/** Phase 1: moi ke hoach DUNG MOT thao tac. Schema van nhan toi MAX_PROPOSED_OPS de tra loi ro rang thay vi bao loi cu phap. */
-export const MAX_OPS_PER_PLAN = 1;
-export const MAX_PROPOSED_OPS = 5;
+/**
+ * Gioi han o BACKEND (khong chi trong prompt). `MAX_PROPOSED_OPS` la tran cua schema de mot de xuat qua dai duoc tra loi bang cau
+ * ro rang ("chia nho lenh") thay vi loi cu phap; han muc that su cua mot ke hoach la cac MAX_* ben duoi (actions.graph.checkLimits).
+ */
+export const MAX_PROPOSED_OPS = 30;
+export const MAX_OPS_PER_PLAN = 15;
+export const MAX_CREATE_CARDS = 10;
+export const MAX_CREATE_LISTS = 3;
+/** So doi tuong CO SAN (the / cot / nguoi / nhan khac nhau) ma mot ke hoach duoc nhac toi. */
+export const MAX_REFERENCED = 20;
 
 export const REF_SLOTS = ['LAST_CARD', 'LAST_LIST', 'LAST_MEMBER'] as const;
 export type RefSlot = (typeof REF_SLOTS)[number];
+
+/** Khoa cua thao tac tao thuc the moi: chu cai dau, chi chu / so / gach duoi (dung de tham chieu trong cung ke hoach). */
+export const PLAN_KEY_RE = /^[A-Za-z][A-Za-z0-9_]{0,31}$/;
+const planKey = z.string().trim().regex(PLAN_KEY_RE);
 
 export const RefSchema = z.discriminatedUnion('by', [
   z.object({ by: z.literal('TEXT'), text: text(200) }).strict(),
   z.object({ by: z.literal('CONTEXT'), slot: z.enum(REF_SLOTS) }).strict(),
   z.object({ by: z.literal('SELF') }).strict(),
+  z.object({ by: z.literal('PLAN'), key: planKey }).strict(),
 ]);
 export type Ref = z.infer<typeof RefSchema>;
 
@@ -35,8 +51,9 @@ export const DateSpecSchema = z.discriminatedUnion('type', [
 ]);
 export type DateSpec = z.infer<typeof DateSpecSchema>;
 
-/** 7 thao tac an toan cua Phase 1. */
+/** 7 thao tac cua Phase 1 + CREATE_LIST (can cho ke hoach nhieu buoc: tao cot roi tao the trong cot do). */
 export const ACTION_TYPES = [
+  'CREATE_LIST',
   'CREATE_CARD',
   'RENAME_CARD',
   'SET_CARD_DUE',
@@ -47,8 +64,23 @@ export const ACTION_TYPES = [
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
 
+/**
+ * Thao tac duoc phep TU CHAY khi dung 1 thao tac (Phase 1). CREATE_LIST khong nam trong day: no doi CAU TRUC bang (va ten cot co the
+ * keo theo trang thai, vd "Hoan thanh" -> DONE) nen luon cho xem truoc.
+ */
+export const AUTO_RUN_TYPES: readonly ActionType[] = [
+  'CREATE_CARD',
+  'RENAME_CARD',
+  'SET_CARD_DUE',
+  'MOVE_CARD',
+  'SET_CARD_STATUS',
+  'ASSIGN_MEMBER',
+  'ADD_LABEL',
+];
+
 export const ActionOpSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('CREATE_CARD'), list: RefSchema.optional(), title: text(500) }).strict(),
+  z.object({ type: z.literal('CREATE_LIST'), key: planKey.optional(), name: text(100) }).strict(),
+  z.object({ type: z.literal('CREATE_CARD'), key: planKey.optional(), list: RefSchema.optional(), title: text(500) }).strict(),
   z.object({ type: z.literal('RENAME_CARD'), card: RefSchema, title: text(500) }).strict(),
   z.object({ type: z.literal('SET_CARD_DUE'), card: RefSchema, due: DateSpecSchema }).strict(),
   z.object({ type: z.literal('MOVE_CARD'), card: RefSchema, toList: RefSchema }).strict(),
@@ -82,11 +114,12 @@ export const proposeActionsSchema = z.preprocess(dropEmpty, ProposeActionsInput)
 const refHint = {
   type: 'object',
   description:
-    'Tham chieu: {by:"TEXT",text:<dung chu nguoi dung go, bo tu chung nhu task/the/cot/nhan>} | {by:"CONTEXT",slot:"LAST_CARD"|"LAST_LIST"|"LAST_MEMBER"} cho "no / the vua roi" | {by:"SELF"} cho "toi". KHONG dien id.',
+    'Tham chieu: {by:"TEXT",text:<dung chu nguoi dung go, bo tu chung nhu task/the/cot/nhan>} | {by:"CONTEXT",slot:"LAST_CARD"|"LAST_LIST"|"LAST_MEMBER"} cho "no / the vua roi" | {by:"SELF"} cho "toi" | {by:"PLAN",key:<key cua thao tac CREATE_LIST / CREATE_CARD trong CUNG danh sach>} cho cot / the ma chinh lenh nay tao ra. KHONG dien id.',
   properties: {
-    by: { type: 'string', enum: ['TEXT', 'CONTEXT', 'SELF'] },
+    by: { type: 'string', enum: ['TEXT', 'CONTEXT', 'SELF', 'PLAN'] },
     text: { type: 'string' },
     slot: { type: 'string', enum: [...REF_SLOTS] },
+    key: { type: 'string' },
   },
   required: ['by'],
 } as const;
@@ -120,6 +153,8 @@ export const PROPOSE_ACTIONS_PROVIDER_SCHEMA = {
         type: 'object',
         properties: {
           type: { type: 'string', enum: [...ACTION_TYPES] },
+          key: { type: 'string', description: 'CREATE_LIST / CREATE_CARD: khoa ngan (chu, so, gach duoi) de thao tac khac tro toi cot / the vua tao.' },
+          name: { type: 'string', description: 'CREATE_LIST: ten cot moi, dung chu nguoi dung go.' },
           card: refHint,
           list: refHint,
           toList: refHint,
