@@ -354,7 +354,30 @@ describe('ActionCard: nguoi nhan do he thong chon (goi y phan cong)', () => {
     const block = screen.getByRole('region', { name: 'Kế hoạch thao tác' });
     expect(block).toHaveTextContent('điểm 72/100');
     expect(block).toHaveTextContent('Ứng viên khác: Chủ Bảng (50), Lan (28)');
-    expect(block.textContent).not.toMatch(/d.d/);
+    expect(block.textContent).not.toMatch(/\d\.\d/);
+  });
+
+  it('luat tu dong hoa: hien dieu kien, tung viec se lam va ghi chu "chay bang quyen cua ban" thay vi mot dong ten dai', () => {
+    const rulePlan = plan({
+      risk: 'HIGH',
+      reasons: [{ code: 'STANDING_RULE', text: 'Luật tự động hóa chạy LÂU DÀI mỗi khi điều kiện xảy ra, bằng quyền của bạn nên mình luôn cho bạn xem lại trước khi áp dụng.' }],
+      opCount: 1,
+      warnings: [],
+      items: [{
+        index: 0, verb: 'Tạo luật tự động hóa', text: '“Khi thẻ được chuyển vào cột “Done”: gắn nhãn “Hoàn thành”, giao thẻ cho Lan”',
+        rule: { when: 'Khi thẻ được chuyển vào cột “Done”', then: ['gắn nhãn “Hoàn thành”', 'giao thẻ cho Lan'], note: 'Luật chạy bằng quyền của bạn: mỗi lần điều kiện xảy ra, hệ thống tự làm các việc trên với danh nghĩa bạn.' },
+      }],
+    });
+    const { onConfirm } = renderCard(turnOf({ kind: 'PLAN', plan: rulePlan }));
+    const block = screen.getByRole('region', { name: 'Kế hoạch thao tác' });
+    expect(block).toHaveTextContent('Tạo luật tự động hóa');
+    expect(block).toHaveTextContent('Khi thẻ được chuyển vào cột “Done”');
+    expect(within(block).getAllByRole('listitem').map((li) => li.textContent)).toEqual(expect.arrayContaining(['gắn nhãn “Hoàn thành”', 'giao thẻ cho Lan']));
+    expect(block).toHaveTextContent('Luật chạy bằng quyền của bạn');
+    expect(within(block).getByRole('note')).toHaveTextContent('chạy LÂU DÀI');
+    expect(block.textContent).not.toContain('“Khi thẻ được chuyển vào cột “Done”: gắn nhãn'); // không lặp lại tên luật dài
+    fireEvent.click(within(block).getByRole('button', { name: 'Áp dụng' }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
   it('khong co diem (chua du du lieu) van noi ro; thao tac nguoi dung tu goi ten thi khong co dong "do he thong chon"', () => {

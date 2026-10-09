@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { STATUS_LABEL } from '../../../card/cardStatus';
 import { formatDueDate, vnDayOfIso } from './actions.dates';
 import type { ActionType } from './actions.schema';
+import { ruleViewOf } from './actions.rule';
 import type {
   ActionErrorCode,
   AssignChoiceView,
@@ -35,6 +36,7 @@ export const OP_LABEL: Record<ActionType, string> = {
   ASSIGN_MEMBER: 'giao thẻ cho người',
   ADD_LABEL: 'gắn nhãn vào thẻ',
   ASSIGN_UNASSIGNED: 'chia các việc chưa có người nhận',
+  CREATE_AUTOMATION_RULE: 'tạo luật tự động hóa',
 };
 
 /** JSON on dinh: khoa sap xep, bo undefined - de checksum khong phu thuoc thu tu khoa. */
@@ -85,6 +87,8 @@ export function staleReasonOf(seen: StoredOp, fresh: StoredOp): string {
       return 'Thành viên của thẻ đã thay đổi kể từ lúc xem trước.';
     case 'ADD_LABEL':
       return 'Nhãn của thẻ đã thay đổi kể từ lúc xem trước.';
+    case 'CREATE_AUTOMATION_RULE':
+      return 'Cột, nhãn, người hoặc các luật của bảng đã thay đổi kể từ lúc xem trước.';
     default:
       return 'Dữ liệu đã thay đổi kể từ lúc xem trước.';
   }
@@ -145,6 +149,8 @@ export function describeOp(op: StoredOp, index: number): PlanItemView {
       return { index, verb: 'Giao thẻ', text: `${q(d.cardTitle)}${fresh(op)} cho ${d.memberName ?? ''}`, cardId, ...(op.choice ? { choice: choiceView(op.choice) } : {}) };
     case 'ADD_LABEL':
       return { index, verb: 'Gắn nhãn', text: `${q(d.labelName)} vào thẻ ${q(d.cardTitle)}${fresh(op)}`, cardId };
+    case 'CREATE_AUTOMATION_RULE':
+      return { index, verb: 'Tạo luật tự động hóa', text: q(op.params.rule?.name), rule: ruleViewOf(d.ruleWhen ?? '', d.ruleThen ?? []) };
   }
 }
 
@@ -173,6 +179,8 @@ export function summarizeExecuted(op: StoredOp, extra: { movedTo?: string; creat
       return `Đã giao thẻ ${q(d.cardTitle)} cho ${d.memberName ?? ''}.`;
     case 'ADD_LABEL':
       return `Đã gắn nhãn ${q(d.labelName)} vào thẻ ${q(d.cardTitle)}.`;
+    case 'CREATE_AUTOMATION_RULE':
+      return `Đã tạo luật tự động hóa ${q(op.params.rule?.name)}. Luật đang bật; bạn tắt hoặc xóa được ở mục Tự động hóa của bảng.`;
   }
 }
 
@@ -252,6 +260,8 @@ export function failureCategoryOf(code: ActionErrorCode | null | undefined): str
       return 'EXECUTION';
     case 'RATE_LIMITED':
       return 'LIMIT';
+    case 'UNSUPPORTED_RULE':
+      return 'UNSUPPORTED';
     case 'NO_CHANGE':
       return 'NO_CHANGE';
     case 'UNSAFE_CONTENT':

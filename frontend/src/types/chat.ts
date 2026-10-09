@@ -40,7 +40,7 @@ export interface ChatStatus {
 export type ChatPlanStatus = 'NEEDS_CHOICE' | 'PROPOSED' | 'EXECUTING' | 'EXECUTED' | 'FAILED' | 'STALE' | 'CANCELLED' | 'EXPIRED';
 export type ChatPlanRisk = 'LOW' | 'MEDIUM' | 'HIGH';
 export interface ChatPlanReason {
-  code: 'AUTO_DISABLED' | 'DELEGATED_TO_DATA' | 'NOT_GROUNDED' | 'FUZZY_DATE' | 'QUESTION_FORM' | 'MULTI_OP' | 'NEW_STRUCTURE' | 'BOARD_PATCH' | 'AI_CHOSEN_TARGET';
+  code: 'AUTO_DISABLED' | 'DELEGATED_TO_DATA' | 'NOT_GROUNDED' | 'FUZZY_DATE' | 'QUESTION_FORM' | 'MULTI_OP' | 'NEW_STRUCTURE' | 'BOARD_PATCH' | 'AI_CHOSEN_TARGET' | 'STANDING_RULE';
   /** Cau giai thich vi sao lenh nay chua tu chay (hien nguyen van cho nguoi dung). */
   text: string;
 }
@@ -54,9 +54,16 @@ export interface ChatAssignChoice {
   flags: string[];
   alternatives: { name: string; rank: number; score: number | null }[];
 }
+/** Phase 7: luat tu dong hoa - dieu kien, cac viec se lam va ghi chu "chay bang quyen cua ban" (server dung san). */
+export interface ChatRuleView {
+  when: string;
+  then: string[];
+  note: string;
+}
 export interface ChatPlanItem {
   index: number;
   choice?: ChatAssignChoice;
+  rule?: ChatRuleView;
   verb: string;
   text: string;
   detail?: string;

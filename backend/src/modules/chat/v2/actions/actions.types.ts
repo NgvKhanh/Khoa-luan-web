@@ -1,7 +1,7 @@
 // Kieu dung chung cua lop hanh dong (CHATBOT_V2_ACTIONS_PLAN.md §9.3, §9.5). Chi la kieu: khong co ma chay.
 
 import type { CardStatus } from '../../../../generated/prisma/enums';
-import type { ActionOp, ActionType } from './actions.schema';
+import type { ActionOp, ActionType, RuleTrigger } from './actions.schema';
 
 /** Loai thao tac cua ke hoach DA phan giai: ASSIGN_UNASSIGNED chi la de xuat tuong trung, luc phan giai no duoc khai trien thanh nhieu ASSIGN_MEMBER. */
 export type StoredOpType = Exclude<ActionType, 'ASSIGN_UNASSIGNED'>;
@@ -33,6 +33,7 @@ export type ActionErrorCode =
   | 'CONFLICT' // hai thao tac mau thuan nhau tren cung mot doi tuong, hoac trung voi du lieu co san
   | 'INTERRUPTED' // hang EXECUTING tu Phase 1 bi bo do (tien trinh chet) - Phase 2 khong sinh ra nua
   | 'RATE_LIMITED' // Phase 6: nho goi y phan cong qua nhieu lan trong it phut
+  | 'UNSUPPORTED_RULE' // Phase 7: luat tu dong hoa ngoai nhung gi engine co (nhac han, gui email, hen gio, chuyen / xoa the...)
   | 'NO_CHANGE' // Phase 3 (Board Patch): bang da co du moi muc AI de xuat -> khong co gi de them
   | 'UNSAFE_CONTENT' // Phase 3: noi dung AI sinh ra giong chi dan / lien ket / thu tu dong (dau hieu bi tiem chi dan tu du lieu)
   | 'DESTRUCTIVE' // Phase 3: cau yeu cau xoa / thay the du lieu cu - Board Patch chi THEM
@@ -60,7 +61,8 @@ export type ConfirmReasonCode =
   | 'MULTI_OP' // tu hai thao tac tro len = hang loat -> khong bao gio tu chay
   | 'NEW_STRUCTURE' // tao cot: doi cau truc bang
   | 'BOARD_PATCH' // Phase 3: noi dung do AI de xuat -> luon xem truoc, khong bao gio tu chay
-  | 'AI_CHOSEN_TARGET'; // Phase 6: nguoi nhan do MAY chon (khong phai nguoi dung goi ten) -> luon xem truoc
+  | 'AI_CHOSEN_TARGET' // Phase 6: nguoi nhan do MAY chon (khong phai nguoi dung goi ten) -> luon xem truoc
+  | 'STANDING_RULE'; // Phase 7: luat tu dong hoa chay LAU DAI bang quyen cua nguoi tao -> luon xem truoc, rui ro CAO
 export interface ConfirmReason {
   code: ConfirmReasonCode;
   text: string;
@@ -84,6 +86,21 @@ export interface AssignChoice {
 }
 export type AssignChoiceView = Omit<AssignChoice, 'runId'>;
 
+/** Mot hanh dong cua luat tu dong hoa DA phan giai (id THAT cua nhan / nguoi trong bang). `done` chi cho SET_DONE (mac dinh true). */
+export interface StoredRuleAction {
+  type: 'SET_DONE' | 'ADD_LABEL' | 'ASSIGN_MEMBER';
+  done?: boolean;
+  labelId?: string;
+  userId?: string;
+}
+/** Luat tu dong hoa se tao: nam trong `params` nen checksum / stateDigest bao trum DAY DU nhung gi nguoi dung duyet. Cot kich hoat nam o `ids.list`. */
+export interface StoredRule {
+  trigger: RuleTrigger;
+  /** Ten luat do SERVER dung tu ten cot / nhan / nguoi da phan giai (khong lay chu cua mo hinh). */
+  name: string;
+  actions: StoredRuleAction[];
+}
+
 /** Truong cua mot thao tac duoc phan giai: id THAT, gia tri cu (de kiem tien dieu kien), ten hien thi lay tu CSDL. */
 export interface StoredOp {
   type: StoredOpType;
@@ -96,7 +113,7 @@ export interface StoredOp {
   /** Tham chieu noi bo: key cua thao tac tao ra the / cot ma thao tac nay dung (id chi co sau khi thao tac do chay). */
   local?: { card?: string; list?: string };
   /** `due`: thoi diem ISO (UTC) hoac null = bo han. `listStatus`: trang thai cot moi (doan theo ten, giong tao cot bang tay). */
-  params: { title?: string; name?: string; due?: string | null; status?: CardStatus; listStatus?: CardStatus | null };
+  params: { title?: string; name?: string; due?: string | null; status?: CardStatus; listStatus?: CardStatus | null; rule?: StoredRule };
   before: {
     title?: string;
     due?: string | null;
@@ -106,7 +123,7 @@ export interface StoredOp {
     alreadyAssigned?: boolean;
     alreadyLabeled?: boolean;
   } | null;
-  display: { cardTitle?: string; listName?: string; toListName?: string; memberName?: string; labelName?: string; dueText?: string };
+  display: { cardTitle?: string; listName?: string; toListName?: string; memberName?: string; labelName?: string; dueText?: string; ruleWhen?: string; ruleThen?: string[] };
   /** Khong thay doi gi (da dung roi) -> khong goi service. */
   noop?: string;
 }
@@ -184,6 +201,14 @@ export interface PlanItemView {
   text: string;
   detail?: string;
   cardId?: string;
+  /** Phase 7: luat tu dong hoa - dieu kien, cac viec se lam va ghi chu "chay bang quyen cua ban". */
+  rule?: RuleView;
+}
+
+export interface RuleView {
+  when: string;
+  then: string[];
+  note: string;
 }
 
 

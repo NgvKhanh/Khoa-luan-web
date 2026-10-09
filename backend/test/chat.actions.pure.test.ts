@@ -54,9 +54,9 @@ const label = (card: string, name: string): ActionOp => ({ type: 'ADD_LABEL', ca
 const verdict = (op: ActionOp, message: string): ProvenanceReport => assessProvenance(op, message, TODAY);
 
 describe('schema đề xuất: chỉ có 7 thao tác, KHÔNG có ô nào để điền id', () => {
-  it('nhận 7 loại thao tác của Phase 1 + CREATE_LIST + ASSIGN_UNASSIGNED (Phase 6); chỉ 7 loại Phase 1 được phép tự chạy', () => {
-    expect([...ACTION_TYPES]).toEqual(['CREATE_LIST', 'CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL', 'ASSIGN_UNASSIGNED']);
-    expect([...SAFE_ACTION_TYPES]).toEqual(ACTION_TYPES.filter((t) => t !== 'CREATE_LIST' && t !== 'ASSIGN_UNASSIGNED'));
+  it('nhận 7 loại thao tác của Phase 1 + CREATE_LIST + ASSIGN_UNASSIGNED (Phase 6) + CREATE_AUTOMATION_RULE (Phase 7); chỉ 7 loại Phase 1 được phép tự chạy', () => {
+    expect([...ACTION_TYPES]).toEqual(['CREATE_LIST', 'CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL', 'ASSIGN_UNASSIGNED', 'CREATE_AUTOMATION_RULE']);
+    expect([...SAFE_ACTION_TYPES]).toEqual(ACTION_TYPES.filter((t) => t !== 'CREATE_LIST' && t !== 'ASSIGN_UNASSIGNED' && t !== 'CREATE_AUTOMATION_RULE'));
     expect(MAX_OPS_PER_PLAN).toBe(15);
     const ops = [
       { type: 'CREATE_LIST', name: 'Kiểm thử' } as ActionOp,
@@ -452,7 +452,7 @@ describe('chính sách tự chạy an toàn: 8 điều kiện (AUTO / CONFIRM / 
   });
 
   it('điều kiện 2 và 6: thao tác ngoài whitelist (xóa, vai trò, quyền, chủ sở hữu, hiển thị...) luôn bị từ chối', () => {
-    for (const opType of ['DELETE_CARD', 'ARCHIVE_CARD', 'SET_ROLE', 'SET_VISIBILITY', 'TRANSFER_OWNERSHIP', 'CREATE_AUTOMATION_RULE', '']) {
+    for (const opType of ['DELETE_CARD', 'ARCHIVE_CARD', 'SET_ROLE', 'SET_VISIBILITY', 'TRANSFER_OWNERSHIP', 'UPDATE_AUTOMATION_RULE', 'DELETE_AUTOMATION_RULE', '']) {
       expect(decideExecution(baseDecision({ opTypes: [opType] })), opType).toMatchObject({ mode: 'REFUSE', code: 'INVALID' });
       expect(decideExecution(baseDecision({ opTypes: ['CREATE_CARD', opType] })), `1 trong nhiều: ${opType}`).toMatchObject({ mode: 'REFUSE', code: 'INVALID' });
     }

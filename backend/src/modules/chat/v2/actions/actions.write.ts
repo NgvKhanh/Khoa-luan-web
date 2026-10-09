@@ -15,6 +15,7 @@ import type { CardStatus } from '../../../../generated/prisma/enums';
 import { initialStatusData, statusWrite } from '../../../card/cardStatus';
 import { findPatchCollision } from './actions.patch.build';
 import { summarizeExecuted } from './actions.plan';
+import { findSameRule } from './actions.rule';
 import type { Effects } from './actions.effects';
 import type { ActionErrorCode, StoredOp } from './actions.types';
 
@@ -113,12 +114,15 @@ export async function lockAndVerify(tx: Tx, ctx: WriteContext, ops: readonly Sto
   if (!(await canEditInTx(tx, ctx.boardId, ctx.userId))) throw new PlanAbort('FORBIDDEN', 'Bạn không còn quyền sửa bảng này.');
 
   // Board Patch: khoa dong bang TRUOC (thu tu khoa co dinh: bang -> cot -> the) de hai Board Patch dong thoi tren cung bang khong cung tao mot cot / the
-  if (ctx.patch === true) await tx.$queryRaw`SELECT id FROM "Board" WHERE id = ${ctx.boardId} FOR UPDATE`;
+  // Phase 7: tao luat cung khoa dong bang (hai lenh tao cung mot luat dong thoi chi mot cai thanh cong; cai kia thay luat da co)
+  const newRules = ops.filter((o) => o.type === 'CREATE_AUTOMATION_RULE' && o.noop === undefined);
+  if (ctx.patch === true || newRules.length > 0) await tx.$queryRaw`SELECT id FROM "Board" WHERE id = ${ctx.boardId} FOR UPDATE`;
 
   const cardIds = unique(ops.flatMap((o) => (o.ids.card !== undefined ? [o.ids.card] : [])));
   const listIds = unique(ops.flatMap((o) => (o.ids.list !== undefined ? [o.ids.list] : [])));
-  const labelIds = unique(ops.flatMap((o) => (o.ids.label !== undefined ? [o.ids.label] : [])));
-  const memberIds = unique(ops.flatMap((o) => (o.ids.member !== undefined ? [o.ids.member] : [])));
+  const ruleActions = (o: StoredOp) => o.params.rule?.actions ?? [];
+  const labelIds = unique(ops.flatMap((o) => [...(o.ids.label !== undefined ? [o.ids.label] : []), ...ruleActions(o).flatMap((a) => (a.labelId !== undefined ? [a.labelId] : []))]));
+  const memberIds = unique(ops.flatMap((o) => [...(o.ids.member !== undefined ? [o.ids.member] : []), ...ruleActions(o).flatMap((a) => (a.userId !== undefined ? [a.userId] : []))]));
 
   // Khoa theo THU TU CO DINH (cot truoc, the sau, trong moi nhom theo id) de hai ke hoach dong thoi khong khoa cheo nhau (deadlock).
   // Cot nguon cua cac the (se bi danh lai vi tri khi the roi di) cung phai khoa -> doc cot hien tai cua the truoc khi khoa.
@@ -143,6 +147,13 @@ export async function lockAndVerify(tx: Tx, ctx: WriteContext, ops: readonly Sto
   }
   for (const memberId of memberIds) {
     if (!(await canEditInTx(tx, ctx.boardId, memberId))) throw new PlanAbort('STALE', 'Một người được giao không còn là thành viên của bảng.');
+  }
+
+  for (const o of newRules) {
+    const rule = o.params.rule;
+    if (rule === undefined) throw new PlanAbort('INVALID', 'Luật không có nội dung.');
+    const same = await findSameRule(tx, ctx.boardId, { trigger: rule.trigger, listId: o.ids.list ?? null, actions: rule.actions });
+    if (same !== null) throw new PlanAbort('STALE', 'Một luật giống hệt vừa được tạo kể từ lúc xem trước.');
   }
 
   if (cardIds.length > 0) {
@@ -396,6 +407,25 @@ export async function applyOp(tx: Tx, ctx: WriteContext, state: RunState, effect
       }
       effects.boardIds.add(boardId);
       return { index, text: summarizeExecuted(op), changed: inserted.count > 0, cardId: card.id };
+    }
+    case 'CREATE_AUTOMATION_RULE': {
+      // giong createAutomationRule: ghi luat + cac hanh dong theo thu tu; khong ghi Activity, khong co realtime (bang Tu dong hoa tai khi mo)
+      const rule = op.params.rule;
+      if (rule === undefined) throw new PlanAbort('INVALID', 'Luật không có nội dung.');
+      await tx.automationRule.create({
+        data: {
+          boardId,
+          createdById: ctx.userId,
+          name: rule.name,
+          isEnabled: true,
+          triggerType: rule.trigger,
+          triggerListId: op.ids.list ?? null,
+          actions: {
+            create: rule.actions.map((a, i) => ({ position: i, type: a.type, boolValue: a.type === 'SET_DONE' ? (a.done ?? true) : null, labelId: a.labelId ?? null, userId: a.userId ?? null })),
+          },
+        },
+      });
+      return { index, text: summarizeExecuted(op), changed: true };
     }
     case 'ADD_LABEL': {
       const card = cardOf(state, op);

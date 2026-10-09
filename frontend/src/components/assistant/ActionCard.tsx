@@ -82,7 +82,17 @@ function PlanCard({ turn, plan, scope, busy, onConfirm, onCancel }: {
       <List className={multi ? 'list-decimal space-y-1.5 pl-5' : 'space-y-1.5'}>
         {plan.items.map((item) => (
           <li key={item.index} className="text-sm">
-            <span className="font-medium">{item.verb}</span> <span className="break-words">{item.text}</span>
+            <span className="font-medium">{item.verb}</span>{' '}
+            {item.rule ? (
+              <span className="block space-y-1">
+                <span className="block break-words">{item.rule.when}</span>
+                <span className="block text-xs text-slate-500 dark:text-slate-400">Thì tự động:</span>
+                <ul className="list-disc space-y-0.5 pl-5 text-sm">{item.rule.then.map((t) => <li key={t} className="break-words">{t}</li>)}</ul>
+                <span className="block break-words text-xs text-slate-500 dark:text-slate-400">{item.rule.note}</span>
+              </span>
+            ) : (
+              <span className="break-words">{item.text}</span>
+            )}
             {item.detail && <span className="block text-xs text-slate-500 dark:text-slate-400">{item.detail}</span>}
             {item.choice && <span className="block text-xs text-slate-500 dark:text-slate-400">{choiceLine(item.choice)}</span>}
             {item.choice && item.choice.flags.length > 0 && <span className="block text-xs text-amber-700 dark:text-amber-300">{flagsLine(item.choice.flags)}</span>}

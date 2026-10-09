@@ -17,6 +17,8 @@ import { loadBoardContext } from './actions.patch.context';
 import { assessPatchProvenance, PATCH_LIMITS, PATCH_SPLIT_HINT } from './actions.patch.schema';
 import { assessPlanProvenance, type PlanProvenance } from './actions.provenance';
 import { slotsOf } from './actions.refs';
+import { UNSUPPORTED_RULE_TEXT } from './actions.rule';
+import { unsupportedRuleCue } from './actions.text';
 import { resolveOps, type Presets, type ResolveOpsResult } from './actions.resolve';
 import type { ActionOp } from './actions.schema';
 import { canonicalJson, stateDigest, staleReasonOf } from './actions.plan';
@@ -46,6 +48,12 @@ export function prepare(proposed: readonly ActionOp[], message: string, today: I
   if (!shaped.ok) {
     const code: ActionErrorCode = LIMIT_CODES.has(shaped.code) ? (shaped.code as LimitErrorCode) : 'INVALID_PLAN';
     return { ok: false, code, text: shaped.text };
+  }
+  // Phase 7: luat tu dong hoa chi ho tro 2 dieu kien + 3 hanh dong cua engine; cau doi dieu kien / hanh dong khac (nhac han, gui email, hen gio...) -> noi ro, khong tao
+  for (const op of proposed) {
+    if (op.type !== 'CREATE_AUTOMATION_RULE') continue;
+    const own = slotsOf(op).flatMap((s) => (s.ref?.by === 'TEXT' ? [s.ref.text] : []));
+    if (unsupportedRuleCue(message, own) !== null) return { ok: false, code: 'UNSUPPORTED_RULE', text: UNSUPPORTED_RULE_TEXT };
   }
   const ordered = shaped.order.map((i) => shaped.ops[i]);
   const linkedCardTexts: string[] = [];

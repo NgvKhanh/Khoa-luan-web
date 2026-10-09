@@ -18,9 +18,10 @@ import type { ExecutionContext } from '../chat.v2.scope';
 import { dueIso, formatDueDate, vnDayOfIso, type DueGrounding } from './actions.dates';
 import { bestAssignee, splitUnassigned } from './actions.assign';
 import { refSignature, type SlotKind } from './actions.refs';
+import { dedupeRuleActions, findSameRule, ruleNameOf, sameRuleText, thenText, whenText } from './actions.rule';
 import { MAX_OPS_PER_PLAN, type ActionOp, type MemberRef, type Ref } from './actions.schema';
 import { foldWords, stripLeadingGeneric } from './actions.text';
-import type { ActionErrorCode, AssignChoice, PendingChoice, StoredOp } from './actions.types';
+import type { ActionErrorCode, AssignChoice, PendingChoice, StoredOp, StoredRuleAction } from './actions.types';
 
 /** Toi da bay nhieu nut chon; nhieu hon thi bao nguoi dung neu ro hon (khong cat danh sach am tham). */
 export const MAX_CHOICES = 8;
@@ -415,6 +416,53 @@ export async function resolveOp(env: ResolveEnv, symbolic: ActionOp, presets: Pr
       if (split.noOne > 0) warnings.push(`${split.noOne} việc chưa chia được vì không ai đủ điều kiện nhận (đang tạm nghỉ).`);
       const [first, ...rest] = split.ops;
       return { kind: 'OK', op: first, more: rest, warnings };
+    }
+    case 'CREATE_AUTOMATION_RULE': {
+      // Phase 7: luat chi nham vao cot / nhan / nguoi CO SAN cua bang; ten luat do SERVER dung tu ten da phan giai (khong lay chu cua mo hinh)
+      if (symbolic.trigger === 'CARD_MOVED_TO_LIST' && symbolic.list === undefined) {
+        return { kind: 'FAIL', code: 'INVALID', text: 'Luật “khi thẻ được chuyển vào cột” cần nói rõ là cột nào. Chưa thay đổi gì.' };
+      }
+      let list: { id: string; name: string } | undefined;
+      if (symbolic.list !== undefined) {
+        const target = await listTarget(env, symbolic.list, presets);
+        if (isFail(target)) return target;
+        if (target.ids.list === undefined) return { kind: 'FAIL', code: 'INVALID', text: 'Luật chỉ nhắm vào cột đã có trong bảng. Chưa thay đổi gì.' };
+        list = { id: target.ids.list, name: target.name };
+      }
+      const labelNames = new Map<string, string>();
+      const memberNames = new Map<string, string>();
+      const drafted: StoredRuleAction[] = [];
+      for (const a of symbolic.actions) {
+        if (a.type === 'SET_DONE') {
+          drafted.push({ type: 'SET_DONE', done: a.done ?? true });
+        } else if (a.type === 'ADD_LABEL') {
+          const label = await pick(env, 'label', a.label, presets);
+          if (isResult(label)) return label;
+          labelNames.set(label.id, label.name);
+          drafted.push({ type: 'ADD_LABEL', labelId: label.id });
+        } else {
+          const member = await pick(env, 'member', a.member, presets);
+          if (isResult(member)) return member;
+          memberNames.set(member.id, member.name);
+          drafted.push({ type: 'ASSIGN_MEMBER', userId: member.id });
+        }
+      }
+      if (drafted.some((a) => a.type === 'SET_DONE' && a.done === true) && drafted.some((a) => a.type === 'SET_DONE' && a.done === false)) {
+        return { kind: 'FAIL', code: 'CONFLICT', text: 'Luật vừa đánh dấu hoàn thành vừa mở lại thẻ nên mâu thuẫn. Hãy chọn một. Chưa thay đổi gì.' };
+      }
+      const { actions, dropped } = dedupeRuleActions(drafted);
+      if (dropped > 0) warnings.push(`Đã bỏ ${dropped} việc trùng lặp trong luật.`);
+      const when = whenText(symbolic.trigger, list?.name);
+      const then = actions.map((a) => thenText(a, { label: a.labelId !== undefined ? labelNames.get(a.labelId) : undefined, member: a.userId !== undefined ? memberNames.get(a.userId) : undefined }));
+      const existing = await findSameRule(prisma, env.boardId, { trigger: symbolic.trigger, listId: list?.id ?? null, actions });
+      return ok({
+        type: 'CREATE_AUTOMATION_RULE',
+        ids: list ? { list: list.id } : {},
+        params: { rule: { trigger: symbolic.trigger, name: ruleNameOf(when, then), actions } },
+        before: null,
+        display: { ...(list ? { listName: list.name } : {}), ruleWhen: when, ruleThen: then },
+        ...(existing !== null ? { noop: sameRuleText(existing) } : {}),
+      });
     }
     case 'ADD_LABEL': {
       const card = await cardTarget(env, symbolic.card, presets);

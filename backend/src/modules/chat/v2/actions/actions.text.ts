@@ -106,6 +106,100 @@ const UNASSIGNED_CUES: readonly Phrase[] = [
 /** Cau nho chon "nguoi phu hop nhat" (khong goi ten): chi khi co cum nay thi {by:BEST} moi duoc chap nhan. */
 const BEST_CUES: readonly Phrase[] = [['phu', 'hop'], ['thich', 'hop'], ['tot', 'nhat'], ['hop', 'nhat'], ['xung', 'dang'], ['ai', 'lam', 'duoc'], ['dung', 'nguoi'], ['goi', 'y']];
 export const hasBestCue = (words: readonly string[]): boolean => hasAny(words, BEST_CUES);
+// Phase 7: LUAT TU DONG HOA. Hai cach cau nguoi dung ra lenh tao luat: (A) danh tu "luat / quy tac / rule" + dong tu tao / dat / cai dat dung sat truoc nos,
+// (B) cau dieu kien "khi ... thi ..." co dau hieu kich hoat (the moi duoc tao / the duoc chuyen vao cot). Khong co ca hai -> khong phai lenh tao luat.
+const RULE_NOUNS: readonly Phrase[] = [['luat'], ['quy', 'tac'], ['rule'], ['automation'], ['tu', 'dong', 'hoa'], ['kich', 'ban']];
+const RULE_VERBS: readonly Phrase[] = [...CREATE_VERBS, ['dat'], ['cai', 'dat'], ['thiet', 'lap'], ['cau', 'hinh'], ['bat'], ['kich', 'hoat'], ['xay', 'dung']];
+const RULE_SPAN = 4;
+const WHEN_WORDS: readonly Phrase[] = [['khi'], ['moi', 'khi'], ['he'], ['moi', 'lan'], ['bat', 'cu', 'khi'], ['cu', 'moi'], ['neu']];
+const THEN_WORDS: readonly Phrase[] = [['thi'], ['se'], ['tu', 'dong']];
+const MOVED_CUES: readonly Phrase[] = [['the', 'vao'], ['chuyen', 'vao'], ['keo', 'vao'], ['di', 'chuyen', 'vao'], ['duoc', 'chuyen'], ['duoc', 'keo'], ['chuyen', 'sang'], ['vao', 'cot'], ['roi', 'vao'], ['den', 'cot'], ['sang', 'cot']];
+const CREATED_CUES: readonly Phrase[] = [['the', 'moi'], ['tao', 'the'], ['duoc', 'tao'], ['them', 'the'], ['task', 'moi'], ['viec', 'moi'], ['card', 'moi'], ['tao', 'moi'], ['moi', 'tao'], ['xuat', 'hien']];
+/** Dieu kien kich hoat / hanh dong ma engine tu dong hoa KHONG co -> khong tao luat (xem actions.rule.UNSUPPORTED_RULE_TEXT). */
+const UNSUPPORTED_RULE_CUES: readonly Phrase[] = [
+  ['nhac'],
+  ['gui', 'email'],
+  ['gui', 'mail'],
+  ['gui', 'tin'],
+  ['gui', 'thong', 'bao'],
+  ['hang', 'ngay'],
+  ['moi', 'ngay'],
+  ['hang', 'tuan'],
+  ['moi', 'tuan'],
+  ['hang', 'thang'],
+  ['moi', 'thang'],
+  ['den', 'han'],
+  ['sap', 'het', 'han'],
+  ['het', 'han'],
+  ['qua', 'han'],
+  ['truoc', 'han'],
+  ['binh', 'luan'],
+  ['comment'],
+  ['dinh', 'kem'],
+  ['luu', 'tru'],
+  ['xoa', 'the'],
+  ['bi', 'xoa'],
+  ['thi', 'chuyen'],
+  ['thi', 'di', 'chuyen'],
+  ['thi', 'dua'],
+  ['dat', 'han'],
+  ['doi', 'han'],
+  ['doi', 'ten'],
+  ['thay', 'doi'],
+  ['duoc', 'giao'],
+  ['duoc', 'gan', 'nhan'],
+  ['duoc', 'sua'],
+  ['duoc', 'cap', 'nhat'],
+];
+const DONE_CUES: readonly Phrase[] = [['hoan', 'thanh'], ['hoan', 'tat'], ['xong'], ['done'], ['completed'], ['danh', 'dau']];
+const REOPEN_CUES: readonly Phrase[] = [['mo', 'lai'], ['reopen'], ['chua', 'xong'], ['chua', 'hoan', 'thanh'], ['bo', 'danh', 'dau'], ['bo', 'hoan', 'thanh']];
+
+const RULE_ASSIGN_VERBS: readonly Phrase[] = [['giao'], ['assign'], ['phan', 'cong'], ['chi', 'dinh'], ['gan', 'cho']];
+
+/** Bo MOT lan xuat hien dau tien cua moi chu trong `ownTexts` (ten cot / nhan / nguoi da duoc tham chieu) khoi cau, de ten do khong bi quet nhu mot cum chi viec / dieu kien. */
+export function withoutOwnTexts(words: readonly string[], ownTexts: readonly string[]): string[] {
+  let out = [...words];
+  for (const own of ownTexts) {
+    const phrase = foldWords(own);
+    const [at] = phraseIndexes(out, phrase);
+    if (phrase.length === 0 || at === undefined) continue;
+    out = [...out.slice(0, at), ...out.slice(at + phrase.length)];
+  }
+  return out;
+}
+
+export type RuleActionKind = 'SET_DONE' | 'SET_OPEN' | 'ADD_LABEL' | 'ASSIGN_MEMBER';
+
+/** Cau cua nguoi dung co noi toi hanh dong nay cua luat khong (cung kieu "giay phep" nhu thao tac mot-lan). */
+export function ruleActionMentioned(kind: RuleActionKind, words: readonly string[]): boolean {
+  switch (kind) {
+    case 'SET_DONE':
+      return hasAny(words, DONE_CUES);
+    case 'SET_OPEN':
+      return hasAny(words, REOPEN_CUES);
+    case 'ADD_LABEL':
+      return hasAny(words, LABEL_WORDS) && hasAny(words, LABEL_VERBS);
+    case 'ASSIGN_MEMBER':
+      // "gan" (gắn / gán) chỉ tính khi đi với "cho": "gắn nhãn Gấp" không phải việc giao người
+      return hasAny(words, RULE_ASSIGN_VERBS) || (hasPhrase(words, ['them']) && hasPhrase(words, ['vao']));
+  }
+}
+
+/** Cau co noi toi dieu kien kich hoat nay khong ("khi the moi duoc tao" / "khi the duoc chuyen vao cot X"). */
+export function ruleTriggerMentioned(trigger: 'CARD_CREATED' | 'CARD_MOVED_TO_LIST', words: readonly string[]): boolean {
+  return hasAny(words, trigger === 'CARD_CREATED' ? CREATED_CUES : MOVED_CUES);
+}
+
+/**
+ * Cau co yeu cau mot dieu kien / hanh dong ma engine tu dong hoa KHONG co khong. `ownTexts` = chu cua cac tham chieu (ten cot / nhan / nguoi):
+ * duoc bo ra truoc khi quet de mot nhan ten "Qua han" khong bi coi la dieu kien "qua han". Tra ve cum dau tien tim thay (de bao loi).
+ */
+export function unsupportedRuleCue(message: string, ownTexts: readonly string[] = []): string | null {
+  const words = withoutOwnTexts(foldWords(message), ownTexts);
+  for (const cue of UNSUPPORTED_RULE_CUES) if (hasPhrase(words, cue)) return cue.join(' ');
+  return null;
+}
+
 const LABEL_WORDS: readonly Phrase[] = [['nhan'], ['label'], ['tag']];
 const LABEL_VERBS: readonly Phrase[] = [['them'], ['gan'], ['dan'], ['add'], ['dat'], ['cho'], ['gui']];
 const STATUS_VERBS: readonly Phrase[] = [
@@ -229,6 +323,16 @@ export function licenceFor(type: string, words: readonly string[], status?: Card
     case 'ASSIGN_UNASSIGNED':
       at = hasAny(words, UNASSIGNED_CUES) ? indexesOfAny(words, SPLIT_VERBS) : [];
       break;
+    case 'CREATE_AUTOMATION_RULE': {
+      const nouns = indexesOfAny(words, RULE_NOUNS);
+      at = indexesOfAny(words, RULE_VERBS).filter((v) => nouns.some((n) => n > v && n - v <= RULE_SPAN));
+      if (at.length === 0 && hasAny(words, [...MOVED_CUES, ...CREATED_CUES])) {
+        const whens = indexesOfAny(words, WHEN_WORDS);
+        const thens = indexesOfAny(words, THEN_WORDS);
+        if (whens.some((w) => thens.some((t) => t > w))) at = whens;
+      }
+      break;
+    }
     case 'ADD_LABEL':
       // phai nhac toi nhan (nhan/label/tag) VA co dong tu gan / them / dan...
       at = hasAny(words, LABEL_WORDS) ? indexesOfAny(words, LABEL_VERBS) : [];

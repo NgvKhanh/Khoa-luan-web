@@ -9,8 +9,9 @@
 
 import { DEFAULT_LIMITS, type ActionOp, type PlanLimits, type Ref } from './actions.schema';
 import { foldedName, referencedSignatures, slotsOf, withRef, type Slot } from './actions.refs';
+import { RULE_ONLY_TEXT } from './actions.rule';
 
-export type GraphErrorCode = 'DUPLICATE_KEY' | 'MISSING_REF' | 'CYCLE' | 'WRONG_KIND' | 'DUPLICATE_NAME';
+export type GraphErrorCode = 'DUPLICATE_KEY' | 'MISSING_REF' | 'CYCLE' | 'WRONG_KIND' | 'DUPLICATE_NAME' | 'RULE_NOT_ALONE';
 export type LimitErrorCode = 'TOO_MANY_OPS' | 'TOO_MANY_CARDS' | 'TOO_MANY_LISTS' | 'TOO_MANY_REFS';
 
 export type NodeKind = 'LIST' | 'CARD';
@@ -197,6 +198,8 @@ export type PlanShape = { ok: true; ops: ActionOp[]; /** thu tu chay: chi so vao
 
 /** Hinh dang cua de xuat: gioi han -> tu noi -> do thi. Chua cham CSDL. `ops` tra ve da duoc gan key + noi tham chieu. */
 export function shapePlan(proposed: readonly ActionOp[], limits: PlanLimits = DEFAULT_LIMITS, split?: string): PlanShape {
+  // Phase 7: luat tu dong hoa chay mai mai nen duoc tao RIENG (mot lenh = mot luat, khong kem thao tac nao khac / khong tro toi cot do ke hoach tao)
+  if (proposed.some((o) => o.type === 'CREATE_AUTOMATION_RULE') && proposed.length > 1) return { ok: false, code: 'RULE_NOT_ALONE', text: RULE_ONLY_TEXT };
   const within = checkLimits(proposed, limits, split);
   if (!within.ok) return within;
   const linked = linkLocalRefs(proposed);

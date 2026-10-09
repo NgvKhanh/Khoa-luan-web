@@ -9,6 +9,7 @@ import { prisma } from '../../../../config/prisma';
 import { AppError } from '../../../../utils/AppError';
 import { assertBoardAccess, isBoardParticipant } from '../../../board/board.service';
 import { assertCardAccess } from '../../../card/card.service';
+import { MAX_RULE_ACTIONS } from './actions.schema';
 import type { GuardVerdict, StoredOp } from './actions.types';
 
 const NO_CHANGE = 'Chưa thay đổi gì.';
@@ -51,6 +52,37 @@ export async function guardBoard(userId: string, boardId: string): Promise<Guard
 }
 
 /**
+ * Luat tu dong hoa (Phase 7): quyen SUA bang da kiem o guardBoard. Them: cot kich hoat con song, nhan thuoc bang, nguoi duoc giao la thanh vien CO QUYEN SUA
+ * (engine bo qua luc chay neu khong con la thanh vien - nhung luc TAO luat phai dung, giong createAutomationRule), so hanh dong 1..5.
+ */
+async function guardRule(boardId: string, op: StoredOp): Promise<GuardVerdict> {
+  const rule = op.params.rule;
+  if (rule === undefined || rule.actions.length < 1 || rule.actions.length > MAX_RULE_ACTIONS) return fail('INVALID', `Luật cần từ 1 đến ${MAX_RULE_ACTIONS} việc. ${NO_CHANGE}`);
+  if (rule.name.trim() === '' || rule.name.length > 200) return fail('INVALID', `Tên luật phải từ 1 đến 200 ký tự. ${NO_CHANGE}`);
+  if (rule.trigger === 'CARD_MOVED_TO_LIST' && op.ids.list === undefined) return fail('INVALID', `Luật “khi thẻ được chuyển vào cột” cần có cột. ${NO_CHANGE}`);
+  if (op.ids.list !== undefined && !(await liveList(boardId, op.ids.list))) return fail('NOT_FOUND', `Cột này không còn trong bảng. ${NO_CHANGE}`);
+  for (const a of rule.actions) {
+    if (a.type === 'ADD_LABEL') {
+      const label = a.labelId ? await prisma.label.findFirst({ where: { id: a.labelId, boardId }, select: { id: true } }) : null;
+      if (!label) return fail('NOT_FOUND', `Nhãn này không thuộc bảng. ${NO_CHANGE}`);
+    }
+    if (a.type === 'ASSIGN_MEMBER') {
+      const memberId = a.userId;
+      if (memberId === undefined) return fail('INVALID', `Thiếu người cần giao. ${NO_CHANGE}`);
+      const person = await prisma.user.findFirst({ where: { id: memberId, deletedAt: null }, select: { name: true } });
+      if (!person) return fail('NOT_FOUND', `Người này không còn tài khoản hoạt động. ${NO_CHANGE}`);
+      if (!(await isBoardParticipant(boardId, memberId))) {
+        const membership = await prisma.boardMember.findFirst({ where: { boardId, userId: memberId, deletedAt: null }, select: { role: true } });
+        return membership?.role === 'VIEWER'
+          ? fail('VIEWER_ASSIGN', `${person.name} chỉ có quyền xem bảng này nên luật không giao việc cho họ được. ${NO_CHANGE}`)
+          : fail('FORBIDDEN', `${person.name} không thuộc bảng này nên luật không giao việc cho họ được. ${NO_CHANGE}`);
+      }
+    }
+  }
+  return { ok: true };
+}
+
+/**
  * Kiem tra MOT thao tac. Thao tac nham vao cot / the do CHINH ke hoach tao (`op.local`) thi bo qua kiem tra "con ton tai trong bang"
  * (chua co id) - nhung moi dieu kien khac (quyen, nhan / nguoi thuoc bang, ten hop le) van kiem. `skipBoard`: nguoi goi da kiem quyen
  * bang roi (guardPlan). `checked`: cac the da kiem trong cung ke hoach (khong kiem lai).
@@ -67,6 +99,8 @@ export async function guardOp(args: { userId: string; boardId: string; op: Store
     const name = op.params.name ?? '';
     return name.trim() === '' || name.length > 100 ? fail('INVALID', `Tên cột phải từ 1 đến 100 ký tự. ${NO_CHANGE}`) : { ok: true };
   }
+
+  if (op.type === 'CREATE_AUTOMATION_RULE') return guardRule(boardId, op);
 
   if (op.type === 'CREATE_CARD') {
     if (op.local?.list === undefined && !(await liveList(boardId, op.ids.list))) return fail('NOT_FOUND', `Cột này không còn trong bảng. ${NO_CHANGE}`);

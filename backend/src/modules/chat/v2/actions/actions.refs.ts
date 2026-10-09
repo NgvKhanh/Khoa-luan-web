@@ -5,7 +5,9 @@ import { tokenize } from '../../chat.members';
 import { foldWords, stripLeadingGeneric } from './actions.text';
 import type { ActionOp, MemberRef, Ref } from './actions.schema';
 
-export type SlotName = 'card' | 'list' | 'toList' | 'member' | 'label';
+/** Phase 7: o cua luat tu dong hoa: `a0.label`, `a2.member`... = hanh dong thu i cua luat (moi hanh dong co o rieng). */
+export type RuleSlotName = `a${number}.label` | `a${number}.member`;
+export type SlotName = 'card' | 'list' | 'toList' | 'member' | 'label' | RuleSlotName;
 /** Loai thuc the ma o do tro toi (thuoc tinh cua o, khong phai cua tham chieu). */
 export type SlotKind = 'card' | 'list' | 'member' | 'label';
 
@@ -36,6 +38,13 @@ export function slotsOf(op: ActionOp): Slot[] {
       return [{ name: 'list', kind: 'list', ref: op.list }];
     case 'ADD_LABEL':
       return [cardSlot(op.card), { name: 'label', kind: 'label', ref: op.label }];
+    case 'CREATE_AUTOMATION_RULE':
+      return [
+        { name: 'list', kind: 'list', ref: op.list },
+        ...op.actions.flatMap((a, i): Slot[] =>
+          a.type === 'ADD_LABEL' ? [{ name: `a${i}.label`, kind: 'label', ref: a.label }] : a.type === 'ASSIGN_MEMBER' ? [{ name: `a${i}.member`, kind: 'member', ref: a.member }] : []
+        ),
+      ];
   }
 }
 
@@ -56,6 +65,15 @@ export function withRef(op: ActionOp, name: SlotName, ref: Ref): ActionOp {
       return name === 'card' ? { ...op, card: ref } : name === 'label' ? { ...op, label: ref } : op;
     case 'ASSIGN_UNASSIGNED':
       return name === 'list' ? { ...op, list: ref } : op;
+    case 'CREATE_AUTOMATION_RULE': {
+      // luat chi nham vao thuc the CO SAN: tham chieu PLAN (cot / the do ke hoach tao) khong hop le o day nen bo qua
+      if (ref.by === 'PLAN') return op;
+      if (name === 'list') return { ...op, list: ref };
+      const m = /^a(\d+)\.(label|member)$/.exec(name);
+      if (m === null) return op;
+      const at = Number(m[1]);
+      return { ...op, actions: op.actions.map((a, i) => (i !== at ? a : a.type === 'ADD_LABEL' && m[2] === 'label' ? { ...a, label: ref } : a.type === 'ASSIGN_MEMBER' && m[2] === 'member' ? { ...a, member: ref } : a)) };
+    }
     default:
       return op;
   }

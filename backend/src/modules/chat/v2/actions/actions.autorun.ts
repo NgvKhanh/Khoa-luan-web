@@ -63,6 +63,7 @@ export const CONFIRM_REASON_TEXT: Record<ConfirmReason['code'], string> = {
   MULTI_OP: 'Lệnh gồm nhiều thay đổi cùng lúc nên mình luôn cho bạn xem lại trước khi áp dụng (áp dụng là làm tất cả hoặc không làm gì).',
   NEW_STRUCTURE: 'Tạo cột làm thay đổi cấu trúc của bảng nên cần bạn xác nhận.',
   AI_CHOSEN_TARGET: 'Người nhận do hệ thống gợi ý phân công chọn (không phải tên bạn nêu) nên mình luôn cho bạn xem điểm, độ tin cậy, cờ cảnh báo và ứng viên khác trước khi áp dụng.',
+  STANDING_RULE: 'Luật tự động hóa chạy LÂU DÀI mỗi khi điều kiện xảy ra, bằng quyền của bạn (người tạo luật) và có thể thay đổi nhiều thẻ về sau, nên mình luôn cho bạn xem lại trước khi áp dụng và không bao giờ tự chạy.',
   BOARD_PATCH: 'Nội dung cột và thẻ này do AI đề xuất (không phải chữ bạn gõ) nên mình luôn cho bạn xem trước và chỉ thêm mới, không đụng tới dữ liệu cũ.',
 };
 
@@ -88,6 +89,8 @@ export function refusalBeforeResolve(provenance: ProvenanceReport, opLabel?: str
 /** Rui ro hien cho nguoi dung (khong dieu khien chinh sach): 1 thao tac ro rang LOW; nhieu thao tac / can xem lai MEDIUM; hang loat lon HIGH. */
 export function riskOf(opCount: number, reasons: readonly ConfirmReason[]): PlanRisk {
   if (opCount >= HIGH_RISK_OPS) return 'HIGH';
+  // Phase 7: luat tu dong hoa chay mai mai bang quyen nguoi tao -> luon CAO
+  if (reasons.some((r) => r.code === 'STANDING_RULE')) return 'HIGH';
   // chia viec hang loat do may chon (>= 4 the) cao hon: nhieu nguoi bi giao cung luc
   if (opCount >= ASSIGN_HIGH_OPS && reasons.some((r) => r.code === 'AI_CHOSEN_TARGET')) return 'HIGH';
   if (opCount >= 2 || reasons.some((r) => r.code !== 'AUTO_DISABLED')) return 'MEDIUM';
@@ -152,7 +155,8 @@ export function decideExecution(input: DecisionInput): Decision {
   if (input.dueFuzzy) push('FUZZY_DATE');
   if (input.aiChosen === true) push('AI_CHOSEN_TARGET');
   if (count >= 2) push('MULTI_OP');
-  if (input.opTypes.some((t) => !AUTO_RUN_TYPES.includes(t as (typeof AUTO_RUN_TYPES)[number]))) push('NEW_STRUCTURE');
+  if (input.opTypes.includes('CREATE_AUTOMATION_RULE')) push('STANDING_RULE');
+  if (input.opTypes.some((t) => t !== 'CREATE_AUTOMATION_RULE' && !AUTO_RUN_TYPES.includes(t as (typeof AUTO_RUN_TYPES)[number]))) push('NEW_STRUCTURE');
   if (!input.autoExecute) push('AUTO_DISABLED');
 
   if (reasons.length === 0) return { mode: 'AUTO', risk: 'LOW', reasons };

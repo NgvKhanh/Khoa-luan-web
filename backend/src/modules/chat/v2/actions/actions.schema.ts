@@ -55,6 +55,26 @@ export type Ref = z.infer<typeof RefSchema>;
 export const MemberRefSchema = z.discriminatedUnion('by', [...RefSchema.options, z.object({ by: z.literal('BEST') }).strict()]);
 export type MemberRef = z.infer<typeof MemberRefSchema>;
 
+/**
+ * Phase 7 - LUAT TU DONG HOA bang ngon ngu tu nhien. Chi anh xa vao nhung gi engine (modules/automation) co: 2 dieu kien kich hoat va 3 hanh dong
+ * (toi da 5). Luat chi nham vao thuc the CO SAN (TEXT / CONTEXT / SELF): khong PLAN (khong tao cot + luat trong cung lenh), khong BEST.
+ */
+export const RULE_TRIGGERS = ['CARD_CREATED', 'CARD_MOVED_TO_LIST'] as const;
+export type RuleTrigger = (typeof RULE_TRIGGERS)[number];
+export const MAX_RULE_ACTIONS = 5;
+const RuleRefSchema = z.discriminatedUnion('by', [
+  z.object({ by: z.literal('TEXT'), text: text(200) }).strict(),
+  z.object({ by: z.literal('CONTEXT'), slot: z.enum(REF_SLOTS) }).strict(),
+  z.object({ by: z.literal('SELF') }).strict(),
+]);
+export const RuleActionSchema = z.discriminatedUnion('type', [
+  // done = true (mac dinh): danh dau hoan thanh; done = false: mo lai (bo danh dau hoan thanh)
+  z.object({ type: z.literal('SET_DONE'), done: z.boolean().optional() }).strict(),
+  z.object({ type: z.literal('ADD_LABEL'), label: RuleRefSchema }).strict(),
+  z.object({ type: z.literal('ASSIGN_MEMBER'), member: RuleRefSchema }).strict(),
+]);
+export type RuleAction = z.infer<typeof RuleActionSchema>;
+
 export const DateSpecSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ABSOLUTE'), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict(),
   // weekday: 1 = Thu Hai ... 7 = Chu nhat (ISO)
@@ -77,6 +97,7 @@ export const ACTION_TYPES = [
   'ASSIGN_MEMBER',
   'ADD_LABEL',
   'ASSIGN_UNASSIGNED',
+  'CREATE_AUTOMATION_RULE',
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
 
@@ -105,6 +126,8 @@ export const ActionOpSchema = z.discriminatedUnion('type', [
   // Phase 6: chia cac the CHUA co nguoi nhan cua mot cot cho nhom (server goi planForList va khai trien thanh nhieu ASSIGN_MEMBER)
   z.object({ type: z.literal('ASSIGN_UNASSIGNED'), list: RefSchema }).strict(),
   z.object({ type: z.literal('ADD_LABEL'), card: RefSchema, label: RefSchema }).strict(),
+  // Phase 7: luat tu dong hoa (luon xem truoc, rui ro CAO, phai la thao tac DUY NHAT cua ke hoach)
+  z.object({ type: z.literal('CREATE_AUTOMATION_RULE'), trigger: z.enum(RULE_TRIGGERS), list: RuleRefSchema.optional(), actions: z.array(RuleActionSchema).min(1).max(MAX_RULE_ACTIONS) }).strict(),
 ]);
 export type ActionOp = z.infer<typeof ActionOpSchema>;
 
@@ -181,6 +204,18 @@ export const PROPOSE_ACTIONS_PROVIDER_SCHEMA = {
           title: { type: 'string', description: 'Tieu de moi (CREATE_CARD, RENAME_CARD): dung chu nguoi dung go.' },
           due: dueHint,
           status: { type: 'string', enum: [...Object.values(CardStatus)] },
+          trigger: { type: 'string', enum: [...RULE_TRIGGERS], description: 'CREATE_AUTOMATION_RULE: CARD_CREATED = khi co the MOI duoc tao (list = cot, bo trong = moi cot); CARD_MOVED_TO_LIST = khi the duoc chuyen VAO cot (list bat buoc).' },
+          actions: {
+            type: 'array',
+            minItems: 1,
+            maxItems: MAX_RULE_ACTIONS,
+            description: 'CREATE_AUTOMATION_RULE: cac hanh dong luat se lam (toi da 5): SET_DONE (done false = mo lai) | ADD_LABEL (label) | ASSIGN_MEMBER (member).',
+            items: {
+              type: 'object',
+              properties: { type: { type: 'string', enum: ['SET_DONE', 'ADD_LABEL', 'ASSIGN_MEMBER'] }, done: { type: 'boolean' }, label: refHint, member: refHint },
+              required: ['type'],
+            },
+          },
         },
         required: ['type'],
       },

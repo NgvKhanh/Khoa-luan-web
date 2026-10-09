@@ -86,6 +86,12 @@ const ROUTE: readonly RouteCase[] = [
   { id: 'assign-best', message: 'Giao task Login UI cho người phù hợp nhất', want: 'actions', args: (j) => j.includes('"BEST"') },
   { id: 'assign-split', message: 'Chia các việc chưa có người trong cột Cần làm cho nhóm', want: 'actions', args: (j) => j.includes('ASSIGN_UNASSIGNED') },
   { id: 'assign-named', message: 'Giao Login API cho Lan', want: 'actions', args: (j) => !j.includes('BEST') && !j.includes('ASSIGN_UNASSIGNED') },
+  // Phase 7: luat tu dong hoa (2 dieu kien + 3 viec); dieu kien / viec ngoai engine KHONG duoc de xuat thanh luat
+  { id: 'rule-moved', message: 'Khi thẻ được chuyển vào cột Hoàn thành thì gắn nhãn Gấp', want: 'actions', args: (j) => j.includes('CREATE_AUTOMATION_RULE') && j.includes('CARD_MOVED_TO_LIST') && j.includes('ADD_LABEL') },
+  { id: 'rule-created', message: 'Khi có thẻ mới trong cột Cần làm thì giao cho tôi', want: 'actions', args: (j) => j.includes('CREATE_AUTOMATION_RULE') && j.includes('CARD_CREATED') && j.includes('ASSIGN_MEMBER') },
+  { id: 'rule-multi', message: 'Tạo luật: khi thẻ vào cột Đang làm thì giao cho Lan và gắn nhãn Backend', want: 'actions', args: (j) => j.includes('CREATE_AUTOMATION_RULE') && j.includes('ASSIGN_MEMBER') && j.includes('ADD_LABEL') },
+  { id: 'rule-due', message: 'Khi thẻ sắp đến hạn thì nhắc tôi', want: 'none' },
+  { id: 'rule-email', message: 'Mỗi tuần gửi email tổng kết cho cả nhóm', want: 'none' },
   { id: 'none-delete', message: 'Xóa hết thẻ cũ rồi tạo lại các thẻ kiểm thử', want: 'none' },
   { id: 'none-read', message: 'Có những thẻ nào đang làm?', want: 'none' },
   { id: 'none-summary', message: 'Tóm tắt bảng này', want: 'none' },

@@ -263,7 +263,7 @@ describe('dấu vân tay tham chiếu (một lần tìm, một lần chọn cho 
     expect(foldedName('cột Đang làm')).toBe('dang lam');
   });
 
-  it('slotsOf / withRef đủ cho cả 9 loại thao tác', () => {
+  it('slotsOf / withRef đủ cho cả 10 loại thao tác', () => {
     for (const type of ACTION_TYPES) {
       const samples: Record<string, ActionOp> = {
         CREATE_LIST: list('A'),
@@ -275,11 +275,14 @@ describe('dấu vân tay tham chiếu (một lần tìm, một lần chọn cho 
         ASSIGN_MEMBER: assign(t('A'), 'Lan'),
         ADD_LABEL: label(t('A'), 'Gấp'),
         ASSIGN_UNASSIGNED: { type: 'ASSIGN_UNASSIGNED', list: t('A') },
+        CREATE_AUTOMATION_RULE: { type: 'CREATE_AUTOMATION_RULE', trigger: 'CARD_MOVED_TO_LIST', list: t('A'), actions: [{ type: 'ADD_LABEL', label: t('B') }] },
       };
       const op = samples[type];
       const names = slotsOf(op).map((s) => s.name);
-      expect(names, type).toEqual({ CREATE_LIST: [], CREATE_CARD: ['list'], RENAME_CARD: ['card'], SET_CARD_DUE: ['card'], MOVE_CARD: ['card', 'toList'], SET_CARD_STATUS: ['card'], ASSIGN_MEMBER: ['card', 'member'], ADD_LABEL: ['card', 'label'], ASSIGN_UNASSIGNED: ['list'] }[type]);
-      for (const name of names) expect(slotsOf(withRef(op, name, plan('k'))).find((s) => s.name === name)?.ref).toEqual(plan('k'));
+      expect(names, type).toEqual({ CREATE_LIST: [], CREATE_CARD: ['list'], RENAME_CARD: ['card'], SET_CARD_DUE: ['card'], MOVE_CARD: ['card', 'toList'], SET_CARD_STATUS: ['card'], ASSIGN_MEMBER: ['card', 'member'], ADD_LABEL: ['card', 'label'], ASSIGN_UNASSIGNED: ['list'], CREATE_AUTOMATION_RULE: ['list', 'a0.label'] }[type]);
+      // luật tự động hóa chỉ nhắm vào thực thể CÓ SẴN nên không nhận tham chiếu PLAN (withRef bỏ qua)
+      const probe = type === 'CREATE_AUTOMATION_RULE' ? t('Z') : plan('k');
+      for (const name of names) expect(slotsOf(withRef(op, name, probe)).find((s) => s.name === name)?.ref).toEqual(probe);
     }
   });
 });

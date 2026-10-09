@@ -292,7 +292,7 @@ describe('giao việc cho "người phù hợp nhất" ({by:BEST})', () => {
     const choice = planOf(reply).items[0].choice;
     expect(choice?.score).toBe(72);
     expect(choice?.alternatives.every((a) => a.score === null || Number.isInteger(a.score))).toBe(true);
-    expect(JSON.stringify(planOf(reply))).not.toMatch(/d.d{3}/);
+    expect(JSON.stringify(planOf(reply).items)).not.toMatch(/"score":\d+\.\d/);
   });
 
   it('phòng thủ thêm: người đang TẠM NGHỈ dù được xếp đầu cũng không được chọn; người chọn thay thế (hạng > 1) không mang theo luợt gợi ý', async () => {

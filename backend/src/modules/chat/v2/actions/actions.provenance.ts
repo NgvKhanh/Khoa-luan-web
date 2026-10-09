@@ -21,6 +21,10 @@ import {
   isQuestionForm,
   lastStatusMention,
   licenceFor,
+  ruleActionMentioned,
+  ruleTriggerMentioned,
+  withoutOwnTexts,
+  type RuleActionKind,
 } from './actions.text';
 
 export type ProvenanceCode =
@@ -28,6 +32,7 @@ export type ProvenanceCode =
   | 'NEGATED'
   | 'DELEGATION_PHRASE'
   | 'BEST_NOT_ASKED'
+  | 'RULE_PART_NOT_REQUESTED'
   | 'QUESTION_FORM'
   | 'TITLE_NOT_GROUNDED'
   | 'REF_NOT_GROUNDED'
@@ -66,6 +71,21 @@ function refGrounded(ref: MemberRef, words: readonly string[], message: string):
   }
 }
 
+/**
+ * Phase 7: mot luat chay mai mai nen MOI phan cua no (dieu kien kich hoat, tung hanh dong) phai do chinh cau cua nguoi dung nhac toi - khong chi
+ * "co mot cau tao luat". Phan nao mo hinh tu them (vd tu them hanh dong "giao cho X" ma cau khong he noi) -> tu choi ca luat.
+ */
+function ruleNotRequested(op: Extract<ActionOp, { type: 'CREATE_AUTOMATION_RULE' }>, words: readonly string[]): string | null {
+  if (!ruleTriggerMentioned(op.trigger, words)) return 'trigger';
+  // ten cot / nhan / nguoi dung de TIM doi tuong khong tinh la nhac toi viec luat lam (cot "Hoan thanh" khong co nghia la luat danh dau hoan thanh)
+  const own = withoutOwnTexts(words, slotsOf(op).flatMap((s) => (s.ref?.by === 'TEXT' ? [s.ref.text] : [])));
+  for (const [i, a] of op.actions.entries()) {
+    const kind: RuleActionKind = a.type === 'SET_DONE' ? (a.done === false ? 'SET_OPEN' : 'SET_DONE') : a.type;
+    if (!ruleActionMentioned(kind, own)) return `action${i + 1}`;
+  }
+  return null;
+}
+
 /** `message` la cau CUA NGUOI DUNG (da gop phan bo sung neu co), `today` la ngay lich hien tai o Viet Nam. */
 export function assessProvenance(op: ActionOp, message: string, today: IsoDate, strictStatus = true): ProvenanceReport {
   const words = foldWords(message);
@@ -79,6 +99,8 @@ export function assessProvenance(op: ActionOp, message: string, today: IsoDate, 
   if (!licence.licensed) failures.push({ code: 'OP_NOT_LICENSED' });
   else if (licence.negated) failures.push({ code: 'NEGATED' });
 
+  // Phase 7: luat chay mai mai nen khong co cau tao luat thi KHONG cho xem truoc du cau co "lam theo noi dung ..." (khong de du lieu dan toi mot luat)
+  if (op.type === 'CREATE_AUTOMATION_RULE' && (!licence.licensed || licence.negated)) return { verdict: 'NOT_REQUESTED', failures, due };
   if (delegated) return { verdict: 'DELEGATED_TO_DATA', failures, due };
   if (!licence.licensed || licence.negated) return { verdict: 'NOT_REQUESTED', failures, due };
 
@@ -86,6 +108,13 @@ export function assessProvenance(op: ActionOp, message: string, today: IsoDate, 
   if (slotsOf(op).some((s) => s.ref?.by === 'BEST') && !hasBestCue(words)) {
     failures.push({ code: 'BEST_NOT_ASKED' });
     return { verdict: 'NOT_REQUESTED', failures, due };
+  }
+  if (op.type === 'CREATE_AUTOMATION_RULE') {
+    const missing = ruleNotRequested(op, words);
+    if (missing !== null) {
+      failures.push({ code: 'RULE_PART_NOT_REQUESTED', detail: missing });
+      return { verdict: 'NOT_REQUESTED', failures, due };
+    }
   }
   for (const slot of slotsOf(op)) {
     if (slot.ref !== undefined && !refGrounded(slot.ref, words, message)) failures.push({ code: 'REF_NOT_GROUNDED', detail: slot.name });
