@@ -6,7 +6,7 @@ import { handleMessage, handleChoice, handleMore, understandByRules, type ChatRe
 import { chatSessions } from '../chat.session';
 import type { ChatMessageInput } from '../chat.schema';
 import { basicStep, bindEntity, explicitBoardRef, orchestrate, validateBindings } from './chat.v2.orchestrator';
-import { callChatModel, v2LlmAvailable, type ModelStep } from './chat.v2.llm';
+import { callChatModel, v2LlmAvailable, type ModelFailReason, type ModelStep } from './chat.v2.llm';
 import type { PatchPlanner } from './actions/actions.patch.context';
 import { proposeActionsTool, proposeBoardPatchTool } from './chat.v2.registry';
 import { choosePlanRef, typedPlanCommand, type ActionOutcome } from './actions/actions.service';
@@ -24,6 +24,29 @@ const ACTIONS_OFF_TEXT = 'Trợ lý hiện chỉ đọc dữ liệu. Bạn cần
 const NEEDS_AI_TEXT = 'Cần bật AI để thực hiện thao tác; hiện trợ lý chỉ tra cứu được. Bạn có thể thao tác trực tiếp trên website.';
 const READ_ONLY_HERE_TEXT = 'Bạn chỉ có quyền xem bảng này nên trợ lý không thay đổi dữ liệu ở đây được. Chưa thay đổi gì.';
 const AI_FAILED_TEXT = 'Trợ lý chưa xử lý được lệnh này nên chưa thay đổi gì. Hãy thử lại sau.';
+/** Lý do (đã dịch) AI không dùng được ở lượt này; HTTP / INVALID / DISABLED quá chung nên không nêu. */
+function aiWhy(reason: ModelFailReason | undefined): string | undefined {
+  if (reason === 'QUOTA' || reason === 'BUDGET') return 'AI đã hết hạn mức hoặc đang quá tải';
+  if (reason === 'TIMEOUT') return 'AI phản hồi quá chậm';
+  if (reason === 'NETWORK') return 'không kết nối được tới AI';
+  return undefined;
+}
+function aiFailedText(reason: ModelFailReason | undefined): string {
+  const why = aiWhy(reason);
+  return why ? `Trợ lý chưa xử lý được lệnh này vì ${why} nên chưa thay đổi gì. Hãy thử lại sau ít phút.` : AI_FAILED_TEXT;
+}
+
+/**
+ * Câu có phải một LỆNH ghi nói thẳng ở đầu câu không (đã bỏ dấu, chữ thường)? Dùng để chặn sớm khi không được phép / không có AI, và để
+ * không bao giờ trả lời lệnh ghi bằng nhánh đọc. Động từ "mềm" (thêm, gán, cập nhật...) chỉ tính khi câu không phải câu hỏi:
+ * "Cập nhật gần đây của bảng này?" là câu hỏi lịch sử, "gần đây" bị nhầm với "gán" nếu không loại trừ.
+ */
+export function looksLikeWriteCommand(folded: string, asksQuestion: boolean): boolean {
+  const lead = '(?:hay |vui long |toi muon |toi can )?';
+  if (new RegExp(`^${lead}(?:tao |xoa |sua |doi han |giao viec |phan cong |chuyen |luu tru )`).test(folded)) return true;
+  if (/(?:tao|xoa|sua|doi han|giao viec|phan cong|chuyen|them).*(?:giup toi|giup minh|gium|ho toi)/.test(folded)) return true;
+  return !asksQuestion && new RegExp(`^${lead}(?:them |bo sung |mo rong |doi ten |dat han |gan (?!day)|giao (?!dien)|danh dau |cap nhat |di chuyen |keo )`).test(folded);
+}
 
 const PAGE_CHANGED_TEXT = 'Bạn đã chuyển sang trang khác nên lựa chọn / kết quả cũ không còn dùng được. Hãy hỏi lại ở trang này.';
 /**
@@ -52,10 +75,17 @@ function actionReply(s: V2Session, now: Date, outcome: ActionOutcome): V2Reply {
   s.pending = outcome.pending;
   return v2Reply(s, now, [], 'AI', outcome.text, [], outcome.action ? { action: outcome.action } : {});
 }
-function legacyReply(s: V2Session, reply: ChatReply): V2Reply {
+function legacyReply(s: V2Session, reply: ChatReply, aiFailure?: ModelFailReason): V2Reply {
   s.legacyId = reply.conversationId;
   s.legacyOptions = reply.answer.clarify?.options.map((o) => ({ id: o.id, kind: o.kind }));
-  return { ...reply, conversationId: s.id, version: 'v2', mode: 'BASIC', understood: { ...reply.understood, summary: 'Tra cứu bằng chế độ cơ bản' } };
+  const out: V2Reply = { ...reply, conversationId: s.id, version: 'v2', mode: 'BASIC', understood: { ...reply.understood, summary: 'Tra cứu bằng chế độ cơ bản' } };
+  const why = aiWhy(aiFailure);
+  if (aiFailure) {
+    out.answer = { ...out.answer, notes: [...out.answer.notes, `AI chưa phản hồi${why ? ` (${why})` : ''} nên đây là kết quả của chế độ cơ bản.`] };
+    // Câu "chưa tạo, sửa hay giao việc được" của v1 sai với v2: ở đây lỗi nằm ở AI, không phải ở chức năng.
+    if (out.answer.kind === 'UNSUPPORTED') out.answer.text = `Chế độ cơ bản chưa hiểu câu này${why ? ` và ${why}` : ''}. Hãy thử lại sau ít phút, hoặc hỏi theo các mẫu gợi ý bên dưới. Chưa thay đổi gì.`;
+  }
+  return out;
 }
 async function answerQuestion(s: V2Session, message: string, context: V2ServiceContext): Promise<V2Reply> {
   const { now } = context;
@@ -65,8 +95,11 @@ async function answerQuestion(s: V2Session, message: string, context: V2ServiceC
   const autoExecute = context.autoExecute ?? env.chatAutoExecute;
   s.legacyOptions = undefined;
   const folded = message.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/g, 'd');
-  const writeRequest = /^(?:hay |vui long |toi muon |toi can )?(?:tao |xoa |sua |doi han |giao viec |phan cong |chuyen |luu tru )/.test(folded)
-    || /(?:tao|xoa|sua|doi han|giao viec|phan cong|chuyen).*(?:giup toi|giup minh|gium|ho toi)/.test(folded);
+  // Mot LENH ghi ("doi han ... sang thu sau", "Trong bang X, doi ten the A thanh Da doi...") khong phai cau hoi lich su: co dong tu ghi o bat ky
+  // dau trong cau ma khong co chu nghi van thi bo loi tat "ban muon xem khoang thoi gian nao" (cau hoi that luon co ? hoac nao / gi / ai...).
+  const asksQuestion = /\?|(?:^|\s)(?:nao|gi|ai|bao nhieu|khi nao)(?:\s|$)/.test(folded);
+  const writeRequest = looksLikeWriteCommand(folded, asksQuestion);
+  let aiFailure: ModelFailReason | undefined;
   // Hanh dong: chi gui cong cu ghi cho AI khi co co + co AI + nguoi dung sua duoc o trang nay (dac quyen toi thieu).
   let canModify = false;
   if (writeRequest || (actionsFlag && available)) canModify = actionsFlag && available && await canModifyHere(s);
@@ -88,9 +121,6 @@ async function answerQuestion(s: V2Session, message: string, context: V2ServiceC
     }
     if (found.data.status !== 'NOT_FOUND') bindEntity(s, found.data.options[0]);
   }
-  // Mot LENH ghi ("doi han ... sang thu sau", "Trong bang X, doi ten the A thanh Da doi...") khong phai cau hoi lich su: co dong tu ghi o bat ky
-  // dau trong cau ma khong co chu nghi van thi bo loi tat "ban muon xem khoang thoi gian nao" (cau hoi that luon co ? hoac nao / gi / ai...).
-  const asksQuestion = /\?|(?:^|\s)(?:nao|gi|ai|bao nhieu|khi nao)(?:\s|$)/.test(folded);
   const commandLike = canModify && !asksQuestion && /(?:doi ten|doi han|thay doi han|dat han|chuyen |giao |gan (?!day)|them |tao |sua |keo |danh dau|cap nhat|di chuyen|phan cong|bo sung|mo rong|len ke hoach|viet them)/.test(folded);
   const historyQuestion = !writeRequest && !commandLike && /(?:thay doi|da doi|doi han|nhat ky|lich su)/.test(folded);
   const hasHistoryTime = /(?:hom nay|hom qua|tuan|thang|gan day|\bngay\b|\d{1,4}[/-]\d{1,2}|\bvua\b)/.test(folded);
@@ -101,17 +131,17 @@ async function answerQuestion(s: V2Session, message: string, context: V2ServiceC
   if (available) {
     // Co cong cu ghi thi gui kem propose_actions; ngoai ra giu nguyen buoc goi mo hinh nhu truoc.
     const step: ModelStep = context.step ?? (canModify ? (messages, timeoutMs) => callChatModel(messages, timeoutMs, env.ai, true, [proposeActionsTool, proposeBoardPatchTool]) : callChatModel);
-    const response = await orchestrate(s, message, now, step, 'AI', canModify ? { actions: { autoExecute, ...(context.patchPlanner ? { patchPlanner: context.patchPlanner } : {}) } } : {});
+    const response = await orchestrate(s, message, now, step, 'AI', { ...(canModify ? { actions: { autoExecute, ...(context.patchPlanner ? { patchPlanner: context.patchPlanner } : {}) } } : {}), onModelFailure: (reason) => { aiFailure ??= reason; } });
     if (response.mode !== 'BASIC') { s.legacyId = undefined; return response; }
-    // Mot LENH ghi khong duoc de roi xuong cac nhanh doc / v1: noi ro la chua thay doi gi.
-    if (writeRequest) { s.pending = undefined; s.queries = []; s.legacyId = undefined; return v2Reply(s, now, [], 'BASIC', AI_FAILED_TEXT); }
+    // Mot LENH ghi (ke ca cau co dong tu ghi o giua cau) khong duoc de roi xuong cac nhanh doc / v1: noi ro la chua thay doi gi va vi sao.
+    if (writeRequest || commandLike) { s.pending = undefined; s.queries = []; s.legacyId = undefined; return v2Reply(s, now, [], 'BASIC', aiFailedText(aiFailure)); }
   }
   if (basic) { s.legacyId = undefined; return orchestrate(s, message, now, basic, 'BASIC'); }
-  if (historyQuestion || /(?:\bva\b|phan cong|chua giao|\bgan\b)/.test(folded)) return v2Reply(s, now, [], 'BASIC', 'AI hiện chưa sẵn sàng để xử lý đầy đủ câu này. Hãy thử lại hoặc tách câu hỏi thành từng phần.');
+  if (historyQuestion || /(?:\bva\b|phan cong|chua giao|\bgan\b)/.test(folded)) return v2Reply(s, now, [], 'BASIC', `AI hiện chưa sẵn sàng${aiWhy(aiFailure) ? ` (${aiWhy(aiFailure)})` : ''} để xử lý đầy đủ câu này. Hãy thử lại hoặc tách câu hỏi thành từng phần.`);
   await validateBindings(s, now);
   const reply = await handleMessage(s.userId, { message, scope: s.scope ?? s.uiScope, conversationId: s.legacyId }, { now, sessions: chatSessions, understand: understandByRules });
   s.lastQuestion = message;
-  return legacyReply(s, reply);
+  return legacyReply(s, reply, aiFailure);
 }
 export async function handleV2Message(userId: string, input: ChatMessageInput, context: V2ServiceContext): Promise<V2Reply> {
   const store = context.sessions ?? v2Sessions;

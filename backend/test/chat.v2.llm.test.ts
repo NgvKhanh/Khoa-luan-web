@@ -55,6 +55,17 @@ describe('chat v2 provider adapter', () => {
     expect(r.ok && r.adapter).toBe('NATIVE');
     expect(m422).toHaveBeenCalledTimes(2);
   });
+  it('429 (het han muc) duoc bao rieng la QUOTA de tang tren noi dung nguyen nhan; khong thu lai, khong ro ri khoa/van ban nha cung cap', async () => {
+    const mock = vi.fn().mockResolvedValue(new Response('test-secret quota exceeded', { status: 429 }));
+    vi.stubGlobal('fetch', mock);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(await callChatModel(messages, 500, cfg('quota'), false)).toEqual({ ok: false, reason: 'QUOTA' });
+    expect(mock).toHaveBeenCalledTimes(1);
+    // nhat ky chi co ma trang thai + ten mo hinh, khong co khoa API hay noi dung tra ve cua nha cung cap
+    expect(warn.mock.calls.map((c) => c.join(' ')).join('\n')).toContain('HTTP 429');
+    expect(warn.mock.calls.map((c) => c.join(' ')).join('\n')).not.toContain('test-secret');
+    warn.mockRestore();
+  });
   it('fails safely on HTTP/invalid JSON/timeout and never returns provider text or keys', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('test-secret provider failure', { status: 500 })));
     expect(await callChatModel(messages, 500, cfg('http'), false)).toEqual({ ok: false, reason: 'HTTP' });

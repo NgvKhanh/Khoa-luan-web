@@ -7,7 +7,7 @@ import { proposeBoardPatch } from './actions/actions.patch.service';
 import { proposeActionsSchema } from './actions/actions.schema';
 import { proposeActions, recordRefusal, type PlanMeta } from './actions/actions.service';
 import { MODEL_SCHEMAS, PATCH_TOOL, PROPOSE_TOOL, type ModelCall } from './chat.v2.registry';
-import { callChatModel, type ModelMessage, type ModelStep } from './chat.v2.llm';
+import { callChatModel, type ModelFailReason, type ModelMessage, type ModelStep } from './chat.v2.llm';
 import { TOOL_SCHEMAS, type ToolName } from './chat.v2.schema';
 import { executeChatTool, modelView, type ToolResult } from './chat.v2.tools';
 import { validateComment } from '../chat.summary';
@@ -45,7 +45,11 @@ export const PROPOSE_REPAIR_HINT = 'Danh sách operations gồm 1-15 thao tác, 
 export const systemPrompt = (actions: boolean): string => actions ? `${SYSTEM.replace(READ_ONLY_HEAD, ACTION_HEAD)}\n${ACTION_RULES}` : SYSTEM;
 /** Gợi ý gửi lại khi propose_board_patch sai hình dạng (chỉ có một khóa goal). */
 const PATCH_REPAIR_HINT = 'propose_board_patch chỉ nhận {goal: chuỗi 1-300 ký tự}, KHÔNG có khóa nào khác. Nội dung cột/thẻ do backend tự lập, đừng liệt kê chúng ở đây.';
-export interface OrchestrateOptions { actions?: { autoExecute: boolean; /** Tiêm bộ lập kế hoạch Board Patch (kiểm thử); mặc định gọi LLM thật. */ patchPlanner?: PatchPlanner } }
+export interface OrchestrateOptions {
+  actions?: { autoExecute: boolean; /** Tiêm bộ lập kế hoạch Board Patch (kiểm thử); mặc định gọi LLM thật. */ patchPlanner?: PatchPlanner };
+  /** Gọi khi một lượt gọi mô hình thất bại (lý do thô: QUOTA, TIMEOUT...), để tầng trên báo đúng nguyên nhân thay vì lặng lẽ lùi về chế độ cơ bản. */
+  onModelFailure?: (reason: ModelFailReason) => void;
+}
 
 function ctxFor(session: V2Session, now: Date): ToolContext {
   return { userId: session.userId, now, scope: session.uiScope, conversationScope: session.scope };
@@ -144,6 +148,7 @@ export async function orchestrate(session: V2Session, question: string, now: Dat
     if (remaining <= 0 || JSON.stringify(messages).length > 70_000) break;
     const decision = await step(messages, remaining);
     if (!decision.ok) {
+      options.onModelFailure?.(decision.reason);
       if (!blocks.length) return { ...reply(), mode: 'BASIC' };
       notes.push('AI chưa hoàn tất mọi phần. Các kết quả bên dưới đã được tra cứu; hãy hỏi lại phần còn thiếu.');
       return reply();

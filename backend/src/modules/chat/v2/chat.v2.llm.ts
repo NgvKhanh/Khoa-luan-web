@@ -5,7 +5,9 @@ import { modelTools, plannerSchema, plannerSchemaWithActions, type ModelCall } f
 
 export interface ModelMessage { role: 'system' | 'user' | 'assistant' | 'tool'; content: string | null; tool_calls?: unknown[]; tool_call_id?: string }
 export type ModelResult = { ok: true; calls: ModelCall[]; message: ModelMessage; adapter: 'NATIVE' | 'JSON'; usage: { input: number; output: number } }
-  | { ok: false; reason: 'DISABLED' | 'TIMEOUT' | 'NETWORK' | 'HTTP' | 'INVALID' | 'BUDGET' };
+  | { ok: false; reason: ModelFailReason };
+/** QUOTA: nha cung cap tra 429 (het han muc); BUDGET: tran noi bo 40 luot / phut cua chinh ung dung. */
+export type ModelFailReason = 'DISABLED' | 'TIMEOUT' | 'NETWORK' | 'HTTP' | 'QUOTA' | 'INVALID' | 'BUDGET';
 export type ModelStep = (messages: ModelMessage[], timeoutMs: number) => Promise<ModelResult>;
 let windowStart = 0;
 let callsInWindow = 0;
@@ -46,11 +48,12 @@ export async function callChatModel(messages: ModelMessage[], timeoutMs: number,
       if (res === undefined) return { ok: false, reason: 'INVALID' };
       if (!res.ok) {
         await res.body?.cancel();
+        console.warn(`[chat] AI tra loi HTTP ${res.status} (adapter ${adapter}, model ${cfg.model})`);
         if (adapter === 'NATIVE' && [400, 422].includes(res.status)) {
           if (nativeUnavailable.size >= 32) nativeUnavailable.clear();
           nativeUnavailable.set(capabilityKey, now + 10 * 60_000); continue;
         }
-        return { ok: false, reason: 'HTTP' };
+        return { ok: false, reason: res.status === 429 ? 'QUOTA' : 'HTTP' };
       }
       const rawText = await res.text();
       if (rawText.length > 200_000) return { ok: false, reason: 'INVALID' };
@@ -74,6 +77,10 @@ export async function callChatModel(messages: ModelMessage[], timeoutMs: number,
         usage: { input: Number(raw.usage?.prompt_tokens) || 0, output: Number(raw.usage?.completion_tokens) || 0 } };
     }
     return { ok: false, reason: 'INVALID' };
-  } catch (e) { return { ok: false, reason: controller.signal.aborted ? 'TIMEOUT' : e instanceof SyntaxError ? 'INVALID' : 'NETWORK' }; }
+  } catch (e) {
+    const reason = controller.signal.aborted ? 'TIMEOUT' : e instanceof SyntaxError ? 'INVALID' : 'NETWORK';
+    console.warn(`[chat] AI loi ${reason}: ${e instanceof Error ? e.message : 'khong ro'}`);
+    return { ok: false, reason };
+  }
   finally { clearTimeout(timer); }
 }
