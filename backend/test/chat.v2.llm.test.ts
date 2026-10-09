@@ -21,13 +21,39 @@ describe('chat v2 provider adapter', () => {
   });
   it('falls back after unsupported native schema and caches provider capability, not query data', async () => {
     const json = () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ calls: [{ name: 'query_tasks', arguments: { filters: { assignment: 'UNASSIGNED' } } }] }) } }] }));
-    const mock = vi.fn().mockResolvedValueOnce(new Response('Schema rejected', { status: 400 })).mockImplementation(async () => json());
+    // 'required' bi tu choi VA 'auto' cung bi tu choi -> that su khong ho tro native -> sang JSON va nho nang luc
+    const mock = vi.fn().mockResolvedValueOnce(new Response('Schema rejected', { status: 400 })).mockResolvedValueOnce(new Response('Schema rejected', { status: 400 })).mockImplementation(async () => json());
     vi.stubGlobal('fetch', mock);
     const c = cfg('fallback');
     const first = await callChatModel(messages, 500, c, false);
-    expect(first.ok && first.adapter).toBe('JSON'); expect(mock).toHaveBeenCalledTimes(2);
-    await callChatModel(messages, 500, c, false); expect(mock).toHaveBeenCalledTimes(3);
-    expect(JSON.parse(mock.mock.calls[2][1].body).response_format).toEqual({ type: 'json_object' });
+    expect(first.ok && first.adapter).toBe('JSON'); expect(mock).toHaveBeenCalledTimes(3);
+    expect(mock.mock.calls.slice(0, 2).map((x) => JSON.parse(x[1].body).tool_choice)).toEqual(['required', 'auto']);
+    await callChatModel(messages, 500, c, false); expect(mock).toHaveBeenCalledTimes(4);
+    expect(JSON.parse(mock.mock.calls[3][1].body).response_format).toEqual({ type: 'json_object' });
+  });
+  it('required bi nha cung cap tu choi (400) nhung auto duoc -> van dung NATIVE, KHONG danh dau native khong kha dung; lan sau lai thu required truoc', async () => {
+    const ok = () => new Response(JSON.stringify({ choices: [{ message: { tool_calls: [{ id: 'c1', type: 'function', function: { name: 'query_tasks', arguments: '{}' } }] } }] }));
+    const mock = vi.fn().mockResolvedValueOnce(new Response('Request contains an invalid argument', { status: 400 })).mockImplementationOnce(async () => ok()).mockImplementation(async () => ok());
+    vi.stubGlobal('fetch', mock);
+    const c = cfg('auto-retry');
+    const first = await callChatModel(messages, 500, c, false);
+    expect(first.ok && first.adapter).toBe('NATIVE');
+    expect(first.ok && first.calls.map((x) => x.name)).toEqual(['query_tasks']);
+    expect(mock.mock.calls.map((x) => JSON.parse(x[1].body).tool_choice)).toEqual(['required', 'auto']);
+    const second = await callChatModel(messages, 500, c, false);
+    expect(second.ok && second.adapter).toBe('NATIVE');
+    expect(mock.mock.calls.map((x) => JSON.parse(x[1].body).tool_choice)).toEqual(['required', 'auto', 'required']);
+  });
+  it('422 cung duoc thu lai bang auto; 500 thi KHONG thu lai', async () => {
+    const mock = vi.fn().mockResolvedValue(new Response('boom', { status: 500 }));
+    vi.stubGlobal('fetch', mock);
+    expect(await callChatModel(messages, 500, cfg('http500'), false)).toEqual({ ok: false, reason: 'HTTP' });
+    expect(mock).toHaveBeenCalledTimes(1);
+    const m422 = vi.fn().mockResolvedValueOnce(new Response('x', { status: 422 })).mockImplementation(async () => new Response(JSON.stringify({ choices: [{ message: { tool_calls: [{ id: 'c1', type: 'function', function: { name: 'query_tasks', arguments: '{}' } }] } }] })));
+    vi.stubGlobal('fetch', m422);
+    const r = await callChatModel(messages, 500, cfg('p422'), false);
+    expect(r.ok && r.adapter).toBe('NATIVE');
+    expect(m422).toHaveBeenCalledTimes(2);
   });
   it('fails safely on HTTP/invalid JSON/timeout and never returns provider text or keys', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('test-secret provider failure', { status: 500 })));

@@ -23,4 +23,5 @@ node_modules
 
 # Bo dem phan hoi tho cua LLM + du lieu tho khi chay danh gia chatbot (src/scripts/evaluateChat.ts); bao cao .md thi COMMIT
 /.chat-eval-cache
+/.chat-actions-eval-cache
 /eval-chat-*.json
