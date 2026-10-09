@@ -11,12 +11,13 @@ import { queryActivities } from './tools/queryActivities';
 import { queryCatalog } from './tools/queryCatalog';
 import { getBoardOverview } from './tools/getBoardOverview';
 import { getCardDetails } from './tools/getCardDetails';
+import { suggestAssignee } from './tools/suggestAssignee';
 import { TOOL_OUTPUT_SCHEMAS } from './chat.v2.output';
 
 export type ToolData =
   | Awaited<ReturnType<typeof resolveEntities>> | Awaited<ReturnType<typeof queryTasks>>
   | Awaited<ReturnType<typeof aggregateTasks>> | Awaited<ReturnType<typeof queryActivities>>
-  | Awaited<ReturnType<typeof queryCatalog>> | Awaited<ReturnType<typeof getBoardOverview>> | Awaited<ReturnType<typeof getCardDetails>>;
+  | Awaited<ReturnType<typeof queryCatalog>> | Awaited<ReturnType<typeof getBoardOverview>> | Awaited<ReturnType<typeof getCardDetails>> | Awaited<ReturnType<typeof suggestAssignee>>;
 export interface ToolDataMap {
   resolve_entities: Awaited<ReturnType<typeof resolveEntities>>;
   query_catalog: Awaited<ReturnType<typeof queryCatalog>>;
@@ -25,6 +26,7 @@ export interface ToolDataMap {
   query_activities: Awaited<ReturnType<typeof queryActivities>>;
   get_board_overview: Awaited<ReturnType<typeof getBoardOverview>>;
   get_card_details: Awaited<ReturnType<typeof getCardDetails>>;
+  suggest_assignee: Awaited<ReturnType<typeof suggestAssignee>>;
 }
 export interface ToolResult<T extends ToolData = ToolData> {
   tool: ToolName;
@@ -41,6 +43,7 @@ export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   aggregate_tasks: 'Đếm toàn bộ công việc đã lọc, nhóm theo người, bảng, cột, trạng thái hoặc ngày; giữ đồng hạng.',
   query_activities: 'Tra nhật ký trong khoảng thời gian; trả sự kiện hoặc công việc duy nhất có thay đổi, có thể lọc theo trạng thái hiện tại.',
   get_board_overview: 'Tổng quan MỘT bảng: số việc, % hoàn thành, quá hạn, bị chặn, chưa giao, số cột / nhãn / thành viên và số việc từng cột. Dùng cho câu hỏi tiến độ cả bảng.',
+  suggest_assignee: 'Xếp hạng người phù hợp nhất cho MỘT công việc đã resolve (module gợi ý phân công): hạng, điểm tương đối, mức tin cậy, cờ cảnh báo, tải hiện tại. Chỉ người sửa được thẻ dùng được; không có bằng chứng hay CV.',
   get_card_details: 'Chi tiết MỘT công việc đã resolve: trạng thái, cột, hạn, người phụ trách, nhãn, tiến độ checklist, giá trị trường tùy chỉnh, số bình luận / tệp. Không trả nội dung bình luận hay email.',
 };
 
@@ -106,6 +109,10 @@ export async function executeChatTool(ctx: ToolContext, name: ToolName, raw: unk
       case 'get_board_overview': {
         const input = TOOL_SCHEMAS[name].parse(raw); const exec = await resolveExecutionContext(ctx, input.scope);
         return envelope(name, exec, input, await getBoardOverview(exec, input));
+      }
+      case 'suggest_assignee': {
+        const input = TOOL_SCHEMAS[name].parse(raw); const exec = await resolveExecutionContext(ctx, input.scope);
+        return envelope(name, exec, input, await suggestAssignee(exec, input));
       }
       case 'get_card_details': {
         const input = TOOL_SCHEMAS[name].parse(raw); const exec = await resolveExecutionContext(ctx, input.scope);

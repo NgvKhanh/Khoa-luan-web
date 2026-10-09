@@ -326,6 +326,7 @@ async function conclude(run: Run, resolved: ResolvedPlan): Promise<ActionOutcome
     inCeiling: run.inCeiling,
     guard,
     autoExecute: base.autoExecute,
+    aiChosen: ops.some((o) => o.choice !== undefined),
   });
   if (decision.mode === 'REFUSE') return fail(decision.code, decision.text, ops, true);
 
@@ -380,7 +381,7 @@ export async function proposeActions(input: ProposeInput): Promise<ActionOutcome
   const { target } = found;
 
   const run: Run = { base, target, prepared, inCeiling: await boardInCeiling(session.uiScope, target.boardId), presets: {}, existing: null };
-  const resolved = await resolvePrepared({ userId: session.userId, exec: target.exec, boardId: target.boardId, bindings: session.bindings, prepared, presets: {} });
+  const resolved = await resolvePrepared({ userId: session.userId, exec: target.exec, boardId: target.boardId, bindings: session.bindings, prepared, presets: {}, planNow: now });
   return conclude(run, resolved);
 }
 

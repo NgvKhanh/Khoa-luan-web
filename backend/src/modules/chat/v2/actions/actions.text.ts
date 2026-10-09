@@ -90,6 +90,22 @@ const DUE_VERBS: readonly Phrase[] = [
 ];
 const MOVE_VERBS: readonly Phrase[] = [['chuyen'], ['di', 'chuyen'], ['dua'], ['keo'], ['move'], ['dat', 'vao'], ['dat', 'sang']];
 const ASSIGN_VERBS: readonly Phrase[] = [['giao'], ['gan'], ['assign'], ['phan', 'cong'], ['chi', 'dinh']];
+// Phase 6: chia viec cho CA COT. Phai co dong tu chia / giao / phan cong VA dau hieu "chua co nguoi" (neu khong thi "giao Login cho Lan" khong the bi doi thanh chia ca cot).
+const SPLIT_VERBS: readonly Phrase[] = [['chia'], ['giao'], ['phan', 'cong'], ['phan', 'bo'], ['assign']];
+const UNASSIGNED_CUES: readonly Phrase[] = [
+  ['chua', 'co', 'nguoi'],
+  ['chua', 'giao'],
+  ['chua', 'duoc', 'giao'],
+  ['chua', 'phan', 'cong'],
+  ['chua', 'duoc', 'phan', 'cong'],
+  ['khong', 'co', 'nguoi'],
+  ['chua', 'co', 'ai'],
+  ['chua', 'ai'],
+  ['con', 'trong'],
+];
+/** Cau nho chon "nguoi phu hop nhat" (khong goi ten): chi khi co cum nay thi {by:BEST} moi duoc chap nhan. */
+const BEST_CUES: readonly Phrase[] = [['phu', 'hop'], ['thich', 'hop'], ['tot', 'nhat'], ['hop', 'nhat'], ['xung', 'dang'], ['ai', 'lam', 'duoc'], ['dung', 'nguoi'], ['goi', 'y']];
+export const hasBestCue = (words: readonly string[]): boolean => hasAny(words, BEST_CUES);
 const LABEL_WORDS: readonly Phrase[] = [['nhan'], ['label'], ['tag']];
 const LABEL_VERBS: readonly Phrase[] = [['them'], ['gan'], ['dan'], ['add'], ['dat'], ['cho'], ['gui']];
 const STATUS_VERBS: readonly Phrase[] = [
@@ -210,6 +226,9 @@ export function licenceFor(type: string, words: readonly string[], status?: Card
       if (hasPhrase(words, ['vao'])) at = [...at, ...phraseIndexes(words, ['them'])].sort((a, b) => a - b);
       break;
     }
+    case 'ASSIGN_UNASSIGNED':
+      at = hasAny(words, UNASSIGNED_CUES) ? indexesOfAny(words, SPLIT_VERBS) : [];
+      break;
     case 'ADD_LABEL':
       // phai nhac toi nhan (nhan/label/tag) VA co dong tu gan / them / dan...
       at = hasAny(words, LABEL_WORDS) ? indexesOfAny(words, LABEL_VERBS) : [];

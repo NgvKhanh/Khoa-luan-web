@@ -15,6 +15,7 @@ export function resultBlock(result: ToolResult, id: string = randomUUID()): V2Bl
     : tool === 'aggregate_tasks' ? 'Thống kê công việc'
     : tool === 'get_board_overview' ? 'Tổng quan bảng'
     : tool === 'get_card_details' ? 'Chi tiết công việc'
+    : tool === 'suggest_assignee' ? 'Gợi ý người phù hợp'
     : tool === 'query_activities' ? 'Lịch sử thay đổi'
     : tool === 'query_catalog' && 'kind' in data ? CATALOG_TITLE[data.kind] : 'Danh mục';
   // Khoi mot-lan (tong quan, chi tiet) khong phan trang

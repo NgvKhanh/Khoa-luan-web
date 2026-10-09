@@ -156,3 +156,35 @@ describe('thống kê có tỉ lệ hoàn thành và nhận xét AI', () => {
     expect(screen.queryByLabelText('Nhận xét của trợ lý (AI)')).not.toBeInTheDocument();
   });
 });
+
+describe('khối gợi ý người phù hợp (module phân công)', () => {
+  const suggestion = (over: Record<string, unknown> = {}) => block('Gợi ý người phù hợp', { tool: 'suggest_assignee', data: {
+    card: { id: 'c1', title: 'Thiết kế quên mật khẩu', boardId: 'b1', boardName: 'Dự án Alpha', columnName: 'Cần làm' }, candidateCount: 4,
+    candidates: [
+      { rank: 1, user: { id: 'u1', name: 'Nguyễn Lan' }, score: 82, confidenceLevel: 'GOOD', flags: [], assigned: false, load: 1, capacity: 3 },
+      { rank: 2, user: { id: 'u2', name: 'Trần Tuấn' }, score: null, confidenceLevel: 'THIN', flags: ['NO_HISTORY', 'OVERLOADED'], assigned: true, load: 3, capacity: 3 },
+    ], ...over,
+  } });
+
+  it('xếp hạng: tên, điểm, độ tin cậy, tải; cờ cảnh báo; "đã ở trong thẻ"; ghi chú điểm chỉ tương đối', () => {
+    renderBlocks([suggestion()]);
+    const section = screen.getByRole('region', { name: 'Gợi ý người phù hợp' });
+    expect(within(section).getByRole('link', { name: 'Thiết kế quên mật khẩu' })).toHaveAttribute('href', '/boards/b1?card=c1');
+    expect(section).toHaveTextContent('Cần làm · 4 người có thể nhận');
+    const items = within(section).getAllByRole('listitem').map((li) => li.textContent ?? '');
+    expect(items[0]).toContain('#1');
+    expect(items[0]).toContain('Nguyễn Lan');
+    expect(items[0]).toContain('Điểm 82/100 · Đủ dữ liệu · đang giữ 1/3 thẻ');
+    expect(items[1]).toContain('Trần Tuấn');
+    expect(items[1]).toContain('đã ở trong thẻ');
+    expect(items[1]).toContain('Chưa đủ dữ liệu để chấm điểm · Dữ liệu mỏng');
+    expect(items[1]).toContain('Lưu ý: chưa có lịch sử, đang quá tải');
+    expect(section).toHaveTextContent('TƯƠNG ĐỐI');
+  });
+
+  it('không có ứng viên: nói rõ, không vẽ danh sách', () => {
+    renderBlocks([suggestion({ candidates: [], candidateCount: 0 })]);
+    expect(screen.getByText('Chưa có ứng viên nào.')).toBeInTheDocument();
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+  });
+});

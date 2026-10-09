@@ -2,6 +2,9 @@
 
 import type { CardStatus } from '../../../../generated/prisma/enums';
 import type { ActionOp, ActionType } from './actions.schema';
+
+/** Loai thao tac cua ke hoach DA phan giai: ASSIGN_UNASSIGNED chi la de xuat tuong trung, luc phan giai no duoc khai trien thanh nhieu ASSIGN_MEMBER. */
+export type StoredOpType = Exclude<ActionType, 'ASSIGN_UNASSIGNED'>;
 import type { SlotKind } from './actions.refs';
 
 export type PlanStatus =
@@ -29,6 +32,7 @@ export type ActionErrorCode =
   | 'INVALID_PLAN' // do thi phu thuoc sai: trung key / tham chieu thieu / vong / sai loai / trung ten
   | 'CONFLICT' // hai thao tac mau thuan nhau tren cung mot doi tuong, hoac trung voi du lieu co san
   | 'INTERRUPTED' // hang EXECUTING tu Phase 1 bi bo do (tien trinh chet) - Phase 2 khong sinh ra nua
+  | 'RATE_LIMITED' // Phase 6: nho goi y phan cong qua nhieu lan trong it phut
   | 'NO_CHANGE' // Phase 3 (Board Patch): bang da co du moi muc AI de xuat -> khong co gi de them
   | 'UNSAFE_CONTENT' // Phase 3: noi dung AI sinh ra giong chi dan / lien ket / thu tu dong (dau hieu bi tiem chi dan tu du lieu)
   | 'DESTRUCTIVE' // Phase 3: cau yeu cau xoa / thay the du lieu cu - Board Patch chi THEM
@@ -55,15 +59,36 @@ export type ConfirmReasonCode =
   | 'QUESTION_FORM'
   | 'MULTI_OP' // tu hai thao tac tro len = hang loat -> khong bao gio tu chay
   | 'NEW_STRUCTURE' // tao cot: doi cau truc bang
-  | 'BOARD_PATCH'; // Phase 3: noi dung do AI de xuat -> luon xem truoc, khong bao gio tu chay
+  | 'BOARD_PATCH' // Phase 3: noi dung do AI de xuat -> luon xem truoc, khong bao gio tu chay
+  | 'AI_CHOSEN_TARGET'; // Phase 6: nguoi nhan do MAY chon (khong phai nguoi dung goi ten) -> luon xem truoc
 export interface ConfirmReason {
   code: ConfirmReasonCode;
   text: string;
 }
 
+/**
+ * Nguoi nhan do MAY chon (module goi y phan cong) cho mot ASSIGN_MEMBER. `runId` (AssignRun) chi dung de ghi ket qua SAU KHI nguoi dung bam
+ * Ap dung; khong bao gio dua cho mo hinh / giao dien. Khong co bang chung (the cu), ho so, CV hay thanh phan diem.
+ */
+export interface AssignChoice {
+  /** BEST: ung vien xep dau cho mot the (suggestForCard); PLAN: mot dong cua ke hoach chia viec (planForList). */
+  source: 'BEST' | 'PLAN';
+  runId: string | null;
+  rank: number;
+  /** Diem TUONG DOI trong nhom ung vien cua the nay (0-100), null neu khong co du lieu. */
+  score: number | null;
+  confidenceLevel: 'THIN' | 'FAIR' | 'GOOD';
+  /** NO_HISTORY | NO_SIMILAR | NO_PROFILE | OVERLOADED | PAUSED | NO_DATA */
+  flags: string[];
+  alternatives: { name: string; rank: number; score: number | null }[];
+}
+export type AssignChoiceView = Omit<AssignChoice, 'runId'>;
+
 /** Truong cua mot thao tac duoc phan giai: id THAT, gia tri cu (de kiem tien dieu kien), ten hien thi lay tu CSDL. */
 export interface StoredOp {
-  type: ActionType;
+  type: StoredOpType;
+  /** Phase 6: chi ASSIGN_MEMBER do may chon nguoi. Khong nam trong checksum / stateDigest (khong phai ket qua nguoi dung xem de duyet chu thay doi). */
+  choice?: AssignChoice;
   /** Chi thao tac TAO (CREATE_LIST / CREATE_CARD): khoa de thao tac sau tro toi thuc the vua tao. */
   key?: string;
   /** id cua thuc the CO SAN. Thuc the do chinh ke hoach tao thi KHONG co id o day ma nam o `local`. */
@@ -153,6 +178,8 @@ export interface StoredPlan {
 
 export interface PlanItemView {
   index: number;
+  /** Phase 6: nguoi nhan do may chon (diem, do tin cay, co, ung vien khac). */
+  choice?: AssignChoiceView;
   verb: string;
   text: string;
   detail?: string;

@@ -66,10 +66,12 @@ export const activitiesInputSchema = z.object({
 // Phase 4: tong quan mot bang (cot, tien do, qua han, bi chan...) va chi tiet mot the. Ca hai chi DOC, chay duoi tran pham vi nhu moi cong cu doc.
 export const boardOverviewInputSchema = z.object({ scope: chatScopeSchema.optional() }).strict();
 export const cardDetailsInputSchema = z.object({ cardId: id, scope: chatScopeSchema.optional() }).strict();
+// Phase 6: xep hang ung vien cho MOT the bang module goi y phan cong (chi nguoi sua duoc the). Chi tra hang / diem / tin cay / co; khong co bang chung hay CV.
+export const suggestAssigneeInputSchema = z.object({ cardId: id, top: z.number().int().min(1).max(5).default(3), scope: chatScopeSchema.optional() }).strict();
 export const TOOL_SCHEMAS = {
   resolve_entities: entityInputSchema, query_catalog: catalogInputSchema,
   query_tasks: tasksInputSchema, aggregate_tasks: aggregateInputSchema, query_activities: activitiesInputSchema,
-  get_board_overview: boardOverviewInputSchema, get_card_details: cardDetailsInputSchema,
+  get_board_overview: boardOverviewInputSchema, get_card_details: cardDetailsInputSchema, suggest_assignee: suggestAssigneeInputSchema,
 } as const;
 export type ToolName = keyof typeof TOOL_SCHEMAS;
 export type TaskFilter = z.infer<typeof taskFilterSchema>;

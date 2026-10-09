@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { AssistantTurn } from '../../context/AssistantContext';
 import { planOutOfScope } from '../../lib/chatScope';
 import { cardLink, formatTime } from '../../lib/chatText';
+import { alternativesLine, choiceLine, flagsLine } from '../../lib/chatAssign';
 import type { ChatActionPlan, ChatActionResult, ChatPatchSkipped, ChatScope } from '../../types/chat';
 
 // Khoi THAO TAC cua tro ly (Phase 1 + 2): ban xem truoc co nut Ap dung / Huy (mot hoac NHIEU thao tac tren cung mot bang), hoac ket
@@ -83,6 +84,9 @@ function PlanCard({ turn, plan, scope, busy, onConfirm, onCancel }: {
           <li key={item.index} className="text-sm">
             <span className="font-medium">{item.verb}</span> <span className="break-words">{item.text}</span>
             {item.detail && <span className="block text-xs text-slate-500 dark:text-slate-400">{item.detail}</span>}
+            {item.choice && <span className="block text-xs text-slate-500 dark:text-slate-400">{choiceLine(item.choice)}</span>}
+            {item.choice && item.choice.flags.length > 0 && <span className="block text-xs text-amber-700 dark:text-amber-300">{flagsLine(item.choice.flags)}</span>}
+            {item.choice && item.choice.alternatives.length > 0 && <span className="block break-words text-xs text-slate-500 dark:text-slate-400">{alternativesLine(item.choice.alternatives)}</span>}
             {item.cardId && (
               <Link to={cardLink({ id: item.cardId, boardId: plan.boardId })} onClick={(e) => e.currentTarget.blur()} className="text-xs text-primary-ink hover:underline">Mở thẻ</Link>
             )}

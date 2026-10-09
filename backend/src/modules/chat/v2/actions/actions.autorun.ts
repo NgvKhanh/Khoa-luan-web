@@ -26,6 +26,8 @@ export const SAFE_ACTION_TYPES: readonly string[] = AUTO_RUN_TYPES;
 
 /** Tu muc nay tro len ke hoach duoc coi la co rui ro CAO (nhieu thay doi cung luc). */
 export const HIGH_RISK_OPS = 8;
+/** Phase 6: tu so thao tac nay tro len, ke hoach co nguoi nhan do may chon la rui ro CAO. */
+export const ASSIGN_HIGH_OPS = 4;
 
 export interface DecisionInput {
   /** Loai tung thao tac theo thu tu chay. */
@@ -42,6 +44,8 @@ export interface DecisionInput {
   guard: GuardVerdict;
   /** Co CHAT_AUTO_EXECUTE. */
   autoExecute: boolean;
+  /** Phase 6: co thao tac nao co nguoi nhan do MAY chon (module goi y phan cong) khong. */
+  aiChosen?: boolean;
 }
 
 export type Decision =
@@ -58,6 +62,7 @@ export const CONFIRM_REASON_TEXT: Record<ConfirmReason['code'], string> = {
   QUESTION_FORM: 'Câu của bạn có dạng câu hỏi nên mình chỉ làm khi bạn xác nhận.',
   MULTI_OP: 'Lệnh gồm nhiều thay đổi cùng lúc nên mình luôn cho bạn xem lại trước khi áp dụng (áp dụng là làm tất cả hoặc không làm gì).',
   NEW_STRUCTURE: 'Tạo cột làm thay đổi cấu trúc của bảng nên cần bạn xác nhận.',
+  AI_CHOSEN_TARGET: 'Người nhận do hệ thống gợi ý phân công chọn (không phải tên bạn nêu) nên mình luôn cho bạn xem điểm, độ tin cậy, cờ cảnh báo và ứng viên khác trước khi áp dụng.',
   BOARD_PATCH: 'Nội dung cột và thẻ này do AI đề xuất (không phải chữ bạn gõ) nên mình luôn cho bạn xem trước và chỉ thêm mới, không đụng tới dữ liệu cũ.',
 };
 
@@ -83,6 +88,8 @@ export function refusalBeforeResolve(provenance: ProvenanceReport, opLabel?: str
 /** Rui ro hien cho nguoi dung (khong dieu khien chinh sach): 1 thao tac ro rang LOW; nhieu thao tac / can xem lai MEDIUM; hang loat lon HIGH. */
 export function riskOf(opCount: number, reasons: readonly ConfirmReason[]): PlanRisk {
   if (opCount >= HIGH_RISK_OPS) return 'HIGH';
+  // chia viec hang loat do may chon (>= 4 the) cao hon: nhieu nguoi bi giao cung luc
+  if (opCount >= ASSIGN_HIGH_OPS && reasons.some((r) => r.code === 'AI_CHOSEN_TARGET')) return 'HIGH';
   if (opCount >= 2 || reasons.some((r) => r.code !== 'AUTO_DISABLED')) return 'MEDIUM';
   return 'LOW';
 }
@@ -143,6 +150,7 @@ export function decideExecution(input: DecisionInput): Decision {
     if (input.provenance.failures.some((f) => f.code !== 'QUESTION_FORM')) push('NOT_GROUNDED');
   }
   if (input.dueFuzzy) push('FUZZY_DATE');
+  if (input.aiChosen === true) push('AI_CHOSEN_TARGET');
   if (count >= 2) push('MULTI_OP');
   if (input.opTypes.some((t) => !AUTO_RUN_TYPES.includes(t as (typeof AUTO_RUN_TYPES)[number]))) push('NEW_STRUCTURE');
   if (!input.autoExecute) push('AUTO_DISABLED');

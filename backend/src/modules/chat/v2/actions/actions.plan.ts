@@ -7,6 +7,7 @@ import { formatDueDate, vnDayOfIso } from './actions.dates';
 import type { ActionType } from './actions.schema';
 import type {
   ActionErrorCode,
+  AssignChoiceView,
   ConfirmReason,
   PatchView,
   PlanItemView,
@@ -33,6 +34,7 @@ export const OP_LABEL: Record<ActionType, string> = {
   SET_CARD_STATUS: 'đổi trạng thái thẻ',
   ASSIGN_MEMBER: 'giao thẻ cho người',
   ADD_LABEL: 'gắn nhãn vào thẻ',
+  ASSIGN_UNASSIGNED: 'chia các việc chưa có người nhận',
 };
 
 /** JSON on dinh: khoa sap xep, bo undefined - de checksum khong phu thuoc thu tu khoa. */
@@ -96,6 +98,9 @@ function dueLabel(op: StoredOp): string {
 const fresh = (op: StoredOp): string => (op.local?.card !== undefined ? ' (thẻ mới)' : '');
 const listOf = (op: StoredOp, name: string | undefined): string => `${op.local?.list !== undefined ? 'cột mới ' : 'cột '}${q(name)}`;
 
+/** Phan nguoi nhan do may chon dua len giao dien: KHONG co runId (chi dung noi bo de ghi ket qua sau khi Ap dung). */
+const choiceView = (c: NonNullable<StoredOp['choice']>): AssignChoiceView => ({ source: c.source, rank: c.rank, score: c.score, confidenceLevel: c.confidenceLevel, flags: [...c.flags], alternatives: c.alternatives.map((a) => ({ ...a })) });
+
 /** Mot dong trong khung xem truoc. */
 export function describeOp(op: StoredOp, index: number): PlanItemView {
   const d = op.display;
@@ -137,7 +142,7 @@ export function describeOp(op: StoredOp, index: number): PlanItemView {
         cardId,
       };
     case 'ASSIGN_MEMBER':
-      return { index, verb: 'Giao thẻ', text: `${q(d.cardTitle)}${fresh(op)} cho ${d.memberName ?? ''}`, cardId };
+      return { index, verb: 'Giao thẻ', text: `${q(d.cardTitle)}${fresh(op)} cho ${d.memberName ?? ''}`, cardId, ...(op.choice ? { choice: choiceView(op.choice) } : {}) };
     case 'ADD_LABEL':
       return { index, verb: 'Gắn nhãn', text: `${q(d.labelName)} vào thẻ ${q(d.cardTitle)}${fresh(op)}`, cardId };
   }
@@ -245,6 +250,8 @@ export function failureCategoryOf(code: ActionErrorCode | null | undefined): str
     case 'SERVICE_ERROR':
     case 'INTERRUPTED':
       return 'EXECUTION';
+    case 'RATE_LIMITED':
+      return 'LIMIT';
     case 'NO_CHANGE':
       return 'NO_CHANGE';
     case 'UNSAFE_CONTENT':

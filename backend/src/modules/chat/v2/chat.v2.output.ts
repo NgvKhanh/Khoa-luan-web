@@ -31,6 +31,15 @@ const boardOverview = z.object({
   overdueCards: count, blockedCards: count, unassignedOpenCards: count, listCount: count, labelCount: count, memberCount: count, customFieldCount: count,
   lists: z.array(z.object({ id: text, name: text, status: z.enum(CardStatus).nullable(), totalCards: count, openCards: count, doneCards: count }).strict()),
 }).strict();
+// Phase 6: thu hang ung vien. KHONG co bang chung, ho so, CV, thanh phan diem.
+const suggestAssignee = z.object({
+  card: z.object({ id: text, title: text, boardId: text, boardName: text, columnName: text }).strict(),
+  candidateCount: count,
+  candidates: z.array(z.object({
+    rank: z.number().int().positive(), user: person, score: z.number().int().min(0).max(100).nullable(), confidenceLevel: z.enum(['THIN', 'FAIR', 'GOOD']),
+    flags: z.array(z.enum(['NO_HISTORY', 'NO_SIMILAR', 'NO_PROFILE', 'OVERLOADED', 'PAUSED', 'NO_DATA'])), assigned: z.boolean(), load: count, capacity: count,
+  }).strict()),
+}).strict();
 // Chi tiet mot the. `descriptionExcerpt` chi de HIEN cho nguoi dung (chua dang tin); khong bao gio gui cho mo hinh (xem chat.v2.tools.modelView).
 const cardDetails = z.object({
   id: text, title: text, status: z.enum(CardStatus), isDone: z.boolean(), boardId: text, boardName: text, columnId: text, columnName: text,
@@ -57,4 +66,5 @@ export const TOOL_OUTPUT_SCHEMAS = {
   }).strict(),
   get_board_overview: boardOverview,
   get_card_details: cardDetails,
+  suggest_assignee: suggestAssignee,
 } as const;

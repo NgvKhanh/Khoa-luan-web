@@ -70,6 +70,11 @@ export async function readCandidates(board: BoardRef): Promise<CandidateUser[]> 
     }
   }
 
+  // Quyen o BANG thang quyen o KHONG GIAN: thanh vien khong gian bi ha xuong VIEWER rieng o bang nay chi xem duoc, khong nhan viec duoc
+  // (giong isBoardParticipant va nut giao cua giao dien) - neu khong se bi goi y roi bi chan khi giao. Chu bang luon la ung vien.
+  const demoted = await prisma.boardMember.findMany({ where: { boardId: board.id, deletedAt: null, role: 'VIEWER' }, select: { userId: true } });
+  for (const m of demoted) if (m.userId !== board.ownerId) ids.delete(m.userId);
+
   return prisma.user.findMany({
     where: { id: { in: [...ids] }, deletedAt: null },
     select: { id: true, name: true, avatarUrl: true },

@@ -4,7 +4,7 @@ import type { ChatV2Block, ChatV2Event, ChatClarifyOption, ChatScope } from '../
 import { cardLink, formatDateTime } from '../../lib/chatText';
 import StatusBadge from '../board/StatusBadge';
 import ActionCard from './ActionCard';
-import { BoardCatalogRows, BoardOverviewBlock, CardDetailsBlock } from './V2ReadBlocks';
+import { AssigneeSuggestionBlock, BoardCatalogRows, BoardOverviewBlock, CardDetailsBlock } from './V2ReadBlocks';
 
 const EVENT_NAMES: Record<string, string> = { 'card.rename': 'Đổi tên', 'card.move': 'Chuyển cột', 'card.done': 'Hoàn thành', 'card.undone': 'Mở lại', 'card.status': 'Đổi trạng thái', 'card.due.set': 'Đặt hạn', 'card.due.clear': 'Bỏ hạn', 'member.add': 'Thêm người phụ trách', 'member.remove': 'Bỏ người phụ trách', 'card.archive': 'Lưu trữ', 'card.restore': 'Khôi phục', 'card.create': 'Tạo thẻ', 'comment.create': 'Bình luận', 'checklist.add': 'Thêm checklist', 'attachment.add': 'Thêm tệp' };
 function EventRow({ event }: { event: ChatV2Event }) {
@@ -29,6 +29,7 @@ function Conditions({ block }: { block: Extract<ChatV2Block, { status: 'OK' }> }
 }
 function Contents({ block }: { block: Extract<ChatV2Block, { status: 'OK' }> }) {
   if (block.tool === 'get_board_overview') return <BoardOverviewBlock data={block.data} />;
+  if (block.tool === 'suggest_assignee') return <AssigneeSuggestionBlock data={block.data} />;
   if (block.tool === 'get_card_details') return <CardDetailsBlock data={block.data} generatedAt={block.source.generatedAt} />;
   if (block.tool === 'query_tasks') return <>
     <p className="text-xs font-medium">Tổng: {block.data.total} công việc</p>

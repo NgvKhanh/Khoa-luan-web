@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
 import { cardLink, formatDateTime } from '../../lib/chatText';
-import type { ChatV2BoardOverview, ChatV2Block, ChatV2CardDetails, ChatV2ListStat } from '../../types/chat';
+import { CONFIDENCE_LABEL } from '../../lib/assignLabels';
+import { flagsLine } from '../../lib/chatAssign';
+import type { AssignConfidenceLevel } from '../../types/assign';
+import type { ChatV2AssigneeSuggestion, ChatV2BoardOverview, ChatV2Block, ChatV2CardDetails, ChatV2ListStat } from '../../types/chat';
 
 type CatalogData = Extract<ChatV2Block, { tool: 'query_catalog' }>['data'];
 import StatusBadge from '../board/StatusBadge';
@@ -48,6 +51,29 @@ export function ListStatsTable({ lists }: { lists: ChatV2ListStat[] }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+/** Phase 6: xep hang nguoi phu hop cho mot viec (module phan cong). Khong co bang chung / ho so / CV. */
+export function AssigneeSuggestionBlock({ data }: { data: ChatV2AssigneeSuggestion }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs">
+        Việc <Link to={cardLink(data.card)} onClick={(e) => e.currentTarget.blur()} className="font-medium text-primary-ink hover:underline">{data.card.title}</Link> · {data.card.columnName} · {data.candidateCount} người có thể nhận
+      </p>
+      {data.candidates.length === 0 ? <p className="text-xs">Chưa có ứng viên nào.</p> : (
+        <ol className="space-y-1.5">
+          {data.candidates.map((c) => (
+            <li key={c.user.id} className={TILE}>
+              <p className="text-sm"><span className="tabular-nums text-slate-500 dark:text-slate-400">#{c.rank}</span> <span className="font-medium">{c.user.name}</span>{c.assigned ? <span className="text-xs text-slate-500 dark:text-slate-400"> · đã ở trong thẻ</span> : null}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{c.score === null ? 'Chưa đủ dữ liệu để chấm điểm' : `Điểm ${c.score}/100`} · {CONFIDENCE_LABEL[c.confidenceLevel as AssignConfidenceLevel]} · đang giữ {c.load}/{c.capacity} thẻ</p>
+              {c.flags.length > 0 && <p className="text-xs text-amber-700 dark:text-amber-300">{flagsLine(c.flags)}</p>}
+            </li>
+          ))}
+        </ol>
+      )}
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">Điểm là so sánh TƯƠNG ĐỐI giữa các ứng viên của việc này, chỉ để tham khảo. Muốn giao, hãy nói “giao cho người phù hợp nhất” hoặc nêu tên.</p>
+    </div>
   );
 }
 

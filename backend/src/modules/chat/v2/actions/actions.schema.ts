@@ -48,6 +48,12 @@ export const RefSchema = z.discriminatedUnion('by', [
   z.object({ by: z.literal('PLAN'), key: planKey }).strict(),
 ]);
 export type Ref = z.infer<typeof RefSchema>;
+/**
+ * Phase 6: rieng o `member` cua ASSIGN_MEMBER con co `{by:'BEST'}` = "nguoi phu hop nhat" (server tu chon bang module goi y phan cong, luon xem
+ * truoc). Cac o khac (the, cot, nhan...) KHONG co BEST nen mo hinh khong the dung no de ne tranh goi ten.
+ */
+export const MemberRefSchema = z.discriminatedUnion('by', [...RefSchema.options, z.object({ by: z.literal('BEST') }).strict()]);
+export type MemberRef = z.infer<typeof MemberRefSchema>;
 
 export const DateSpecSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ABSOLUTE'), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict(),
@@ -70,6 +76,7 @@ export const ACTION_TYPES = [
   'SET_CARD_STATUS',
   'ASSIGN_MEMBER',
   'ADD_LABEL',
+  'ASSIGN_UNASSIGNED',
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
 
@@ -94,7 +101,9 @@ export const ActionOpSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('SET_CARD_DUE'), card: RefSchema, due: DateSpecSchema }).strict(),
   z.object({ type: z.literal('MOVE_CARD'), card: RefSchema, toList: RefSchema }).strict(),
   z.object({ type: z.literal('SET_CARD_STATUS'), card: RefSchema, status: z.enum(CardStatus) }).strict(),
-  z.object({ type: z.literal('ASSIGN_MEMBER'), card: RefSchema, member: RefSchema }).strict(),
+  z.object({ type: z.literal('ASSIGN_MEMBER'), card: RefSchema, member: MemberRefSchema }).strict(),
+  // Phase 6: chia cac the CHUA co nguoi nhan cua mot cot cho nhom (server goi planForList va khai trien thanh nhieu ASSIGN_MEMBER)
+  z.object({ type: z.literal('ASSIGN_UNASSIGNED'), list: RefSchema }).strict(),
   z.object({ type: z.literal('ADD_LABEL'), card: RefSchema, label: RefSchema }).strict(),
 ]);
 export type ActionOp = z.infer<typeof ActionOpSchema>;
@@ -123,9 +132,9 @@ export const proposeActionsSchema = z.preprocess(dropEmpty, ProposeActionsInput)
 const refHint = {
   type: 'object',
   description:
-    'Tham chieu: {by:"TEXT",text:<dung chu nguoi dung go, bo tu chung nhu task/the/cot/nhan>} | {by:"CONTEXT",slot:"LAST_CARD"|"LAST_LIST"|"LAST_MEMBER"} cho "no / the vua roi" | {by:"SELF"} cho "toi" | {by:"PLAN",key:<key cua thao tac CREATE_LIST / CREATE_CARD trong CUNG danh sach>} cho cot / the ma chinh lenh nay tao ra. KHONG dien id.',
+    'Tham chieu: {by:"TEXT",text:<dung chu nguoi dung go, bo tu chung nhu task/the/cot/nhan>} | {by:"CONTEXT",slot:"LAST_CARD"|"LAST_LIST"|"LAST_MEMBER"} cho "no / the vua roi" | {by:"SELF"} cho "toi" | {by:"PLAN",key:<key cua thao tac CREATE_LIST / CREATE_CARD trong CUNG danh sach>} cho cot / the ma chinh lenh nay tao ra | CHI o member cua ASSIGN_MEMBER: {by:"BEST"} khi nguoi dung nho chon "nguoi phu hop nhat" (khong goi ten). KHONG dien id.',
   properties: {
-    by: { type: 'string', enum: ['TEXT', 'CONTEXT', 'SELF', 'PLAN'] },
+    by: { type: 'string', enum: ['TEXT', 'CONTEXT', 'SELF', 'PLAN', 'BEST'] },
     text: { type: 'string' },
     slot: { type: 'string', enum: [...REF_SLOTS] },
     key: { type: 'string' },

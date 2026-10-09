@@ -40,12 +40,23 @@ export interface ChatStatus {
 export type ChatPlanStatus = 'NEEDS_CHOICE' | 'PROPOSED' | 'EXECUTING' | 'EXECUTED' | 'FAILED' | 'STALE' | 'CANCELLED' | 'EXPIRED';
 export type ChatPlanRisk = 'LOW' | 'MEDIUM' | 'HIGH';
 export interface ChatPlanReason {
-  code: 'AUTO_DISABLED' | 'DELEGATED_TO_DATA' | 'NOT_GROUNDED' | 'FUZZY_DATE' | 'QUESTION_FORM' | 'MULTI_OP' | 'NEW_STRUCTURE' | 'BOARD_PATCH';
+  code: 'AUTO_DISABLED' | 'DELEGATED_TO_DATA' | 'NOT_GROUNDED' | 'FUZZY_DATE' | 'QUESTION_FORM' | 'MULTI_OP' | 'NEW_STRUCTURE' | 'BOARD_PATCH' | 'AI_CHOSEN_TARGET';
   /** Cau giai thich vi sao lenh nay chua tu chay (hien nguyen van cho nguoi dung). */
   text: string;
 }
+/** Phase 6: nguoi nhan do HE THONG goi y phan cong chon (khong phai ten nguoi dung nêu). Khong co bang chung / ho so / CV. */
+export interface ChatAssignChoice {
+  source: 'BEST' | 'PLAN';
+  rank: number;
+  /** Diem tuong doi trong nhom ung vien cua the nay (0-100); null = khong co du lieu. */
+  score: number | null;
+  confidenceLevel: 'THIN' | 'FAIR' | 'GOOD';
+  flags: string[];
+  alternatives: { name: string; rank: number; score: number | null }[];
+}
 export interface ChatPlanItem {
   index: number;
+  choice?: ChatAssignChoice;
   verb: string;
   text: string;
   detail?: string;
@@ -257,6 +268,11 @@ export interface ChatV2BoardOverview {
   listCount: number; labelCount: number; memberCount: number; customFieldCount: number;
   lists: ChatV2ListStat[];
 }
+export interface ChatV2AssigneeSuggestion {
+  card: { id: string; title: string; boardId: string; boardName: string; columnName: string };
+  candidateCount: number;
+  candidates: { rank: number; user: { id: string; name: string }; score: number | null; confidenceLevel: 'THIN' | 'FAIR' | 'GOOD'; flags: string[]; assigned: boolean; load: number; capacity: number }[];
+}
 export interface ChatV2CardDetails {
   id: string; title: string; status: CardStatus; isDone: boolean;
   boardId: string; boardName: string; columnId: string; columnName: string;
@@ -285,5 +301,6 @@ export type ChatV2Block = (BlockBase & (
     | { kind: 'CUSTOM_FIELDS'; rows: { id: string; name: string; type: 'TEXT' | 'NUMBER' | 'DATE' | 'CHECKBOX' | 'DROPDOWN'; options: { id: string; value: string }[] }[] }
   ) }
   | { tool: 'get_board_overview'; data: ChatV2BoardOverview }
+  | { tool: 'suggest_assignee'; data: ChatV2AssigneeSuggestion }
   | { tool: 'get_card_details'; data: ChatV2CardDetails }
 )) | { id: string; title: string; status: 'ERROR'; error: string };

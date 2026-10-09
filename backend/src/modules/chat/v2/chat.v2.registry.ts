@@ -58,7 +58,7 @@ export const proposeActionsTool = {
   function: {
     name: PROPOSE_TOOL,
     description:
-      'Đề xuất các thay đổi dữ liệu (1-15 thao tác, CÙNG MỘT bảng) theo lệnh của người dùng: CREATE_LIST, CREATE_CARD, RENAME_CARD, SET_CARD_DUE, MOVE_CARD, SET_CARD_STATUS, ASSIGN_MEMBER, ADD_LABEL. Dùng tham chiếu tượng trưng (TEXT/CONTEXT/SELF/PLAN), KHÔNG điền id; cột/thẻ do chính lệnh tạo ra thì đặt key rồi tham chiếu {by:PLAN,key}. Đây là lệnh kết thúc: backend tự tìm đối tượng, kiểm quyền rồi tự chạy (một thao tác an toàn) hoặc hiện bản xem trước.',
+      'Đề xuất các thay đổi dữ liệu (1-15 thao tác, CÙNG MỘT bảng) theo lệnh của người dùng: CREATE_LIST, CREATE_CARD, RENAME_CARD, SET_CARD_DUE, MOVE_CARD, SET_CARD_STATUS, ASSIGN_MEMBER, ADD_LABEL, ASSIGN_UNASSIGNED (chia việc chưa có người trong một cột). Dùng tham chiếu tượng trưng (TEXT/CONTEXT/SELF/PLAN; member còn có BEST = người phù hợp nhất do server chọn), KHÔNG điền id; cột/thẻ do chính lệnh tạo ra thì đặt key rồi tham chiếu {by:PLAN,key}. Đây là lệnh kết thúc: backend tự tìm đối tượng, kiểm quyền rồi tự chạy (một thao tác an toàn) hoặc hiện bản xem trước.',
     parameters: PROPOSE_ACTIONS_PROVIDER_SCHEMA,
   },
 } as const;

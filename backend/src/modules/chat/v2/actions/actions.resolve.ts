@@ -16,10 +16,11 @@ import { liveCardWhere } from '../../chat.scope';
 import { resolveEntities, type EntityOption } from '../chat.v2.entities';
 import type { ExecutionContext } from '../chat.v2.scope';
 import { dueIso, formatDueDate, vnDayOfIso, type DueGrounding } from './actions.dates';
+import { bestAssignee, splitUnassigned } from './actions.assign';
 import { refSignature, type SlotKind } from './actions.refs';
-import type { ActionOp, Ref } from './actions.schema';
+import { MAX_OPS_PER_PLAN, type ActionOp, type MemberRef, type Ref } from './actions.schema';
 import { foldWords, stripLeadingGeneric } from './actions.text';
-import type { ActionErrorCode, PendingChoice, StoredOp } from './actions.types';
+import type { ActionErrorCode, AssignChoice, PendingChoice, StoredOp } from './actions.types';
 
 /** Toi da bay nhieu nut chon; nhieu hon thi bao nguoi dung neu ro hon (khong cat danh sach am tham). */
 export const MAX_CHOICES = 8;
@@ -55,12 +56,16 @@ export interface ResolveEnv {
   cache?: Map<string, Outcome>;
   /** Cac "no / the vua roi" da hieu thanh id: ghi vao ke hoach de dung lai khong can phien. */
   pins?: Record<string, string>;
+  /** Thoi diem LAP ke hoach (khi dung lai luc ap dung: createdAt) - de goi y / chia viec tai lap dung ket qua; mac dinh exec.now. */
+  planNow?: Date;
+  /** Phase 6: so thao tac toi da mot ASSIGN_UNASSIGNED duoc khai trien thanh (gioi han so thao tac cua ke hoach). */
+  splitRoom?: number;
   /** Board Patch: cot MOI la cot tu do (khong doan trang thai theo ten, de the do AI tao khong bi gan trang thai bat ngo). */
   freeLists?: boolean;
 }
 
 export type ResolveResult =
-  | { kind: 'OK'; op: StoredOp; warnings: string[] }
+  | { kind: 'OK'; op: StoredOp; /** thao tac khai trien them (ASSIGN_UNASSIGNED -> nhieu ASSIGN_MEMBER) */ more?: StoredOp[]; warnings: string[] }
   | { kind: 'CHOICE'; pending: PendingChoice }
   | { kind: 'FAIL'; code: ActionErrorCode; text: string };
 
@@ -212,7 +217,7 @@ const isResult = (x: Hit | ResolveResult): x is ResolveResult => 'kind' in x;
 const textOf = (ref: Ref | undefined): string => (ref !== undefined && ref.by === 'TEXT' ? ref.text : '');
 
 /** Mot tham chieu -> mot Hit, hoac mot ket qua dung som (nut chon / loi). */
-async function pick(env: ResolveEnv, kind: SlotKind, ref: Ref | undefined, presets: Presets): Promise<Hit | ResolveResult> {
+async function pick(env: ResolveEnv, kind: SlotKind, ref: MemberRef | undefined, presets: Presets): Promise<Hit | ResolveResult> {
   if (ref?.by === 'PLAN') {
     const made = env.local?.get(ref.key);
     if (!made || made.kind !== (kind === 'list' ? 'LIST' : 'CARD')) {
@@ -220,6 +225,8 @@ async function pick(env: ResolveEnv, kind: SlotKind, ref: Ref | undefined, prese
     }
     return { id: ref.key, name: made.name, local: ref.key };
   }
+  // {by:BEST} chi hop le o member cua ASSIGN_MEMBER va da duoc xu ly ngay trong resolveOp; o day la loi cau truc
+  if (ref?.by === 'BEST') return { kind: 'FAIL', code: 'INVALID', text: 'Chỉ có thể nhờ chọn “người phù hợp nhất” khi giao người cho thẻ. Chưa thay đổi gì.' };
   const { sig, out } = await findExisting(env, kind, ref, presets);
   if (out.kind === 'ONE') return out.hit;
   const text = textOf(ref);
@@ -360,8 +367,29 @@ export async function resolveOp(env: ResolveEnv, symbolic: ActionOp, presets: Pr
     case 'ASSIGN_MEMBER': {
       const card = await cardTarget(env, symbolic.card, presets);
       if (isFail(card)) return card;
-      const member = await pick(env, 'member', symbolic.member, presets);
-      if (isResult(member)) return member;
+      let member: Hit;
+      let choice: AssignChoice | undefined;
+      if (symbolic.member.by === 'BEST') {
+        // Phase 6: "nguoi phu hop nhat" do MAY chon bang module goi y phan cong; chi lam mot lan (ghim id) roi dung lai khi ap dung
+        if (card.row === null) return { kind: 'FAIL', code: 'INVALID', text: 'Thẻ vừa tạo trong cùng lệnh chưa có lịch sử nên mình chưa gợi ý người phù hợp được. Hãy nêu tên người. Chưa thay đổi gì.' };
+        const pinKey = `member:best:${card.row.id}`;
+        const pinned = presets[pinKey];
+        if (pinned !== undefined) {
+          const known = env.exec.roster.find((r) => r.userId === pinned);
+          if (!known) return { kind: 'FAIL', code: 'NOT_FOUND', text: 'Người được gợi ý lúc xem trước không còn trong phạm vi bảng. Chưa thay đổi gì.' };
+          member = { id: known.userId, name: known.name };
+        } else {
+          const best = await bestAssignee({ userId: env.userId, cardId: card.row.id, now: env.planNow ?? env.exec.now });
+          if (!best.ok) return { kind: 'FAIL', code: best.code, text: best.text };
+          member = { id: best.pick.userId, name: best.pick.name };
+          choice = best.pick.choice;
+          if (env.pins) env.pins[pinKey] = member.id;
+        }
+      } else {
+        const picked = await pick(env, 'member', symbolic.member, presets);
+        if (isResult(picked)) return picked;
+        member = picked;
+      }
       const already = card.row?.members.some((m) => m.userId === member.id) ?? false;
       return ok({
         type: 'ASSIGN_MEMBER',
@@ -370,8 +398,23 @@ export async function resolveOp(env: ResolveEnv, symbolic: ActionOp, presets: Pr
         params: {},
         before: { alreadyAssigned: already },
         display: { cardTitle: card.title, memberName: member.name },
+        ...(choice !== undefined ? { choice } : {}),
         ...(already ? { noop: `${member.name} đã được giao thẻ “${card.title}” rồi.` } : {}),
       });
+    }
+    case 'ASSIGN_UNASSIGNED': {
+      const list = await listTarget(env, symbolic.list, presets);
+      if (isFail(list)) return list;
+      if (list.ids.list === undefined) return { kind: 'FAIL', code: 'INVALID', text: 'Cột mới tạo trong cùng lệnh chưa có việc nào để chia. Chưa thay đổi gì.' };
+      const split = await splitUnassigned({ userId: env.userId, listId: list.ids.list, now: env.planNow ?? env.exec.now, room: env.splitRoom ?? MAX_OPS_PER_PLAN });
+      if (!split.ok) return { kind: 'FAIL', code: split.code, text: split.text };
+      if (split.ops.length === 0) {
+        return { kind: 'FAIL', code: 'NO_CHANGE', text: split.totalUnassigned === 0 ? `Cột “${list.name}” không có việc nào chưa có người nhận. Chưa thay đổi gì.` : 'Không ai đủ điều kiện nhận việc lúc này (mọi người đang tạm nghỉ). Chưa thay đổi gì.' };
+      }
+      if (split.cut > 0 || split.truncated) warnings.push(`Cột “${list.name}” có ${split.totalUnassigned} việc chưa có người nhận; mình chỉ chia ${split.ops.length} việc gấp nhất (tối đa ${env.splitRoom ?? MAX_OPS_PER_PLAN} mỗi lần). Gửi lại lệnh để chia phần còn lại.`);
+      if (split.noOne > 0) warnings.push(`${split.noOne} việc chưa chia được vì không ai đủ điều kiện nhận (đang tạm nghỉ).`);
+      const [first, ...rest] = split.ops;
+      return { kind: 'OK', op: first, more: rest, warnings };
     }
     case 'ADD_LABEL': {
       const card = await cardTarget(env, symbolic.card, presets);
@@ -463,10 +506,10 @@ export async function resolveOps(
   const resolved: StoredOp[] = [];
   const warnings: string[] = [];
   for (const [i, symbolic] of ordered.entries()) {
-    const res = await resolveOp({ ...env, local, cache, pins, due: dues[i] }, symbolic, presets);
+    const res = await resolveOp({ ...env, local, cache, pins, due: dues[i], splitRoom: Math.max(1, MAX_OPS_PER_PLAN - (ordered.length - 1)) }, symbolic, presets);
     if (res.kind === 'CHOICE') return { kind: 'CHOICE', pending: res.pending, pins };
     if (res.kind === 'FAIL') return { kind: 'FAIL', code: res.code, text: res.text, ops: resolved };
-    resolved.push(res.op);
+    resolved.push(res.op, ...(res.more ?? []));
     for (const w of res.warnings) if (!warnings.includes(w)) warnings.push(w);
   }
   const deduped = dedupeOps(resolved);

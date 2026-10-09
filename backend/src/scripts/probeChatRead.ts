@@ -15,6 +15,7 @@ import { validateComment } from '../modules/chat/chat.summary';
 const args = new Map(process.argv.slice(2).map((a) => a.replace(/^--/, '').split('=') as [string, string]));
 const DELAY = Number(args.get('delay') ?? 5000);
 const ONLY = args.get('only');
+const CASE_IDS = (args.get('case') ?? '').split(',').filter(Boolean);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const NOW = new Date('2026-10-07T03:00:00.000Z');
 
@@ -44,6 +45,7 @@ const CASES: readonly Case[] = [
   { id: 'labels', question: 'Có những nhãn nào trong bảng?', ok: (c) => has(c, 'query_catalog', (a) => a.kind === 'LABELS') },
   { id: 'fields', question: 'Bảng có những trường tùy chỉnh nào?', ok: (c) => has(c, 'query_catalog', (a) => a.kind === 'CUSTOM_FIELDS') },
   { id: 'priority-high', question: 'Có bao nhiêu việc ưu tiên Cao?', ok: (c) => has(c, 'resolve_entities', (a) => a.kind === 'FIELD_OPTION' || a.kind === 'CUSTOM_FIELD') || has(c, 'query_catalog', (a) => a.kind === 'CUSTOM_FIELDS') },
+  { id: 'who-best', question: 'Ai phù hợp nhất để làm task Login UI?', ok: (c) => has(c, 'resolve_entities', (a) => a.kind === 'CARD') },
   { id: 'percent-done', question: 'Bao nhiêu phần trăm việc đã xong?', ok: (c) => has(c, 'get_board_overview') || has(c, 'aggregate_tasks', (a) => filtersOf(a).completion === 'ALL') },
 ];
 
@@ -92,7 +94,7 @@ async function main() {
     return;
   }
   const rows: Array<Record<string, unknown>> = [];
-  for (const c of ONLY === 'comments' ? [] : CASES) {
+  for (const c of ONLY === 'comments' ? [] : CASES.filter((x) => CASE_IDS.length === 0 || CASE_IDS.includes(x.id))) {
     const messages: ModelMessage[] = [
       { role: 'system', content: systemPrompt(false) },
       { role: 'user', content: JSON.stringify({ question: c.question, now: NOW.toISOString(), todayVietnam: vnToday(NOW), selfId: 'u1', uiScope: { kind: 'BOARD', boardId: 'b1' }, conversationScope: { kind: 'BOARD', boardId: 'b1' }, selectedEntities: [{ kind: 'BOARD', id: 'b1', name: 'Dự án Alpha' }] }) },
@@ -100,13 +102,13 @@ async function main() {
     const res = await callChatModel(messages, 30_000, env.ai, false);
     const calls: Call[] = res.ok ? res.calls.map((x) => ({ name: x.name, arguments: (x.arguments ?? {}) as Record<string, unknown> })) : [];
     const ok = res.ok && c.ok(calls);
-    rows.push({ id: c.id, question: c.question, ok, llmFailed: !res.ok, calls: calls.map((x) => `${x.name}${x.arguments.kind ? `:${String(x.arguments.kind)}` : ''}`) });
+    rows.push({ id: c.id, question: c.question, ok, llmFailed: !res.ok, ...(res.ok ? {} : { llmReason: res.reason }), calls: calls.map((x) => `${x.name}${x.arguments.kind ? `:${String(x.arguments.kind)}` : ''}`) });
     await sleep(DELAY);
   }
   const answered = rows.filter((r) => !r.llmFailed);
   const good = rows.filter((r) => r.ok).length;
   console.log(`READ ${good}/${rows.length} (bo qua ${rows.length - answered.length} ca loi nha cung cap)`);
-  for (const r of rows) console.log(`  ${r.ok ? 'OK ' : r.llmFailed ? '?? ' : 'XX '} ${String(r.id).padEnd(14)} ${(r.calls as string[]).join(', ')}`);
+  for (const r of rows) console.log(`  ${r.ok ? 'OK ' : r.llmFailed ? '?? ' : 'XX '} ${String(r.id).padEnd(14)} ${(r.calls as string[]).join(', ')}${r.llmReason ? ` [${String(r.llmReason)}]` : ''}`);
   let comments: Array<Record<string, unknown>> = [];
   if (ONLY !== 'route') {
     comments = await commentProbe();

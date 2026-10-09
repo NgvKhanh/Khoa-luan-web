@@ -10,11 +10,12 @@
 import type { IsoDate } from '../../../ai/ai.dates';
 import { groundDue, type DueGrounding } from './actions.dates';
 import { slotsOf } from './actions.refs';
-import type { ActionOp, Ref } from './actions.schema';
+import type { ActionOp, MemberRef } from './actions.schema';
 import {
   delegatesToData,
   foldWords,
   groundedIn,
+  hasBestCue,
   hasContextCue,
   hasSelfCue,
   isQuestionForm,
@@ -26,6 +27,7 @@ export type ProvenanceCode =
   | 'OP_NOT_LICENSED'
   | 'NEGATED'
   | 'DELEGATION_PHRASE'
+  | 'BEST_NOT_ASKED'
   | 'QUESTION_FORM'
   | 'TITLE_NOT_GROUNDED'
   | 'REF_NOT_GROUNDED'
@@ -47,8 +49,11 @@ export interface ProvenanceReport {
   due?: DueGrounding;
 }
 
-function refGrounded(ref: Ref, words: readonly string[], message: string): boolean {
+function refGrounded(ref: MemberRef, words: readonly string[], message: string): boolean {
   switch (ref.by) {
+    case 'BEST':
+      // "nguoi phu hop nhat" do MAY chon: chi hop le khi chinh cau cua nguoi dung nho chon nhu vay
+      return hasBestCue(words);
     case 'TEXT':
       return groundedIn(ref.text, words);
     case 'CONTEXT':
@@ -77,6 +82,11 @@ export function assessProvenance(op: ActionOp, message: string, today: IsoDate, 
   if (delegated) return { verdict: 'DELEGATED_TO_DATA', failures, due };
   if (!licence.licensed || licence.negated) return { verdict: 'NOT_REQUESTED', failures, due };
 
+  // mo hinh dung {by:BEST} trong khi nguoi dung KHONG nho chon nguoi phu hop (vd "giao Login cho Lan") -> khong duoc doi nguoi nhan: tu choi
+  if (slotsOf(op).some((s) => s.ref?.by === 'BEST') && !hasBestCue(words)) {
+    failures.push({ code: 'BEST_NOT_ASKED' });
+    return { verdict: 'NOT_REQUESTED', failures, due };
+  }
   for (const slot of slotsOf(op)) {
     if (slot.ref !== undefined && !refGrounded(slot.ref, words, message)) failures.push({ code: 'REF_NOT_GROUNDED', detail: slot.name });
   }

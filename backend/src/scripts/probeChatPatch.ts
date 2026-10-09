@@ -69,6 +69,8 @@ interface RouteCase {
   id: string;
   message: string;
   want: 'patch' | 'actions' | 'none';
+  /** Kiem them tren tham so (JSON) cua lenh goi dau tien (vd Phase 6: member BEST / thao tac ASSIGN_UNASSIGNED). */
+  args?: (json: string) => boolean;
 }
 const ROUTE: readonly RouteCase[] = [
   { id: 'patch-test', message: 'Bổ sung các việc còn thiếu cho giai đoạn kiểm thử', want: 'patch' },
@@ -80,6 +82,10 @@ const ROUTE: readonly RouteCase[] = [
   { id: 'actions-card', message: 'Thêm thẻ Họp nhóm vào cột Cần làm', want: 'actions' },
   { id: 'actions-move', message: 'Chuyển Login UI sang Đang làm', want: 'actions' },
   { id: 'actions-assign', message: 'Giao Login API cho Lan', want: 'actions' },
+  // Phase 6: giao cho nguoi do may chon / chia viec chua co nguoi; goi ten thi KHONG duoc dung BEST
+  { id: 'assign-best', message: 'Giao task Login UI cho người phù hợp nhất', want: 'actions', args: (j) => j.includes('"BEST"') },
+  { id: 'assign-split', message: 'Chia các việc chưa có người trong cột Cần làm cho nhóm', want: 'actions', args: (j) => j.includes('ASSIGN_UNASSIGNED') },
+  { id: 'assign-named', message: 'Giao Login API cho Lan', want: 'actions', args: (j) => !j.includes('BEST') && !j.includes('ASSIGN_UNASSIGNED') },
   { id: 'none-delete', message: 'Xóa hết thẻ cũ rồi tạo lại các thẻ kiểm thử', want: 'none' },
   { id: 'none-read', message: 'Có những thẻ nào đang làm?', want: 'none' },
   { id: 'none-summary', message: 'Tóm tắt bảng này', want: 'none' },
@@ -97,7 +103,8 @@ async function routeProbe() {
     const first = names[0] ?? (res.ok ? '' : `LLM_${res.reason}`);
     const got = first === 'propose_board_patch' ? 'patch' : first === 'propose_actions' ? 'actions' : 'none';
     const gate = got === 'patch' ? assessPatchRequest(c.message) : null;
-    out.push({ id: c.id, want: c.want, got, tool: first, ok: res.ok && got === c.want, gateRejects: gate !== null && !gate.ok, llmFailed: !res.ok });
+    const argsOk = c.args === undefined || (res.ok && c.args(JSON.stringify(res.calls[0]?.arguments ?? {})));
+    out.push({ id: c.id, want: c.want, got, tool: first, ok: res.ok && got === c.want && argsOk, gateRejects: gate !== null && !gate.ok, llmFailed: !res.ok });
     await sleep(DELAY);
   }
   return out;

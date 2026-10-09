@@ -54,9 +54,9 @@ const label = (card: string, name: string): ActionOp => ({ type: 'ADD_LABEL', ca
 const verdict = (op: ActionOp, message: string): ProvenanceReport => assessProvenance(op, message, TODAY);
 
 describe('schema đề xuất: chỉ có 7 thao tác, KHÔNG có ô nào để điền id', () => {
-  it('nhận 7 loại thao tác của Phase 1 + CREATE_LIST; chỉ 7 loại Phase 1 được phép tự chạy', () => {
-    expect([...ACTION_TYPES]).toEqual(['CREATE_LIST', 'CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL']);
-    expect([...SAFE_ACTION_TYPES]).toEqual(ACTION_TYPES.filter((t) => t !== 'CREATE_LIST'));
+  it('nhận 7 loại thao tác của Phase 1 + CREATE_LIST + ASSIGN_UNASSIGNED (Phase 6); chỉ 7 loại Phase 1 được phép tự chạy', () => {
+    expect([...ACTION_TYPES]).toEqual(['CREATE_LIST', 'CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL', 'ASSIGN_UNASSIGNED']);
+    expect([...SAFE_ACTION_TYPES]).toEqual(ACTION_TYPES.filter((t) => t !== 'CREATE_LIST' && t !== 'ASSIGN_UNASSIGNED'));
     expect(MAX_OPS_PER_PLAN).toBe(15);
     const ops = [
       { type: 'CREATE_LIST', name: 'Kiểm thử' } as ActionOp,

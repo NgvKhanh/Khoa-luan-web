@@ -321,3 +321,48 @@ describe('ActionCard: Board Patch (AI mo rong bang)', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(3);
   });
 });
+
+// ===================== Phase 6: nguoi nhan do he thong goi y phan cong chon =====================
+
+describe('ActionCard: nguoi nhan do he thong chon (goi y phan cong)', () => {
+  const assignPlan = (over: Partial<ChatActionPlan> = {}): ChatActionPlan =>
+    plan({
+      risk: 'MEDIUM',
+      reasons: [{ code: 'AI_CHOSEN_TARGET', text: 'Người nhận do hệ thống gợi ý phân công chọn (không phải tên bạn nêu) nên mình luôn cho bạn xem điểm, độ tin cậy, cờ cảnh báo và ứng viên khác trước khi áp dụng.' }],
+      opCount: 1,
+      items: [{
+        index: 0, verb: 'Giao thẻ', text: '“Thiết kế quên mật khẩu” cho Nguyễn Lan', cardId: 'c1',
+        choice: { source: 'BEST', rank: 1, score: 82, confidenceLevel: 'GOOD', flags: ['OVERLOADED'], alternatives: [{ name: 'Trần Tuấn', rank: 2, score: 64 }, { name: 'Chủ Bảng', rank: 3, score: null }] },
+      }],
+      warnings: [], ...over,
+    });
+
+  it('hien nguoi do may chon: hang, diem, do tin cay, canh bao co, ung vien khac (khong co bang chung / runId); ly do AI_CHOSEN_TARGET', () => {
+    const { onConfirm } = renderCard(turnOf({ kind: 'PLAN', plan: assignPlan() }));
+    const block = screen.getByRole('region', { name: 'Kế hoạch thao tác' });
+    expect(block).toHaveTextContent('Giao thẻ “Thiết kế quên mật khẩu” cho Nguyễn Lan');
+    expect(block).toHaveTextContent('Do hệ thống gợi ý phân công chọn · hạng 1 · điểm 82/100 · Đủ dữ liệu');
+    expect(block).toHaveTextContent('Lưu ý: đang quá tải');
+    expect(block).toHaveTextContent('Ứng viên khác: Trần Tuấn (64), Chủ Bảng');
+    expect(within(block).getByRole('note')).toHaveTextContent('do hệ thống gợi ý phân công chọn');
+    fireEvent.click(within(block).getByRole('button', { name: 'Áp dụng' }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('diem luon la so nguyen: khong bao gio hien 72.4999… / 50.000000000000014 du du lieu gui ve la so thuc', () => {
+    renderCard(turnOf({ kind: 'PLAN', plan: assignPlan({ items: [{ index: 0, verb: 'Giao thẻ', text: '“A” cho Lan', choice: { source: 'BEST', rank: 1, score: 72.49999999999999, confidenceLevel: 'FAIR', flags: [], alternatives: [{ name: 'Chủ Bảng', rank: 2, score: 50.00000000000014 }, { name: 'Lan', rank: 3, score: 27.5 }] } }] }) }));
+    const block = screen.getByRole('region', { name: 'Kế hoạch thao tác' });
+    expect(block).toHaveTextContent('điểm 72/100');
+    expect(block).toHaveTextContent('Ứng viên khác: Chủ Bảng (50), Lan (28)');
+    expect(block.textContent).not.toMatch(/d.d/);
+  });
+
+  it('khong co diem (chua du du lieu) van noi ro; thao tac nguoi dung tu goi ten thi khong co dong "do he thong chon"', () => {
+    renderCard(turnOf({ kind: 'PLAN', plan: assignPlan({ items: [{ index: 0, verb: 'Giao thẻ', text: '“A” cho Lan', choice: { source: 'PLAN', rank: 2, score: null, confidenceLevel: 'THIN', flags: [], alternatives: [] } }] }) }));
+    expect(screen.getByRole('region', { name: 'Kế hoạch thao tác' })).toHaveTextContent('hạng 2 · chưa đủ dữ liệu để chấm điểm · Dữ liệu mỏng');
+    expect(screen.queryByText(/Ứng viên khác/)).not.toBeInTheDocument();
+    cleanup();
+    renderCard(turnOf({ kind: 'PLAN', plan: plan({ items: [{ index: 0, verb: 'Giao thẻ', text: '“A” cho Lan', cardId: 'c1' }] }) }));
+    expect(screen.queryByText(/Do hệ thống gợi ý phân công chọn/)).not.toBeInTheDocument();
+  });
+});

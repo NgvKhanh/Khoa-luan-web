@@ -22,6 +22,7 @@ import { resolveExecutionContext, type ExecutionContext } from '../chat.v2.scope
 import { dispatchEffects, newEffects, type DispatchReport } from './actions.effects';
 import { guardBoard, guardPlan, mapServiceError } from './actions.guard';
 import { buildResultView, errorText, STALE_TAIL, summarizePatch, summarizePlan } from './actions.plan';
+import { recordAssignOutcomes } from './actions.assign';
 import { claimPlan, expireIfNeeded, findOwnedPlan, recoverIfStuck, settlePlan, type PlanRow } from './actions.plan.repo';
 import { rebuildAndCompare } from './actions.preflight';
 import type { ActionErrorCode, ResultStatus, ResultView, StoredPlan } from './actions.types';
@@ -133,7 +134,7 @@ export async function executePlan(input: ExecInput): Promise<ExecOutcome> {
       }
       throw e;
     }
-    const same = await rebuildAndCompare({ userId, exec, stored, today: vnToday(row.createdAt) });
+    const same = await rebuildAndCompare({ userId, exec, stored, today: vnToday(row.createdAt), planNow: row.createdAt });
     if (same.kind === 'CHANGED') return fail('STALE', 'STALE', `${same.reason} ${STALE_TAIL}`);
     if (same.kind === 'UNRESOLVABLE') return fail('STALE', 'STALE', same.reason.includes('Chưa thay đổi gì') ? `${same.reason} Hãy gửi lại lệnh để tạo kế hoạch mới.` : `${same.reason} ${STALE_TAIL}`);
   }
@@ -185,6 +186,8 @@ export async function executePlan(input: ExecInput): Promise<ExecOutcome> {
       else throw e;
     }
     const report = await dispatchEffects(done.effects);
+    // Phase 6: ghi ket qua cho luot goi y phan cong - CHI sau khi nguoi dung da bam Ap dung (khong bao gio khi tu chay: ke hoach co nguoi do may chon luon xem truoc)
+    if (!input.autoExecuted) await recordAssignOutcomes({ userId, ops, changed: done.outcomes.map((o) => o.changed), now });
     return { status: 'EXECUTED', result: done.result, replayed: false, bind: bindingsFrom(done.state, done.outcomes, stored.boardName), report };
   } catch (e) {
     if (e instanceof NotClaimed) return replay((await findOwnedPlan(userId, row.id)) ?? row);
