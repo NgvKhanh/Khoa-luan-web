@@ -5,7 +5,7 @@ import { assertBoardView } from '../../board/board.service';
 import { handleMessage, handleChoice, handleMore, understandByRules, type ChatReply } from '../chat.service';
 import { chatSessions } from '../chat.session';
 import type { ChatMessageInput } from '../chat.schema';
-import { basicStep, bindEntity, explicitBoardName, orchestrate, validateBindings } from './chat.v2.orchestrator';
+import { basicStep, bindEntity, explicitBoardRef, orchestrate, validateBindings } from './chat.v2.orchestrator';
 import { callChatModel, v2LlmAvailable, type ModelStep } from './chat.v2.llm';
 import type { PatchPlanner } from './actions/actions.patch.context';
 import { proposeActionsTool, proposeBoardPatchTool } from './chat.v2.registry';
@@ -75,16 +75,18 @@ async function answerQuestion(s: V2Session, message: string, context: V2ServiceC
     const text = !actionsFlag ? ACTIONS_OFF_TEXT : !available ? NEEDS_AI_TEXT : READ_ONLY_HERE_TEXT;
     return v2Reply(s, now, [], available ? 'AI' : 'BASIC', text);
   }
-  const namedBoard = explicitBoardName(message);
+  const boardRef = explicitBoardRef(message);
+  const namedBoard = boardRef?.name;
   if (namedBoard && !s.bindings.some((b) => b.kind === 'BOARD' && b.name === namedBoard)) {
     const resolveInput = { kind: 'BOARD', text: namedBoard };
     const found = await executeChatTool({ userId: s.userId, now, scope: s.uiScope }, 'resolve_entities', resolveInput);
-    if (found.data.status === 'NOT_FOUND') { s.pending = undefined; s.queries = []; return v2Reply(s, now, [], available ? 'AI' : 'BASIC', s.uiScope.kind === 'MY' ? 'Không tìm thấy bảng này trong dữ liệu bạn được phép xem.' : `Không tìm thấy bảng này trong phạm vi bạn đang mở. ${OUT_OF_CEILING}`); }
+    // cụm viết thường không khớp bảng nào có thể chỉ là cách nói ("bảng tiến độ…"): để mô hình xử lý chứ không chặn cả câu hỏi
+    if (found.data.status === 'NOT_FOUND' && boardRef?.strong === true) { s.pending = undefined; s.queries = []; return v2Reply(s, now, [], available ? 'AI' : 'BASIC', s.uiScope.kind === 'MY' ? 'Không tìm thấy bảng này trong dữ liệu bạn được phép xem.' : `Không tìm thấy bảng này trong phạm vi bạn đang mở. ${OUT_OF_CEILING}`); }
     if (found.data.status === 'CLARIFY') {
       s.queries = []; s.pending = { kind: 'ENTITY', original: message, question: 'Có nhiều bảng cùng tên. Bạn muốn chọn bảng nào?', options: found.data.options, resolveInput };
       return v2Reply(s, now, [], available ? 'AI' : 'BASIC', s.pending.question);
     }
-    bindEntity(s, found.data.options[0]);
+    if (found.data.status !== 'NOT_FOUND') bindEntity(s, found.data.options[0]);
   }
   // Mot LENH ghi ("doi han ... sang thu sau", "Trong bang X, doi ten the A thanh Da doi...") khong phai cau hoi lich su: co dong tu ghi o bat ky
   // dau trong cau ma khong co chu nghi van thi bo loi tat "ban muon xem khoang thoi gian nao" (cau hoi that luon co ? hoac nao / gi / ai...).

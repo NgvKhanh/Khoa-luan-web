@@ -9,7 +9,8 @@ import { proposeActions, recordRefusal, type PlanMeta } from './actions/actions.
 import { MODEL_SCHEMAS, PATCH_TOOL, PROPOSE_TOOL, type ModelCall } from './chat.v2.registry';
 import { callChatModel, type ModelMessage, type ModelStep } from './chat.v2.llm';
 import { TOOL_SCHEMAS, type ToolName } from './chat.v2.schema';
-import { executeChatTool, type ToolResult } from './chat.v2.tools';
+import { executeChatTool, modelView, type ToolResult } from './chat.v2.tools';
+import { validateComment } from '../chat.summary';
 import { resolveExecutionContext, type ToolContext } from './chat.v2.scope';
 import type { V2Session, SavedQuery } from './chat.v2.session';
 import { errorBlock, resultBlock, v2Reply } from './chat.v2.answer';
@@ -29,6 +30,7 @@ query_activities tra lịch sử; mode CHANGED_CARDS cho 'công việc nào đã
 Ngày YYYY-MM-DD: from đầu ngày, to BAO GỒM ngày cuối theo Việt Nam. Timestamp offset/UTC: to LOẠI TRỪ. Dùng ranges có sẵn cho hôm nay/tuần này/tuần trước. Câu nối tiếp thiếu trường ngày phải clarify, không tự đoán 'tuần này' là hạn/tạo hay hoàn thành.
 Mỗi công cụ chỉ lấy pageSize<=20, page=1. Người dùng xem thêm qua backend. Tối đa 4 vòng, 8 công cụ. Có thể gọi nhiều công cụ độc lập cùng một vòng sau resolve. Không lặp cùng tham số.
 Lỗi từng công cụ phải được nhận biết; đừng giả vờ đã trả đủ. Không tìm thấy thực thể thì dừng, không truy vấn phạm vi rộng để thay thế. Không có công cụ hướng dẫn/notification/automation/CV thì unsupported giải thích giới hạn. Không bịa tính năng từ kiến thức ngoài.
+Tiến độ cả bảng, % hoàn thành, tình hình chung: get_board_overview (bảng đã resolve); % của một tập đã lọc: aggregate_tasks với filters.completion ALL (kết quả có donePercent). Cột / nhãn / trường tùy chỉnh của một bảng: query_catalog kind LISTS / LABELS / CUSTOM_FIELDS. Chi tiết MỘT việc: resolve_entities CARD rồi get_card_details (không đoán id). Hỏi theo giá trị trường (vd ưu tiên Cao): query_catalog CUSTOM_FIELDS hoặc resolve_entities FIELD_OPTION rồi filters.fieldOptionIds. Muốn nhận xét ngắn thì thêm comment vào finish: 1-2 câu, tối đa 300 ký tự. Viết MỌI con số bằng chữ số và CHỈ dùng số có trong kết quả (vd "hoàn thành 1 trên 7 việc, còn 1 việc quá hạn"); TUYỆT ĐỐI không viết số bằng chữ (không "bảy", "mười bốn"), không dùng "%" hay "phần trăm", không tên riêng, không dấu markup. Server kiểm và bỏ nhận xét nếu sai.
 lastQueries chỉ là tham số lượt trước; dữ liệu/quyền phải truy vấn lại. Không gửi email/token/CV/nội dung mô tả/bình luận.`;
 // Chỉ gửi khi công cụ ghi được bật (CHAT_ACTIONS + AI + người dùng sửa được). Ràng buộc thật nằm ở cấu trúc (schema đóng, resolver,
 // provenance, guard); đoạn này chỉ giúp mô hình dùng đúng cách.
@@ -76,6 +78,25 @@ function ranges(now: Date) {
     const r = periodRange(p, now); return [p, { from: r.from.toISOString(), to: r.to.toISOString() }];
   }));
 }
+/** Moi con so (nguyen) nam trong du lieu ket qua: tap so ma mot nhan xet cua AI duoc phep nhac toi. Chu so nam trong chuoi (id, ngay) KHONG tinh. */
+export function numbersIn(value: unknown, out: Set<string> = new Set()): Set<string> {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) out.add(String(value));
+  else if (Array.isArray(value)) for (const v of value) numbersIn(v, out);
+  else if (value && typeof value === 'object') for (const v of Object.values(value)) numbersIn(v, out);
+  return out;
+}
+/**
+ * Nhan xet ngan cua AI (Phase 4, `finish.comment`): qua DUNG bo kiem cua chatbot v1 (khong %, khong so viet bang chu, khong ten rieng / ten
+ * thanh vien, so phai co trong ket qua da tinh). Sai thi BO nhan xet, cau tra loi van du khoi so lieu; khong bao gio lam hong luot.
+ */
+async function checkedComment(session: V2Session, now: Date, text: string, results: ToolResult[]): Promise<{ text: string; source: 'AI' } | undefined> {
+  if (results.length === 0) return undefined;
+  const exec = await resolveExecutionContext(ctxFor(session, now));
+  const allowed = new Set<string>();
+  for (const r of results) numbersIn(r.data, allowed);
+  const check = validateComment({ comment: text }, allowed, exec.roster);
+  return check.ok ? { text: check.text, source: 'AI' } : undefined;
+}
 export async function validateBindings(session: V2Session, now: Date): Promise<void> {
   await resolveExecutionContext(ctxFor(session, now));
   for (const binding of [...session.bindings]) {
@@ -83,7 +104,7 @@ export async function validateBindings(session: V2Session, now: Date): Promise<v
     const active = result.data.options.find((o) => o.id === binding.id);
     if (!active) {
       // Thẻ/cột/nhãn chỉ là ngữ cảnh "nó" (do thao tác trước để lại): thẻ vừa lưu trữ/xóa không được làm kẹt cả hội thoại.
-      if (binding.kind === 'CARD' || binding.kind === 'COLUMN' || binding.kind === 'LABEL') { session.bindings = session.bindings.filter((b) => b !== binding); continue; }
+      if (binding.kind === 'CARD' || binding.kind === 'COLUMN' || binding.kind === 'LABEL' || binding.kind === 'CUSTOM_FIELD' || binding.kind === 'FIELD_OPTION') { session.bindings = session.bindings.filter((b) => b !== binding); continue; }
       throw new AppError('Đối tượng trong hội thoại không còn được phép xem. Hãy hỏi lại.', 403);
     }
     // Refresh names; never send a stale entity snapshot to the model after a permission change.
@@ -201,7 +222,8 @@ export async function orchestrate(session: V2Session, question: string, now: Dat
         // Include all successful blocks, even if the model forgot a citation.
         if (blocks.some((b) => b.status === 'ERROR')) notes.push('Một phần truy vấn chưa thành công; xem thông báo ở phần đó.');
         session.lastQuestion = question;
-        return reply();
+        const comment = typeof input.comment === 'string' ? await checkedComment(session, now, input.comment, results) : undefined;
+        return v2Reply(session, now, blocks, mode, undefined, notes, comment ? { comment } : {});
       }
       if (call.name === 'clarify') {
         const q = input.question as string;
@@ -239,7 +261,7 @@ export async function orchestrate(session: V2Session, question: string, now: Dat
           blocks.push(block);
           session.queries.push({ blockId: block.id, tool: name as SavedQuery['tool'], input: { ...input, scope: result.source.scope }, page: 1, hasMore: block.status === 'OK' && block.pagination.hasMore });
         }
-        messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
+        messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(modelView(result)) });
       } catch (e) {
         const error = e instanceof AppError && e.statusCode < 500 ? e.message : 'Không thể tra cứu phần này lúc này.';
         blocks.push(errorBlock('Truy vấn chưa thành công', error));
@@ -299,10 +321,22 @@ export function basicStep(question: string, now: Date): ModelStep | undefined {
   };
 }
 
-/** A scope cue, not an intent classifier. Resolve names on the server before model planning. */
-export function explicitBoardName(question: string): string | undefined {
+/** Chữ chỉ định / từ nối đứng sau "bảng" ("bảng này đang…", "bảng và nhận xét…"): viết thường thì không phải tên bảng. */
+const NOT_A_NAME_START = /^(?:này|nay|đó|do|kia|khác|khac|đang|dang|hiện|hien|và|va|với|voi|của|cua|cho|để|de|thì|thi|là|la|nào|nao|gì|gi|mình|minh|tôi|toi|bạn|ban)(?:\s|$)/u;
+/**
+ * Cụm "bảng X" trong câu. `strong`: X được đặt trong dấu ngoặc kép, hoặc bắt đầu bằng chữ HOA / chữ số (giống một TÊN riêng như "bảng Marketing",
+ * "bảng 1234"). Cụm viết thường ("bảng tiến độ…") có thể chỉ là cách nói, nên nếu không tìm thấy thì để mô hình tự xử lý thay vì dừng ngay.
+ */
+export function explicitBoardRef(question: string): { name: string; strong: boolean } | undefined {
   const quoted = question.match(/(?:bảng|bang|board)\s+["“]([^"”]+)["”]/iu)?.[1];
   const name = (quoted ?? question.match(/(?:bảng|bang|board)\s+(.+?)(?=\s+(?:bao gồm|bao gom|gồm|gom|ai|công việc|cong viec|việc|viec|những|nhung|các|cac|thành viên|thanh vien|đã|da|chưa|chua|thì|thi|có|co|còn|con)(?:\s|$)|[?,\n]|$)/iu)?.[1])?.trim();
   if (!name || /^(?:này|nay|khác|khac|đang xem|dang xem|của tôi|cua toi|của nhóm|cua nhom)$/iu.test(name)) return undefined;
-  return name;
+  const first = name.charAt(0);
+  const upperOrDigit = first !== first.toLowerCase() || /\p{N}/u.test(first);
+  if (quoted === undefined && !upperOrDigit && NOT_A_NAME_START.test(name)) return undefined;
+  return { name, strong: quoted !== undefined || upperOrDigit };
+}
+/** A scope cue, not an intent classifier. Resolve names on the server before model planning. */
+export function explicitBoardName(question: string): string | undefined {
+  return explicitBoardRef(question)?.name;
 }

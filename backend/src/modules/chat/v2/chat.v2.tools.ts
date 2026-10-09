@@ -9,18 +9,22 @@ import { queryTasks } from './tools/queryTasks';
 import { aggregateTasks } from './tools/aggregateTasks';
 import { queryActivities } from './tools/queryActivities';
 import { queryCatalog } from './tools/queryCatalog';
+import { getBoardOverview } from './tools/getBoardOverview';
+import { getCardDetails } from './tools/getCardDetails';
 import { TOOL_OUTPUT_SCHEMAS } from './chat.v2.output';
 
 export type ToolData =
   | Awaited<ReturnType<typeof resolveEntities>> | Awaited<ReturnType<typeof queryTasks>>
   | Awaited<ReturnType<typeof aggregateTasks>> | Awaited<ReturnType<typeof queryActivities>>
-  | Awaited<ReturnType<typeof queryCatalog>>;
+  | Awaited<ReturnType<typeof queryCatalog>> | Awaited<ReturnType<typeof getBoardOverview>> | Awaited<ReturnType<typeof getCardDetails>>;
 export interface ToolDataMap {
   resolve_entities: Awaited<ReturnType<typeof resolveEntities>>;
   query_catalog: Awaited<ReturnType<typeof queryCatalog>>;
   query_tasks: Awaited<ReturnType<typeof queryTasks>>;
   aggregate_tasks: Awaited<ReturnType<typeof aggregateTasks>>;
   query_activities: Awaited<ReturnType<typeof queryActivities>>;
+  get_board_overview: Awaited<ReturnType<typeof getBoardOverview>>;
+  get_card_details: Awaited<ReturnType<typeof getCardDetails>>;
 }
 export interface ToolResult<T extends ToolData = ToolData> {
   tool: ToolName;
@@ -31,12 +35,24 @@ export interface ToolResult<T extends ToolData = ToolData> {
   data: T;
 }
 export const TOOL_DESCRIPTIONS: Record<ToolName, string> = {
-  resolve_entities: 'Tìm bảng, không gian, công việc, cột hoặc thành viên có quyền xem; trả lựa chọn khi trùng tên.',
-  query_catalog: 'Danh sách bảng, không gian và thành viên trong phạm vi có quyền xem, có phân trang.',
+  resolve_entities: 'Tìm bảng, không gian, công việc, cột, thành viên, nhãn, trường tùy chỉnh hoặc giá trị của trường (vd "Cao" của "Ưu tiên") có quyền xem; trả lựa chọn khi trùng tên.',
+  query_catalog: 'Danh sách bảng, không gian, thành viên; với MỘT bảng còn có cột (kèm số việc mở / xong), nhãn, trường tùy chỉnh và các giá trị của nó. Có phân trang.',
   query_tasks: 'Lọc công việc theo trạng thái, người, chưa giao, nhãn, ngày và lịch sử; trả tổng số và danh sách.',
   aggregate_tasks: 'Đếm toàn bộ công việc đã lọc, nhóm theo người, bảng, cột, trạng thái hoặc ngày; giữ đồng hạng.',
   query_activities: 'Tra nhật ký trong khoảng thời gian; trả sự kiện hoặc công việc duy nhất có thay đổi, có thể lọc theo trạng thái hiện tại.',
+  get_board_overview: 'Tổng quan MỘT bảng: số việc, % hoàn thành, quá hạn, bị chặn, chưa giao, số cột / nhãn / thành viên và số việc từng cột. Dùng cho câu hỏi tiến độ cả bảng.',
+  get_card_details: 'Chi tiết MỘT công việc đã resolve: trạng thái, cột, hạn, người phụ trách, nhãn, tiến độ checklist, giá trị trường tùy chỉnh, số bình luận / tệp. Không trả nội dung bình luận hay email.',
 };
+
+/**
+ * Phan CUA KET QUA duoc gui lai cho MO HINH (khac phan hien cho nguoi dung). Mo ta the do nguoi khac viet nen KHONG gui cho mo hinh: chi giu
+ * `hasDescription` / `descriptionLength`; nguoi dung van doc duoc trich o khoi hien thi. (Giu nguyen tac toi thieu hoa du lieu gui ben thu ba.)
+ */
+export function modelView(result: ToolResult): unknown {
+  if (result.tool !== 'get_card_details') return result;
+  const { descriptionExcerpt: _excerpt, ...rest } = result.data as ToolDataMap['get_card_details'];
+  return { ...result, data: rest };
+}
 function envelope<T extends ToolData>(name: ToolName, ctx: ExecutionContext, input: object, data: T): ToolResult<T> {
   const checked = TOOL_OUTPUT_SCHEMAS[name].safeParse(data);
   if (!checked.success) throw new Error(`Invalid v2 output for ${name}`);
@@ -86,6 +102,14 @@ export async function executeChatTool(ctx: ToolContext, name: ToolName, raw: unk
       case 'query_activities': {
         const input = TOOL_SCHEMAS[name].parse(raw); const exec = await resolveExecutionContext(ctx, input.scope);
         return envelope(name, exec, input, await queryActivities(exec, input));
+      }
+      case 'get_board_overview': {
+        const input = TOOL_SCHEMAS[name].parse(raw); const exec = await resolveExecutionContext(ctx, input.scope);
+        return envelope(name, exec, input, await getBoardOverview(exec, input));
+      }
+      case 'get_card_details': {
+        const input = TOOL_SCHEMAS[name].parse(raw); const exec = await resolveExecutionContext(ctx, input.scope);
+        return envelope(name, exec, input, await getCardDetails(exec, input));
       }
     }
   } catch (error) {

@@ -20,13 +20,34 @@ const catalog = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('BOARDS'), ...page, rows: z.array(z.object({ id: text, name: text, workspaceId: text, workspaceName: text, myRole: z.enum(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']).nullable() }).strict()) }).strict(),
   z.object({ kind: z.literal('WORKSPACES'), ...page, rows: z.array(z.object({ id: text, name: text, myRole: z.enum(['OWNER', 'ADMIN', 'MEMBER']).nullable(), boards: count, members: count }).strict()) }).strict(),
   z.object({ kind: z.literal('MEMBERS'), ...page, rows: z.array(z.object({ id: text, name: text, role: z.enum(['OWNER', 'ADMIN', 'MEMBER', 'VIEWER']).nullable() }).strict()) }).strict(),
+  // Phase 4: cau truc cua MOT bang (can pham vi BOARD)
+  z.object({ kind: z.literal('LISTS'), ...page, rows: z.array(z.object({ id: text, name: text, status: z.enum(CardStatus).nullable(), totalCards: count, openCards: count, doneCards: count }).strict()) }).strict(),
+  z.object({ kind: z.literal('LABELS'), ...page, rows: z.array(z.object({ id: text, name: text, color: text, cards: count }).strict()) }).strict(),
+  z.object({ kind: z.literal('CUSTOM_FIELDS'), ...page, rows: z.array(z.object({ id: text, name: text, type: z.enum(['TEXT', 'NUMBER', 'DATE', 'CHECKBOX', 'DROPDOWN']), options: z.array(z.object({ id: text, value: text }).strict()) }).strict()) }).strict(),
 ]);
+const percent = z.number().int().min(0).max(100);
+const boardOverview = z.object({
+  board: z.object({ id: text, name: text }).strict(), totalCards: count, openCards: count, doneCards: count, donePercent: percent.nullable(),
+  overdueCards: count, blockedCards: count, unassignedOpenCards: count, listCount: count, labelCount: count, memberCount: count, customFieldCount: count,
+  lists: z.array(z.object({ id: text, name: text, status: z.enum(CardStatus).nullable(), totalCards: count, openCards: count, doneCards: count }).strict()),
+}).strict();
+// Chi tiet mot the. `descriptionExcerpt` chi de HIEN cho nguoi dung (chua dang tin); khong bao gio gui cho mo hinh (xem chat.v2.tools.modelView).
+const cardDetails = z.object({
+  id: text, title: text, status: z.enum(CardStatus), isDone: z.boolean(), boardId: text, boardName: text, columnId: text, columnName: text,
+  startDate: iso.nullable(), dueDate: iso.nullable(), completedAt: iso.nullable(), createdAt: iso, overdue: z.boolean(),
+  assignees: z.array(person), labels: z.array(z.object({ id: text, name: text, color: text }).strict()),
+  checklist: z.object({ lists: count, done: count, total: count }).strict(),
+  fields: z.array(z.object({ id: text, name: text, type: z.enum(['TEXT', 'NUMBER', 'DATE', 'CHECKBOX', 'DROPDOWN']), value: text }).strict()),
+  commentCount: count, attachmentCount: count, hasDescription: z.boolean(), descriptionLength: count, descriptionExcerpt: text.nullable(),
+}).strict();
 export const TOOL_OUTPUT_SCHEMAS = {
   resolve_entities: z.object({ status: z.enum(['RESOLVED', 'CLARIFY', 'NOT_FOUND']), total: count, options: z.array(z.object({ id: text, name: text, kind: z.enum(ENTITY_KINDS), parentName: text.optional() }).strict()), truncated: z.boolean() }).strict(),
   query_catalog: catalog,
   query_tasks: z.object({ ...page, cards: z.array(task) }).strict(),
   aggregate_tasks: z.object({
     ...page, totalCards: count, groupBy: z.enum(['ASSIGNEE', 'BOARD', 'COLUMN', 'STATUS', 'DATE']), highestCount: count,
+    // Phase 4: chi co khi bo loc tinh CA viec da xong (completion = ALL); con lai null vi khong the tinh ty le tren mot tap da bo viec xong
+    doneCards: count.nullable(), donePercent: percent.nullable(),
     leaderIds: z.array(text), rows: z.array(z.object({ id: text, label: text, count }).strict()), outsideAssignments: count,
     deletedAccountAssignments: count, unassignedCards: count, assignmentCounting: text,
   }).strict(),
@@ -34,4 +55,6 @@ export const TOOL_OUTPUT_SCHEMAS = {
     ...page, mode: z.enum(['EVENTS', 'CHANGED_CARDS']), eventCount: count, changedCardCount: count, events: z.array(event),
     cards: z.array(z.object({ id: text, title: text.nullable(), eventCount: count, lastChangedAt: iso, events: z.array(event), eventsTruncated: z.boolean() }).strict()), coverage: text,
   }).strict(),
+  get_board_overview: boardOverview,
+  get_card_details: cardDetails,
 } as const;

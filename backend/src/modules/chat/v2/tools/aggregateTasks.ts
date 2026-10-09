@@ -4,12 +4,16 @@ import type { aggregateInputSchema } from '../chat.v2.schema';
 import type { ExecutionContext } from '../chat.v2.scope';
 import { buildTaskWhere, pageMeta } from '../chat.v2.query';
 import { vietnamDay } from '../chat.v2.dates';
+import { percentOf } from './getBoardOverview';
 
 interface Group { id: string; label: string; count: number }
 export async function aggregateTasks(ctx: ExecutionContext, input: z.infer<typeof aggregateInputSchema>) {
   const where = await buildTaskWhere(ctx, input.filters);
   return prisma.$transaction(async (tx) => {
     const totalCards = await tx.card.count({ where });
+    // Phase 4: ty le hoan thanh chi co nghia khi tap loc co CA viec da xong (completion = ALL); con lai de null thay vi tra mot con so sai
+    const doneCards = input.filters.completion === 'ALL' ? await tx.card.count({ where: { AND: [where, { isDone: true }] } }) : null;
+    const donePercent = doneCards === null ? null : percentOf(doneCards, totalCards);
     let rows: Group[] = [];
     let outsideAssignments = 0;
     let deletedAccountAssignments = 0;
@@ -59,7 +63,7 @@ export async function aggregateTasks(ctx: ExecutionContext, input: z.infer<typeo
     const highestCount = rows[0]?.count ?? 0;
     return {
       ...pageMeta(rows.length, input.page, input.pageSize), totalCards, groupBy: input.groupBy,
-      highestCount, leaderIds: highestCount === 0 ? [] : rows.filter((r) => r.count === highestCount).map((r) => r.id),
+      doneCards, donePercent, highestCount, leaderIds: highestCount === 0 ? [] : rows.filter((r) => r.count === highestCount).map((r) => r.id),
       rows: rows.slice((input.page - 1) * input.pageSize, input.page * input.pageSize),
       outsideAssignments, deletedAccountAssignments, unassignedCards,
       assignmentCounting: 'Một thẻ giao nhiều người được tính cho mỗi người; tổng lượt giao khác tổng thẻ duy nhất.',

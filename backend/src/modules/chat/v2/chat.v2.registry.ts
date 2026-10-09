@@ -4,7 +4,7 @@ import { PROPOSE_ACTIONS_PROVIDER_SCHEMA, proposeActionsSchema } from './actions
 import { TOOL_SCHEMAS } from './chat.v2.schema';
 import { TOOL_DESCRIPTIONS } from './chat.v2.tools';
 
-export const finishSchema = z.object({ sourceIds: z.array(z.string().uuid()).max(8) }).strict();
+export const finishSchema = z.object({ sourceIds: z.array(z.string().uuid()).max(8), comment: z.string().trim().min(1).max(300).optional() }).strict();
 export const clarifySchema = z.object({ question: z.string().min(1).max(300) }).strict();
 export const unsupportedSchema = z.object({ reason: z.string().min(1).max(300) }).strict();
 export const MODEL_SCHEMAS = { ...TOOL_SCHEMAS, finish: finishSchema, clarify: clarifySchema, unsupported: unsupportedSchema };
@@ -41,7 +41,7 @@ export const modelTools = Object.entries(MODEL_SCHEMAS).map(([name, schema]) => 
   return ({
   type: 'function', function: { name,
     description: name in TOOL_DESCRIPTIONS ? TOOL_DESCRIPTIONS[name as keyof typeof TOOL_DESCRIPTIONS]
-      : name === 'finish' ? 'Kết thúc khi đã truy vấn đủ mọi phần. sourceIds là nguồn kết quả thành công.'
+      : name === 'finish' ? 'Kết thúc khi đã truy vấn đủ mọi phần. sourceIds là nguồn kết quả thành công. comment (tùy chọn): nhận xét 1-2 câu; số viết bằng chữ số và phải có trong kết quả; không dùng % / phần trăm / số viết bằng chữ / tên riêng.'
       : name === 'clarify' ? 'Hỏi làm rõ trước khi truy vấn nếu thiếu thời gian hoặc nghĩa của bộ lọc.'
       : 'Giải thích giới hạn nếu không có công cụ đọc phù hợp. Không thực hiện thao tác ghi.',
     parameters,

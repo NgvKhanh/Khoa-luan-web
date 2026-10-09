@@ -8,7 +8,8 @@ export const CHANGE_TYPES = [
   'card.archive', 'card.restore',
 ] as const;
 export const EVENT_TYPES = [...CHANGE_TYPES, 'card.create', 'comment.create', 'checklist.add', 'attachment.add', 'ai.board.create'] as const;
-export const ENTITY_KINDS = ['BOARD', 'WORKSPACE', 'CARD', 'COLUMN', 'MEMBER', 'LABEL'] as const;
+// Phase 4: them CUSTOM_FIELD (truong tuy chinh, vd "Uu tien") va FIELD_OPTION (mot lua chon cua truong, vd "Cao") de hoi theo gia tri truong.
+export const ENTITY_KINDS = ['BOARD', 'WORKSPACE', 'CARD', 'COLUMN', 'MEMBER', 'LABEL', 'CUSTOM_FIELD', 'FIELD_OPTION'] as const;
 const id = z.string().trim().min(1).max(128);
 const ids = z.array(id).min(1).max(100);
 const date = z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.string().datetime({ offset: true })]);
@@ -26,6 +27,8 @@ export const taskFilterSchema = z.object({
   cardIds: ids.optional(),
   columnIds: ids.optional(),
   labelIds: ids.optional(),
+  /** Phase 4: loc theo gia tri cua truong tuy chinh dang lua chon (vd "Uu tien = Cao"); id lay tu resolve_entities FIELD_OPTION. */
+  fieldOptionIds: ids.optional(),
   statuses: z.array(z.enum(CardStatus)).min(1).max(5).optional(),
   keyword: z.string().trim().min(1).max(200).optional(),
   overdue: z.boolean().default(false),
@@ -42,7 +45,7 @@ export const entityInputSchema = z.object({
   kind: z.enum(ENTITY_KINDS), text: z.string().trim().min(1).max(500), scope: chatScopeSchema.optional(),
 }).strict();
 export const catalogInputSchema = z.object({
-  kind: z.enum(['BOARDS', 'WORKSPACES', 'MEMBERS']), scope: chatScopeSchema.optional(), ...pageFields,
+  kind: z.enum(['BOARDS', 'WORKSPACES', 'MEMBERS', 'LISTS', 'LABELS', 'CUSTOM_FIELDS']), scope: chatScopeSchema.optional(), ...pageFields,
 }).strict();
 export const tasksInputSchema = z.object({
   scope: chatScopeSchema.optional(), filters: taskFilterSchema.default(() => taskFilterSchema.parse({})),
@@ -60,9 +63,13 @@ export const activitiesInputSchema = z.object({
 }).strict().superRefine((v, ctx) => {
   if (v.taskFilters?.changed) ctx.addIssue({ code: 'custom', message: 'Không lồng bộ lọc lịch sử trong bộ lọc lịch sử' });
 });
+// Phase 4: tong quan mot bang (cot, tien do, qua han, bi chan...) va chi tiet mot the. Ca hai chi DOC, chay duoi tran pham vi nhu moi cong cu doc.
+export const boardOverviewInputSchema = z.object({ scope: chatScopeSchema.optional() }).strict();
+export const cardDetailsInputSchema = z.object({ cardId: id, scope: chatScopeSchema.optional() }).strict();
 export const TOOL_SCHEMAS = {
   resolve_entities: entityInputSchema, query_catalog: catalogInputSchema,
   query_tasks: tasksInputSchema, aggregate_tasks: aggregateInputSchema, query_activities: activitiesInputSchema,
+  get_board_overview: boardOverviewInputSchema, get_card_details: cardDetailsInputSchema,
 } as const;
 export type ToolName = keyof typeof TOOL_SCHEMAS;
 export type TaskFilter = z.infer<typeof taskFilterSchema>;

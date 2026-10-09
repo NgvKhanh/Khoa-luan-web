@@ -48,10 +48,20 @@ export async function resolveEntities(ctx: ExecutionContext, kind: typeof ENTITY
         .map((l) => ({ id: l.id, name: l.name, kind, parentName: l.board.name }));
       break;
     case 'CARD':
-      pool = (await prisma.card.findMany({ where: liveCardWhere(ctx.scope.boardWhere), select: { id: true, title: true, list: { select: { board: { select: { name: true } } } } } }))
-        .map((c) => ({ id: c.id, name: c.title, kind, parentName: c.list.board.name }));
+      // parentName = ten COT chua the (o trang bang) hoac "cot · bang" (o pham vi rong) de phan biet hai the cung ten
+      pool = (await prisma.card.findMany({ where: liveCardWhere(ctx.scope.boardWhere), select: { id: true, title: true, list: { select: { name: true, board: { select: { name: true } } } } } }))
+        .map((c) => ({ id: c.id, name: c.title, kind, parentName: ctx.scope.kind === 'BOARD' ? c.list.name : `${c.list.name} · ${c.list.board.name}` }));
       break;
     case 'MEMBER': pool = ctx.roster.map((m) => ({ id: m.userId, name: m.name, kind })); break;
+    case 'CUSTOM_FIELD':
+      pool = (await prisma.customField.findMany({ where: { board: ctx.scope.boardWhere }, select: { id: true, name: true, board: { select: { name: true } } } }))
+        .map((f) => ({ id: f.id, name: f.name, kind, parentName: f.board.name }));
+      break;
+    case 'FIELD_OPTION':
+      // gia tri cua truong dang lua chon (vd "Cao" cua truong "Uu tien"): parentName = ten truong de phan biet cung gia tri o nhieu truong
+      pool = (await prisma.customFieldOption.findMany({ where: { field: { board: ctx.scope.boardWhere } }, select: { id: true, value: true, field: { select: { name: true } } } }))
+        .map((o) => ({ id: o.id, name: o.value, kind, parentName: o.field.name }));
+      break;
     case 'LABEL':
       // chỉ nhãn CÓ TÊN (nhãn mặc định chỉ có màu thì không gọi được bằng lời)
       pool = (await prisma.label.findMany({ where: { name: { not: '' }, board: ctx.scope.boardWhere }, select: { id: true, name: true, board: { select: { name: true } } } }))

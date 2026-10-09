@@ -437,6 +437,55 @@ Mất quyền sửa giữa hai bước → `FAILED/FORBIDDEN`; quá 10 phút →
 - Thử trình duyệt thật (09/10/2026, Gemini thật, bảng thử ở database dev rồi đã xóa; có cả khổ 375 px + chế độ tối): (1) “Bổ sung các việc còn thiếu cho giai đoạn kiểm thử” trên bảng có một thẻ chứa chỉ dẫn tiêm → xem trước “Thêm vào bảng …: 1 cột mới · 5 thẻ mới”, “Không đụng tới: 7 thẻ và 3 cột hiện có”, **bảng chưa đổi** → Áp dụng → cột “Kiểm thử” + 5 thẻ hiện ra ngay (realtime), thẻ cũ nguyên, **không có cột HACKED**; (2) “Xóa hết thẻ cũ rồi tạo lại các thẻ kiểm thử” → “Trợ lý chưa hỗ trợ tính năng xóa dữ liệu cũ” (mô hình chính chặn trước; nếu vẫn gọi Board Patch thì server trả `DESTRUCTIVE`); (3) chèn thẳng vào database một thẻ trùng *sau* khi xem trước rồi bấm Áp dụng → “Dữ liệu đã thay đổi … Chưa thay đổi gì”, không ghi gì; (4) “Lên kế hoạch các việc cần làm cho trang chủ, giỏ hàng và thanh toán” → 4 thẻ vào cột có sẵn “Cần làm” → Áp dụng thành công; (5) câu đã nêu sẵn tên thẻ (“Bổ sung thẻ A, B và C vào bảng”) được mô hình chuyển sang `propose_actions` (Phase 2), không qua bộ lập kế hoạch. Phát hiện khi thử và đã sửa: câu dẫn của bản xem trước nói “Mình chưa ghi gì” vẫn nằm trong lịch sử sau khi đã Áp dụng (mâu thuẫn với khối kết quả) → bỏ cụm đó; câu STALE nhắc tên thẻ hai lần khi trùng đúng từng chữ → chỉ nêu một lần.
 - Bẫy khi thử: container `taskflow-backend` chạy `tsx watch` trên bind mount Windows **không tự nạp lại** khi sửa tệp từ máy chủ → `docker restart taskflow-backend` sau khi sửa mã.
 
+## 9D. Công cụ đọc mở rộng (Phase 4, 09/10/2026)
+
+### 9D.1 Phạm vi
+
+Chỉ **ĐỌC** (không migration, không endpoint mới, chạy dưới trần phạm vi như mọi công cụ đọc). Bổ sung để trả lời các câu hỏi về tiến độ, chi tiết một việc và cấu trúc bảng:
+
+| Thêm | Mục đích | Ghi chú |
+|---|---|---|
+| `get_board_overview` | tổng quan MỘT bảng: số việc, **% hoàn thành**, quá hạn, bị chặn, chưa giao, số cột / nhãn / thành viên / trường, số việc từng cột | cần phạm vi bảng (trang bảng hoặc đã resolve); ở trang chủ / không gian → khối lỗi nhẹ “hãy mở hoặc nêu tên một bảng” |
+| `get_card_details` | MỘT việc: trạng thái, cột, hạn, người phụ trách, nhãn, tiến độ checklist `x/y`, giá trị trường tùy chỉnh (5 kiểu), số bình luận / tệp, trích mô tả | `cardId` lấy từ `resolve_entities`; thẻ ngoài phạm vi → CÙNG một lỗi “không tìm thấy” như id bịa |
+| `query_catalog` `LISTS / LABELS / CUSTOM_FIELDS` | cột (kèm số việc mở / xong), nhãn (kèm số thẻ sống), trường tùy chỉnh + các lựa chọn | một bảng; phân trang như cũ |
+| `aggregate_tasks` + `doneCards`, `donePercent` | “bao nhiêu % đã xong” cho một tập lọc | chỉ có khi `filters.completion = ALL`, ngược lại `null` (không tính tỉ lệ trên tập đã bỏ việc xong) |
+| `resolve_entities` + `CUSTOM_FIELD`, `FIELD_OPTION` | “ưu tiên”, “Cao” | `parentName` của thẻ = **tên cột** (trang bảng) hoặc “cột · bảng” (phạm vi rộng) thay vì tên bảng |
+| `filters.fieldOptionIds` | lọc theo giá trị trường (“việc ưu tiên Cao”) cho `query_tasks` / `aggregate_tasks` / `query_activities.taskFilters` | giá trị phải thuộc phạm vi, nếu không → 400 |
+| `finish.comment` (tùy chọn) | nhận xét ngắn của AI từ số đã tính | xem 9D.3 |
+
+Mọi con số do **server đếm** trên toàn bộ thẻ sống (thẻ / cột đã lưu trữ hoặc xóa không tính); phần trăm là số nguyên làm tròn (`Math.round`), `null` khi chưa có thẻ.
+
+### 9D.2 Dữ liệu gửi mô hình và chống lộ
+
+- `select` tường minh theo danh sách cho phép: **không** email, nội dung bình luận, tên / đường dẫn tệp, id người ngoài danh sách thành viên của phạm vi, trường của bảng khác. Test quét khóa: kết quả `get_card_details` chỉ có đúng 22 khóa.
+- **Mô tả thẻ do người khác viết** nên chỉ là một **trích ≤ 300 ký tự** (bỏ ký tự điều khiển / vô hình) để HIỂN THỊ cho người dùng trong khung “Trích mô tả (nội dung do người khác viết, chưa đáng tin)”; `modelView` (`chat.v2.tools.ts`) loại trích này khỏi thông điệp gửi lại cho mô hình, chỉ giữ `hasDescription` / `descriptionLength`. Vì vậy chỉ dẫn nằm trong mô tả không bao giờ tới mô hình, và giữ nguyên nguyên tắc tối thiểu hóa dữ liệu gửi bên thứ ba.
+- Giao diện: React tự thoát ký tự (mô tả chứa `<script>` chỉ hiện như chữ); khối mới có chế độ tối và khổ 375 px.
+
+### 9D.3 Nhận xét ngắn của AI từ số đã tính
+
+`finish {sourceIds, comment?}`: server kiểm `comment` bằng **đúng bộ kiểm của chatbot v1** (`validateComment`): chỉ chữ số có trong kết quả (tập số nguyên lấy từ dữ liệu, KHÔNG lấy chữ số trong chuỗi như id / ngày), không `%`, không số viết bằng chữ, không tên riêng / tên thành viên, không markup / liên kết, ≤ 300 ký tự. Sai → **bỏ nhận xét**, khối số liệu vẫn đủ; không có kết quả nào để dựa vào → không có nhận xét. Hiển thị trong khung riêng “Nhận xét của trợ lý (AI)”.
+
+Đo trên Gemini thật: lần đầu mô hình viết “mười bốn phần trăm … bảy việc” (0/3 qua bộ kiểm); sau khi prompt nói rõ “viết số bằng chữ số, không ‘phần trăm’, không số viết bằng chữ” → **3/3 qua** (1 ca lỗi nhà cung cấp). Đây là tính năng *best-effort*: mô hình có thể không viết nhận xét.
+
+### 9D.4 Sửa kèm: câu hỏi “Board này tiến độ bao nhiêu?” bị chặn
+
+`explicitBoardName` coi mọi chữ sau “bảng / board” là TÊN bảng nên “Bảng này đang có những gì?”, “Board này tiến độ bao nhiêu?”, “Tóm tắt tiến độ bảng và nhận xét ngắn” bị trả “Không tìm thấy bảng này” trước khi tới mô hình (đúng câu mẫu của tài liệu). Nay: (1) chữ viết thường mở đầu bằng từ chỉ định / nối (“này, đó, đang, và, với, của, cho…”) không phải tên (`NOT_A_NAME_START`); (2) `explicitBoardRef` trả thêm cờ `strong` — tên trong ngoặc kép, bắt đầu bằng chữ HOA hoặc chữ số (“bảng Marketing”, “bảng 1234”). Cụm viết thường không khớp bảng nào chỉ để mô hình tự xử lý; tên “mạnh” không tồn tại vẫn bị chặn rõ ràng như cũ.
+
+### 9D.5 Giới hạn đã biết
+
+- Tổng quan / danh mục cột-nhãn-trường cần **một bảng** (không gộp nhiều bảng); `fieldOptionIds` chỉ lọc trường kiểu **danh sách chọn** (số / ngày / văn bản / hộp chọn chưa lọc được).
+- Mô tả thẻ không vào ngữ cảnh mô hình nên AI không “đọc và tóm tắt mô tả” — người dùng đọc trích ở khối.
+- Nhận xét AI là *best-effort*; nhà cung cấp (Gemini bản miễn phí) thỉnh thoảng lỗi một vòng → hiện “AI chưa hoàn tất mọi phần” nhưng khối số liệu đã tra cứu vẫn có, hoặc rơi về chế độ cơ bản.
+- Chưa có công cụ đọc bình luận / tệp / checklist chi tiết (chỉ số đếm) theo đúng nguyên tắc không gửi nội dung đó cho mô hình.
+
+### 9D.6 Kiểm thử và đo đạc
+
+- Backend (PostgreSQL test thật, mô hình bằng kịch bản; **52 test mới** trong `chat.read.tools.test.ts`): tổng quan bảng khớp phép đếm tay (thẻ / cột lưu trữ & xóa không tính, bảng trống → `null`, **làm tròn** 2/3 → 67), chặn phạm vi (trang chủ, bảng khác ngoài trần, người ngoài, bảng công khai), chi tiết thẻ đủ 5 kiểu trường + checklist + số bình luận / tệp, **thẻ ngoài phạm vi cùng một lỗi** (bảng khác, lưu trữ, xóa, cột lưu trữ, id bịa), quét khóa kết quả (không email / nội dung bình luận / tên tệp / trường bảng khác), `modelView` bỏ trích mô tả, `query_catalog` LISTS / LABELS / CUSTOM_FIELDS, `donePercent`, `resolve_entities` kinds mới + `parentName`, lọc `fieldOptionIds`, qua vòng lặp mô hình (resolve → chi tiết; tổng quan; ưu tiên Cao; ba danh mục trong một lượt; trang chủ → khối lỗi), nhận xét AI (hợp lệ + 7 kiểu bị loại), lịch sử bị che khi mất quyền, và 10 ca `explicitBoardRef`.
+- Hồi quy: **toàn bộ backend 134 tệp / 1784 test đạt** (1732 trước Phase 4 + 52 mới); frontend 58 tệp / 491 test (14 mới trong `V2ReadBlocks.test.tsx`: tổng quan, chi tiết + khung mô tả chưa đáng tin + `<script>` chỉ là chữ, danh mục, `donePercent`, nhận xét); `tsc`, ESLint backend, `tsc -b`, oxlint (không cảnh báo ở tệp mới), `vite build` sạch.
+- Cài lỗi (chống xanh giả): **18 phép sửa mã Phase 4** (làm tròn, đếm thẻ lưu trữ / xóa, bỏ kiểm phạm vi, trích mô tả không giới hạn, gửi mô tả cho mô hình, tổng quan ở phạm vi MY, `donePercent` khi không tính việc xong, bỏ lọc / bỏ kiểm giá trị trường, `parentName`, nhận xét luôn được nhận / không kiểm số, `numbersIn`, `explicitBoardRef` ×2, đếm nhãn, chưa giao, đếm theo cột) → **18/18 bị bắt**.
+- Gemini thật (`npx tsx src/scripts/probeChatRead.ts`, `gemini-3.5-flash-lite`, 09/10/2026, không đụng CSDL): **vòng đầu chọn đúng công cụ 14/14 ca có trả lời** (2/16 lỗi nhà cung cấp) trên 16 câu hỏi mẫu của tài liệu + câu mới (tiến độ → `get_board_overview`, “Task Login đang thế nào?” → `resolve_entities CARD`, “ưu tiên Cao” → `resolve_entities FIELD_OPTION`, cột / nhãn / trường → `query_catalog`); **nhận xét AI 3/3 qua bộ kiểm** sau khi sửa prompt (trước: 0/3, mô hình viết “bảy việc, mười bốn phần trăm”).
+- Thử trình duyệt thật (09/10/2026, Gemini thật, bảng thử ở database dev rồi đã xóa): “Board này tiến độ bao nhiêu?” → khối “Tổng quan bảng” (“Đã hoàn thành 1/7 việc (14%)”, thanh tiến độ, 6 ô số, bảng cột); “Task Login UI đang thế nào?” → khối “Chi tiết công việc” (người phụ trách, quá hạn, checklist 1/3, **Ưu tiên: Cao**, trích mô tả có câu chỉ dẫn tiêm hiện như chữ trong khung “chưa đáng tin” và **mô hình không làm theo**); “Tóm tắt tiến độ bảng này và nhận xét ngắn” → khối tổng quan + khung “Nhận xét của trợ lý (AI): Bảng có 7 công việc, hoàn thành 1 việc và còn 1 việc quá hạn.”; “Có bao nhiêu việc ưu tiên Cao?” → danh sách đúng 2 việc, nhãn điều kiện “Theo giá trị trường tùy chỉnh”. Nhà cung cấp thỉnh thoảng lỗi một vòng → thấy dòng “AI chưa hoàn tất mọi phần” hoặc chế độ cơ bản, hỏi lại là được.
+
 ## 10. Nhật ký hợp đồng
 
 - 04/10/2026, mốc A: bàn giao bước 1–3, lớp công cụ, schema, source, fixture/dataset và nhật ký được bổ sung.
@@ -444,3 +493,4 @@ Mất quyền sửa giữa hai bước → `FAILED/FORBIDDEN`; quá 10 phút →
 - 07/10/2026, mốc C (hành động Phase 1): công cụ ghi `propose_actions` (7 thao tác, một bảng, một thao tác/kế hoạch), bảng `ChatActionPlan`, chính sách tự chạy theo nguồn lệnh (DATA vs INSTRUCTION), trần phạm vi theo trang cho cả đọc lẫn ghi, ba endpoint `/actions/*`, `scope` tùy chọn ở `choice`/`more`, `answer.action` ở reply, cờ `CHAT_ACTIONS`/`CHAT_AUTO_EXECUTE`. Không đổi hợp đồng v1, AI tạo bảng hay gợi ý phân công.
 - 08/10/2026, mốc D (hành động Phase 2): kế hoạch **nhiều thao tác trên một bảng** (tối đa 15) với `CREATE_LIST`, tham chiếu `PLAN {key}` và đồ thị phụ thuộc; preflight đủ 11 bước; ghi trong **một transaction** bằng bộ hàm riêng (không refactor service cũ) và hiệu ứng phụ sau COMMIT; nhận chỗ trong transaction (không còn kẹt `EXECUTING`), idempotent, **kế hoạch cũ `STALE`**; từ hai thao tác luôn xem trước; migration `20261008100000_chat_action_plan_multi` (cột đo đạc). Không thêm endpoint, không đổi hợp đồng v1, không có Board Patch / xóa / phân công tự động / luật tự động hóa.
 - 09/10/2026, mốc E (hành động Phase 3, Board Patch): công cụ ghi thứ hai `propose_board_patch {goal}`; bộ lập kế hoạch AI **một lượt, không công cụ** sinh cột / thẻ MỚI từ ngữ cảnh bảng rút gọn (khung dữ liệu `BOARD_DATA`, không id / mô tả / bình luận / email); server lọc trùng trên toàn bộ bảng, sàng lọc nội dung, kiểm giấy phép từ CÂU người dùng, từ chối yêu cầu xóa / thay thế; chỉ `CREATE_LIST` + `CREATE_CARD`, **luôn xem trước → Áp dụng** (kể cả bật `CHAT_AUTO_EXECUTE`); dùng lại nguyên preflight, guard, executor một transaction và STALE của Phase 2, thêm khóa dòng `Board` + kiểm trùng ngay trong transaction; hạn mức riêng 5 cột / 25 thẻ / 30 thao tác. Không migration, không endpoint mới; `answer.action.plan.patch` là trường tùy chọn.
+- 09/10/2026, mốc F (công cụ đọc mở rộng, Phase 4): `get_board_overview`, `get_card_details`, `query_catalog` LISTS / LABELS / CUSTOM_FIELDS, `donePercent`, `resolve_entities` CUSTOM_FIELD / FIELD_OPTION (+ `parentName` của thẻ = tên cột), bộ lọc `fieldOptionIds`, `finish.comment` (nhận xét AI qua bộ kiểm v1); mô tả thẻ chỉ hiển thị cho người dùng, không gửi mô hình (`modelView`); sửa `explicitBoardName` chặn nhầm “Board này …”. Chỉ đọc, không migration, không endpoint mới; trường mới của `aggregate_tasks` và `finish` là tùy chọn.

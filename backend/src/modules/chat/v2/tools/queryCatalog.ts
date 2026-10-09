@@ -5,9 +5,38 @@ import { workspaceRoleOf } from '../../../workspace/workspace.service';
 import type { catalogInputSchema } from '../chat.v2.schema';
 import type { ExecutionContext } from '../chat.v2.scope';
 import { pageMeta } from '../chat.v2.query';
+import { listStats, requireBoard } from './getBoardOverview';
 
 export async function queryCatalog(ctx: ExecutionContext, input: z.infer<typeof catalogInputSchema>) {
   const skip = (input.page - 1) * input.pageSize;
+  // Phase 4: cau truc cua MOT bang (can pham vi BOARD; cac hang chi gom ten / so dem, khong co noi dung the)
+  if (input.kind === 'LISTS') {
+    const board = requireBoard(ctx);
+    const all = await listStats(ctx, board.id);
+    return { kind: input.kind, ...pageMeta(all.length, input.page, input.pageSize), rows: all.slice(skip, skip + input.pageSize) };
+  }
+  if (input.kind === 'LABELS') {
+    const board = requireBoard(ctx);
+    const [total, labels] = await prisma.$transaction([
+      prisma.label.count({ where: { boardId: board.id } }),
+      prisma.label.findMany({
+        where: { boardId: board.id }, orderBy: [{ name: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }], skip, take: input.pageSize,
+        select: { id: true, name: true, color: true, _count: { select: { cards: { where: { card: { deletedAt: null, archivedAt: null, list: { deletedAt: null, archivedAt: null } } } } } } },
+      }),
+    ], { isolationLevel: 'RepeatableRead' });
+    return { kind: input.kind, ...pageMeta(total, input.page, input.pageSize), rows: labels.map((l) => ({ id: l.id, name: l.name, color: l.color, cards: l._count.cards })) };
+  }
+  if (input.kind === 'CUSTOM_FIELDS') {
+    const board = requireBoard(ctx);
+    const [total, fields] = await prisma.$transaction([
+      prisma.customField.count({ where: { boardId: board.id } }),
+      prisma.customField.findMany({
+        where: { boardId: board.id }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }], skip, take: input.pageSize,
+        select: { id: true, name: true, type: true, options: { orderBy: [{ position: 'asc' }, { id: 'asc' }], select: { id: true, value: true } } },
+      }),
+    ], { isolationLevel: 'RepeatableRead' });
+    return { kind: input.kind, ...pageMeta(total, input.page, input.pageSize), rows: fields.map((f) => ({ id: f.id, name: f.name, type: f.type, options: f.options })) };
+  }
   if (input.kind === 'BOARDS') {
     const [total, boards] = await prisma.$transaction([
       prisma.board.count({ where: ctx.scope.boardWhere }),

@@ -49,6 +49,10 @@ export async function buildTaskWhere(ctx: ExecutionContext, f: TaskFilter): Prom
     const count = await prisma.label.count({ where: { id: { in: f.labelIds }, board: ctx.scope.boardWhere } });
     if (count !== new Set(f.labelIds).size) throw new AppError('Không tìm thấy nhãn trong phạm vi được phép', 400);
   }
+  if (f.fieldOptionIds) {
+    const count = await prisma.customFieldOption.count({ where: { id: { in: f.fieldOptionIds }, field: { board: ctx.scope.boardWhere } } });
+    if (count !== new Set(f.fieldOptionIds).size) throw new AppError('Không tìm thấy giá trị trường tùy chỉnh trong phạm vi được phép', 400);
+  }
   const parts: Prisma.CardWhereInput[] = [liveCardWhere(ctx.scope.boardWhere)];
   if (f.completion !== 'ALL') parts.push({ isDone: f.completion === 'DONE' });
   if (f.assignment === 'UNASSIGNED') parts.push({ members: { none: {} } });
@@ -57,6 +61,7 @@ export async function buildTaskWhere(ctx: ExecutionContext, f: TaskFilter): Prom
   if (f.cardIds) parts.push({ id: { in: f.cardIds } });
   if (f.columnIds) parts.push({ listId: { in: f.columnIds } });
   if (f.labelIds) parts.push({ labels: { some: { labelId: { in: f.labelIds } } } });
+  if (f.fieldOptionIds) parts.push({ fieldValues: { some: { optionId: { in: f.fieldOptionIds } } } });
   if (f.statuses) parts.push({ status: { in: f.statuses } });
   if (f.keyword) parts.push({ OR: [{ title: { contains: f.keyword, mode: 'insensitive' } }, { description: { contains: f.keyword, mode: 'insensitive' } }] });
   if (f.overdue) parts.push({ isDone: false, dueDate: { lt: ctx.now } });

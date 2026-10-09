@@ -246,15 +246,44 @@ export interface ChatV2Source {
   id: string; generatedAt: string; scope: ChatScope; scopeLabel: string;
   appliedInput: Record<string, unknown>; ranges: { from: string; to: string }[];
 }
+/** Phase 4: thong ke mot cot (tong quan bang va danh muc cot). */
+export interface ChatV2ListStat { id: string; name: string; status: CardStatus | null; totalCards: number; openCards: number; doneCards: number }
+export interface ChatV2BoardOverview {
+  board: { id: string; name: string };
+  totalCards: number; openCards: number; doneCards: number;
+  /** Phan tram nguyen; null khi bang chua co the nao. */
+  donePercent: number | null;
+  overdueCards: number; blockedCards: number; unassignedOpenCards: number;
+  listCount: number; labelCount: number; memberCount: number; customFieldCount: number;
+  lists: ChatV2ListStat[];
+}
+export interface ChatV2CardDetails {
+  id: string; title: string; status: CardStatus; isDone: boolean;
+  boardId: string; boardName: string; columnId: string; columnName: string;
+  startDate: string | null; dueDate: string | null; completedAt: string | null; createdAt: string; overdue: boolean;
+  assignees: { id: string; name: string }[];
+  labels: { id: string; name: string; color: string }[];
+  checklist: { lists: number; done: number; total: number };
+  fields: { id: string; name: string; type: string; value: string }[];
+  commentCount: number; attachmentCount: number;
+  hasDescription: boolean; descriptionLength: number;
+  /** Trich ngan cua mo ta de HIEN cho nguoi dung; noi dung do nguoi khac viet nen luon danh dau chua dang tin. */
+  descriptionExcerpt: string | null;
+}
 interface V2Page { total: number; page: number; pageSize: number; hasMore: boolean }
 interface BlockBase { id: string; title: string; status: 'OK'; source: ChatV2Source; pagination: { page: number; hasMore: boolean } }
 export type ChatV2Block = (BlockBase & (
   | { tool: 'query_tasks'; data: V2Page & { cards: ChatV2Task[] } }
-  | { tool: 'aggregate_tasks'; data: V2Page & { totalCards: number; groupBy: 'ASSIGNEE' | 'BOARD' | 'COLUMN' | 'STATUS' | 'DATE'; highestCount: number; leaderIds: string[]; rows: { id: string; label: string; count: number }[]; outsideAssignments: number; deletedAccountAssignments: number; unassignedCards: number; assignmentCounting: string } }
+  | { tool: 'aggregate_tasks'; data: V2Page & { /** Phase 4: chi co khi bo loc tinh ca viec da xong; may chu cu khong gui. */ doneCards?: number | null; donePercent?: number | null; totalCards: number; groupBy: 'ASSIGNEE' | 'BOARD' | 'COLUMN' | 'STATUS' | 'DATE'; highestCount: number; leaderIds: string[]; rows: { id: string; label: string; count: number }[]; outsideAssignments: number; deletedAccountAssignments: number; unassignedCards: number; assignmentCounting: string } }
   | { tool: 'query_activities'; data: V2Page & { mode: 'EVENTS' | 'CHANGED_CARDS'; eventCount: number; changedCardCount: number; events: ChatV2Event[]; cards: { id: string; title: string | null; eventCount: number; lastChangedAt: string; events: ChatV2Event[]; eventsTruncated: boolean }[]; coverage: string } }
   | { tool: 'query_catalog'; data: V2Page & (
     | { kind: 'BOARDS'; rows: { id: string; name: string; workspaceId: string; workspaceName: string; myRole: string | null }[] }
     | { kind: 'WORKSPACES'; rows: { id: string; name: string; myRole: string | null; boards: number; members: number }[] }
     | { kind: 'MEMBERS'; rows: { id: string; name: string; role: string | null }[] }
+    | { kind: 'LISTS'; rows: ChatV2ListStat[] }
+    | { kind: 'LABELS'; rows: { id: string; name: string; color: string; cards: number }[] }
+    | { kind: 'CUSTOM_FIELDS'; rows: { id: string; name: string; type: 'TEXT' | 'NUMBER' | 'DATE' | 'CHECKBOX' | 'DROPDOWN'; options: { id: string; value: string }[] }[] }
   ) }
+  | { tool: 'get_board_overview'; data: ChatV2BoardOverview }
+  | { tool: 'get_card_details'; data: ChatV2CardDetails }
 )) | { id: string; title: string; status: 'ERROR'; error: string };
