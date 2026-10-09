@@ -24,5 +24,6 @@ export type V2Reply = Omit<ChatReply, 'understood' | 'answer'> & {
   version: 'v2'; mode: 'AI' | 'BASIC';
   understood: ChatReply['understood'] & { summary: string };
   // `action`: ban xem truoc hoac ket qua cua MOT thao tac (khong nam trong blocks de khong lam vo code gia dinh khoi la khoi doc).
-  answer: ChatReply['answer'] & { blocks?: V2Block[]; action?: ActionView };
+  // `aiAnswer`: đoạn trả lời tự do của AI ĐÃ QUA bộ kiểm số / tên (answer.check); luôn đứng cạnh các khối dữ liệu do server dựng.
+  answer: ChatReply['answer'] & { blocks?: V2Block[]; action?: ActionView; aiAnswer?: { text: string; source: 'AI' } };
 };

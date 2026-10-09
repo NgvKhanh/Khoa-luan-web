@@ -3,8 +3,9 @@ import { PROPOSE_BOARD_PATCH_PROVIDER_SCHEMA, proposeBoardPatchSchema } from './
 import { PROPOSE_ACTIONS_PROVIDER_SCHEMA, proposeActionsSchema } from './actions/actions.schema';
 import { TOOL_SCHEMAS } from './chat.v2.schema';
 import { TOOL_DESCRIPTIONS } from './chat.v2.tools';
+import { MAX_ANSWER_CHARS } from './answer/answer.check';
 
-export const finishSchema = z.object({ sourceIds: z.array(z.string().uuid()).max(8), comment: z.string().trim().min(1).max(300).optional() }).strict();
+export const finishSchema = z.object({ sourceIds: z.array(z.string().uuid()).max(8), comment: z.string().trim().min(1).max(300).optional(), answer: z.string().trim().min(1).max(MAX_ANSWER_CHARS).optional() }).strict();
 export const clarifySchema = z.object({ question: z.string().min(1).max(300) }).strict();
 export const unsupportedSchema = z.object({ reason: z.string().min(1).max(300) }).strict();
 export const MODEL_SCHEMAS = { ...TOOL_SCHEMAS, finish: finishSchema, clarify: clarifySchema, unsupported: unsupportedSchema };
@@ -41,7 +42,7 @@ export const modelTools = Object.entries(MODEL_SCHEMAS).map(([name, schema]) => 
   return ({
   type: 'function', function: { name,
     description: name in TOOL_DESCRIPTIONS ? TOOL_DESCRIPTIONS[name as keyof typeof TOOL_DESCRIPTIONS]
-      : name === 'finish' ? 'Kết thúc khi đã truy vấn đủ mọi phần. sourceIds là nguồn kết quả thành công. comment (tùy chọn): nhận xét 1-2 câu; số viết bằng chữ số và phải có trong kết quả; không dùng % / phần trăm / số viết bằng chữ / tên riêng.'
+      : name === 'finish' ? 'Kết thúc khi đã truy vấn đủ mọi phần. sourceIds là nguồn kết quả thành công. answer (tùy chọn, nên dùng khi câu hỏi cần giải thích / tóm tắt / so sánh / gợi ý): 1-6 câu tiếng Việt dựa CHỈ trên kết quả vừa tra. Số: chữ số và phải có trong kết quả (không tự cộng / trừ / làm tròn, không số thập phân, không số viết bằng chữ như một / bảy). Tên người, thẻ, bảng, nhãn: chỉ nêu khi có trong kết quả, đặt trong dấu ngoặc kép “…”. Không markdown, liên kết, địa chỉ thư. Server kiểm và bỏ answer nếu sai. comment (tùy chọn): nhận xét ngắn 1-2 câu, không tên riêng.'
       : name === 'clarify' ? 'Hỏi làm rõ trước khi truy vấn nếu thiếu thời gian hoặc nghĩa của bộ lọc.'
       : 'Giải thích giới hạn nếu không có công cụ đọc phù hợp. Không thực hiện thao tác ghi.',
     parameters,

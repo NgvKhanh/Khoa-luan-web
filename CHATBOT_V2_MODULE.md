@@ -678,6 +678,48 @@ Khối “Dữ liệu: …” (mỗi hàng: tiêu đề có liên kết tới th
 - Chưa có thực thể `ACTIVITY` / `LIST` / `BOARD` / `CUSTOM_FIELD` trong `query_data` (đã có công cụ riêng); chưa có tìm kiếm mờ theo nghĩa (embedding).
 - Độ chính xác chọn công cụ của Gemini thật chưa đo vì hạn mức ngày (xem `probeChatData.ts`).
 
+## 9J. Câu trả lời tự do có kiểm chứng (bước C, 10/10/2026)
+
+### 9J.1 Vấn đề và cách đặt ranh giới
+
+Trước đây câu trả lời hoàn toàn do server dựng từ khối dữ liệu; mô hình chỉ viết được nhận xét ≤ 300 ký tự không có tên riêng (9D.3). Câu hỏi cần giải thích, tóm tắt, so sánh, gợi ý hay chỉ là chào hỏi thì không có chỗ để trả lời. Nay `finish` nhận thêm **`answer`** (≤ 1200 ký tự) — một đoạn văn tự do của mô hình — nhưng **backend không tin nó**: đoạn chỉ được hiện khi qua `answer.check` (hàm thuần), và luôn đứng cạnh các khối dữ liệu do server dựng để người dùng đối chiếu. `comment` cũ vẫn giữ nguyên, hoạt động song song.
+
+### 9J.2 Các phép kiểm (`v2/answer/answer.check.ts`)
+
+Nguyên tắc: mô hình chỉ được nhắc đến những gì **có trong kết quả đã tra cứu hoặc trong chính câu hỏi**. “Sự thật” được gom từ mọi giá trị JSON của kết quả (bỏ qua chuỗi dưới khóa `id` / `*Id` — chữ số ngẫu nhiên trong id không được dùng làm số liệu), tên phạm vi, khoảng thời gian, thời điểm hiện tại và câu hỏi.
+
+| Phép kiểm | Quy tắc | Mã lý do |
+|---|---|---|
+| Hình thức | không ký hiệu định dạng (`* # \` [ ] < > \| _ ~ @ { }`), không `http:` / `www.`, ≤ 1200 ký tự, cho phép xuống dòng và gạch đầu dòng “- ” | `MARKUP`, `TOO_LONG`, `EMPTY` |
+| Số | mọi dãy chữ số phải có trong dữ liệu (số đếm nguyên, chữ số trong tiêu đề / tên, **ngày giờ đã đổi sang giờ Việt Nam** — 16:59Z hiện là 23:59 ngày 09/10) hoặc trong câu hỏi; số thứ tự đầu dòng (“1. …”) được bỏ qua; **không** số thập phân / dấu phân cách hàng nghìn, **không** chữ số ngoài 0-9 | `NUMBER`, `DECIMAL` |
+| Số viết bằng chữ | “một, hai, … bảy, trăm, nghìn …” bị loại (nếu cho phép thì vòng được phép kiểm số). Ngoại lệ: tên thứ (“thứ Sáu”) và tên người viết hoa viết không dấu có trong dữ liệu (“Nam” ≠ “năm”) | `NUMBER_WORD` |
+| Trích dẫn | đoạn trong ngoặc kép “…” phải là một phần **nguyên văn** của một chuỗi trong dữ liệu (không phân biệt hoa thường / dấu) | `QUOTE` |
+| Tên riêng | từ viết hoa **giữa câu** phải có trong dữ liệu / câu hỏi (từ có dấu chỉ khớp bản có dấu: “Đăng” không khớp “Đang”); từ viết hoa **đầu câu** phải có trong dữ liệu hoặc là từ mở đầu câu thông dụng — nên một cái tên bịa ở đầu câu cũng lộ ra | `PROPER_NOUN` |
+
+### 9J.3 Viết lại một lần, rồi bỏ
+
+Sai → server trả cho mô hình `{error:'ANSWER_REJECTED', reason, detail}` (nêu **cụ thể** số / tên / ký hiệu nào sai) và để nó gọi lại `finish` **một lần** (nếu còn vòng). Vẫn sai, hoặc đã ở vòng cuối → **bỏ đoạn trả lời**, hiện các khối dữ liệu như cũ kèm ghi chú “AI đã soạn một đoạn trả lời nhưng nó không qua kiểm tra số liệu / tên …”. Không bao giờ hiện một câu chưa qua kiểm.
+
+Không có kết quả công cụ nào (`sourceIds` rỗng): chỉ lời nói chung được qua — chào hỏi, “bạn làm được gì?” — vì mọi số và tên đều bị chặn. Đây là cách trò chuyện thường mà không phải cho mô hình tự do (không tên, không số, tối đa 1200 ký tự).
+
+### 9J.4 Hiển thị và lưu
+
+`answer.aiAnswer = { text, source: 'AI' }` (và `answer.text` = nội dung đó cho client cũ), `answer.kind = 'ANSWER'`. Giao diện: khung “Trả lời của trợ lý (AI)” với dòng “Số liệu và tên đã được đối chiếu với dữ liệu tra cứu bên dưới.” (hoặc “Đây là câu trả lời chung, không dùng dữ liệu công việc.” khi không có khối nào); chữ thuần, xuống dòng được giữ. Lưu cùng khối trong lịch sử; mất quyền xem dữ liệu thì khối và đoạn trả lời cùng bị che.
+
+### 9J.5 Giới hạn đã biết
+
+- Bộ kiểm chặn bịa **số** và **tên**; nó **không** chứng minh một nhận định (“việc này đang chậm”, “nên làm trước”) là đúng. Nhận định phải đọc cùng khối dữ liệu — vì vậy khung luôn ghi “đã đối chiếu số liệu và tên”, không ghi “đã xác minh”.
+- Ràng buộc nghiêm (không số bằng chữ, không tên lạ ở đầu câu) có thể làm một câu hợp lý bị loại; đổi lại không có câu sai nào hiện. Tỉ lệ qua kiểm của Gemini thật chưa đo (hạn mức ngày) — `probeChatData.ts --only=answer`.
+- Danh sách từ mở đầu câu thông dụng (`COMMON_STARTERS`) là heuristic; tên riêng ở đầu câu trùng một từ thông dụng (“Nam”, “Lan” khi không có trong dữ liệu) sẽ lọt qua.
+
+### 9J.6 Kiểm thử và đo đạc
+
+`chat.answer.check.test.ts` (42 test thuần: 11 câu hợp lệ, số bịa, thập phân, số bằng chữ, tên bịa giữa / đầu câu, trích dẫn, ký hiệu / liên kết, giờ UTC bị loại, id không làm sạch tập số, câu hỏi cho phép nhắc lại số, người tên Ba / Hai, không dữ liệu), `chat.answer.api.test.ts` (16 test điều phối: câu hợp lệ, viết lại đúng, viết lại vẫn sai, 4 loại lỗi, vòng cuối, không dữ liệu, schema > 1200, `comment` song song, lưu / che lịch sử), frontend `V2AiAnswer.test.tsx` (4 test).
+
+**Cài lỗi 28 phép → 28 bị bắt** (lần đầu 25 + 2 sống sót + 1 bị bỏ qua; bổ sung test câu hỏi cho phép nhắc lại số, xuống dòng mở câu mới, và sửa phép bị bỏ qua). **Lỗi thật tìm thấy nhờ test**: so khớp số viết bằng chữ theo kiểu “bỏ dấu” (quy tắc dành cho tên người gõ không dấu) chặn nhầm chữ “sau” (after) vì trùng “sáu”, “nam” trùng “năm”… Câu trả lời của mô hình luôn có dấu nên nay so khớp **có dấu** (cùng với tên riêng: “Đăng” không khớp “Đang”).
+
+Gemini thật: chưa đo (hạn mức ngày đã cạn, `HTTP 429`); chạy sau khi hạn mức đặt lại: `npx tsx src/scripts/probeChatData.ts --only=answer --delay=5000` (mô hình có viết `answer` vượt bộ kiểm không) và `--only=route` (chọn `query_data` đúng chỗ, vẫn ưu tiên công cụ chuyên biệt khi đủ dùng).
+
 ## 10. Nhật ký hợp đồng
 
 - 04/10/2026, mốc A: bàn giao bước 1–3, lớp công cụ, schema, source, fixture/dataset và nhật ký được bổ sung.
@@ -691,3 +733,4 @@ Khối “Dữ liệu: …” (mỗi hàng: tiêu đề có liên kết tới th
 - 09/10/2026, mốc I (đánh giá + an toàn, Phase 8): bộ dữ liệu hành động đóng băng (45 câu tuyến + kế hoạch, 18 câu đối kháng), lõi chấm điểm + báo cáo + bộ chạy `evaluateChatActions.ts` (bộ đệm, `--cache-only`), kho an toàn xác định 32 ca, hợp đồng tổng hợp `CHATBOT_V2_ACTIONS_MODULE.md`; **sửa lỗi nhà cung cấp**: `tool_choice: required` bị Gemini từ chối 400 → thử lại `auto` trước khi bỏ adapter native (trước đây một câu 400 đẩy cả hệ thống sang adapter JSON 10 phút). Không migration, không endpoint mới.
 - 10/10/2026, mốc J (đường lùi khi AI lỗi, bước A): lý do lỗi AI (`QUOTA` cho 429, log không lộ khóa) được báo cho người dùng; lệnh ghi không còn rơi xuống v1 (sửa câu sai “chưa tạo, sửa hay giao việc được”); chế độ cơ bản có ghi chú nguyên nhân; nhận diện thêm động từ ghi “mềm” (thêm, bổ sung, gán, cập nhật…). Không migration, không endpoint mới.
 - 10/10/2026, mốc K (truy vấn tổng quát, bước B): công cụ đọc `query_data` (thực thể `CARD / COMMENT / CHECKLIST_ITEM / ATTACHMENT`, điều kiện / sắp xếp / nhóm chọn trong danh mục whitelist, phạm vi luôn AND ở đầu, id tham chiếu kiểm trong phạm vi); **mô tả và bình luận nay được gửi cho mô hình** (người dùng cho phép) qua `modelView` có làm sạch + ẩn ô giống chỉ dẫn / liên kết / địa chỉ thư; khối “Dữ liệu / Thống kê” ở giao diện. Không migration, không endpoint mới; `block.tool = 'query_data'` là khối mới (client cũ bỏ qua).
+- 10/10/2026, mốc L (câu trả lời tự do có kiểm chứng, bước C): `finish.answer` (≤ 1200 ký tự) chỉ được hiện khi qua `answer.check` (số phải có trong kết quả / câu hỏi, giờ theo giờ Việt Nam, không số thập phân / số bằng chữ, tên riêng và đoạn trích dẫn phải có nguyên văn, không ký hiệu / liên kết); sai thì cho viết lại MỘT lần (`ANSWER_REJECTED` nêu lý do cụ thể) rồi bỏ kèm ghi chú; không có dữ liệu thì chỉ lời nói chung (chào hỏi, giới thiệu) qua được. `answer.aiAnswer` là trường mới tùy chọn, `comment` cũ giữ nguyên. Không migration, không endpoint mới.

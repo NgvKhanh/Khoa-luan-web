@@ -40,7 +40,7 @@ export interface ChatStatus {
 export type ChatPlanStatus = 'NEEDS_CHOICE' | 'PROPOSED' | 'EXECUTING' | 'EXECUTED' | 'FAILED' | 'STALE' | 'CANCELLED' | 'EXPIRED';
 export type ChatPlanRisk = 'LOW' | 'MEDIUM' | 'HIGH';
 export interface ChatPlanReason {
-  code: 'AUTO_DISABLED' | 'DELEGATED_TO_DATA' | 'NOT_GROUNDED' | 'FUZZY_DATE' | 'QUESTION_FORM' | 'MULTI_OP' | 'NEW_STRUCTURE' | 'BOARD_PATCH' | 'AI_CHOSEN_TARGET' | 'STANDING_RULE';
+  code: 'AUTO_DISABLED' | 'DELEGATED_TO_DATA' | 'NOT_GROUNDED' | 'FUZZY_DATE' | 'QUESTION_FORM' | 'MULTI_OP' | 'NEW_STRUCTURE' | 'BOARD_PATCH' | 'AI_CHOSEN_TARGET' | 'STANDING_RULE' | 'TEXT_CONTENT' | 'ARCHIVE';
   /** Cau giai thich vi sao lenh nay chua tu chay (hien nguyen van cho nguoi dung). */
   text: string;
 }

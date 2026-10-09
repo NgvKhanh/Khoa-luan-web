@@ -11,6 +11,7 @@ import { callChatModel, type ModelFailReason, type ModelMessage, type ModelStep 
 import { TOOL_SCHEMAS, type ToolName } from './chat.v2.schema';
 import { executeChatTool, modelView, type ToolResult } from './chat.v2.tools';
 import { validateComment } from '../chat.summary';
+import { collectFacts, validateAnswer } from './answer/answer.check';
 import { resolveExecutionContext, type ToolContext } from './chat.v2.scope';
 import type { V2Session, SavedQuery } from './chat.v2.session';
 import { errorBlock, resultBlock, v2Reply } from './chat.v2.answer';
@@ -32,6 +33,7 @@ Ngày YYYY-MM-DD: from đầu ngày, to BAO GỒM ngày cuối theo Việt Nam. 
 Mỗi công cụ chỉ lấy pageSize<=20, page=1. Người dùng xem thêm qua backend. Tối đa 4 vòng, 8 công cụ. Có thể gọi nhiều công cụ độc lập cùng một vòng sau resolve. Không lặp cùng tham số.
 Lỗi từng công cụ phải được nhận biết; đừng giả vờ đã trả đủ. Không tìm thấy thực thể thì dừng, không truy vấn phạm vi rộng để thay thế. Không có công cụ hướng dẫn/notification/automation/CV thì unsupported giải thích giới hạn. Không bịa tính năng từ kiến thức ngoài.
 Tiến độ cả bảng, % hoàn thành, tình hình chung: get_board_overview (bảng đã resolve); % của một tập đã lọc: aggregate_tasks với filters.completion ALL (kết quả có donePercent). Cột / nhãn / trường tùy chỉnh của một bảng: query_catalog kind LISTS / LABELS / CUSTOM_FIELDS. Chi tiết MỘT việc: resolve_entities CARD rồi get_card_details (không đoán id). Hỏi AI PHÙ HỢP NHẤT cho một việc: resolve_entities CARD rồi suggest_assignee (chỉ có hạng, điểm tương đối, mức tin cậy và cờ; không có bằng chứng hay CV; chỉ người sửa được thẻ dùng được). Hỏi theo giá trị trường (vd ưu tiên Cao): query_catalog CUSTOM_FIELDS hoặc resolve_entities FIELD_OPTION rồi filters.fieldOptionIds. Muốn nhận xét ngắn thì thêm comment vào finish: 1-2 câu, tối đa 300 ký tự. Viết MỌI con số bằng chữ số và CHỈ dùng số có trong kết quả (vd "hoàn thành 1 trên 7 việc, còn 1 việc quá hạn"); TUYỆT ĐỐI không viết số bằng chữ (không "bảy", "mười bốn"), không dùng "%" hay "phần trăm", không tên riêng, không dấu markup. Server kiểm và bỏ nhận xét nếu sai.
+finish.answer: đoạn trả lời tự do (1-6 câu) khi câu hỏi cần giải thích / tóm tắt / so sánh / gợi ý; bỏ qua khi các khối dữ liệu đã tự trả lời đủ. CHỈ dựa trên kết quả vừa tra: số bằng chữ số và phải có trong kết quả (không tự cộng / trừ / làm tròn / số thập phân, không viết số bằng chữ như 'một', 'bảy' — dùng 'các', 'nhiều', 'vài'); tên người / thẻ / bảng / nhãn chỉ nêu khi có trong kết quả và đặt trong dấu ngoặc kép “…”; giờ theo giờ Việt Nam như trong dữ liệu; không markdown, liên kết, địa chỉ thư. Chào hỏi hoặc hỏi bạn làm được gì (không cần dữ liệu): finish với sourceIds rỗng và answer ngắn, không số, không tên. Server kiểm answer và bỏ nếu sai; nếu nhận ANSWER_REJECTED hãy sửa đúng lý do rồi gọi lại finish.
 lastQueries chỉ là tham số lượt trước; dữ liệu/quyền phải truy vấn lại. Không gửi email/token/CV/nội dung mô tả/bình luận.`;
 // Chỉ gửi khi công cụ ghi được bật (CHAT_ACTIONS + AI + người dùng sửa được). Ràng buộc thật nằm ở cấu trúc (schema đóng, resolver,
 // provenance, guard); đoạn này chỉ giúp mô hình dùng đúng cách.
@@ -134,7 +136,7 @@ export async function orchestrate(session: V2Session, question: string, now: Dat
   const notes: string[] = [];
   const seen = new Set<string>();
   let usedTools = 0;
-  let promptTokens = 0, completionTokens = 0, adapter = 'NATIVE', rejectedProposals = 0;
+  let promptTokens = 0, completionTokens = 0, adapter = 'NATIVE', rejectedProposals = 0, answerRetries = 0;
   const started = Date.now();
   const messages: ModelMessage[] = [{ role: 'system', content: systemPrompt(!!options.actions) }, { role: 'user', content: JSON.stringify({
     question, now: now.toISOString(), todayVietnam: vnToday(now), ranges: ranges(now), selfId: session.userId,
@@ -229,9 +231,21 @@ export async function orchestrate(session: V2Session, question: string, now: Dat
         }
         // Include all successful blocks, even if the model forgot a citation.
         if (blocks.some((b) => b.status === 'ERROR')) notes.push('Một phần truy vấn chưa thành công; xem thông báo ở phần đó.');
+        let aiAnswer: { text: string; source: 'AI' } | undefined;
+        if (typeof input.answer === 'string') {
+          const facts = collectFacts([...results.map((r) => ({ data: r.data, scope: r.source.scopeLabel, ranges: r.source.ranges })), { now: now.toISOString() }], [question, vnToday(now)]);
+          const check = validateAnswer(input.answer, facts);
+          if (check.ok) aiAnswer = { text: check.text, source: 'AI' };
+          else if (answerRetries < 1 && round < 3) {
+            // cho viet lai MOT lan: bao dung ly do de mo hinh sua (so / ten / hinh thuc), khong dua cho no cau tra loi cua chinh no
+            answerRetries++; usedTools++;
+            messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify({ error: 'ANSWER_REJECTED', reason: check.reason, detail: check.detail, instruction: 'Gọi lại finish với answer đã sửa đúng lý do trên, hoặc bỏ answer (các khối dữ liệu vẫn được hiển thị).' }) });
+            continue;
+          } else notes.push('AI đã soạn một đoạn trả lời nhưng nó không qua kiểm tra số liệu / tên với dữ liệu tra cứu nên mình chỉ hiển thị dữ liệu bên dưới.');
+        }
         session.lastQuestion = question;
         const comment = typeof input.comment === 'string' ? await checkedComment(session, now, input.comment, results) : undefined;
-        return v2Reply(session, now, blocks, mode, undefined, notes, comment ? { comment } : {});
+        return v2Reply(session, now, blocks, mode, aiAnswer?.text, notes, { ...(comment ? { comment } : {}), ...(aiAnswer ? { aiAnswer } : {}) });
       }
       if (call.name === 'clarify') {
         const q = input.question as string;

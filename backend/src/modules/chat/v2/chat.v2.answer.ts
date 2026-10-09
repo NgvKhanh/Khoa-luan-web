@@ -25,17 +25,17 @@ export function resultBlock(result: ToolResult, id: string = randomUUID()): V2Bl
   return { id, title, status: 'OK', tool, source, data, pagination: { page: paged.page ?? 1, hasMore: paged.hasMore ?? false } } as V2Block;
 }
 export function errorBlock(title: string, error: string): V2Block { return { id: randomUUID(), title, status: 'ERROR', error }; }
-export function v2Reply(session: V2Session, now: Date, blocks: V2Block[], mode: V2Reply['mode'], text?: string, notes: string[] = [], extra: { action?: ActionView; comment?: { text: string; source: 'AI' } } = {}): V2Reply {
+export function v2Reply(session: V2Session, now: Date, blocks: V2Block[], mode: V2Reply['mode'], text?: string, notes: string[] = [], extra: { action?: ActionView; comment?: { text: string; source: 'AI' }; aiAnswer?: { text: string; source: 'AI' } } = {}): V2Reply {
   const ok = blocks.filter((b) => b.status === 'OK');
   const labels = [...new Set(ok.map((b) => b.source.scopeLabel))];
   return {
     version: 'v2', mode, conversationId: session.id,
     understood: { intent: 'NONE', period: null, focus: null, memberName: null, parser: mode === 'AI' ? 'LLM' : 'RULE', summary: ok.map((b) => b.title).join(' · ') || (extra.action ? 'Thao tác trên bảng' : 'Tra cứu dữ liệu') },
-    answer: { kind: session.pending ? 'CLARIFY' : ok.length || extra.action ? 'ANSWER' : 'UNSUPPORTED',
+    answer: { kind: session.pending ? 'CLARIFY' : ok.length || extra.action || extra.aiAnswer ? 'ANSWER' : 'UNSUPPORTED',
       text: text ?? (ok.length ? 'Kết quả từ dữ liệu bạn được phép xem:' : 'Chưa thể trả lời đầy đủ câu hỏi này.'),
       scopeLabel: labels.join(' · '), generatedAt: now.toISOString(), blocks,
       facts: [], cards: [], total: 0, page: 1, pageSize: 20, sections: [], ignoredSlots: [], notes,
-      suggestions: [], ...(extra.action ? { action: extra.action } : {}), ...(extra.comment ? { comment: extra.comment } : {}), ...(session.pending ? { clarify: { question: session.pending.question,
+      suggestions: [], ...(extra.action ? { action: extra.action } : {}), ...(extra.comment ? { comment: extra.comment } : {}), ...(extra.aiAnswer ? { aiAnswer: extra.aiAnswer } : {}), ...(session.pending ? { clarify: { question: session.pending.question,
         options: session.pending.options.map((o) => ({ id: o.id, label: o.parentName ? `${o.name} · ${o.parentName}` : o.name, kind: 'TARGET' as const })) } } : {}),
     },
   };
