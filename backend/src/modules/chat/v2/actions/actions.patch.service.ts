@@ -39,7 +39,7 @@ const AI_BAD_TEXT = 'AI chưa đề xuất được kế hoạch hợp lệ cho 
 
 export const previewPatchText = (info: Pick<PatchInfo, 'newLists' | 'newCards'>, boardName: string): string => {
   const parts = [info.newLists > 0 ? `${info.newLists} cột` : '', info.newCards > 0 ? `${info.newCards} thẻ` : ''].filter((p) => p !== '');
-  return `AI đề xuất thêm ${parts.join(' và ')} vào bảng “${boardName}”. Mình chưa ghi gì; dữ liệu hiện có được giữ nguyên. Bấm “Áp dụng” để thêm hoặc “Hủy” để bỏ qua.`;
+  return `AI đề xuất thêm ${parts.join(' và ')} vào bảng “${boardName}”, dữ liệu hiện có được giữ nguyên. Bấm “Áp dụng” để thêm hoặc “Hủy” để bỏ qua.`;
 };
 
 const skippedText = (info: PatchInfo): string => {

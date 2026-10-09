@@ -306,6 +306,9 @@ describe('findPatchCollision: kiểm lại lúc áp dụng (người khác vừa
     expect(findPatchCollision([{ type: 'CREATE_LIST', params: { name: 'Cột Cần làm' } }], ctx)).toContain('Cột “Cột Cần làm” đã có trong bảng');
     expect(findPatchCollision([{ type: 'CREATE_CARD', params: { title: 'Việc hoàn toàn mới' } }, { type: 'CREATE_LIST', params: { name: 'Kiểm thử' } }], ctx)).toBeNull();
     expect(findPatchCollision([{ type: 'RENAME_CARD', params: { title: 'Login API' } }], ctx)).toBeNull();
+    // trùng đúng từng chữ thì không nhắc lại tên hai lần
+    expect(findPatchCollision([{ type: 'CREATE_CARD', params: { title: 'Login API' } }], ctx)).toBe('Thẻ “Login API” đã có trong bảng kể từ lúc xem trước.');
+    expect(findPatchCollision([{ type: 'CREATE_LIST', params: { name: 'Cần làm' } }], ctx)).toBe('Cột “Cần làm” đã có trong bảng kể từ lúc xem trước.');
   });
 });
 

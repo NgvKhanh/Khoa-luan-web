@@ -212,11 +212,11 @@ export function findPatchCollision(ops: readonly { type: string; params: { name?
     if (op.type === 'CREATE_LIST' && op.params.name !== undefined) {
       const names = [titleKey(op.params.name), foldedName(op.params.name)];
       const same = ctx.lists.find((l) => names.includes(titleKey(l.name)) || names.includes(foldedName(l.name)));
-      if (same) return `Cột “${op.params.name}” đã có trong bảng (“${same.name}”) kể từ lúc xem trước.`;
+      if (same) return `Cột “${op.params.name}” đã có trong bảng${same.name === op.params.name ? '' : ` (“${same.name}”)`} kể từ lúc xem trước.`;
     }
     if (op.type === 'CREATE_CARD' && op.params.title !== undefined) {
       const hit = matchTitle(op.params.title, pool);
-      if (hit) return `Thẻ “${op.params.title}” đã có trong bảng (“${hit.entry.title}”) kể từ lúc xem trước.`;
+      if (hit) return `Thẻ “${op.params.title}” đã có trong bảng${hit.entry.title === op.params.title ? '' : ` (“${hit.entry.title}”)`} kể từ lúc xem trước.`;
     }
   }
   return null;

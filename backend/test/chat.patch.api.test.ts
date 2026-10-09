@@ -155,7 +155,8 @@ describe('Board Patch: xem trước → Áp dụng (nhiều thao tác, cột m�
     expect(preview.items[1].detail).toBe('Trong cột mới “Kiểm thử”');
     expect(preview.items[4].detail).toBe('Trong cột “Cần làm”');
     expect(reply.answer.text).toContain('AI đề xuất thêm 1 cột và 6 thẻ vào bảng “Dự án Alpha”');
-    expect(reply.answer.text).toContain('Mình chưa ghi gì');
+    expect(reply.answer.text).toContain('dữ liệu hiện có được giữ nguyên');
+    expect(reply.answer.text).not.toContain('chưa ghi gì'); // câu dẫn còn nằm trong lịch sử sau khi Áp dụng nên không được nói "chưa ghi"
     // CHƯA ghi gì
     expect(await countAll(f.alpha.id)).toEqual({ lists: 3, cards: 5 });
     expect(mocks.emit).not.toHaveBeenCalled();
