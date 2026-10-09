@@ -52,6 +52,12 @@ async function accessFor(s: V2Session, reply: V2Reply | null, now: Date): Promis
     }
     if (b.tool === 'aggregate_tasks' && b.data.groupBy === 'BOARD') for (const row of b.data.rows) boards.add(row.id);
     if (b.tool === 'aggregate_tasks' && b.data.groupBy === 'ASSIGNEE') rosters.push({ scope: b.source.scope, ids: b.data.rows.map((r) => r.id) });
+    if (b.tool === 'query_data' && b.data.mode === 'GROUPS') {
+      const ids = b.data.groups.flatMap((g) => (g.id === null ? [] : [g.id]));
+      if (b.data.groupBy === 'boardId') ids.forEach((id) => boards.add(id));
+      if (b.data.groupBy === 'cardId') ids.forEach((id) => cards.add(id));
+      if (b.data.groupBy === 'assigneeId' || b.data.groupBy === 'authorId' || b.data.groupBy === 'uploaderId') rosters.push({ scope: b.source.scope, ids });
+    }
   }
   // Historical text must not expose card snapshots after a card moves to a private board.
   function visit(value: unknown): void {
@@ -142,6 +148,7 @@ function mergeBlock(a: V2Block, b: V2Block): V2Block {
   if (a.status !== 'OK' || b.status !== 'OK' || a.tool !== b.tool) return b;
   if (a.tool === 'query_tasks' && b.tool === 'query_tasks') return { ...b, data: { ...b.data, cards: mergeRows(a.data.cards, b.data.cards) } };
   if (a.tool === 'aggregate_tasks' && b.tool === 'aggregate_tasks') return { ...b, data: { ...b.data, rows: mergeRows(a.data.rows, b.data.rows) } };
+  if (a.tool === 'query_data' && b.tool === 'query_data') return { ...b, data: { ...b.data, rows: mergeRows(a.data.rows, b.data.rows), groups: [...new Map([...a.data.groups, ...b.data.groups].map((g) => [g.id ?? g.label, g])).values()] } };
   if (a.tool === 'query_activities' && b.tool === 'query_activities') return { ...b, data: { ...b.data, cards: mergeRows(a.data.cards, b.data.cards), events: mergeRows(a.data.events, b.data.events) } } as V2Block;
   if (a.tool === 'query_catalog' && b.tool === 'query_catalog') {
     if (a.data.kind === 'BOARDS' && b.data.kind === 'BOARDS') return { ...b, data: { ...b.data, rows: mergeRows(a.data.rows, b.data.rows) } };

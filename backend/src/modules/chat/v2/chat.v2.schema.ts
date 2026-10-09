@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CardStatus } from '../../../generated/prisma/enums';
 import { chatScopeSchema } from '../chat.schema';
+import { BUCKETS, DATA_COLUMN_NAMES, DATA_ENTITIES, DATA_FILTER_NAMES, DATA_GROUP_NAMES, DATA_OPS, DATA_SORT_NAMES } from './data/data.fields';
 
 export const CHANGE_TYPES = [
   'card.move', 'card.rename', 'card.done', 'card.undone', 'card.status',
@@ -68,10 +69,29 @@ export const boardOverviewInputSchema = z.object({ scope: chatScopeSchema.option
 export const cardDetailsInputSchema = z.object({ cardId: id, scope: chatScopeSchema.optional() }).strict();
 // Phase 6: xep hang ung vien cho MOT the bang module goi y phan cong (chi nguoi sua duoc the). Chi tra hang / diem / tin cay / co; khong co bang chung hay CV.
 export const suggestAssigneeInputSchema = z.object({ cardId: id, top: z.number().int().min(1).max(5).default(3), scope: chatScopeSchema.optional() }).strict();
+// Buoc B: truy van tong quat. Moi gia tri la CHUOI (ngay YYYY-MM-DD, true/false, id): kieu that do server doc theo truong, nen luoc do gui Gemini don gian
+// (khong union nhieu kieu). Truong nao thuoc thuc the nao duoc kiem luc chay (queryData), khong the kiem o day vi ten truong dung chung giua cac thuc the.
+const dataConditionSchema = z.object({
+  field: z.enum(DATA_FILTER_NAMES), op: z.enum(DATA_OPS),
+  value: z.string().trim().min(1).max(500).optional(),
+  values: z.array(z.string().trim().min(1).max(128)).min(1).max(50).optional(),
+}).strict();
+export const queryDataInputSchema = z.object({
+  entity: z.enum(DATA_ENTITIES), scope: chatScopeSchema.optional(),
+  where: z.array(dataConditionSchema).max(8).default([]),
+  search: z.string().trim().min(1).max(200).optional(),
+  fields: z.array(z.enum(DATA_COLUMN_NAMES)).min(1).max(8).optional(),
+  orderBy: z.array(z.object({ field: z.enum(DATA_SORT_NAMES), dir: z.enum(['ASC', 'DESC']).default('ASC') }).strict()).max(2).default([]),
+  groupBy: z.enum(DATA_GROUP_NAMES).optional(), bucket: z.enum(BUCKETS).optional(), ...pageFields,
+}).strict().superRefine((v, ctx) => {
+  if (v.groupBy && v.fields) ctx.addIssue({ code: 'custom', message: 'groupBy trả về số đếm theo nhóm nên không kèm fields' });
+  if (v.groupBy && v.orderBy.length) ctx.addIssue({ code: 'custom', message: 'groupBy luôn xếp nhóm theo số lượng giảm dần nên không kèm orderBy' });
+});
 export const TOOL_SCHEMAS = {
   resolve_entities: entityInputSchema, query_catalog: catalogInputSchema,
   query_tasks: tasksInputSchema, aggregate_tasks: aggregateInputSchema, query_activities: activitiesInputSchema,
   get_board_overview: boardOverviewInputSchema, get_card_details: cardDetailsInputSchema, suggest_assignee: suggestAssigneeInputSchema,
+  query_data: queryDataInputSchema,
 } as const;
 export type ToolName = keyof typeof TOOL_SCHEMAS;
 export type TaskFilter = z.infer<typeof taskFilterSchema>;

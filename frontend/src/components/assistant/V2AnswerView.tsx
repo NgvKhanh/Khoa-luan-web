@@ -4,7 +4,7 @@ import type { ChatV2Block, ChatV2Event, ChatClarifyOption, ChatScope } from '../
 import { cardLink, formatDateTime } from '../../lib/chatText';
 import StatusBadge from '../board/StatusBadge';
 import ActionCard from './ActionCard';
-import { AssigneeSuggestionBlock, BoardCatalogRows, BoardOverviewBlock, CardDetailsBlock } from './V2ReadBlocks';
+import { AssigneeSuggestionBlock, BoardCatalogRows, BoardOverviewBlock, CardDetailsBlock, QueryDataBlock } from './V2ReadBlocks';
 
 const EVENT_NAMES: Record<string, string> = { 'card.rename': 'Đổi tên', 'card.move': 'Chuyển cột', 'card.done': 'Hoàn thành', 'card.undone': 'Mở lại', 'card.status': 'Đổi trạng thái', 'card.due.set': 'Đặt hạn', 'card.due.clear': 'Bỏ hạn', 'member.add': 'Thêm người phụ trách', 'member.remove': 'Bỏ người phụ trách', 'card.archive': 'Lưu trữ', 'card.restore': 'Khôi phục', 'card.create': 'Tạo thẻ', 'comment.create': 'Bình luận', 'checklist.add': 'Thêm checklist', 'attachment.add': 'Thêm tệp' };
 function EventRow({ event }: { event: ChatV2Event }) {
@@ -18,8 +18,21 @@ function EventRow({ event }: { event: ChatV2Event }) {
     {detail && <p className="break-words">{detail}</p>}{event.redacted && <p>Nội dung không còn được phép xem.</p>}
   </li>;
 }
+const OP_TEXT: Record<string, string> = { EQ: '=', NE: '≠', IN: 'trong', CONTAINS: 'chứa', BEFORE: 'trước', ON_OR_AFTER: 'từ', BETWEEN: 'từ…đến', GT: '>', LT: '<', IS_NULL: 'chưa có', NOT_NULL: 'đã có' };
+/** Dieu kien cua truy van tong quat, doc duoc bang tieng Viet. Gia tri la id (…Id) khong hien vi vo nghia voi nguoi dung. */
+function dataConditions(input: Record<string, unknown>): string[] {
+  const where = Array.isArray(input.where) ? input.where as Array<{ field?: string; op?: string; value?: string; values?: string[] }> : [];
+  const words = where.map((c) => {
+    const field = String(c.field ?? '');
+    const shown = /Id$/.test(field) ? '' : c.values ? c.values.join(' … ') : c.value ?? '';
+    return `${field} ${OP_TEXT[String(c.op)] ?? c.op}${shown ? ` ${shown}` : ''}`;
+  });
+  if (typeof input.search === 'string') words.unshift(`Tìm “${input.search}”`);
+  return words;
+}
 function Conditions({ block }: { block: Extract<ChatV2Block, { status: 'OK' }> }) {
   const input = block.source.appliedInput;
+  if (block.tool === 'query_data') return <p className="text-[11px] text-slate-500 dark:text-slate-400">{dataConditions(input).join(' · ')}</p>;
   const f = (input.filters ?? input.taskFilters) as Record<string, unknown> | undefined;
   const words = [f?.completion === 'ALL' ? 'Tính cả việc đã xong' : f?.completion === 'DONE' ? 'Chỉ việc đã xong' : f?.completion === 'OPEN' ? 'Chỉ việc chưa xong' : '',
     f?.overdue ? 'Quá hạn' : '', Array.isArray(f?.fieldOptionIds) ? 'Theo giá trị trường tùy chỉnh' : '', Array.isArray(f?.statuses) ? `Trạng thái: ${f.statuses.join(', ')}` : '', f?.keyword ? `Từ khóa: ${String(f.keyword)}` : ''].filter(Boolean);
@@ -31,6 +44,7 @@ function Contents({ block }: { block: Extract<ChatV2Block, { status: 'OK' }> }) 
   if (block.tool === 'get_board_overview') return <BoardOverviewBlock data={block.data} />;
   if (block.tool === 'suggest_assignee') return <AssigneeSuggestionBlock data={block.data} />;
   if (block.tool === 'get_card_details') return <CardDetailsBlock data={block.data} generatedAt={block.source.generatedAt} />;
+  if (block.tool === 'query_data') return <QueryDataBlock data={block.data} generatedAt={block.source.generatedAt} />;
   if (block.tool === 'query_tasks') return <>
     <p className="text-xs font-medium">Tổng: {block.data.total} công việc</p>
     {block.data.total === 0 && <p className="text-xs">Không có công việc khớp điều kiện.</p>}
@@ -75,7 +89,7 @@ export default function V2AnswerView({ turn, latest, busy, scope, onMore, onChoo
   // Ket qua thao tac da co cau tom tat trong khoi ket qua: khong lap lai cung mot cau o dong dan
   const echoed = answer.action?.kind === 'RESULT' && answer.action.result.summary === answer.text;
   return <div className="space-y-3 text-slate-700 dark:text-slate-200">
-    {turn.reply?.mode === 'BASIC' && <p className="text-[11px] text-slate-500">Chế độ cơ bản · dùng các truy vấn có sẵn</p>}{!echoed && <p className="text-sm">{answer.text}</p>}
+    {turn.reply?.mode === 'BASIC' && <p className="text-[11px] text-slate-500">Chế độ cơ bản · dùng các truy vấn có sẵn</p>}{answer.aiAnswer ? <section aria-label="Trả lời của trợ lý (AI)" className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 dark:border-violet-400/30 dark:bg-violet-400/10"><p className="text-[11px] font-semibold text-violet-700 dark:text-violet-300">Trả lời của trợ lý (AI)</p><p className="mt-0.5 whitespace-pre-line break-words text-sm text-slate-700 dark:text-slate-200">{answer.aiAnswer.text}</p><p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{answer.blocks?.some((b) => b.status === 'OK') ? 'Số liệu và tên đã được đối chiếu với dữ liệu tra cứu bên dưới.' : 'Đây là câu trả lời chung, không dùng dữ liệu công việc.'}</p></section> : !echoed && <p className="text-sm">{answer.text}</p>}
     {answer.blocks?.map((b) => <section key={b.id} aria-label={b.title} className="space-y-2 rounded-lg border border-slate-200 p-2 dark:border-slate-700">
       <h4 className="text-sm font-semibold">{b.title}</h4>
       {b.status === 'ERROR' ? <p role="alert" className="text-xs text-red-600">{b.error}</p> : <>

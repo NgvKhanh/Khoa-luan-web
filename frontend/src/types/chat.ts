@@ -226,6 +226,8 @@ export interface ChatAnswer {
   clarify?: { question: string; options: ChatClarifyOption[] };
   suggestions: string[];
   comment?: { text: string; source: 'AI' };
+  /** Buoc C: doan tra loi tu do cua AI, DA qua bo kiem so / ten voi du lieu tra cuu; luon di kem cac khoi du lieu do server dung. */
+  aiAnswer?: { text: string; source: 'AI' };
 }
 
 export interface ChatUnderstood {
@@ -293,6 +295,20 @@ export interface ChatV2CardDetails {
   /** Trich ngan cua mo ta de HIEN cho nguoi dung; noi dung do nguoi khac viet nen luon danh dau chua dang tin. */
   descriptionExcerpt: string | null;
 }
+/** Bước B: truy vấn tổng quát (công việc / bình luận / mục checklist / tệp). Ô văn bản là nội dung do NGƯỜI KHÁC viết: luôn hiện như chữ thuần. */
+export type ChatV2DataEntity = 'CARD' | 'COMMENT' | 'CHECKLIST_ITEM' | 'ATTACHMENT';
+export interface ChatV2DataColumn { key: string; label: string; type: 'text' | 'number' | 'date' | 'bool' | 'status' }
+export interface ChatV2DataRow { id: string; cardId: string | null; boardId: string | null; cells: Record<string, string | number | boolean | null> }
+export interface ChatV2DataGroup { id: string | null; label: string; count: number }
+export interface ChatV2QueryData {
+  entity: ChatV2DataEntity; mode: 'ROWS' | 'GROUPS';
+  total: number; page: number; pageSize: number; hasMore: boolean;
+  /** Số bản ghi khớp điều kiện (mode GROUPS: `total` là số nhóm). */
+  matched: number;
+  columns: ChatV2DataColumn[]; rows: ChatV2DataRow[]; groups: ChatV2DataGroup[];
+  groupBy: string | null; groupLabel: string | null; bucket: 'DAY' | 'WEEK' | 'MONTH' | null;
+  highestCount: number; topGroups: number;
+}
 interface V2Page { total: number; page: number; pageSize: number; hasMore: boolean }
 interface BlockBase { id: string; title: string; status: 'OK'; source: ChatV2Source; pagination: { page: number; hasMore: boolean } }
 export type ChatV2Block = (BlockBase & (
@@ -310,4 +326,5 @@ export type ChatV2Block = (BlockBase & (
   | { tool: 'get_board_overview'; data: ChatV2BoardOverview }
   | { tool: 'suggest_assignee'; data: ChatV2AssigneeSuggestion }
   | { tool: 'get_card_details'; data: ChatV2CardDetails }
+  | { tool: 'query_data'; data: ChatV2QueryData }
 )) | { id: string; title: string; status: 'ERROR'; error: string };

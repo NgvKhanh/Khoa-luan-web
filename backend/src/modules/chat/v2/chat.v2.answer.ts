@@ -3,6 +3,7 @@ import type { V2Block, V2Reply } from './chat.v2.contract';
 import type { ToolResult } from './chat.v2.tools';
 import type { V2Session } from './chat.v2.session';
 import type { ActionView } from './actions/actions.types';
+import { ENTITY_LABEL } from './data/data.fields';
 
 const CATALOG_TITLE = { BOARDS: 'Danh sách bảng', WORKSPACES: 'Danh sách không gian', MEMBERS: 'Danh sách thành viên', LISTS: 'Các cột của bảng', LABELS: 'Nhãn của bảng', CUSTOM_FIELDS: 'Trường tùy chỉnh của bảng' } as const;
 export function resultBlock(result: ToolResult, id: string = randomUUID()): V2Block {
@@ -16,6 +17,7 @@ export function resultBlock(result: ToolResult, id: string = randomUUID()): V2Bl
     : tool === 'get_board_overview' ? 'Tổng quan bảng'
     : tool === 'get_card_details' ? 'Chi tiết công việc'
     : tool === 'suggest_assignee' ? 'Gợi ý người phù hợp'
+    : tool === 'query_data' && 'entity' in data ? `${data.mode === 'GROUPS' ? 'Thống kê' : 'Dữ liệu'}: ${ENTITY_LABEL[data.entity]}`
     : tool === 'query_activities' ? 'Lịch sử thay đổi'
     : tool === 'query_catalog' && 'kind' in data ? CATALOG_TITLE[data.kind] : 'Danh mục';
   // Khoi mot-lan (tong quan, chi tiet) khong phan trang

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CardStatus } from '../../../generated/prisma/enums';
 import { ENTITY_KINDS, EVENT_TYPES } from './chat.v2.schema';
+import { BUCKETS, DATA_ENTITIES } from './data/data.fields';
 
 const text = z.string();
 const count = z.number().int().nonnegative();
@@ -49,6 +50,15 @@ const cardDetails = z.object({
   fields: z.array(z.object({ id: text, name: text, type: z.enum(['TEXT', 'NUMBER', 'DATE', 'CHECKBOX', 'DROPDOWN']), value: text }).strict()),
   commentCount: count, attachmentCount: count, hasDescription: z.boolean(), descriptionLength: count, descriptionExcerpt: text.nullable(),
 }).strict();
+// Buoc B: o van ban (mo ta, binh luan...) la du lieu do NGUOI KHAC viet - chi hien nhu chu thuan; xem chat.v2.tools.modelView cho phan gui mo hinh.
+const dataCell = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+const queryData = z.object({
+  entity: z.enum(DATA_ENTITIES), mode: z.enum(['ROWS', 'GROUPS']), ...page, matched: count,
+  columns: z.array(z.object({ key: text, label: text, type: z.enum(['text', 'number', 'date', 'bool', 'status']) }).strict()),
+  rows: z.array(z.object({ id: text, cardId: text.nullable(), boardId: text.nullable(), cells: z.record(text, dataCell) }).strict()),
+  groups: z.array(z.object({ id: text.nullable(), label: text, count }).strict()),
+  groupBy: text.nullable(), groupLabel: text.nullable(), bucket: z.enum(BUCKETS).nullable(), highestCount: count, topGroups: count,
+}).strict();
 export const TOOL_OUTPUT_SCHEMAS = {
   resolve_entities: z.object({ status: z.enum(['RESOLVED', 'CLARIFY', 'NOT_FOUND']), total: count, options: z.array(z.object({ id: text, name: text, kind: z.enum(ENTITY_KINDS), parentName: text.optional() }).strict()), truncated: z.boolean() }).strict(),
   query_catalog: catalog,
@@ -67,4 +77,5 @@ export const TOOL_OUTPUT_SCHEMAS = {
   get_board_overview: boardOverview,
   get_card_details: cardDetails,
   suggest_assignee: suggestAssignee,
+  query_data: queryData,
 } as const;

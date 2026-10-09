@@ -3,7 +3,8 @@ import { cardLink, formatDateTime } from '../../lib/chatText';
 import { CONFIDENCE_LABEL } from '../../lib/assignLabels';
 import { flagsLine } from '../../lib/chatAssign';
 import type { AssignConfidenceLevel } from '../../types/assign';
-import type { ChatV2AssigneeSuggestion, ChatV2BoardOverview, ChatV2Block, ChatV2CardDetails, ChatV2ListStat } from '../../types/chat';
+import type { CardStatus } from '../../types/card';
+import type { ChatV2AssigneeSuggestion, ChatV2BoardOverview, ChatV2Block, ChatV2CardDetails, ChatV2DataColumn, ChatV2ListStat } from '../../types/chat';
 
 type CatalogData = Extract<ChatV2Block, { tool: 'query_catalog' }>['data'];
 import StatusBadge from '../board/StatusBadge';
@@ -184,4 +185,75 @@ export function BoardCatalogRows({ data }: { data: CatalogData }) {
     );
   }
   return null;
+}
+
+// ===================== query_data (buoc B): truy van tong quat =====================
+type DataBlockData = Extract<ChatV2Block, { tool: 'query_data' }>['data'];
+const ENTITY_NOUN: Record<DataBlockData['entity'], string> = { CARD: 'công việc', COMMENT: 'bình luận', CHECKLIST_ITEM: 'mục checklist', ATTACHMENT: 'tệp' };
+const BUCKET_NAME = { DAY: 'ngày', WEEK: 'tuần', MONTH: 'tháng' } as const;
+
+function Cell({ column, value, generatedAt }: { column: ChatV2DataColumn; value: string | number | boolean | null; generatedAt: string }) {
+  if (value === null || value === '') return <span className="text-slate-400">—</span>;
+  if (column.type === 'status') return <StatusBadge status={value as CardStatus} />;
+  if (column.type === 'bool') return <>{value ? 'Có' : 'Không'}</>;
+  if (column.type === 'date') return <>{formatDateTime(String(value), generatedAt)}</>;
+  if (column.type === 'number') return <span className="tabular-nums">{value}</span>;
+  return <span className="whitespace-pre-wrap break-words">{String(value)}</span>;
+}
+
+/**
+ * Mot hang = tieu de (cot dau, co lien ket den the) + cac cot con lai dang "nhan: gia tri". Giu xep doc de vua panel hep; noi dung van ban la du
+ * lieu do nguoi khac viet nen luon hien thanh chu thuan (React tu thoat ky tu), khong bao gio la lien ket hay chi dan.
+ */
+export function QueryDataBlock({ data, generatedAt }: { data: DataBlockData; generatedAt: string }) {
+  if (data.mode === 'GROUPS') {
+    const bucket = data.bucket ? ` theo ${BUCKET_NAME[data.bucket]}` : '';
+    return (
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium">{data.matched} {ENTITY_NOUN[data.entity]} · {data.total} nhóm theo {data.groupLabel?.toLowerCase()}{bucket}</p>
+        {data.highestCount > 0 && <p className="text-xs">Nhiều nhất{data.topGroups > 1 ? ` (đồng hạng ${data.topGroups} nhóm)` : ''}: {data.highestCount} {ENTITY_NOUN[data.entity]}/nhóm.</p>}
+        {data.groups.length === 0 ? <p className="text-xs">Không có dữ liệu khớp điều kiện.</p> : (
+          <table className="w-full text-xs">
+            <thead><tr><th className="text-left">{data.groupLabel}</th><th className="text-right">Số {ENTITY_NOUN[data.entity]}</th></tr></thead>
+            <tbody>
+              {data.groups.map((g) => (
+                <tr key={g.id ?? g.label} className="border-t border-slate-200 dark:border-slate-700">
+                  <td className="py-1 pr-2 break-words">{g.label}</td><td className="text-right tabular-nums">{g.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    );
+  }
+  const [head, ...rest] = data.columns;
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium">Tổng: {data.matched} {ENTITY_NOUN[data.entity]}</p>
+      {data.rows.length === 0 && <p className="text-xs">Không có dữ liệu khớp điều kiện.</p>}
+      <ul className="space-y-1.5">
+        {data.rows.map((row) => {
+          const title = head ? row.cells[head.key] : null;
+          const link = row.cardId && row.boardId ? cardLink({ id: row.cardId, boardId: row.boardId }) : null;
+          return (
+            <li key={row.id} className={TILE}>
+              {head && (
+                <p className="text-sm">
+                  {link && head.type === 'text' && title !== null
+                    ? <Link to={link} onClick={(e) => e.currentTarget.blur()} className="whitespace-pre-wrap break-words font-medium text-primary-ink hover:underline">{String(title)}</Link>
+                    : <Cell column={head} value={title} generatedAt={generatedAt} />}
+                </p>
+              )}
+              {rest.length > 0 && (
+                <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
+                  {rest.map((c) => (<div key={c.key} className="contents"><dt className="text-slate-500 dark:text-slate-400">{c.label}</dt><dd><Cell column={c} value={row.cells[c.key]} generatedAt={generatedAt} /></dd></div>))}
+                </dl>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 }
