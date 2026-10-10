@@ -27,6 +27,8 @@ describe('looksLikeWriteCommand: nhận diện lệnh ghi nói thẳng ở đầ
     // các động từ cũ vẫn nhận ra
     'Tạo cột Kiểm thử', 'Chuyển Login UI sang Đang làm', 'Xóa thẻ Login UI', 'Hãy thêm thẻ Họp tuần', 'Vui lòng giao việc này cho Lan',
     'Thêm thẻ Họp tuần giúp tôi', 'Tôi muốn thêm một cột mới',
+    // bước D: động từ ghi mới
+    'Bỏ Lan khỏi thẻ Login UI', 'Gỡ nhãn Gấp khỏi thẻ Login UI', 'Rút Lan khỏi thẻ Login UI', 'Viết bình luận vào thẻ Login UI: ok', 'Lưu trữ thẻ Login UI', 'Đặt ngày bắt đầu thẻ Login UI là 10/10', 'Bình luận vào thẻ Login UI: xong rồi',
   ])('lệnh ghi: %s', (message) => { expect(isWrite(message)).toBe(true); });
 
   it.each([
@@ -34,6 +36,7 @@ describe('looksLikeWriteCommand: nhận diện lệnh ghi nói thẳng ở đầ
     'Giao diện bảng này có mấy cột?', 'Bảng này có những ai?', 'Việc nào của tôi sắp đến hạn?', 'Thêm bao nhiêu thẻ trong tuần này?',
     // cố ý KHÔNG chặn sớm: "Đưa" do mô hình xử lý, công cụ ghi chỉ được cấp cho người sửa được (chat.actions.safety.test.ts)
     'Đưa Login UI sang Đang làm',
+    'Bình luận nào mới nhất?', 'Viết gì trong mô tả thẻ Login UI?', 'Bỏ hạn nào quá lâu rồi?',
   ])('không phải lệnh ghi: %s', (message) => { expect(isWrite(message)).toBe(false); });
 });
 

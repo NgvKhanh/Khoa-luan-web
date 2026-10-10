@@ -98,8 +98,25 @@ export const ACTION_TYPES = [
   'ADD_LABEL',
   'ASSIGN_UNASSIGNED',
   'CREATE_AUTOMATION_RULE',
+  // Buoc D: sua noi dung va don dep the (khong xoa han)
+  'SET_CARD_DESCRIPTION',
+  'SET_CARD_START',
+  'ADD_COMMENT',
+  'ADD_CHECKLIST',
+  'REMOVE_MEMBER',
+  'REMOVE_LABEL',
+  'RENAME_LIST',
+  'ARCHIVE_CARD',
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
+
+/** Thao tac viet NOI DUNG van ban moi (mo ta, binh luan, checklist): nguoi khac se doc nen luon xem truoc, khong bao gio tu chay. */
+export const CONTENT_TYPES: readonly ActionType[] = ['SET_CARD_DESCRIPTION', 'ADD_COMMENT', 'ADD_CHECKLIST'];
+/** Thao tac doi CAU TRUC bang (cot): luon xem truoc. */
+export const STRUCTURE_TYPES: readonly ActionType[] = ['CREATE_LIST', 'RENAME_LIST'];
+/** Gioi han noi dung van ban (cung tran 500 ky tu cua cau lenh nen thuc te nho hon). */
+export const MAX_TEXT_CHARS = 1000;
+export const MAX_CHECKLIST_ITEMS = 20;
 
 /**
  * Thao tac duoc phep TU CHAY khi dung 1 thao tac (Phase 1). CREATE_LIST khong nam trong day: no doi CAU TRUC bang (va ten cot co the
@@ -113,6 +130,9 @@ export const AUTO_RUN_TYPES: readonly ActionType[] = [
   'SET_CARD_STATUS',
   'ASSIGN_MEMBER',
   'ADD_LABEL',
+  'SET_CARD_START',
+  'REMOVE_MEMBER',
+  'REMOVE_LABEL',
 ];
 
 export const ActionOpSchema = z.discriminatedUnion('type', [
@@ -128,6 +148,15 @@ export const ActionOpSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ADD_LABEL'), card: RefSchema, label: RefSchema }).strict(),
   // Phase 7: luat tu dong hoa (luon xem truoc, rui ro CAO, phai la thao tac DUY NHAT cua ke hoach)
   z.object({ type: z.literal('CREATE_AUTOMATION_RULE'), trigger: z.enum(RULE_TRIGGERS), list: RuleRefSchema.optional(), actions: z.array(RuleActionSchema).min(1).max(MAX_RULE_ACTIONS) }).strict(),
+  // Buoc D
+  z.object({ type: z.literal('SET_CARD_DESCRIPTION'), card: RefSchema, description: text(MAX_TEXT_CHARS) }).strict(),
+  z.object({ type: z.literal('SET_CARD_START'), card: RefSchema, start: DateSpecSchema }).strict(),
+  z.object({ type: z.literal('ADD_COMMENT'), card: RefSchema, text: text(MAX_TEXT_CHARS) }).strict(),
+  z.object({ type: z.literal('ADD_CHECKLIST'), card: RefSchema, title: text(200).optional(), items: z.array(text(500)).min(1).max(MAX_CHECKLIST_ITEMS) }).strict(),
+  z.object({ type: z.literal('REMOVE_MEMBER'), card: RefSchema, member: RefSchema }).strict(),
+  z.object({ type: z.literal('REMOVE_LABEL'), card: RefSchema, label: RefSchema }).strict(),
+  z.object({ type: z.literal('RENAME_LIST'), list: RefSchema, name: text(100) }).strict(),
+  z.object({ type: z.literal('ARCHIVE_CARD'), card: RefSchema }).strict(),
 ]);
 export type ActionOp = z.infer<typeof ActionOpSchema>;
 
@@ -195,14 +224,18 @@ export const PROPOSE_ACTIONS_PROVIDER_SCHEMA = {
         properties: {
           type: { type: 'string', enum: [...ACTION_TYPES] },
           key: { type: 'string', description: 'CREATE_LIST / CREATE_CARD: khoa ngan (chu, so, gach duoi) de thao tac khac tro toi cot / the vua tao.' },
-          name: { type: 'string', description: 'CREATE_LIST: ten cot moi, dung chu nguoi dung go.' },
+          name: { type: 'string', description: 'CREATE_LIST: ten cot moi; RENAME_LIST: ten moi cua cot (list = cot can doi ten). Dung chu nguoi dung go.' },
           card: refHint,
           list: refHint,
           toList: refHint,
           member: refHint,
           label: refHint,
-          title: { type: 'string', description: 'Tieu de moi (CREATE_CARD, RENAME_CARD): dung chu nguoi dung go.' },
+          title: { type: 'string', description: 'Tieu de moi (CREATE_CARD, RENAME_CARD) hoac ten danh sach checklist (ADD_CHECKLIST, tuy chon): dung chu nguoi dung go.' },
+          description: { type: 'string', description: 'SET_CARD_DESCRIPTION: noi dung mo ta moi cua the, dung chu nguoi dung go (se THAY mo ta cu).' },
+          text: { type: 'string', description: 'ADD_COMMENT: noi dung binh luan, dung chu nguoi dung go; khong dung @ de nhac ten.' },
+          items: { type: 'array', minItems: 1, maxItems: MAX_CHECKLIST_ITEMS, items: { type: 'string' }, description: 'ADD_CHECKLIST: cac muc cua checklist, dung chu nguoi dung go.' },
           due: dueHint,
+          start: dueHint,
           status: { type: 'string', enum: [...Object.values(CardStatus)] },
           trigger: { type: 'string', enum: [...RULE_TRIGGERS], description: 'CREATE_AUTOMATION_RULE: CARD_CREATED = khi co the MOI duoc tao (list = cot, bo trong = moi cot); CARD_MOVED_TO_LIST = khi the duoc chuyen VAO cot (list bat buoc).' },
           actions: {

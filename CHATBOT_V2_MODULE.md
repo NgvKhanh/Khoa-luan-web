@@ -640,7 +640,7 @@ Lượt hỏi “thêm cho tôi một thẻ ở danh sách 1. thẻ tên là kkk
 
 ### 9H.3 Kiểm thử
 
-`chat.v2.fallback.test.ts` (41 test: nhận diện 18 lệnh + 9 câu hỏi không bị nhầm, AI lỗi giữa lệnh ghi với 6 loại lý do, VIEWER / không có AI chặn lệnh “thêm …”, câu hỏi → ghi chú và câu thay thế), `chat.v2.llm.test.ts` (429 → `QUOTA`, log không có khóa). Cài lỗi 4/4 bắt được (bỏ `commandLike`, không ghi lý do, bỏ điều kiện “không phải câu hỏi”, 429 → HTTP).
+`chat.v2.fallback.test.ts` (51 test: nhận diện 25 lệnh + 12 câu hỏi không bị nhầm, AI lỗi giữa lệnh ghi với 6 loại lý do, VIEWER / không có AI chặn lệnh “thêm …”, câu hỏi → ghi chú và câu thay thế), `chat.v2.llm.test.ts` (429 → `QUOTA`, log không có khóa). Cài lỗi 4/4 bắt được (bỏ `commandLike`, không ghi lý do, bỏ điều kiện “không phải câu hỏi”, 429 → HTTP).
 
 ## 9I. Truy vấn dữ liệu tổng quát `query_data` (bước B, 10/10/2026)
 
@@ -676,7 +676,11 @@ Khối “Dữ liệu: …” (mỗi hàng: tiêu đề có liên kết tới th
 
 - Không có phép `SUM / AVG` (không có trường số đáng tính ngoài dung lượng tệp); nhóm đa trị (người, nhãn) đếm một bản ghi cho **mỗi** nhóm nên tổng nhóm có thể lớn hơn số bản ghi (`matched` là số bản ghi thật).
 - Chưa có thực thể `ACTIVITY` / `LIST` / `BOARD` / `CUSTOM_FIELD` trong `query_data` (đã có công cụ riêng); chưa có tìm kiếm mờ theo nghĩa (embedding).
-- Độ chính xác chọn công cụ của Gemini thật chưa đo vì hạn mức ngày (xem `probeChatData.ts`).
+- Độ chính xác chọn công cụ của Gemini thật mới chỉ **thăm dò trên mẫu nhỏ** (xem 9I.8), chưa phải đánh giá thống kê.
+
+### 9I.8 Thăm dò Gemini thật (`gemini-3.5-flash-lite`, 10/10/2026, `probeChatData.ts --only=route`, không CSDL, n = 11)
+
+Lần đầu: chọn đúng **10/11** — sai một câu “Thẻ nào chưa có bình luận nào?” (dùng `query_tasks`, vốn không lọc được). Sau khi prompt nêu rõ các cờ `hasComments / hasAttachments / hasOpenChecklistItems` và `description IS_NULL / NOT_NULL`: **11/11** (gồm 3 ca phải ưu tiên công cụ chuyên biệt: `query_tasks`, `get_board_overview`, `aggregate_tasks`). Mẫu nhỏ và các câu do chính người viết bộ kiểm đặt ra nên con số lạc quan; đo diện rộng cần bộ câu hỏi đóng băng như các phase trước.
 
 ## 9J. Câu trả lời tự do có kiểm chứng (bước C, 10/10/2026)
 
@@ -690,6 +694,7 @@ Nguyên tắc: mô hình chỉ được nhắc đến những gì **có trong k�
 
 | Phép kiểm | Quy tắc | Mã lý do |
 |---|---|---|
+| Mốc thời gian | không chép nguyên mốc ISO / UTC của dữ liệu (`2026-10-07T01:00:00.000Z`): nói ngày dạng dd/mm và giờ theo giờ Việt Nam | `TIMESTAMP` |
 | Hình thức | không ký hiệu định dạng (`* # \` [ ] < > \| _ ~ @ { }`), không `http:` / `www.`, ≤ 1200 ký tự, cho phép xuống dòng và gạch đầu dòng “- ” | `MARKUP`, `TOO_LONG`, `EMPTY` |
 | Số | mọi dãy chữ số phải có trong dữ liệu (số đếm nguyên, chữ số trong tiêu đề / tên, **ngày giờ đã đổi sang giờ Việt Nam** — 16:59Z hiện là 23:59 ngày 09/10) hoặc trong câu hỏi; số thứ tự đầu dòng (“1. …”) được bỏ qua; **không** số thập phân / dấu phân cách hàng nghìn, **không** chữ số ngoài 0-9 | `NUMBER`, `DECIMAL` |
 | Số viết bằng chữ | “một, hai, … bảy, trăm, nghìn …” bị loại (nếu cho phép thì vòng được phép kiểm số). Ngoại lệ: tên thứ (“thứ Sáu”) và tên người viết hoa viết không dấu có trong dữ liệu (“Nam” ≠ “năm”) | `NUMBER_WORD` |
@@ -709,16 +714,75 @@ Không có kết quả công cụ nào (`sourceIds` rỗng): chỉ lời nói ch
 ### 9J.5 Giới hạn đã biết
 
 - Bộ kiểm chặn bịa **số** và **tên**; nó **không** chứng minh một nhận định (“việc này đang chậm”, “nên làm trước”) là đúng. Nhận định phải đọc cùng khối dữ liệu — vì vậy khung luôn ghi “đã đối chiếu số liệu và tên”, không ghi “đã xác minh”.
-- Ràng buộc nghiêm (không số bằng chữ, không tên lạ ở đầu câu) có thể làm một câu hợp lý bị loại; đổi lại không có câu sai nào hiện. Tỉ lệ qua kiểm của Gemini thật chưa đo (hạn mức ngày) — `probeChatData.ts --only=answer`.
+- Ràng buộc nghiêm (không số bằng chữ, không tên lạ ở đầu câu) có thể làm một câu hợp lý bị loại; đổi lại không có câu sai nào hiện. Tỉ lệ qua kiểm của Gemini thật mới thăm dò trên mẫu nhỏ (9J.7).
 - Danh sách từ mở đầu câu thông dụng (`COMMON_STARTERS`) là heuristic; tên riêng ở đầu câu trùng một từ thông dụng (“Nam”, “Lan” khi không có trong dữ liệu) sẽ lọt qua.
 
 ### 9J.6 Kiểm thử và đo đạc
 
-`chat.answer.check.test.ts` (42 test thuần: 11 câu hợp lệ, số bịa, thập phân, số bằng chữ, tên bịa giữa / đầu câu, trích dẫn, ký hiệu / liên kết, giờ UTC bị loại, id không làm sạch tập số, câu hỏi cho phép nhắc lại số, người tên Ba / Hai, không dữ liệu), `chat.answer.api.test.ts` (16 test điều phối: câu hợp lệ, viết lại đúng, viết lại vẫn sai, 4 loại lỗi, vòng cuối, không dữ liệu, schema > 1200, `comment` song song, lưu / che lịch sử), frontend `V2AiAnswer.test.tsx` (4 test).
+`chat.answer.check.test.ts` (45 test thuần: 11 câu hợp lệ, mốc ISO bị loại với lời nhắc riêng, số bịa, thập phân, số bằng chữ, tên bịa giữa / đầu câu, trích dẫn, ký hiệu / liên kết, giờ UTC bị loại, id không làm sạch tập số, câu hỏi cho phép nhắc lại số, người tên Ba / Hai, không dữ liệu), `chat.answer.api.test.ts` (16 test điều phối: câu hợp lệ, viết lại đúng, viết lại vẫn sai, 4 loại lỗi, vòng cuối, không dữ liệu, schema > 1200, `comment` song song, lưu / che lịch sử), frontend `V2AiAnswer.test.tsx` (4 test).
 
 **Cài lỗi 28 phép → 28 bị bắt** (lần đầu 25 + 2 sống sót + 1 bị bỏ qua; bổ sung test câu hỏi cho phép nhắc lại số, xuống dòng mở câu mới, và sửa phép bị bỏ qua). **Lỗi thật tìm thấy nhờ test**: so khớp số viết bằng chữ theo kiểu “bỏ dấu” (quy tắc dành cho tên người gõ không dấu) chặn nhầm chữ “sau” (after) vì trùng “sáu”, “nam” trùng “năm”… Câu trả lời của mô hình luôn có dấu nên nay so khớp **có dấu** (cùng với tên riêng: “Đăng” không khớp “Đang”).
 
-Gemini thật: chưa đo (hạn mức ngày đã cạn, `HTTP 429`); chạy sau khi hạn mức đặt lại: `npx tsx src/scripts/probeChatData.ts --only=answer --delay=5000` (mô hình có viết `answer` vượt bộ kiểm không) và `--only=route` (chọn `query_data` đúng chỗ, vẫn ưu tiên công cụ chuyên biệt khi đủ dùng).
+### 9J.7 Thăm dò Gemini thật (`probeChatData.ts --only=answer`, mô phỏng đúng vòng viết lại, n = 5)
+
+Lần đầu (prompt chưa có hướng dẫn): **4/5 qua kiểm**, 2 câu phải viết lại một lần; lý do bị loại: (1) mô hình **chép nguyên mốc ISO UTC** của dữ liệu (`2026-10-07T01:00:00.000Z`) — bị báo nhầm là số thập phân → nay có mã `TIMESTAMP` và lời nhắc riêng; (2) mô hình **tự đếm** từ các dòng (“Trần Tuấn viết 2 bình luận”) — số không có trong kết quả → nay prompt và lời nhắc chỉ cách dùng `groupBy` hoặc bỏ số. Sau cải tiến: **4/4 qua** (1 lượt lỗi 400 của nhà cung cấp), trong đó 3 câu cần viết lại một lần và **không câu sai nào hiện ra**. Mẫu nhỏ; cho thấy bộ kiểm bắt đúng lỗi thật của mô hình thật và vòng viết lại hiệu quả, chưa phải tỉ lệ ổn định.
+
+`npx tsx src/scripts/probeChatData.ts --only=answer --delay=8000` (nhịp ≥ 8 giây: gói miễn phí giới hạn tốc độ, nhanh hơn sẽ gặp 429).
+
+## 9K. Sửa nội dung và dọn dẹp thẻ — 8 thao tác mới (bước D, 10/10/2026)
+
+### 9K.1 Phạm vi
+
+Sau Phase 1–7 chatbot đã tạo / đổi tên / đặt hạn / chuyển / đổi trạng thái / giao / gắn nhãn / tạo luật. Bước D thêm **8 thao tác** vào `propose_actions` (cùng khuôn: mô hình khai ý định tượng trưng, server tự tìm đối tượng, kiểm quyền, tính rủi ro, ghi trong một transaction):
+
+| Thao tác | Ý nghĩa | Cách chạy |
+|---|---|---|
+| `SET_CARD_START {card, start}` | đặt / bỏ **ngày bắt đầu** (00:00 giờ VN của ngày đó, như module AI sinh bảng) | **tự chạy** khi là một lệnh trực tiếp |
+| `REMOVE_MEMBER {card, member}` | bỏ một người khỏi thẻ (“Bỏ Lan khỏi thẻ X”) | **tự chạy** |
+| `REMOVE_LABEL {card, label}` | gỡ nhãn khỏi thẻ | **tự chạy** |
+| `RENAME_LIST {list, name}` | đổi tên cột (giữ vị trí và trạng thái cột) | luôn **xem trước** (lý do `NEW_STRUCTURE`, đổi cấu trúc bảng) |
+| `ARCHIVE_CARD {card}` | **lưu trữ** thẻ (ẩn khỏi bảng, khôi phục được ở mục Lưu trữ) | luôn xem trước (lý do `ARCHIVE`) |
+| `SET_CARD_DESCRIPTION {card, description}` | **thay** mô tả thẻ | luôn xem trước (lý do `TEXT_CONTENT`); xem trước nêu rõ mô tả cũ (n ký tự) sẽ bị thay |
+| `ADD_COMMENT {card, text}` | viết bình luận (không hỗ trợ `@` nhắc tên) | luôn xem trước (`TEXT_CONTENT`) vì người khác đọc và nhận thông báo |
+| `ADD_CHECKLIST {card, title?, items[1..20]}` | thêm một checklist cùng các mục | luôn xem trước (`TEXT_CONTENT`); dùng được với thẻ MỚI trong cùng lệnh (`{by:PLAN,key}`) |
+
+**Không có xóa hẳn**: không có thao tác `DELETE_*`; mô hình bịa `DELETE_CARD` bị schema đóng chặn. Lưu trữ cột / bảng, đổi quyền, chia sẻ, xóa… vẫn là “unsupported”.
+
+### 9K.2 Giữ nguyên các bất biến an toàn của Phase 1–3
+
+- **Nội dung phải là chữ CHÍNH người dùng gõ**: `description / text / items / name` được “gắn vào câu” (≥ 80% từ có mặt trong câu của người dùng); mô hình tự viết thêm hay diễn đạt lại → `UNGROUNDED` (lý do `NOT_GROUNDED`, vẫn xem trước để kiểm). Nhờ vậy một bình luận / mô tả do kẻ khác viết trong dữ liệu không thể trở thành nội dung ghi vào bảng.
+- **Giấy phép động từ** (`licenceFor`): từng thao tác chỉ chạy khi chính câu có cụm tương ứng và không bị phủ định (“đừng bỏ …”): mô tả / bình luận / checklist cần danh từ **đi cùng động từ ghi** (hoặc đứng đầu câu như một mệnh lệnh: “Bình luận vào thẻ X: …”); bỏ người cần “khỏi” hoặc “hủy giao / thu hồi”; gỡ nhãn cần danh từ “nhãn”; đổi tên cột cần danh từ “cột / danh sách”; lưu trữ cần “lưu trữ / archive”. Câu hỏi (“Ai đang làm thẻ X?”, “Thẻ X có mô tả gì?”) không bao giờ sinh thao tác dù mô hình đề xuất.
+- **Ngày bắt đầu** chỉ nhận ngày có vai trò START trong câu (bộ luật ngày của module AI): ngày HẠN không bị nhận nhầm; câu có cả hai (“bắt đầu từ 10/10 và hạn 15/10”) mỗi thao tác nhận đúng ngày của nó; ngày trong câu thắng ngày mô hình khai (kèm cảnh báo).
+- Chỉ dẫn nằm trong DỮ LIỆU không thành lệnh: “… theo mô tả của thẻ” → `DELEGATED_TO_DATA` (xem trước, không tự chạy kể cả với 3 thao tác tự chạy); mô tả thẻ ghi “lưu trữ thẻ này” + câu hỏi của người dùng → từ chối.
+- Một lệnh chỉ chạm **một bảng**, dưới trần phạm vi theo trang; quyền kiểm lại bằng `assertBoardAccess` / `assertCardAccess` ở bước đề xuất **và** bước thực thi; **kế hoạch cũ → STALE** (dấu vân tay sha256 của mô tả cũ, ngày bắt đầu cũ, có / không có người / nhãn, tên cột cũ; trùng tên cột mới xuất hiện giữa hai bước cũng là STALE).
+
+### 9K.3 Mâu thuẫn trong một lệnh (từ chối rõ ràng, không ghi gì)
+
+Vừa giao vừa bỏ cùng người / cùng nhãn; lưu trữ một thẻ mà còn sửa chính thẻ đó; hai mô tả / hai ngày bắt đầu / hai tên cột khác nhau cho cùng một đối tượng; trùng hệt thì bỏ bản sau. Thẻ mới tạo trong cùng lệnh không lưu trữ / bỏ người / đổi tên cột được (vô nghĩa).
+
+### 9K.4 Hành vi ghi GIỐNG HỆT thao tác tay
+
+Mỗi thao tác viết bằng hàm ghi riêng trong transaction (quyết định D2 của Phase 2: không refactor service cũ), sao đúng hành vi của service giao diện và được kiểm bằng **so sánh song song với service thật** trên hai thẻ song sinh: `removeCardMember` (Activity `member.remove` {memberId, memberName}), `detachLabel` (không Activity), `updateList({name})`, `archiveCard` (+ `restoreCard` khôi phục được), `addComment` (Activity `comment.create` + thông báo `card.comment` cho thành viên thẻ), `addChecklist` + `addChecklistItem` (vị trí, tên mặc định “Việc cần làm”), `updateCard({description})`, `updateCard({startDate})`. Thông báo / socket vẫn gửi sau COMMIT.
+
+### 9K.5 Giao diện
+
+Không thêm thành phần: bản xem trước dùng khối kế hoạch có sẵn; `detail` nhiều dòng (checklist) giữ xuống dòng; hai lý do mới `TEXT_CONTENT`, `ARCHIVE`; lời giới thiệu của panel liệt kê khả năng mới; mọi nội dung văn bản hiển thị như chữ thuần.
+
+### 9K.6 Kiểm thử và đo đạc
+
+- **`chat.edit.pure.test.ts` (99 test thuần)**: hợp đồng 18 loại thao tác, schema nhận 10 mẫu và từ chối 12 mẫu (khóa lạ, tham chiếu bằng id, `BEST` cho thao tác không phải giao việc, thao tác xóa), ô tham chiếu, đồ thị “tạo thẻ rồi thêm checklist”, giấy phép động từ (26 câu được phép, 17 câu không, 6 câu bị phủ định), nguồn gốc (nội dung có trong câu / tự viết thêm / câu hỏi / chỉ dẫn từ dữ liệu), ngày bắt đầu và ngày hạn trong cùng một câu, chính sách tự chạy, mâu thuẫn, chữ hiển thị, dấu vân tay mô tả.
+- **`chat.edit.api.test.ts` (36 test, CSDL thật)**: từng thao tác chạy thật và **so song song với service thật** trên hai thẻ song sinh; tự chạy / xem trước / STALE / mâu thuẫn / VIEWER / chỉ dẫn trong dữ liệu / “tạo thẻ rồi thêm checklist” trong một giao dịch / hoàn tác khi một thao tác lỗi.
+- **`chat.edit.layers.test.ts` (8 test)**: các lớp phòng thủ thứ hai và thứ ba kiểm **trực tiếp** (`lockAndVerify`, `guardOp`) vì trong luồng đầy đủ lớp “dựng lại kế hoạch” đã chặn trước chúng — người khác sửa dữ liệu ngay giữa lúc dựng lại và lúc ghi vẫn bị chặn trong transaction.
+- Test cũ phải sửa có chủ ý (4 chỗ): danh sách loại thao tác / loại tự chạy viết cứng; ba ca dùng `ARCHIVE_CARD` làm ví dụ “thao tác không tồn tại” (đổi sang `ARCHIVE_LIST`, vẫn không hỗ trợ); câu giới thiệu của panel.
+- Backend chatbot: **49 → 50 tệp / 1022 → 1030 test** đạt (`npx vitest run test/chat`); frontend **60 tệp / 509 test** đạt; `tsc`, ESLint, oxlint (tệp đã sửa) sạch.
+- **Cài lỗi 50 phép → 50 bị bắt** (lần đầu 41; 9 sống sót đều là lớp phòng thủ thứ hai / thứ ba bị lớp trước che — bổ sung `chat.edit.layers.test.ts` và một ca nguồn gốc cho `RENAME_LIST` rồi bắt hết): Activity / thông báo / vị trí checklist, xóa nhầm toàn bộ người / nhãn, kiểm lại giá trị cũ trong transaction (6 loại), `@`, cột không còn, giới hạn checklist, noop (5 loại), mâu thuẫn (3 loại), giấy phép động từ (5 loại), chính sách (4 loại), nguồn gốc (5 loại), ngày bắt đầu 00:00 giờ VN / vai trò START, chữ xem trước.
+- Gemini thật cho 8 thao tác mới: chưa đo riêng (các thăm dò ở 9I.8 và 9J.7 là cho đọc / trả lời); phần ghi của Phase 8 (`evaluateChatActions.ts`) chưa mở rộng cho các thao tác mới.
+
+### 9K.7 Giới hạn đã biết
+
+- Bình luận không nhắc tên được (`@`), không trả lời một bình luận cụ thể; checklist chỉ **thêm** (không tick / xóa mục); mô tả chỉ **thay** (chưa “nối thêm”).
+- Chưa sửa trường tùy chỉnh, tạo nhãn mới, xóa hẳn, lưu trữ cột, đổi thứ tự cột, sao chép thẻ.
+- Danh sách động từ là heuristic tiếng Việt: một cách nói lạ có thể bị từ chối (“chưa thấy câu yêu cầu thao tác này”) — an toàn nhưng không phải lúc nào cũng thuận tiện.
 
 ## 10. Nhật ký hợp đồng
 
@@ -734,3 +798,4 @@ Gemini thật: chưa đo (hạn mức ngày đã cạn, `HTTP 429`); chạy sau 
 - 10/10/2026, mốc J (đường lùi khi AI lỗi, bước A): lý do lỗi AI (`QUOTA` cho 429, log không lộ khóa) được báo cho người dùng; lệnh ghi không còn rơi xuống v1 (sửa câu sai “chưa tạo, sửa hay giao việc được”); chế độ cơ bản có ghi chú nguyên nhân; nhận diện thêm động từ ghi “mềm” (thêm, bổ sung, gán, cập nhật…). Không migration, không endpoint mới.
 - 10/10/2026, mốc K (truy vấn tổng quát, bước B): công cụ đọc `query_data` (thực thể `CARD / COMMENT / CHECKLIST_ITEM / ATTACHMENT`, điều kiện / sắp xếp / nhóm chọn trong danh mục whitelist, phạm vi luôn AND ở đầu, id tham chiếu kiểm trong phạm vi); **mô tả và bình luận nay được gửi cho mô hình** (người dùng cho phép) qua `modelView` có làm sạch + ẩn ô giống chỉ dẫn / liên kết / địa chỉ thư; khối “Dữ liệu / Thống kê” ở giao diện. Không migration, không endpoint mới; `block.tool = 'query_data'` là khối mới (client cũ bỏ qua).
 - 10/10/2026, mốc L (câu trả lời tự do có kiểm chứng, bước C): `finish.answer` (≤ 1200 ký tự) chỉ được hiện khi qua `answer.check` (số phải có trong kết quả / câu hỏi, giờ theo giờ Việt Nam, không số thập phân / số bằng chữ, tên riêng và đoạn trích dẫn phải có nguyên văn, không ký hiệu / liên kết); sai thì cho viết lại MỘT lần (`ANSWER_REJECTED` nêu lý do cụ thể) rồi bỏ kèm ghi chú; không có dữ liệu thì chỉ lời nói chung (chào hỏi, giới thiệu) qua được. `answer.aiAnswer` là trường mới tùy chọn, `comment` cũ giữ nguyên. Không migration, không endpoint mới.
+- 10/10/2026, mốc M (sửa nội dung và dọn dẹp thẻ, bước D): 8 thao tác mới của `propose_actions` — `SET_CARD_START`, `REMOVE_MEMBER`, `REMOVE_LABEL` (tự chạy khi là lệnh trực tiếp) và `SET_CARD_DESCRIPTION`, `ADD_COMMENT`, `ADD_CHECKLIST`, `RENAME_LIST`, `ARCHIVE_CARD` (luôn xem trước; lý do mới `TEXT_CONTENT`, `ARCHIVE`, `NEW_STRUCTURE` nay gồm cả đổi tên cột); không có xóa hẳn. Nội dung phải là chữ chính người dùng gõ; mâu thuẫn trong một lệnh bị từ chối; hành vi ghi giống hệt service giao diện (so song song). Không migration, không endpoint mới; `ChatActionPlan.opTypes` là `String[]` nên không đổi lược đồ.

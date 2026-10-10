@@ -14,7 +14,8 @@ import { Prisma } from '../../../../generated/prisma/client';
 import type { CardStatus } from '../../../../generated/prisma/enums';
 import { initialStatusData, statusWrite } from '../../../card/cardStatus';
 import { findPatchCollision } from './actions.patch.build';
-import { summarizeExecuted } from './actions.plan';
+import { descriptionHash, summarizeExecuted } from './actions.plan';
+import { foldWords } from './actions.text';
 import { findSameRule } from './actions.rule';
 import type { Effects } from './actions.effects';
 import type { ActionErrorCode, StoredOp } from './actions.types';
@@ -122,7 +123,8 @@ export async function lockAndVerify(tx: Tx, ctx: WriteContext, ops: readonly Sto
   const listIds = unique(ops.flatMap((o) => (o.ids.list !== undefined ? [o.ids.list] : [])));
   const ruleActions = (o: StoredOp) => o.params.rule?.actions ?? [];
   const labelIds = unique(ops.flatMap((o) => [...(o.ids.label !== undefined ? [o.ids.label] : []), ...ruleActions(o).flatMap((a) => (a.labelId !== undefined ? [a.labelId] : []))]));
-  const memberIds = unique(ops.flatMap((o) => [...(o.ids.member !== undefined ? [o.ids.member] : []), ...ruleActions(o).flatMap((a) => (a.userId !== undefined ? [a.userId] : []))]));
+  // bo nguoi khoi the khong can nguoi do con la thanh vien co quyen sua
+  const memberIds = unique(ops.flatMap((o) => [...(o.type !== 'REMOVE_MEMBER' && o.ids.member !== undefined ? [o.ids.member] : []), ...ruleActions(o).flatMap((a) => (a.userId !== undefined ? [a.userId] : []))]));
 
   // Khoa theo THU TU CO DINH (cot truoc, the sau, trong moi nhom theo id) de hai ke hoach dong thoi khong khoa cheo nhau (deadlock).
   // Cot nguon cua cac the (se bi danh lai vi tri khi the roi di) cung phai khoa -> doc cot hien tai cua the truoc khi khoa.
@@ -134,6 +136,16 @@ export async function lockAndVerify(tx: Tx, ctx: WriteContext, ops: readonly Sto
   if (listIds.length > 0) {
     const alive = await tx.list.count({ where: { id: { in: listIds }, boardId: ctx.boardId, deletedAt: null, archivedAt: null } });
     if (alive !== listIds.length) throw new PlanAbort('STALE', 'Một cột trong kế hoạch không còn trong bảng.');
+    const renames = ops.filter((o) => o.type === 'RENAME_LIST' && o.noop === undefined && o.ids.list !== undefined);
+    if (renames.length > 0) {
+      const lists = await tx.list.findMany({ where: { boardId: ctx.boardId, deletedAt: null, archivedAt: null }, select: { id: true, name: true } });
+      const nameOf = new Map(lists.map((l) => [l.id, l.name]));
+      for (const o of renames) {
+        if (nameOf.get(o.ids.list as string) !== o.before?.listName) throw new PlanAbort('STALE', 'Cột đã được đổi tên kể từ lúc xem trước.');
+        const folded = foldWords(o.params.name ?? '').join(' ');
+        if (lists.some((l) => l.id !== o.ids.list && foldWords(l.name).join(' ') === folded)) throw new PlanAbort('STALE', `Bảng vừa có thêm cột “${o.params.name}”.`);
+      }
+    }
   }
   if (ctx.patch === true) {
     const lists = await tx.list.findMany({ where: { boardId: ctx.boardId, deletedAt: null, archivedAt: null }, select: { id: true, name: true } });
@@ -162,6 +174,8 @@ export async function lockAndVerify(tx: Tx, ctx: WriteContext, ops: readonly Sto
       select: {
         id: true,
         title: true,
+        description: true,
+        startDate: true,
         dueDate: true,
         status: true,
         listId: true,
@@ -187,7 +201,11 @@ export async function lockAndVerify(tx: Tx, ctx: WriteContext, ops: readonly Sto
         (op.type === 'MOVE_CARD' && row.listId !== b.listId) ||
         (op.type === 'SET_CARD_STATUS' && row.status !== b.status) ||
         (op.type === 'ASSIGN_MEMBER' && row.members.some((m) => m.userId === op.ids.member) !== (b.alreadyAssigned ?? false)) ||
-        (op.type === 'ADD_LABEL' && row.labels.some((l) => l.labelId === op.ids.label) !== (b.alreadyLabeled ?? false));
+        (op.type === 'ADD_LABEL' && row.labels.some((l) => l.labelId === op.ids.label) !== (b.alreadyLabeled ?? false)) ||
+        (op.type === 'SET_CARD_START' && iso(row.startDate) !== (b.start ?? null)) ||
+        (op.type === 'SET_CARD_DESCRIPTION' && descriptionHash(row.description) !== b.descriptionHash) ||
+        (op.type === 'REMOVE_MEMBER' && row.members.some((m) => m.userId === op.ids.member) !== (b.alreadyAssigned ?? false)) ||
+        (op.type === 'REMOVE_LABEL' && row.labels.some((l) => l.labelId === op.ids.label) !== (b.alreadyLabeled ?? false));
       if (bad) throw new PlanAbort('STALE', 'Dữ liệu của thẻ đã thay đổi kể từ lúc xem trước.');
     }
   }
@@ -426,6 +444,76 @@ export async function applyOp(tx: Tx, ctx: WriteContext, state: RunState, effect
         },
       });
       return { index, text: summarizeExecuted(op), changed: true };
+    }
+    case 'SET_CARD_DESCRIPTION': {
+      // giong updateCard({ description }): chi ghi cot, khong co Activity / thong bao
+      const card = cardOf(state, op);
+      await tx.card.update({ where: { id: card.id }, data: { description: op.params.description as string } });
+      effects.boardIds.add(boardId);
+      return { index, text: summarizeExecuted(op), changed: true, cardId: card.id };
+    }
+    case 'SET_CARD_START': {
+      // giong updateCard({ startDate }): chi ghi cot
+      const card = cardOf(state, op);
+      const to = op.params.start ?? null;
+      await tx.card.update({ where: { id: card.id }, data: { startDate: to ? new Date(to) : null } });
+      effects.boardIds.add(boardId);
+      return { index, text: summarizeExecuted(op), changed: true, cardId: card.id };
+    }
+    case 'ADD_COMMENT': {
+      // giong addComment (binh luan goc, khong nhac ten): ghi binh luan + Activity trong transaction, thong bao "card.comment" cho thanh vien the sau COMMIT
+      const card = cardOf(state, op);
+      const text = op.params.text as string;
+      await tx.comment.create({ data: { cardId: card.id, userId: ctx.userId, text, parentId: null } });
+      await record(tx, ctx, state, effects, { cardId: card.id, type: 'comment.create', data: { text: text.slice(0, 120) } });
+      effects.notifications.push({ type: 'card.comment', actorId: ctx.userId, boardId, cardId: card.id, data: { cardTitle: card.title, text: text.slice(0, 120) }, to: { kind: 'MEMBERS', cardId: card.id, exclude: excl(card.id) } });
+      effects.boardIds.add(boardId);
+      return { index, text: summarizeExecuted(op), changed: true, cardId: card.id };
+    }
+    case 'ADD_CHECKLIST': {
+      // giong addChecklist + addChecklistItem: them o cuoi cac checklist cua the; khong co Activity
+      const card = cardOf(state, op);
+      const last = await tx.checklist.findFirst({ where: { cardId: card.id }, orderBy: { position: 'desc' }, select: { position: true } });
+      const items = op.params.items as string[];
+      await tx.checklist.create({
+        data: { cardId: card.id, title: op.params.title?.trim() || 'Việc cần làm', position: last ? last.position + 1 : 0, items: { create: items.map((content, i) => ({ content, position: i })) } },
+      });
+      effects.boardIds.add(boardId);
+      return { index, text: summarizeExecuted(op), changed: true, cardId: card.id };
+    }
+    case 'REMOVE_MEMBER': {
+      // giong removeCardMember: ghi Activity member.remove chi khi that su go duoc; khong thong bao
+      const card = cardOf(state, op);
+      const memberId = op.ids.member as string;
+      const existing = await tx.cardMember.findUnique({ where: { cardId_userId: { cardId: card.id, userId: memberId } }, select: { user: { select: { name: true, deletedAt: true } } } });
+      const removed = await tx.cardMember.deleteMany({ where: { cardId: card.id, userId: memberId } });
+      if (removed.count > 0) {
+        await record(tx, ctx, state, effects, { cardId: card.id, type: 'member.remove', data: { memberId, ...(existing?.user.deletedAt === null ? { memberName: existing.user.name } : {}) } });
+      }
+      effects.boardIds.add(boardId);
+      return { index, text: summarizeExecuted(op), changed: removed.count > 0, cardId: card.id };
+    }
+    case 'REMOVE_LABEL': {
+      // giong detachLabel: chi go lien ket, khong co Activity
+      const card = cardOf(state, op);
+      const removed = await tx.cardLabel.deleteMany({ where: { cardId: card.id, labelId: op.ids.label as string } });
+      effects.boardIds.add(boardId);
+      return { index, text: summarizeExecuted(op), changed: removed.count > 0, cardId: card.id };
+    }
+    case 'RENAME_LIST': {
+      // giong updateList({ name }): khong doi vi tri / trang thai cot, khong co Activity
+      const listId = op.ids.list as string;
+      await tx.list.update({ where: { id: listId }, data: { name: op.params.name as string } });
+      effects.boardIds.add(boardId);
+      return { index, text: summarizeExecuted(op), changed: true, listId };
+    }
+    case 'ARCHIVE_CARD': {
+      // giong archiveCard: dat archivedAt + Activity card.archive; the van nam trong cot de khoi phuc
+      const card = cardOf(state, op);
+      await tx.card.update({ where: { id: card.id }, data: { archivedAt: new Date() } });
+      await record(tx, ctx, state, effects, { cardId: card.id, type: 'card.archive', data: {} });
+      effects.boardIds.add(boardId);
+      return { index, text: summarizeExecuted(op), changed: true, cardId: card.id };
     }
     case 'ADD_LABEL': {
       const card = cardOf(state, op);

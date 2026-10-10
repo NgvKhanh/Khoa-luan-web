@@ -389,3 +389,36 @@ describe('ActionCard: nguoi nhan do he thong chon (goi y phan cong)', () => {
     expect(screen.queryByText(/Do hệ thống gợi ý phân công chọn/)).not.toBeInTheDocument();
   });
 });
+
+// ---------- Buoc D: noi dung van ban + luu tru ----------
+describe('ActionCard: thao tac noi dung (mo ta, binh luan, checklist) va luu tru', () => {
+  it('chi tiet nhieu dong (checklist) giu xuong dong; ban xem truoc hien ly do TEXT_CONTENT', () => {
+    const turn = turnOf({ kind: 'PLAN', plan: plan({
+      risk: 'MEDIUM', warnings: [], opCount: 1,
+      reasons: [{ code: 'TEXT_CONTENT', text: 'Mô tả, bình luận và checklist là nội dung văn bản mà người khác trong bảng sẽ đọc nên mình luôn cho bạn xem lại trước khi áp dụng.' }],
+      items: [{ index: 0, verb: 'Thêm checklist', text: '“Kiểm thử” vào thẻ “Login UI”', detail: '• unit test\n• api test', cardId: 'c1' }],
+    }) });
+    renderCard(turn);
+    const block = screen.getByRole('region', { name: 'Kế hoạch thao tác' });
+    const detail = within(block).getByText(/unit test/);
+    expect(detail.className).toContain('whitespace-pre-line');
+    expect(detail.textContent).toBe('• unit test\n• api test');
+    expect(within(block).getByRole('note')).toHaveTextContent('nội dung văn bản mà người khác trong bảng sẽ đọc');
+  });
+
+  it('lưu trữ: ghi rõ khôi phục được; nội dung bình luận hiện nguyên văn như chữ thuần (không dựng HTML)', () => {
+    const turn = turnOf({ kind: 'PLAN', plan: plan({
+      warnings: [],
+      reasons: [{ code: 'ARCHIVE', text: 'Lưu trữ sẽ ẩn thẻ khỏi bảng.' }],
+      items: [
+        { index: 0, verb: 'Viết bình luận', text: 'vào thẻ “Login UI”', detail: '<img src=x onerror=alert(1)> xong rồi' },
+        { index: 1, verb: 'Lưu trữ thẻ', text: '“Login UI”', detail: 'Thẻ sẽ ẩn khỏi bảng; khôi phục lại được trong mục Lưu trữ của bảng.' },
+      ],
+    }) });
+    renderCard(turn);
+    const block = screen.getByRole('region', { name: 'Kế hoạch thao tác' });
+    expect(block.querySelector('img')).toBeNull();
+    expect(block).toHaveTextContent('<img src=x onerror=alert(1)> xong rồi');
+    expect(block).toHaveTextContent('khôi phục lại được trong mục Lưu trữ');
+  });
+});

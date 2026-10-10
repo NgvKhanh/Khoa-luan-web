@@ -9,7 +9,7 @@ import { prisma } from '../../../../config/prisma';
 import { AppError } from '../../../../utils/AppError';
 import { assertBoardAccess, isBoardParticipant } from '../../../board/board.service';
 import { assertCardAccess } from '../../../card/card.service';
-import { MAX_RULE_ACTIONS } from './actions.schema';
+import { MAX_CHECKLIST_ITEMS, MAX_RULE_ACTIONS, MAX_TEXT_CHARS } from './actions.schema';
 import type { GuardVerdict, StoredOp } from './actions.types';
 
 const NO_CHANGE = 'Chưa thay đổi gì.';
@@ -109,6 +109,13 @@ export async function guardOp(args: { userId: string; boardId: string; op: Store
     return { ok: true };
   }
 
+  // Buoc D: doi ten cot (khong nham vao the nao)
+  if (op.type === 'RENAME_LIST') {
+    const name = op.params.name ?? '';
+    if (name.trim() === '' || name.length > 100) return fail('INVALID', `Tên cột phải từ 1 đến 100 ký tự. ${NO_CHANGE}`);
+    return (await liveList(boardId, op.ids.list)) ? { ok: true } : fail('NOT_FOUND', `Cột này không còn trong bảng. ${NO_CHANGE}`);
+  }
+
   // moi thao tac con lai nham vao MOT the
   const cardId = op.ids.card;
   if (cardId === undefined && op.local?.card === undefined) return fail('INVALID', `Thiếu thẻ cần thao tác. ${NO_CHANGE}`);
@@ -152,8 +159,32 @@ export async function guardOp(args: { userId: string; boardId: string; op: Store
       const label = op.ids.label ? await prisma.label.findFirst({ where: { id: op.ids.label, boardId }, select: { id: true } }) : null;
       return label ? { ok: true } : fail('NOT_FOUND', `Nhãn này không thuộc bảng. ${NO_CHANGE}`);
     }
+    case 'REMOVE_LABEL': {
+      const label = op.ids.label ? await prisma.label.findFirst({ where: { id: op.ids.label, boardId }, select: { id: true } }) : null;
+      return label ? { ok: true } : fail('NOT_FOUND', `Nhãn này không thuộc bảng. ${NO_CHANGE}`);
+    }
+    // bo nguoi khoi the khong can nguoi do con la thanh vien bang (nguoi da roi bang van go duoc khoi the)
+    case 'REMOVE_MEMBER':
+      return op.ids.member === undefined ? fail('INVALID', `Thiếu người cần bỏ. ${NO_CHANGE}`) : { ok: true };
+    case 'SET_CARD_DESCRIPTION': {
+      const d = op.params.description ?? '';
+      return d.trim() === '' || d.length > MAX_TEXT_CHARS ? fail('INVALID', `Mô tả phải từ 1 đến ${MAX_TEXT_CHARS} ký tự. ${NO_CHANGE}`) : { ok: true };
+    }
+    case 'ADD_COMMENT': {
+      const text = op.params.text ?? '';
+      if (text.trim() === '' || text.length > MAX_TEXT_CHARS) return fail('INVALID', `Bình luận phải từ 1 đến ${MAX_TEXT_CHARS} ký tự. ${NO_CHANGE}`);
+      // nhac ten (@) gui thong bao rieng cho nguoi duoc nhac: chua ho tro qua tro ly
+      return text.includes('@') ? fail('INVALID', `Trợ lý chưa hỗ trợ nhắc tên (@) trong bình luận; hãy bỏ ký tự @ hoặc viết bình luận trực tiếp trên thẻ. ${NO_CHANGE}`) : { ok: true };
+    }
+    case 'ADD_CHECKLIST': {
+      const items = op.params.items ?? [];
+      if (items.length < 1 || items.length > MAX_CHECKLIST_ITEMS || items.some((i) => i.trim() === '' || i.length > 500)) return fail('INVALID', `Checklist cần từ 1 đến ${MAX_CHECKLIST_ITEMS} mục, mỗi mục tối đa 500 ký tự. ${NO_CHANGE}`);
+      return (op.params.title ?? '').length > 200 ? fail('INVALID', `Tên checklist tối đa 200 ký tự. ${NO_CHANGE}`) : { ok: true };
+    }
     case 'SET_CARD_DUE':
+    case 'SET_CARD_START':
     case 'SET_CARD_STATUS':
+    case 'ARCHIVE_CARD':
       return { ok: true };
     default:
       return fail('INVALID', `Thao tác không hợp lệ. ${NO_CHANGE}`);

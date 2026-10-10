@@ -37,7 +37,21 @@ export const OP_LABEL: Record<ActionType, string> = {
   ADD_LABEL: 'gắn nhãn vào thẻ',
   ASSIGN_UNASSIGNED: 'chia các việc chưa có người nhận',
   CREATE_AUTOMATION_RULE: 'tạo luật tự động hóa',
+  SET_CARD_DESCRIPTION: 'đổi mô tả thẻ',
+  SET_CARD_START: 'đặt ngày bắt đầu cho thẻ',
+  ADD_COMMENT: 'viết bình luận vào thẻ',
+  ADD_CHECKLIST: 'thêm checklist vào thẻ',
+  REMOVE_MEMBER: 'bỏ người khỏi thẻ',
+  REMOVE_LABEL: 'gỡ nhãn khỏi thẻ',
+  RENAME_LIST: 'đổi tên cột',
+  ARCHIVE_CARD: 'lưu trữ thẻ',
 };
+
+/** Dau van tay (sha256) cua mo ta thẻ: luu vao ban xem truoc de phat hien STALE ma khong phai luu ca doan mo ta cu. */
+export const descriptionHash = (text: string | null | undefined): string => createHash('sha256').update((text ?? '').trim()).digest('hex');
+
+/** Cat van ban dai de hien trong khung xem truoc (nguoi dung van thay nguyen van o phan chi tiet cua thao tac neu ngan hon gioi han). */
+const clip = (text: string, max: number): string => (Array.from(text).length > max ? `${Array.from(text).slice(0, max).join('')}…` : text);
 
 /** JSON on dinh: khoa sap xep, bo undefined - de checksum khong phu thuoc thu tu khoa. */
 export function canonicalJson(value: unknown): string {
@@ -89,6 +103,16 @@ export function staleReasonOf(seen: StoredOp, fresh: StoredOp): string {
       return 'Nhãn của thẻ đã thay đổi kể từ lúc xem trước.';
     case 'CREATE_AUTOMATION_RULE':
       return 'Cột, nhãn, người hoặc các luật của bảng đã thay đổi kể từ lúc xem trước.';
+    case 'SET_CARD_DESCRIPTION':
+      return 'Mô tả của thẻ đã thay đổi kể từ lúc xem trước.';
+    case 'SET_CARD_START':
+      return 'Ngày bắt đầu của thẻ đã thay đổi kể từ lúc xem trước.';
+    case 'REMOVE_MEMBER':
+      return 'Thành viên của thẻ đã thay đổi kể từ lúc xem trước.';
+    case 'REMOVE_LABEL':
+      return 'Nhãn của thẻ đã thay đổi kể từ lúc xem trước.';
+    case 'RENAME_LIST':
+      return 'Cột đã được đổi tên kể từ lúc xem trước.';
     default:
       return 'Dữ liệu đã thay đổi kể từ lúc xem trước.';
   }
@@ -151,6 +175,34 @@ export function describeOp(op: StoredOp, index: number): PlanItemView {
       return { index, verb: 'Gắn nhãn', text: `${q(d.labelName)} vào thẻ ${q(d.cardTitle)}${fresh(op)}`, cardId };
     case 'CREATE_AUTOMATION_RULE':
       return { index, verb: 'Tạo luật tự động hóa', text: q(op.params.rule?.name), rule: ruleViewOf(d.ruleWhen ?? '', d.ruleThen ?? []) };
+    case 'SET_CARD_DESCRIPTION':
+      return {
+        index,
+        verb: 'Đổi mô tả',
+        text: `${q(d.cardTitle)}${fresh(op)}`,
+        detail: `Nội dung mới: ${clip(op.params.description ?? '', 400)}${(op.before?.descriptionLength ?? 0) > 0 ? `\n(Mô tả cũ ${op.before?.descriptionLength} ký tự sẽ bị thay bằng nội dung này.)` : ''}`,
+        cardId,
+      };
+    case 'SET_CARD_START':
+      return {
+        index,
+        verb: op.params.start === null || op.params.start === undefined ? 'Bỏ ngày bắt đầu' : 'Đặt ngày bắt đầu',
+        text: `${q(d.cardTitle)}${fresh(op)}`,
+        detail: op.params.start === null || op.params.start === undefined ? undefined : `${formatDueDate(vnDayOfIso(op.params.start))}${op.before?.start ? ` (trước: ${formatDueDate(vnDayOfIso(op.before.start))})` : ''}`,
+        cardId,
+      };
+    case 'ADD_COMMENT':
+      return { index, verb: 'Viết bình luận', text: `vào thẻ ${q(d.cardTitle)}${fresh(op)}`, detail: clip(op.params.text ?? '', 400), cardId };
+    case 'ADD_CHECKLIST':
+      return { index, verb: 'Thêm checklist', text: `${q(op.params.title ?? 'Việc cần làm')} vào thẻ ${q(d.cardTitle)}${fresh(op)}`, detail: (op.params.items ?? []).map((i) => `• ${clip(i, 120)}`).join('\n'), cardId };
+    case 'REMOVE_MEMBER':
+      return { index, verb: 'Bỏ người', text: `${d.memberName ?? ''} khỏi thẻ ${q(d.cardTitle)}${fresh(op)}`, cardId };
+    case 'REMOVE_LABEL':
+      return { index, verb: 'Gỡ nhãn', text: `${q(d.labelName)} khỏi thẻ ${q(d.cardTitle)}${fresh(op)}`, cardId };
+    case 'RENAME_LIST':
+      return { index, verb: 'Đổi tên cột', text: `${q(op.before?.listName)} → ${q(op.params.name)}` };
+    case 'ARCHIVE_CARD':
+      return { index, verb: 'Lưu trữ thẻ', text: q(d.cardTitle), detail: 'Thẻ sẽ ẩn khỏi bảng; khôi phục lại được trong mục Lưu trữ của bảng.', cardId };
   }
 }
 
@@ -181,6 +233,22 @@ export function summarizeExecuted(op: StoredOp, extra: { movedTo?: string; creat
       return `Đã gắn nhãn ${q(d.labelName)} vào thẻ ${q(d.cardTitle)}.`;
     case 'CREATE_AUTOMATION_RULE':
       return `Đã tạo luật tự động hóa ${q(op.params.rule?.name)}. Luật đang bật; bạn tắt hoặc xóa được ở mục Tự động hóa của bảng.`;
+    case 'SET_CARD_DESCRIPTION':
+      return `Đã đổi mô tả của thẻ ${q(d.cardTitle)}.`;
+    case 'SET_CARD_START':
+      return op.params.start === null || op.params.start === undefined ? `Đã bỏ ngày bắt đầu của thẻ ${q(d.cardTitle)}.` : `Đã đặt ngày bắt đầu cho thẻ ${q(d.cardTitle)}: ${formatDueDate(vnDayOfIso(op.params.start))}.`;
+    case 'ADD_COMMENT':
+      return `Đã viết bình luận vào thẻ ${q(d.cardTitle)}.`;
+    case 'ADD_CHECKLIST':
+      return `Đã thêm checklist ${q(op.params.title ?? 'Việc cần làm')} (${op.params.items?.length ?? 0} mục) vào thẻ ${q(d.cardTitle)}.`;
+    case 'REMOVE_MEMBER':
+      return `Đã bỏ ${d.memberName ?? ''} khỏi thẻ ${q(d.cardTitle)}.`;
+    case 'REMOVE_LABEL':
+      return `Đã gỡ nhãn ${q(d.labelName)} khỏi thẻ ${q(d.cardTitle)}.`;
+    case 'RENAME_LIST':
+      return `Đã đổi tên cột ${q(op.before?.listName)} thành ${q(op.params.name)}.`;
+    case 'ARCHIVE_CARD':
+      return `Đã lưu trữ thẻ ${q(d.cardTitle)}. Khôi phục lại được trong mục Lưu trữ của bảng.`;
   }
 }
 

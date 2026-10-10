@@ -5,7 +5,7 @@
 // Quy uoc han cua du an (ai.apply.ts dueInstant): 23:59 gio Viet Nam (+07:00) cua ngay do.
 
 import { addDays, isValidIso, isoWeekday, mondayOfWeek, type IsoDate } from '../../../ai/ai.dates';
-import { dueInstant } from '../../../ai/ai.apply';
+import { dueInstant, startInstant } from '../../../ai/ai.apply';
 import { extractDatesFromLine } from '../../../ai/ai.rules';
 import type { DateSpec } from './actions.schema';
 import { foldWords, hasAny, type Phrase } from './actions.text';
@@ -77,6 +77,17 @@ function bareDueDates(message: string, today: IsoDate): FoundDate[] {
   return found;
 }
 
+/** Cac ngay BAT DAU (role START do bo luat module AI nhan qua tu khoa "bat dau tu / ngay bat dau / start") tim thay trong cau. */
+export function startDatesInMessage(message: string, today: IsoDate): FoundDate[] {
+  const byDate = new Map<IsoDate, FoundDate>();
+  for (const d of extractDatesFromLine(message, today)) {
+    if (d.role !== 'START') continue;
+    const prev = byDate.get(d.date);
+    if (prev === undefined || (prev.fuzzy && !d.fuzzy)) byDate.set(d.date, { date: d.date, fuzzy: d.fuzzy });
+  }
+  return [...byDate.values()];
+}
+
 /** Cac ngay HAN (khong phai ngay bat dau) tim thay trong cau: bo luat module AI + cach noi goi tron cua cau lenh; da bo trung. */
 export function dueDatesInMessage(message: string, today: IsoDate): FoundDate[] {
   const byDate = new Map<IsoDate, FoundDate>();
@@ -102,6 +113,20 @@ export interface DueGrounding {
   llmDiffers: boolean;
 }
 
+const CLEAR_START_PHRASES: readonly Phrase[] = [['bo', 'ngay', 'bat', 'dau'], ['xoa', 'ngay', 'bat', 'dau'], ['huy', 'ngay', 'bat', 'dau'], ['go', 'ngay', 'bat', 'dau'], ['khong', 'co', 'ngay', 'bat', 'dau']];
+
+/** Giong groundDue nhung cho NGAY BAT DAU: ngay phai co mat trong cau voi vai tro START (khong nhan nham ngay han). */
+export function groundStart(spec: DateSpec, message: string, today: IsoDate): DueGrounding {
+  const llm = resolveDateSpec(spec, today);
+  if (llm.kind === 'INVALID') return { resolution: llm, grounded: false, fuzzy: false, llmDiffers: false };
+  if (llm.kind === 'CLEAR') return { resolution: llm, grounded: hasAny(foldWords(message), CLEAR_START_PHRASES), fuzzy: false, llmDiffers: false };
+  const found = startDatesInMessage(message, today);
+  if (found.length === 0) return { resolution: llm, grounded: false, fuzzy: false, llmDiffers: false };
+  const same = found.find((f) => f.date === llm.date);
+  if (found.length === 1) return { resolution: { kind: 'DATE', date: found[0].date }, grounded: true, fuzzy: found[0].fuzzy, llmDiffers: same === undefined };
+  return same !== undefined ? { resolution: llm, grounded: true, fuzzy: same.fuzzy, llmDiffers: false } : { resolution: llm, grounded: false, fuzzy: false, llmDiffers: false };
+}
+
 export function groundDue(spec: DateSpec, message: string, today: IsoDate): DueGrounding {
   const llm = resolveDateSpec(spec, today);
   if (llm.kind === 'INVALID') return { resolution: llm, grounded: false, fuzzy: false, llmDiffers: false };
@@ -119,6 +144,11 @@ export function groundDue(spec: DateSpec, message: string, today: IsoDate): DueG
   return same !== undefined
     ? { resolution: llm, grounded: true, fuzzy: same.fuzzy, llmDiffers: false }
     : { resolution: llm, grounded: false, fuzzy: false, llmDiffers: false };
+}
+
+/** Ngay bat dau luu vao CSDL (ISO UTC): 00:00 gio Viet Nam cua ngay do (cung quy uoc voi ai.apply). */
+export function startIso(date: IsoDate): string {
+  return startInstant(date).toISOString();
 }
 
 /** Han luu vao CSDL (ISO UTC) cua mot ngay lich. */

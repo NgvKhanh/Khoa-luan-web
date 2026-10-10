@@ -19,7 +19,7 @@ Người dùng ra lệnh bằng tiếng Việt trong khung Trợ lý; trợ lý 
 | Luật tự động hóa | “Khi thẻ vào cột Hoàn thành thì gắn nhãn Gấp” | Xem trước, rủi ro CAO, nói rõ “chạy bằng quyền của bạn” → Áp dụng |
 | Đọc mở rộng | “Board này tiến độ bao nhiêu?”, “Ai phù hợp nhất cho task X?” | Khối kết quả do server dựng, nhận xét AI ngắn (tùy chọn) |
 
-**Không làm (cố ý):** xóa / lưu trữ bất kỳ thứ gì, đổi vai trò / quyền / chủ sở hữu / hiển thị, thao tác nhiều bảng, hoàn tác, sửa / tắt / xóa luật tự động hóa đã có, hẹn giờ / nhắc hạn / gửi email. Các yêu cầu đó được trả lời bằng “chưa hỗ trợ” (xem mục 9).
+**Không làm (cố ý):** xóa hẳn bất kỳ thứ gì, lưu trữ cột / bảng (chỉ lưu trữ được **thẻ**, khôi phục được), đổi vai trò / quyền / chủ sở hữu / hiển thị, thao tác nhiều bảng, hoàn tác, sửa / tắt / xóa luật tự động hóa đã có, hẹn giờ / nhắc hạn / gửi email. Các yêu cầu đó được trả lời bằng “chưa hỗ trợ” (xem mục 9).
 
 ## 2. Đường đi của một lệnh
 
@@ -51,6 +51,12 @@ câu người dùng ─▶ mô hình (công cụ: đọc… + propose_actions + 
 | `propose_board_patch` (`CREATE_LIST` + `CREATE_CARD` do AI sinh) | ghi (luôn xem trước) | 3 | chỉ thêm; 5 cột / 25 thẻ / 30 thao tác |
 | `member {by:BEST}`, `ASSIGN_UNASSIGNED` | ghi (luôn xem trước) | 6 | `recordOutcome` chỉ sau khi bấm Áp dụng, chỉ hạng 1 |
 | `CREATE_AUTOMATION_RULE` | ghi (luôn xem trước, HIGH) | 7 | 2 điều kiện + 3 việc của engine, phải đứng một mình |
+| `SET_CARD_START`, `REMOVE_MEMBER`, `REMOVE_LABEL` | ghi (tự chạy được khi chỉ một thao tác) | bước D | chính xác, hoàn tác bằng thao tác đối nghịch; xem `CHATBOT_V2_MODULE.md` §9K |
+| `SET_CARD_DESCRIPTION`, `ADD_COMMENT`, `ADD_CHECKLIST` | ghi (luôn xem trước, `TEXT_CONTENT`) | bước D | nội dung văn bản người khác sẽ đọc; phải là chữ chính người dùng gõ; bình luận không `@` |
+| `RENAME_LIST` | ghi (luôn xem trước, `NEW_STRUCTURE`) | bước D | giữ vị trí và trạng thái cột; trùng tên cột khác bị từ chối / STALE |
+| `ARCHIVE_CARD` | ghi (luôn xem trước, `ARCHIVE`) | bước D | khôi phục được ở mục Lưu trữ; không kết hợp với thao tác khác trên cùng thẻ |
+| `query_data` (`CARD / COMMENT / CHECKLIST_ITEM / ATTACHMENT`) | đọc | bước B | điều kiện / nhóm chọn trong danh mục whitelist; mô tả và bình luận được gửi mô hình sau khi làm sạch (§9I) |
+| `finish.answer` | — | bước C | đoạn trả lời tự do chỉ hiện khi qua bộ kiểm số / tên (§9J) |
 
 Giới hạn ở backend (không chỉ trong prompt): 15 thao tác / 10 thẻ mới / 3 cột mới / 20 đối tượng có sẵn mỗi kế hoạch; kế hoạch sống 10 phút; xác nhận 30 lượt / người / 10 phút; gợi ý phân công 30 và chia việc 10 lượt / người / 10 phút.
 

@@ -263,7 +263,7 @@ describe('dấu vân tay tham chiếu (một lần tìm, một lần chọn cho 
     expect(foldedName('cột Đang làm')).toBe('dang lam');
   });
 
-  it('slotsOf / withRef đủ cho cả 10 loại thao tác', () => {
+  it('slotsOf / withRef đủ cho MỌI loại thao tác (10 loại cũ + 8 loại của bước D)', () => {
     for (const type of ACTION_TYPES) {
       const samples: Record<string, ActionOp> = {
         CREATE_LIST: list('A'),
@@ -276,10 +276,18 @@ describe('dấu vân tay tham chiếu (một lần tìm, một lần chọn cho 
         ADD_LABEL: label(t('A'), 'Gấp'),
         ASSIGN_UNASSIGNED: { type: 'ASSIGN_UNASSIGNED', list: t('A') },
         CREATE_AUTOMATION_RULE: { type: 'CREATE_AUTOMATION_RULE', trigger: 'CARD_MOVED_TO_LIST', list: t('A'), actions: [{ type: 'ADD_LABEL', label: t('B') }] },
+        SET_CARD_DESCRIPTION: { type: 'SET_CARD_DESCRIPTION', card: t('A'), description: 'mô tả' },
+        SET_CARD_START: { type: 'SET_CARD_START', card: t('A'), start: { type: 'NONE' } },
+        ADD_COMMENT: { type: 'ADD_COMMENT', card: t('A'), text: 'ok' },
+        ADD_CHECKLIST: { type: 'ADD_CHECKLIST', card: t('A'), items: ['a'] },
+        REMOVE_MEMBER: { type: 'REMOVE_MEMBER', card: t('A'), member: t('Lan') },
+        REMOVE_LABEL: { type: 'REMOVE_LABEL', card: t('A'), label: t('Gấp') },
+        RENAME_LIST: { type: 'RENAME_LIST', list: t('A'), name: 'B' },
+        ARCHIVE_CARD: { type: 'ARCHIVE_CARD', card: t('A') },
       };
       const op = samples[type];
       const names = slotsOf(op).map((s) => s.name);
-      expect(names, type).toEqual({ CREATE_LIST: [], CREATE_CARD: ['list'], RENAME_CARD: ['card'], SET_CARD_DUE: ['card'], MOVE_CARD: ['card', 'toList'], SET_CARD_STATUS: ['card'], ASSIGN_MEMBER: ['card', 'member'], ADD_LABEL: ['card', 'label'], ASSIGN_UNASSIGNED: ['list'], CREATE_AUTOMATION_RULE: ['list', 'a0.label'] }[type]);
+      expect(names, type).toEqual({ CREATE_LIST: [], CREATE_CARD: ['list'], RENAME_CARD: ['card'], SET_CARD_DUE: ['card'], MOVE_CARD: ['card', 'toList'], SET_CARD_STATUS: ['card'], ASSIGN_MEMBER: ['card', 'member'], ADD_LABEL: ['card', 'label'], ASSIGN_UNASSIGNED: ['list'], CREATE_AUTOMATION_RULE: ['list', 'a0.label'], SET_CARD_DESCRIPTION: ['card'], SET_CARD_START: ['card'], ADD_COMMENT: ['card'], ADD_CHECKLIST: ['card'], REMOVE_MEMBER: ['card', 'member'], REMOVE_LABEL: ['card', 'label'], RENAME_LIST: ['list'], ARCHIVE_CARD: ['card'] }[type]);
       // luật tự động hóa chỉ nhắm vào thực thể CÓ SẴN nên không nhận tham chiếu PLAN (withRef bỏ qua)
       const probe = type === 'CREATE_AUTOMATION_RULE' ? t('Z') : plan('k');
       for (const name of names) expect(slotsOf(withRef(op, name, probe)).find((s) => s.name === name)?.ref).toEqual(probe);

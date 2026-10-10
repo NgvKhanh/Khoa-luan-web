@@ -15,9 +15,10 @@ import { isSelfReference } from '../../chat.members';
 import { liveCardWhere } from '../../chat.scope';
 import { resolveEntities, type EntityOption } from '../chat.v2.entities';
 import type { ExecutionContext } from '../chat.v2.scope';
-import { dueIso, formatDueDate, vnDayOfIso, type DueGrounding } from './actions.dates';
+import { dueIso, formatDueDate, startIso, vnDayOfIso, type DueGrounding } from './actions.dates';
 import { bestAssignee, splitUnassigned } from './actions.assign';
 import { refSignature, type SlotKind } from './actions.refs';
+import { descriptionHash } from './actions.plan';
 import { dedupeRuleActions, findSameRule, ruleNameOf, sameRuleText, thenText, whenText } from './actions.rule';
 import { MAX_OPS_PER_PLAN, type ActionOp, type MemberRef, type Ref } from './actions.schema';
 import { foldWords, stripLeadingGeneric } from './actions.text';
@@ -93,6 +94,8 @@ async function byName(exec: ExecutionContext, kind: EntityOption['kind'], text: 
 const CARD_SELECT = {
   id: true,
   title: true,
+  description: true,
+  startDate: true,
   dueDate: true,
   status: true,
   listId: true,
@@ -464,6 +467,109 @@ export async function resolveOp(env: ResolveEnv, symbolic: ActionOp, presets: Pr
         ...(existing !== null ? { noop: sameRuleText(existing) } : {}),
       });
     }
+    case 'SET_CARD_DESCRIPTION': {
+      const card = await cardTarget(env, symbolic.card, presets);
+      if (isFail(card)) return card;
+      const description = symbolic.description.trim();
+      const current = card.row?.description ?? '';
+      return ok({
+        type: 'SET_CARD_DESCRIPTION',
+        ids: card.ids,
+        ...localOf(card.local),
+        params: { description },
+        before: card.row ? { descriptionHash: descriptionHash(current), descriptionLength: current.trim().length } : null,
+        display: { cardTitle: card.title },
+        ...(card.row !== null && current.trim() === description ? { noop: `Mô tả của thẻ “${card.title}” đã đúng nội dung này rồi.` } : {}),
+      });
+    }
+    case 'SET_CARD_START': {
+      const card = await cardTarget(env, symbolic.card, presets);
+      if (isFail(card)) return card;
+      const resolution = env.due?.resolution;
+      if (resolution === undefined || resolution.kind === 'INVALID') return { kind: 'FAIL', code: 'INVALID', text: 'Ngày bắt đầu không hợp lệ. Chưa thay đổi gì.' };
+      if (env.due?.llmDiffers) warnings.push('Ngày bắt đầu được lấy theo đúng câu của bạn (khác với ngày AI đề xuất).');
+      const before = card.row?.startDate ? card.row.startDate.toISOString() : null;
+      const start = resolution.kind === 'CLEAR' ? null : startIso(resolution.date);
+      let noop: string | undefined;
+      if (card.row !== null) {
+        if (start === null && before === null) noop = `Thẻ “${card.title}” chưa có ngày bắt đầu nên không cần bỏ.`;
+        else if (start !== null && before !== null && vnDayOfIso(before) === vnDayOfIso(start)) noop = `Ngày bắt đầu của thẻ “${card.title}” đã là ${formatDueDate(vnDayOfIso(start))} rồi.`;
+        else if (start !== null && card.row.dueDate !== null && Date.parse(start) > card.row.dueDate.getTime()) warnings.push(`Ngày bắt đầu sau hạn hiện tại của thẻ “${card.title}” (${formatDueDate(vnDayOfIso(card.row.dueDate.toISOString()))}).`);
+      }
+      return ok({ type: 'SET_CARD_START', ids: card.ids, ...localOf(card.local), params: { start }, before: { start: before }, display: { cardTitle: card.title }, ...(noop !== undefined ? { noop } : {}) });
+    }
+    case 'ADD_COMMENT': {
+      const card = await cardTarget(env, symbolic.card, presets);
+      if (isFail(card)) return card;
+      return ok({ type: 'ADD_COMMENT', ids: card.ids, ...localOf(card.local), params: { text: symbolic.text.trim() }, before: null, display: { cardTitle: card.title } });
+    }
+    case 'ADD_CHECKLIST': {
+      const card = await cardTarget(env, symbolic.card, presets);
+      if (isFail(card)) return card;
+      const items = symbolic.items.map((i) => i.trim()).filter((i) => i !== '');
+      if (items.length === 0) return { kind: 'FAIL', code: 'INVALID', text: 'Checklist cần ít nhất một mục. Chưa thay đổi gì.' };
+      const title = symbolic.title?.trim();
+      return ok({ type: 'ADD_CHECKLIST', ids: card.ids, ...localOf(card.local), params: { items, ...(title ? { title } : {}) }, before: null, display: { cardTitle: card.title } });
+    }
+    case 'REMOVE_MEMBER': {
+      const card = await cardTarget(env, symbolic.card, presets);
+      if (isFail(card)) return card;
+      const member = await pick(env, 'member', symbolic.member, presets);
+      if (isResult(member)) return member;
+      const already = card.row?.members.some((m) => m.userId === member.id) ?? false;
+      return ok({
+        type: 'REMOVE_MEMBER',
+        ids: { ...card.ids, member: member.id },
+        ...localOf(card.local),
+        params: {},
+        before: { alreadyAssigned: already },
+        display: { cardTitle: card.title, memberName: member.name },
+        ...(!already ? { noop: `${member.name} chưa được giao thẻ “${card.title}” nên chưa cần bỏ.` } : {}),
+      });
+    }
+    case 'REMOVE_LABEL': {
+      const card = await cardTarget(env, symbolic.card, presets);
+      if (isFail(card)) return card;
+      const label = await pick(env, 'label', symbolic.label, presets);
+      if (isResult(label)) return label;
+      const already = card.row?.labels.some((l) => l.labelId === label.id) ?? false;
+      return ok({
+        type: 'REMOVE_LABEL',
+        ids: { ...card.ids, label: label.id },
+        ...localOf(card.local),
+        params: {},
+        before: { alreadyLabeled: already },
+        display: { cardTitle: card.title, labelName: label.name },
+        ...(!already ? { noop: `Thẻ “${card.title}” chưa có nhãn “${label.name}” nên chưa cần gỡ.` } : {}),
+      });
+    }
+    case 'RENAME_LIST': {
+      const list = await listTarget(env, symbolic.list, presets);
+      if (isFail(list)) return list;
+      if (list.ids.list === undefined) return { kind: 'FAIL', code: 'INVALID', text: 'Cột mới tạo trong cùng lệnh không cần đổi tên (hãy đặt đúng tên khi tạo). Chưa thay đổi gì.' };
+      const name = symbolic.name.trim();
+      const lists = await prisma.list.findMany({ where: { boardId: env.boardId, deletedAt: null, archivedAt: null }, select: { id: true, name: true } });
+      const current = lists.find((l) => l.id === list.ids.list);
+      if (!current) return { kind: 'FAIL', code: 'NOT_FOUND', text: 'Cột này không còn trong bảng. Chưa thay đổi gì.' };
+      const folded = foldWords(name).join(' ');
+      if (lists.some((l) => l.id !== current.id && foldWords(l.name).join(' ') === folded)) {
+        return { kind: 'FAIL', code: 'CONFLICT', text: `Bảng đã có cột “${name}”. Hãy dùng tên khác. Chưa thay đổi gì.` };
+      }
+      return ok({
+        type: 'RENAME_LIST',
+        ids: { list: current.id },
+        params: { name },
+        before: { listName: current.name },
+        display: { listName: current.name },
+        ...(current.name === name ? { noop: `Cột “${name}” đã có tên này rồi nên chưa cần đổi.` } : {}),
+      });
+    }
+    case 'ARCHIVE_CARD': {
+      const card = await cardTarget(env, symbolic.card, presets);
+      if (isFail(card)) return card;
+      if (card.local !== undefined) return { kind: 'FAIL', code: 'INVALID', text: 'Thẻ mới tạo trong cùng lệnh không cần lưu trữ. Chưa thay đổi gì.' };
+      return ok({ type: 'ARCHIVE_CARD', ids: card.ids, params: {}, before: card.row ? { listId: card.row.listId, listName: card.row.list.name } : null, display: { cardTitle: card.title } });
+    }
     case 'ADD_LABEL': {
       const card = await cardTarget(env, symbolic.card, presets);
       if (isFail(card)) return card;
@@ -498,7 +604,11 @@ const EXCLUSIVE: Partial<Record<StoredOp['type'], string>> = {
   SET_CARD_DUE: 'đổi hạn',
   MOVE_CARD: 'chuyển cột',
   SET_CARD_STATUS: 'đổi trạng thái',
+  SET_CARD_DESCRIPTION: 'đổi mô tả',
+  SET_CARD_START: 'đổi ngày bắt đầu',
 };
+/** Cap thao tac doi nghich nhau tren CUNG mot the + cung mot nguoi / nhan: khong the vua giao vua bo. */
+const OPPOSITE: Partial<Record<StoredOp['type'], StoredOp['type']>> = { ASSIGN_MEMBER: 'REMOVE_MEMBER', REMOVE_MEMBER: 'ASSIGN_MEMBER', ADD_LABEL: 'REMOVE_LABEL', REMOVE_LABEL: 'ADD_LABEL' };
 
 const cardKeyOf = (op: StoredOp): string | undefined => op.ids.card ?? (op.local?.card !== undefined ? `local:${op.local.card}` : undefined);
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
@@ -513,6 +623,13 @@ export function dedupeOps(ops: readonly StoredOp[]): { ok: true; ops: StoredOp[]
   for (const [i, op] of ops.entries()) {
     const card = cardKeyOf(op);
     let duplicate = false;
+    if (op.type === 'RENAME_LIST') {
+      const prior = kept.find((k) => k.type === 'RENAME_LIST' && k.ids.list === op.ids.list);
+      if (prior !== undefined) {
+        if (same(prior.params, op.params)) duplicate = true;
+        else return { ok: false, text: `Có hai tên mới khác nhau cho cột “${op.display.listName ?? 'này'}” (thao tác ${kept.indexOf(prior) + 1} và ${i + 1}). Hãy nói rõ một tên. Chưa thay đổi gì.` };
+      }
+    }
     if (card !== undefined) {
       for (const [j, prior] of kept.entries()) {
         if (cardKeyOf(prior) !== card) continue;
@@ -524,6 +641,16 @@ export function dedupeOps(ops: readonly StoredOp[]): { ok: true; ops: StoredOp[]
         if ((op.type === 'MOVE_CARD' && prior.type === 'SET_CARD_STATUS') || (op.type === 'SET_CARD_STATUS' && prior.type === 'MOVE_CARD')) {
           return { ok: false, text: `Thẻ “${title}” vừa được chuyển cột vừa được đổi trạng thái (thao tác ${j + 1} và ${i + 1}) và hai việc này ảnh hưởng lẫn nhau. Hãy chọn một. Chưa thay đổi gì.` };
         }
+        if (op.type === 'ARCHIVE_CARD' || prior.type === 'ARCHIVE_CARD') {
+          if (op.type === 'ARCHIVE_CARD' && prior.type === 'ARCHIVE_CARD') duplicate = true;
+          else return { ok: false, text: `Thẻ “${title}” vừa được lưu trữ vừa bị sửa (thao tác ${j + 1} và ${i + 1}). Hãy tách thành hai lệnh. Chưa thay đổi gì.` };
+        }
+        const opposite = OPPOSITE[op.type];
+        if (opposite !== undefined && prior.type === opposite && prior.ids.member === op.ids.member && prior.ids.label === op.ids.label) {
+          return { ok: false, text: `Thao tác ${j + 1} và ${i + 1} làm ngược nhau trên thẻ “${title}”. Hãy nói rõ bạn muốn thêm hay bỏ. Chưa thay đổi gì.` };
+        }
+        if ((op.type === 'ADD_COMMENT' || op.type === 'ADD_CHECKLIST') && prior.type === op.type && same(prior.params, op.params)) duplicate = true;
+        if ((op.type === 'REMOVE_MEMBER' && prior.type === 'REMOVE_MEMBER' && prior.ids.member === op.ids.member) || (op.type === 'REMOVE_LABEL' && prior.type === 'REMOVE_LABEL' && prior.ids.label === op.ids.label)) duplicate = true;
         if (op.type === 'ASSIGN_MEMBER' && prior.type === 'ASSIGN_MEMBER' && prior.ids.member === op.ids.member) duplicate = true;
         if (op.type === 'ADD_LABEL' && prior.type === 'ADD_LABEL' && prior.ids.label === op.ids.label) duplicate = true;
       }

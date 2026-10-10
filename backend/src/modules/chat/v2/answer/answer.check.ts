@@ -15,7 +15,7 @@ import { tokenize, type Token } from '../../chat.members';
 import { vietnamDay } from '../chat.v2.dates';
 
 export const MAX_ANSWER_CHARS = 1200;
-export type AnswerRejectReason = 'EMPTY' | 'TOO_LONG' | 'MARKUP' | 'NUMBER' | 'DECIMAL' | 'NUMBER_WORD' | 'PROPER_NOUN' | 'QUOTE';
+export type AnswerRejectReason = 'EMPTY' | 'TOO_LONG' | 'MARKUP' | 'TIMESTAMP' | 'NUMBER' | 'DECIMAL' | 'NUMBER_WORD' | 'PROPER_NOUN' | 'QUOTE';
 export type AnswerCheck = { ok: true; text: string } | { ok: false; reason: AnswerRejectReason; detail: string };
 
 /** Những gì mô hình được phép nhắc tới. */
@@ -115,12 +115,16 @@ export function validateAnswer(raw: string, facts: AnswerFacts): AnswerCheck {
   const badChar = Array.from(text).find((ch) => MARKUP.has(ch));
   if (badChar !== undefined || LINK.some((l) => lower.includes(l))) return { ok: false, reason: 'MARKUP', detail: `Không dùng ký hiệu định dạng, liên kết hay địa chỉ thư${badChar ? ` (đang có “${badChar}”)` : ''}; chỉ chữ thường, xuống dòng và gạch đầu dòng “- ”.` };
 
+  // Gemini hay chép nguyên mốc ISO của dữ liệu (UTC): không phải giờ người dùng thấy và dễ đọc nhầm; bắt riêng để mô hình biết sửa đúng chỗ.
+  const iso = text.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}\S*/);
+  if (iso) return { ok: false, reason: 'TIMESTAMP', detail: `Không chép nguyên mốc thời gian dạng ISO / UTC (“${iso[0].slice(0, 30)}”). Hãy nói ngày dạng dd/mm (ví dụ 07/10) và giờ theo GIỜ VIỆT NAM, hoặc bỏ mốc thời gian.` };
+
   // --- số ---
   for (const line of text.split('\n')) {
     const body = line.replace(/^\s*\d{1,2}[.)]\s+/, ' '); // số thứ tự đầu dòng ("1. ...") là đánh số, không phải số liệu
     if (/\d[.,]\d/.test(body)) return { ok: false, reason: 'DECIMAL', detail: 'Không dùng số thập phân hay dấu phân cách hàng nghìn; chỉ số nguyên có trong kết quả.' };
     for (const run of digitRuns(body)) {
-      if (!facts.numbers.has(run) && !facts.numbers.has(String(Number(run)))) return { ok: false, reason: 'NUMBER', detail: `Số “${run}” không có trong kết quả tra cứu hay câu hỏi. Chỉ dùng các số có trong kết quả (không tự cộng, trừ hay làm tròn).` };
+      if (!facts.numbers.has(run) && !facts.numbers.has(String(Number(run)))) return { ok: false, reason: 'NUMBER', detail: `Số “${run}” không có trong kết quả tra cứu hay câu hỏi (không tự đếm các dòng, không cộng / trừ / làm tròn). Muốn số theo người / thẻ / ngày: gọi query_data với groupBy rồi dùng số của nhóm; còn không thì bỏ con số này.` };
     }
   }
   if (/\p{N}/u.test(text.replace(/[0-9]/g, ''))) return { ok: false, reason: 'NUMBER', detail: 'Chỉ dùng chữ số 0-9.' };

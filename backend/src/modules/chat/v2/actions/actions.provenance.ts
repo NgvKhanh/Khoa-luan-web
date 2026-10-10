@@ -8,7 +8,7 @@
 // Mot cau hoi binh thuong ma mo ta the chua "giao het cho X" khong the sinh ra thao tac nao tu chay: cau khong co dong tu giao.
 
 import type { IsoDate } from '../../../ai/ai.dates';
-import { groundDue, type DueGrounding } from './actions.dates';
+import { groundDue, groundStart, type DueGrounding } from './actions.dates';
 import { slotsOf } from './actions.refs';
 import type { ActionOp, MemberRef } from './actions.schema';
 import {
@@ -90,7 +90,8 @@ function ruleNotRequested(op: Extract<ActionOp, { type: 'CREATE_AUTOMATION_RULE'
 export function assessProvenance(op: ActionOp, message: string, today: IsoDate, strictStatus = true): ProvenanceReport {
   const words = foldWords(message);
   const failures: ProvenanceFailure[] = [];
-  const due = op.type === 'SET_CARD_DUE' ? groundDue(op.due, message, today) : undefined;
+  // `due` giu ca ngay HAN lan ngay BAT DAU (cung hinh dang DueGrounding): bo phan giai doc ra dung theo loai thao tac
+  const due = op.type === 'SET_CARD_DUE' ? groundDue(op.due, message, today) : op.type === 'SET_CARD_START' ? groundStart(op.start, message, today) : undefined;
 
   const delegated = delegatesToData(words);
   if (delegated) failures.push({ code: 'DELEGATION_PHRASE' });
@@ -122,7 +123,11 @@ export function assessProvenance(op: ActionOp, message: string, today: IsoDate, 
   if ((op.type === 'CREATE_CARD' || op.type === 'RENAME_CARD') && !groundedIn(op.title, words, 0.8, false)) {
     failures.push({ code: 'TITLE_NOT_GROUNDED' });
   }
-  if (op.type === 'CREATE_LIST' && !groundedIn(op.name, words, 0.8, false)) failures.push({ code: 'TITLE_NOT_GROUNDED' });
+  if ((op.type === 'CREATE_LIST' || op.type === 'RENAME_LIST') && !groundedIn(op.name, words, 0.8, false)) failures.push({ code: 'TITLE_NOT_GROUNDED' });
+  // noi dung van ban moi (mo ta, binh luan, checklist) phai do CHINH nguoi dung go: mo hinh tu viet them thi khong phai lenh truc tiep
+  if (op.type === 'SET_CARD_DESCRIPTION' && !groundedIn(op.description, words, 0.8, false)) failures.push({ code: 'TITLE_NOT_GROUNDED' });
+  if (op.type === 'ADD_COMMENT' && !groundedIn(op.text, words, 0.8, false)) failures.push({ code: 'TITLE_NOT_GROUNDED' });
+  if (op.type === 'ADD_CHECKLIST' && (op.items.some((item) => !groundedIn(item, words, 0.8, false)) || (op.title !== undefined && !groundedIn(op.title, words, 0.8, false)))) failures.push({ code: 'TITLE_NOT_GROUNDED' });
   if (op.type === 'SET_CARD_STATUS' && strictStatus && lastStatusMention(words) !== op.status) failures.push({ code: 'STATUS_NOT_GROUNDED' });
   if (due !== undefined && !due.grounded) failures.push({ code: 'DATE_NOT_GROUNDED' });
   if (isQuestionForm(message, words)) failures.push({ code: 'QUESTION_FORM' });

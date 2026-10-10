@@ -365,7 +365,7 @@ describe('đầu ra của mô hình không đáng tin: schema đóng, một thao
     const f = await seedActions();
     for (const op of [
       { type: 'DELETE_CARD', card: text('Login UI') },
-      { type: 'ARCHIVE_CARD', card: text('Login UI') },
+      { type: 'ARCHIVE_LIST', list: text('Cần làm') },
       { type: 'SET_ROLE', member: text('Lan'), role: 'ADMIN' },
       { type: 'SET_VISIBILITY', visibility: 'PUBLIC' },
     ]) {

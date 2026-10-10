@@ -45,7 +45,7 @@ export function looksLikeWriteCommand(folded: string, asksQuestion: boolean): bo
   const lead = '(?:hay |vui long |toi muon |toi can )?';
   if (new RegExp(`^${lead}(?:tao |xoa |sua |doi han |giao viec |phan cong |chuyen |luu tru )`).test(folded)) return true;
   if (/(?:tao|xoa|sua|doi han|giao viec|phan cong|chuyen|them).*(?:giup toi|giup minh|gium|ho toi)/.test(folded)) return true;
-  return !asksQuestion && new RegExp(`^${lead}(?:them |bo sung |mo rong |doi ten |dat han |gan (?!day)|giao (?!dien)|danh dau |cap nhat |di chuyen |keo )`).test(folded);
+  return !asksQuestion && new RegExp(`^${lead}(?:them |bo sung |mo rong |doi ten |dat han |dat ngay |gan (?!day)|giao (?!dien)|danh dau |cap nhat |di chuyen |keo |bo |go |rut |viet |binh luan |luu tru )`).test(folded);
 }
 
 const PAGE_CHANGED_TEXT = 'Bạn đã chuyển sang trang khác nên lựa chọn / kết quả cũ không còn dùng được. Hãy hỏi lại ở trang này.';

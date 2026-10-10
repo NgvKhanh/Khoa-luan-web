@@ -29,7 +29,18 @@ export function slotsOf(op: ActionOp): Slot[] {
     case 'RENAME_CARD':
     case 'SET_CARD_DUE':
     case 'SET_CARD_STATUS':
+    case 'SET_CARD_DESCRIPTION':
+    case 'SET_CARD_START':
+    case 'ADD_COMMENT':
+    case 'ADD_CHECKLIST':
+    case 'ARCHIVE_CARD':
       return [cardSlot(op.card)];
+    case 'REMOVE_MEMBER':
+      return [cardSlot(op.card), { name: 'member', kind: 'member', ref: op.member }];
+    case 'REMOVE_LABEL':
+      return [cardSlot(op.card), { name: 'label', kind: 'label', ref: op.label }];
+    case 'RENAME_LIST':
+      return [{ name: 'list', kind: 'list', ref: op.list }];
     case 'MOVE_CARD':
       return [cardSlot(op.card), { name: 'toList', kind: 'list', ref: op.toList }];
     case 'ASSIGN_MEMBER':
@@ -56,7 +67,18 @@ export function withRef(op: ActionOp, name: SlotName, ref: Ref): ActionOp {
     case 'RENAME_CARD':
     case 'SET_CARD_DUE':
     case 'SET_CARD_STATUS':
+    case 'SET_CARD_DESCRIPTION':
+    case 'SET_CARD_START':
+    case 'ADD_COMMENT':
+    case 'ADD_CHECKLIST':
+    case 'ARCHIVE_CARD':
       return name === 'card' ? { ...op, card: ref } : op;
+    case 'REMOVE_MEMBER':
+      return name === 'card' ? { ...op, card: ref } : name === 'member' ? { ...op, member: ref } : op;
+    case 'REMOVE_LABEL':
+      return name === 'card' ? { ...op, card: ref } : name === 'label' ? { ...op, label: ref } : op;
+    case 'RENAME_LIST':
+      return name === 'list' ? { ...op, list: ref } : op;
     case 'MOVE_CARD':
       return name === 'card' ? { ...op, card: ref } : name === 'toList' ? { ...op, toList: ref } : op;
     case 'ASSIGN_MEMBER':

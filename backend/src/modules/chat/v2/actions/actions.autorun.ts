@@ -17,7 +17,7 @@
 // mot lop da thao tac cuc an toan tu chay thi phai dua bang chung truoc (xem CHATBOT_V2_MODULE.md §9, muc "Tu chay nhieu thao tac").
 // Tao cot (CREATE_LIST) cung luon xem truoc: no doi cau truc bang va ten cot co the keo theo trang thai (vd "Hoan thanh" -> DONE).
 
-import { ACTION_TYPES, AUTO_RUN_TYPES, MAX_OPS_PER_PLAN } from './actions.schema';
+import { ACTION_TYPES, AUTO_RUN_TYPES, CONTENT_TYPES, MAX_OPS_PER_PLAN, STRUCTURE_TYPES } from './actions.schema';
 import type { ProvenanceReport } from './actions.provenance';
 import type { ActionErrorCode, ConfirmReason, GuardVerdict, PlanRisk } from './actions.types';
 
@@ -61,7 +61,9 @@ export const CONFIRM_REASON_TEXT: Record<ConfirmReason['code'], string> = {
   FUZZY_DATE: 'Ngày hạn bạn nói còn mơ hồ (ví dụ “cuối tuần”). Hãy kiểm tra ngày mình đã hiểu.',
   QUESTION_FORM: 'Câu của bạn có dạng câu hỏi nên mình chỉ làm khi bạn xác nhận.',
   MULTI_OP: 'Lệnh gồm nhiều thay đổi cùng lúc nên mình luôn cho bạn xem lại trước khi áp dụng (áp dụng là làm tất cả hoặc không làm gì).',
-  NEW_STRUCTURE: 'Tạo cột làm thay đổi cấu trúc của bảng nên cần bạn xác nhận.',
+  NEW_STRUCTURE: 'Tạo hoặc đổi tên cột làm thay đổi cấu trúc của bảng nên cần bạn xác nhận.',
+  TEXT_CONTENT: 'Mô tả, bình luận và checklist là nội dung văn bản mà người khác trong bảng sẽ đọc (bình luận còn gửi thông báo) nên mình luôn cho bạn xem lại trước khi áp dụng.',
+  ARCHIVE: 'Lưu trữ sẽ ẩn thẻ khỏi bảng (khôi phục lại được trong mục Lưu trữ) nên mình luôn cho bạn xem lại trước khi áp dụng.',
   AI_CHOSEN_TARGET: 'Người nhận do hệ thống gợi ý phân công chọn (không phải tên bạn nêu) nên mình luôn cho bạn xem điểm, độ tin cậy, cờ cảnh báo và ứng viên khác trước khi áp dụng.',
   STANDING_RULE: 'Luật tự động hóa chạy LÂU DÀI mỗi khi điều kiện xảy ra, bằng quyền của bạn (người tạo luật) và có thể thay đổi nhiều thẻ về sau, nên mình luôn cho bạn xem lại trước khi áp dụng và không bao giờ tự chạy.',
   BOARD_PATCH: 'Nội dung cột và thẻ này do AI đề xuất (không phải chữ bạn gõ) nên mình luôn cho bạn xem trước và chỉ thêm mới, không đụng tới dữ liệu cũ.',
@@ -156,7 +158,9 @@ export function decideExecution(input: DecisionInput): Decision {
   if (input.aiChosen === true) push('AI_CHOSEN_TARGET');
   if (count >= 2) push('MULTI_OP');
   if (input.opTypes.includes('CREATE_AUTOMATION_RULE')) push('STANDING_RULE');
-  if (input.opTypes.some((t) => t !== 'CREATE_AUTOMATION_RULE' && !AUTO_RUN_TYPES.includes(t as (typeof AUTO_RUN_TYPES)[number]))) push('NEW_STRUCTURE');
+  if (input.opTypes.some((t) => STRUCTURE_TYPES.includes(t as (typeof STRUCTURE_TYPES)[number]))) push('NEW_STRUCTURE');
+  if (input.opTypes.some((t) => CONTENT_TYPES.includes(t as (typeof CONTENT_TYPES)[number]))) push('TEXT_CONTENT');
+  if (input.opTypes.includes('ARCHIVE_CARD')) push('ARCHIVE');
   if (!input.autoExecute) push('AUTO_DISABLED');
 
   if (reasons.length === 0) return { mode: 'AUTO', risk: 'LOW', reasons };

@@ -37,7 +37,11 @@ const ROUTE: ReadonlyArray<{ id: string; question: string; ok: (c: Call[]) => bo
   { id: 'prefer-overview', question: 'Board này tiến độ bao nhiêu?', ok: (c) => has(c, 'get_board_overview') || has(c, 'aggregate_tasks') },
 ];
 
-const QUESTIONS_ANSWER = ['Ai viết nhiều bình luận nhất và viết gì?', 'Tóm tắt các bình luận gần đây giúp tôi', 'Có thẻ nào bình luận nhiều nhưng chưa ai xử lý không?'];
+const GROUPS_SAMPLE = {
+  entity: 'COMMENT', mode: 'GROUPS', total: 2, page: 1, pageSize: 20, hasMore: false, matched: 3, columns: [], rows: [],
+  groups: [{ id: 'u1', label: 'Trần Tuấn', count: 2 }, { id: 'u2', label: 'Nguyễn Lan', count: 1 }],
+  groupBy: 'authorId', groupLabel: 'Người viết', bucket: null, highestCount: 2, topGroups: 1,
+};
 const SAMPLE = {
   entity: 'COMMENT', mode: 'ROWS', total: 3, page: 1, pageSize: 20, hasMore: false, matched: 3,
   columns: [{ key: 'text', label: 'Nội dung', type: 'text' }, { key: 'authorName', label: 'Người viết', type: 'text' }, { key: 'cardTitle', label: 'Thẻ', type: 'text' }, { key: 'createdAt', label: 'Lúc viết', type: 'date' }],
@@ -48,6 +52,14 @@ const SAMPLE = {
   ],
   groups: [], groupBy: null, groupLabel: null, bucket: null, highestCount: 0, topGroups: 0,
 };
+/** Mỗi ca = câu hỏi + công cụ mô hình ĐÃ gọi (tham số) + kết quả dữ liệu mẫu tương ứng. */
+const ANSWER_CASES: ReadonlyArray<{ question: string; args: Record<string, unknown>; data: typeof SAMPLE | typeof GROUPS_SAMPLE }> = [
+  { question: 'Ai viết nhiều bình luận nhất?', args: { entity: 'COMMENT', groupBy: 'authorId' }, data: GROUPS_SAMPLE },
+  { question: 'Mỗi người viết bao nhiêu bình luận?', args: { entity: 'COMMENT', groupBy: 'authorId' }, data: GROUPS_SAMPLE },
+  { question: 'Tóm tắt các bình luận gần đây giúp tôi', args: { entity: 'COMMENT', fields: ['text', 'authorName', 'cardTitle', 'createdAt'] }, data: SAMPLE },
+  { question: 'Có bình luận nào về thanh toán không, ai viết?', args: { entity: 'COMMENT', search: 'thanh toán', fields: ['text', 'authorName', 'cardTitle'] }, data: SAMPLE },
+  { question: 'Thẻ nào được bình luận gần đây nhất?', args: { entity: 'COMMENT', fields: ['cardTitle', 'createdAt'], orderBy: [{ field: 'createdAt', dir: 'DESC' }] }, data: SAMPLE },
+];
 
 const userMessage = (question: string) => JSON.stringify({ question, now: NOW.toISOString(), todayVietnam: vnToday(NOW), selfId: 'u1', uiScope: { kind: 'BOARD', boardId: 'b1' }, conversationScope: { kind: 'BOARD', boardId: 'b1' }, selectedEntities: [{ kind: 'BOARD', id: 'b1', name: 'Dự án Alpha' }] });
 
@@ -62,26 +74,35 @@ async function routeProbe(): Promise<Array<Record<string, unknown>>> {
   return rows;
 }
 
+/** Mô phỏng ĐÚNG luồng điều phối: lượt 1 → kiểm → nếu sai thì gửi ANSWER_REJECTED và cho viết lại MỘT lần (lượt 2) → kiểm lại. */
 async function answerProbe(): Promise<Array<Record<string, unknown>>> {
   const rows: Array<Record<string, unknown>> = [];
   const sourceId = '22222222-2222-4222-8222-222222222222';
-  const result = { tool: 'query_data', source: { id: sourceId, generatedAt: NOW.toISOString(), scopeLabel: 'Dự án Alpha', scope: { kind: 'BOARD', boardId: 'b1' }, appliedInput: { entity: 'COMMENT' }, ranges: [] }, data: SAMPLE };
-  for (const question of QUESTIONS_ANSWER) {
+  for (const c of ANSWER_CASES) {
+    const result = { tool: 'query_data', source: { id: sourceId, generatedAt: NOW.toISOString(), scopeLabel: 'Dự án Alpha', scope: { kind: 'BOARD', boardId: 'b1' }, appliedInput: c.args, ranges: [] }, data: c.data };
+    const facts = collectFacts([{ data: c.data, scope: 'Dự án Alpha', ranges: [] }, { now: NOW.toISOString() }], [c.question, vnToday(NOW)]);
     const messages: ModelMessage[] = [
       { role: 'system', content: systemPrompt(false) },
-      { role: 'user', content: userMessage(question) },
-      { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'query_data', arguments: JSON.stringify({ entity: 'COMMENT', fields: ['text', 'authorName', 'cardTitle', 'createdAt'] }) } }] },
+      { role: 'user', content: userMessage(c.question) },
+      { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'query_data', arguments: JSON.stringify(c.args) } }] },
       { role: 'tool', tool_call_id: 'c1', content: JSON.stringify(result) },
     ];
-    const res = await callChatModel(messages, 30_000, env.ai, false);
-    if (!res.ok) { rows.push({ question, llmFailed: res.reason }); await sleep(DELAY); continue; }
-    const finish = res.calls.find((c) => c.name === 'finish');
-    const answer = (finish?.arguments as { answer?: unknown } | undefined)?.answer;
-    if (typeof answer !== 'string') { rows.push({ question, finished: finish !== undefined, answer: null, calls: res.calls.map((c) => c.name) }); await sleep(DELAY); continue; }
-    const facts = collectFacts([{ data: SAMPLE, scope: 'Dự án Alpha', ranges: [] }, { now: NOW.toISOString() }], [question, vnToday(NOW)]);
-    const check = validateAnswer(answer, facts);
-    rows.push({ question, answer, passed: check.ok, ...(check.ok ? {} : { reason: check.reason, detail: check.detail }) });
-    await sleep(DELAY);
+    const row: Record<string, unknown> = { question: c.question };
+    for (const attempt of [1, 2]) {
+      const res = await callChatModel(messages, 30_000, env.ai, false);
+      await sleep(DELAY);
+      if (!res.ok) { row.llmFailed = res.reason; break; }
+      const finish = res.calls.find((x) => x.name === 'finish');
+      const answer = (finish?.arguments as { answer?: unknown } | undefined)?.answer;
+      if (finish === undefined || typeof answer !== 'string') { row.answer = null; row.calls = res.calls.map((x) => x.name); break; }
+      const check = validateAnswer(answer, facts);
+      row[`answer${attempt}`] = answer;
+      if (check.ok) { row.passed = true; row.attempts = attempt; break; }
+      row[`reject${attempt}`] = `${check.reason}: ${check.detail}`;
+      row.passed = false;
+      messages.push(res.message, { role: 'tool', tool_call_id: finish.id, content: JSON.stringify({ error: 'ANSWER_REJECTED', reason: check.reason, detail: check.detail, instruction: 'Gọi lại finish với answer đã sửa đúng lý do trên, hoặc bỏ answer (các khối dữ liệu vẫn được hiển thị).' }) });
+    }
+    rows.push(row);
   }
   return rows;
 }
@@ -98,10 +119,10 @@ async function main() {
   }
   if (ONLY === undefined || ONLY === 'answer') {
     const rows = await answerProbe();
-    const answered = rows.filter((r) => r.llmFailed === undefined && typeof r.answer === 'string');
-    out.answer = { rows, passedCheck: answered.filter((r) => r.passed === true).length, answered: answered.length };
+    const answered = rows.filter((r) => r.llmFailed === undefined);
+    out.answer = { rows, passedCheck: rows.filter((r) => r.passed === true).length, answered: rows.filter((r) => r.llmFailed === undefined && (r.answer1 !== undefined || r.answer !== undefined)).length };
     console.log(`answer: ${(out.answer as { passedCheck: number }).passedCheck}/${answered.length} qua bo kiem`);
-    for (const r of rows) console.log(' ', r.llmFailed !== undefined ? 'LLM-LOI' : r.passed ? 'QUA' : 'TRUOT', JSON.stringify(r.answer ?? null), r.reason ? `-> ${String(r.reason)}: ${String(r.detail)}` : '');
+    for (const r of rows) console.log(' ', r.llmFailed !== undefined ? 'LLM-LOI' : r.passed === true ? `QUA (lượt ${String(r.attempts)})` : 'TRUOT', JSON.stringify(r.question), JSON.stringify(r.answer2 ?? r.answer1 ?? r.answer ?? null), r.reject1 ? `| lượt 1 bị loại: ${String(r.reject1)}` : '', r.reject2 ? `| lượt 2 bị loại: ${String(r.reject2)}` : '');
   }
   const file = args.get('out');
   if (file) writeFileSync(file, JSON.stringify(out, null, 2));

@@ -82,14 +82,21 @@ describe('tên người trùng số đếm', () => {
 describe('hình thức', () => {
   it.each([
     ['**Có** 7 việc.', 'MARKUP'], ['Xem https://evil.example để biết thêm.', 'MARKUP'], ['Xem www.evil.example.', 'MARKUP'], ['[Login UI](x) còn mở.', 'MARKUP'],
-    ['Liên hệ a@b.com.', 'MARKUP'], ['<b>7</b> việc', 'MARKUP'], ['Có `7` việc.', 'MARKUP'], ['', 'EMPTY'], ['   ', 'EMPTY'],
+    ['Liên hệ a@b.com.', 'MARKUP'], ['Hạn lúc 2026-10-09T16:59:00.000Z.', 'TIMESTAMP'], ['Viết lúc 2026-10-07T01:00:00Z.', 'TIMESTAMP'], ['<b>7</b> việc', 'MARKUP'], ['Có `7` việc.', 'MARKUP'], ['', 'EMPTY'], ['   ', 'EMPTY'],
   ])('%j', (t, reason) => bad(t, reason));
 
   it('quá dài → TOO_LONG', () => { bad('Có việc. '.repeat(MAX_ANSWER_CHARS), 'TOO_LONG'); });
+  it('mốc ISO bị loại với lời nhắc RIÊNG (nói ngày dd/mm, giờ Việt Nam) chứ không bị báo nhầm là số thập phân; ngày thuần YYYY-MM-DD trong dữ liệu thì được', () => {
+    const r = validateAnswer('Hạn lúc 2026-10-09T16:59:00.000Z.', facts);
+    expect(r).toMatchObject({ ok: false, reason: 'TIMESTAMP' });
+    if (!r.ok) expect(r.detail).toContain('GIỜ VIỆT NAM');
+    ok('Hạn ngày 09/10.');
+  });
+
   it('lý do trả về nói rõ cần sửa gì để mô hình viết lại', () => {
     const r = validateAnswer('Có 12 việc.', facts);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.detail).toContain('“12”');
+    if (!r.ok) { expect(r.detail).toContain('“12”'); expect(r.detail).toContain('groupBy'); }
     const n = validateAnswer('Việc này do Minh làm.', facts);
     if (!n.ok) expect(n.detail).toContain('“Minh”');
   });

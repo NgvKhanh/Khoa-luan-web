@@ -200,6 +200,34 @@ export function unsupportedRuleCue(message: string, ownTexts: readonly string[] 
   return null;
 }
 
+// ===================== Buoc D: sua noi dung va don dep the =====================
+// Cung nguyen tac "giay phep": thao tac chi duoc chay khi CHINH CAU nguoi dung co dong tu / cum tu tuong ung. Danh tu (mo ta, binh luan, checklist...) phai
+// di cung dong tu (hoac dung dau cau nhu mot menh lenh: "Binh luan vao the X: ..."), de cau hoi "mo ta the nay la gi?" khong bao gio sinh ra thao tac.
+const WRITE_VERBS: readonly Phrase[] = [...CREATE_VERBS, ['viet'], ['sua'], ['doi'], ['cap', 'nhat'], ['dat'], ['ghi'], ['dien'], ['thay'], ['update'], ['set'], ['de', 'lai'], ['gui'], ['post'], ['comment'], ['soan']];
+const DESCRIPTION_NOUNS: readonly Phrase[] = [['mo', 'ta'], ['description'], ['noi', 'dung', 'the']];
+const COMMENT_NOUNS: readonly Phrase[] = [['binh', 'luan'], ['comment'], ['nhan', 'xet'], ['ghi', 'chu']];
+const CHECKLIST_NOUNS: readonly Phrase[] = [['checklist'], ['check', 'list'], ['viec', 'con'], ['cong', 'viec', 'con'], ['subtask'], ['sub', 'task'], ['muc', 'con']];
+/** Cum chi NGAY BAT DAU (rieng): "bat dau" tran khong du vi "chua bat dau" la trang thai Can lam. */
+const START_PHRASES: readonly Phrase[] = [['ngay', 'bat', 'dau'], ['bat', 'dau', 'tu'], ['bat', 'dau', 'vao'], ['bat', 'dau', 'ngay'], ['start', 'date'], ['start'], ['khoi', 'cong']];
+const REMOVE_VERBS: readonly Phrase[] = [['bo'], ['go'], ['xoa'], ['loai'], ['rut'], ['remove'], ['unassign'], ['huy'], ['thu', 'hoi']];
+/** Cum tu chi "bo nguoi ra khoi the" ma khong can chu "khoi". */
+const UNASSIGN_PHRASES: readonly Phrase[] = [['huy', 'giao'], ['bo', 'giao'], ['thu', 'hoi'], ['unassign'], ['go', 'giao']];
+const ARCHIVE_PHRASES: readonly Phrase[] = [['luu', 'tru'], ['archive'], ['cat', 'vao', 'kho'], ['dua', 'vao', 'kho', 'luu', 'tru']];
+/** Danh tu dung SAT SAU dong tu (toi da 4 tu) hoac dung dau cau (mot menh lenh: "Mo ta the Login: ..."). */
+const NOUN_SPAN = 4;
+function nounWithVerb(words: readonly string[], nouns: readonly Phrase[], verbs: readonly Phrase[]): number[] {
+  const nounAt = indexesOfAny(words, nouns);
+  if (nounAt.length === 0) return [];
+  const verbAt = indexesOfAny(words, verbs).filter((v) => nounAt.some((n) => n >= v && n - v <= NOUN_SPAN));
+  // mot menh lenh khong dong tu: danh tu nam trong 2 tu dau cau ("Binh luan vao the X: ...", "Mo ta the Login la ...")
+  return verbAt.length > 0 ? verbAt : nounAt.filter((n) => n <= 1);
+}
+/** Dong tu BO / GO / XOA... dung truoc danh tu `nouns` (toi da NOUN_SPAN tu): "bo nhan Gap", "go Lan khoi the". */
+function removeBefore(words: readonly string[], nouns: readonly Phrase[]): number[] {
+  const nounAt = indexesOfAny(words, nouns);
+  return indexesOfAny(words, REMOVE_VERBS).filter((v) => nounAt.some((n) => n > v && n - v <= NOUN_SPAN));
+}
+
 const LABEL_WORDS: readonly Phrase[] = [['nhan'], ['label'], ['tag']];
 const LABEL_VERBS: readonly Phrase[] = [['them'], ['gan'], ['dan'], ['add'], ['dat'], ['cho'], ['gui']];
 const STATUS_VERBS: readonly Phrase[] = [
@@ -347,6 +375,36 @@ export function licenceFor(type: string, words: readonly string[], status?: Card
       if (at.length === 0 && status === 'DONE') at = statusMentions(words).filter((m) => m.status === 'DONE').map((m) => m.start);
       break;
     }
+    case 'SET_CARD_DESCRIPTION':
+      at = nounWithVerb(words, DESCRIPTION_NOUNS, WRITE_VERBS);
+      break;
+    case 'ADD_COMMENT':
+      at = nounWithVerb(words, COMMENT_NOUNS, WRITE_VERBS);
+      break;
+    case 'ADD_CHECKLIST':
+      at = nounWithVerb(words, CHECKLIST_NOUNS, WRITE_VERBS);
+      break;
+    case 'SET_CARD_START':
+      at = indexesOfAny(words, START_PHRASES);
+      break;
+    case 'REMOVE_MEMBER': {
+      // "go Lan khoi the X", "bo Lan khoi task Y" (can chu "khoi") hoac cum rieng "huy giao", "thu hoi", "unassign"
+      const away = indexesOfAny(words, REMOVE_VERBS).filter(() => hasPhrase(words, ['khoi']));
+      at = [...away, ...indexesOfAny(words, UNASSIGN_PHRASES)].sort((a, b) => a - b);
+      break;
+    }
+    case 'REMOVE_LABEL':
+      at = removeBefore(words, LABEL_WORDS);
+      break;
+    case 'RENAME_LIST': {
+      // dong tu doi ten dung truoc danh tu "cot / list / danh sach" (toi da 3 tu): "doi ten cot A thanh B"
+      const nouns = indexesOfAny(words, LIST_NOUNS);
+      at = indexesOfAny(words, RENAME_VERBS).filter((v) => nouns.some((n) => n >= v && n - v <= CREATE_LIST_SPAN));
+      break;
+    }
+    case 'ARCHIVE_CARD':
+      at = indexesOfAny(words, ARCHIVE_PHRASES);
+      break;
     default:
       return { licensed: false, negated: false };
   }

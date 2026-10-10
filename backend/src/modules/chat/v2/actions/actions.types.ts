@@ -62,7 +62,9 @@ export type ConfirmReasonCode =
   | 'NEW_STRUCTURE' // tao cot: doi cau truc bang
   | 'BOARD_PATCH' // Phase 3: noi dung do AI de xuat -> luon xem truoc, khong bao gio tu chay
   | 'AI_CHOSEN_TARGET' // Phase 6: nguoi nhan do MAY chon (khong phai nguoi dung goi ten) -> luon xem truoc
-  | 'STANDING_RULE'; // Phase 7: luat tu dong hoa chay LAU DAI bang quyen cua nguoi tao -> luon xem truoc, rui ro CAO
+  | 'STANDING_RULE' // Phase 7: luat tu dong hoa chay LAU DAI bang quyen cua nguoi tao -> luon xem truoc, rui ro CAO
+  | 'TEXT_CONTENT' // Buoc D: viet mo ta / binh luan / checklist -> nguoi khac se doc, luon xem truoc
+  | 'ARCHIVE'; // Buoc D: luu tru the (an khoi bang, khoi phuc duoc) -> luon xem truoc
 export interface ConfirmReason {
   code: ConfirmReasonCode;
   text: string;
@@ -113,7 +115,7 @@ export interface StoredOp {
   /** Tham chieu noi bo: key cua thao tac tao ra the / cot ma thao tac nay dung (id chi co sau khi thao tac do chay). */
   local?: { card?: string; list?: string };
   /** `due`: thoi diem ISO (UTC) hoac null = bo han. `listStatus`: trang thai cot moi (doan theo ten, giong tao cot bang tay). */
-  params: { title?: string; name?: string; due?: string | null; status?: CardStatus; listStatus?: CardStatus | null; rule?: StoredRule };
+  params: { title?: string; name?: string; due?: string | null; status?: CardStatus; listStatus?: CardStatus | null; rule?: StoredRule; description?: string; text?: string; start?: string | null; items?: string[] };
   before: {
     title?: string;
     due?: string | null;
@@ -122,6 +124,10 @@ export interface StoredOp {
     status?: CardStatus;
     alreadyAssigned?: boolean;
     alreadyLabeled?: boolean;
+    /** Buoc D: ngay bat dau cu (ISO hoac null) va dau van tay (sha256) cua mo ta cu - de phat hien STALE ma khong luu ca doan mo ta. */
+    start?: string | null;
+    descriptionHash?: string;
+    descriptionLength?: number;
   } | null;
   display: { cardTitle?: string; listName?: string; toListName?: string; memberName?: string; labelName?: string; dueText?: string; ruleWhen?: string; ruleThen?: string[] };
   /** Khong thay doi gi (da dung roi) -> khong goi service. */

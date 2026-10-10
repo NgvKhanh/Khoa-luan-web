@@ -19,21 +19,21 @@ export default function AssistantPanel() {
   return open ? createPortal(<PanelBody />, document.body) : null;
 }
 
-const ACTION_EXAMPLES = ['Chuyển task Login sang Đang làm', 'Giao thẻ Báo cáo tuần cho Lan', 'Đặt hạn thẻ Thiết kế là thứ sáu'];
+const ACTION_EXAMPLES = ['Chuyển task Login sang Đang làm', 'Giao thẻ Báo cáo tuần cho Lan', 'Đặt hạn thẻ Thiết kế là thứ sáu', 'Thêm bình luận vào thẻ Login: đã review xong', 'Tạo thẻ Deploy rồi thêm checklist gồm build, test'];
 
 function Intro({ busy, status, onAsk }: { busy: boolean; status: ChatStatus | null; onAsk: (q: string) => void }) {
   return (
     <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
       <p>
-        Trợ lý tra cứu công việc, người phụ trách, khối lượng của từng thành viên và lịch sử thay đổi trên các bảng
-        bạn được phép xem. Bạn có thể hỏi nhiều nội dung trong một câu và nêu tên bảng hoặc không gian cần xem.
+        Trợ lý tra cứu công việc, người phụ trách, khối lượng của từng thành viên, lịch sử thay đổi, mô tả, bình luận, checklist và
+        tệp đính kèm trên các bảng bạn được phép xem. Bạn có thể hỏi nhiều nội dung trong một câu và nêu tên bảng hoặc không gian cần xem.
         {status?.actions !== true && ' Trợ lý hiện chỉ đọc dữ liệu.'}
       </p>
       {status?.actions === true && (
         <div className="space-y-1">
           <p>
-            Trợ lý cũng làm giúp một số thao tác trên một bảng: tạo thẻ, đổi tên, đặt hạn, chuyển cột, đổi trạng thái, giao người, gắn nhãn.
-            Lệnh rõ ràng thì làm ngay; lệnh còn mơ hồ thì hiện bản xem trước để bạn bấm Áp dụng. Trợ lý không xóa gì.
+            Trợ lý cũng làm giúp các thao tác trên một bảng: tạo cột và thẻ, đổi tên, đặt hạn và ngày bắt đầu, chuyển cột, đổi trạng thái, giao hoặc bỏ người, gắn hoặc gỡ nhãn,
+            sửa mô tả, viết bình luận, thêm checklist, đổi tên cột, lưu trữ thẻ. Việc nhỏ và rõ ràng thì làm ngay; nội dung văn bản, đổi cấu trúc, lưu trữ hay lệnh còn mơ hồ thì hiện bản xem trước để bạn bấm Áp dụng. Trợ lý không xóa hẳn gì.
           </p>
           <ul className="list-disc pl-4 text-xs text-slate-500 dark:text-slate-400">{ACTION_EXAMPLES.map((e) => <li key={e}>{e}</li>)}</ul>
         </div>

@@ -93,7 +93,7 @@ function PlanCard({ turn, plan, scope, busy, onConfirm, onCancel }: {
             ) : (
               <span className="break-words">{item.text}</span>
             )}
-            {item.detail && <span className="block text-xs text-slate-500 dark:text-slate-400">{item.detail}</span>}
+            {item.detail && <span className="block whitespace-pre-line break-words text-xs text-slate-500 dark:text-slate-400">{item.detail}</span>}
             {item.choice && <span className="block text-xs text-slate-500 dark:text-slate-400">{choiceLine(item.choice)}</span>}
             {item.choice && item.choice.flags.length > 0 && <span className="block text-xs text-amber-700 dark:text-amber-300">{flagsLine(item.choice.flags)}</span>}
             {item.choice && item.choice.alternatives.length > 0 && <span className="block break-words text-xs text-slate-500 dark:text-slate-400">{alternativesLine(item.choice.alternatives)}</span>}
