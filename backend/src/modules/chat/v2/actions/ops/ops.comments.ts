@@ -11,7 +11,7 @@ import type { GuardVerdict, StoredOp } from '../actions.types';
 import { cardOf, PlanAbort, record, type OpOutcome } from '../actions.write.base';
 import { chooseFrom, clip, q, type PoolItem } from './ops.common';
 import { defineOp, isOpResult, type AnyHandler, type GuardCtx, type OpResolveResult, type ResolveCtx } from './ops.types';
-import { COMMENT_NOUNS_VI, DELETE_VERBS, EDIT_VERBS, verbThen } from './ops.words';
+import { COMMENT_NOUNS_VI, EDIT_VERBS, REMOVE_OR_DELETE_VERBS, verbThen } from './ops.words';
 
 const sha = (text: string): string => createHash('sha256').update(text.trim()).digest('hex');
 const REPLY_VERBS = [['tra', 'loi'], ['reply'], ['phan', 'hoi'], ['hoi', 'dap'], ['dap', 'lai']] as const;
@@ -129,7 +129,7 @@ const deleteComment = defineOp<'DELETE_COMMENT'>({
   policy: { autoRun: false, confirm: ['DELETE'] },
   slots: (op) => [{ name: 'card', kind: 'card', ref: op.card }],
   withRef: (op, name, ref) => (name === 'card' ? { ...op, card: ref } : op),
-  licence: (words) => verbThen(words, DELETE_VERBS, COMMENT_NOUNS_VI, [], 4),
+  licence: (words) => verbThen(words, REMOVE_OR_DELETE_VERBS, COMMENT_NOUNS_VI, [], 4),
   grounded: (op, words) => allIn([op.match], words),
   async resolve(rc, op) {
     const card = await existingCard(rc, op.card, 'xóa');

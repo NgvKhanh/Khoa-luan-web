@@ -38,6 +38,7 @@ import {
 } from '../src/modules/chat/v2/actions/actions.plan';
 import type { StoredOp } from '../src/modules/chat/v2/actions/actions.types';
 import { guessListStatus } from '../src/modules/card/cardStatus';
+import { handlerOf, LEGACY_TYPES } from '../src/modules/chat/v2/actions/ops/ops.registry';
 
 const TODAY = '2026-10-07'; // Thứ Tư
 const t = (text: string) => ({ by: 'TEXT' as const, text });
@@ -55,9 +56,14 @@ const verdict = (op: ActionOp, message: string): ProvenanceReport => assessProve
 
 describe('schema đề xuất: chỉ có 7 thao tác, KHÔNG có ô nào để điền id', () => {
   it('nhận 7 loại thao tác của Phase 1 + CREATE_LIST + ASSIGN_UNASSIGNED (Phase 6) + CREATE_AUTOMATION_RULE (Phase 7); chỉ 7 loại Phase 1 được phép tự chạy', () => {
-    expect([...ACTION_TYPES]).toEqual(['CREATE_LIST', 'CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL', 'ASSIGN_UNASSIGNED', 'CREATE_AUTOMATION_RULE', 'SET_CARD_DESCRIPTION', 'SET_CARD_START', 'ADD_COMMENT', 'ADD_CHECKLIST', 'REMOVE_MEMBER', 'REMOVE_LABEL', 'RENAME_LIST', 'ARCHIVE_CARD', 'DELETE_CARD', 'RESTORE_CARD', 'COPY_CARD', 'SET_CARD_COVER', 'ARCHIVE_LIST', 'DELETE_LIST', 'RESTORE_LIST', 'COPY_LIST', 'MOVE_LIST', 'SORT_LIST', 'MOVE_ALL_CARDS', 'DELETE_ALL_CARDS', 'SET_LIST_STATUS']);
+    const types = [...ACTION_TYPES];
+    expect(types.slice(0, 18)).toEqual(['CREATE_LIST', 'CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL', 'ASSIGN_UNASSIGNED', 'CREATE_AUTOMATION_RULE', 'SET_CARD_DESCRIPTION', 'SET_CARD_START', 'ADD_COMMENT', 'ADD_CHECKLIST', 'REMOVE_MEMBER', 'REMOVE_LABEL', 'RENAME_LIST', 'ARCHIVE_CARD']);
+    // bước E-I thêm 51 loại nữa (đi qua registry theo nhóm): không trùng, mỗi loại là thao tác cũ hoặc có handler
+    expect(types).toHaveLength(69);
+    expect(new Set(types).size).toBe(types.length);
+    for (const type of types) expect(LEGACY_TYPES.includes(type) !== (handlerOf(type) !== undefined), type).toBe(true);
     // tự chạy: 7 thao tác của Phase 1 + 3 thao tác chính xác của bước D (đặt ngày bắt đầu, bỏ người, gỡ nhãn) + 3 thao tác chính xác của bước E (khôi phục thẻ, sao chép thẻ, ảnh bìa); còn lại luôn xem trước
-    expect([...SAFE_ACTION_TYPES]).toEqual(['CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL', 'SET_CARD_START', 'REMOVE_MEMBER', 'REMOVE_LABEL', 'RESTORE_CARD', 'COPY_CARD', 'SET_CARD_COVER']);
+    expect([...SAFE_ACTION_TYPES]).toEqual(['CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL', 'SET_CARD_START', 'REMOVE_MEMBER', 'REMOVE_LABEL', 'RESTORE_CARD', 'COPY_CARD', 'SET_CARD_COVER', 'SET_CHECKLIST_ITEM_DONE', 'ASSIGN_CHECKLIST_ITEM', 'SET_CHECKLIST_ITEM_DUE', 'SET_FIELD_VALUE', 'ADD_REMINDER', 'REMOVE_REMINDER', 'SET_WATCH', 'CREATE_CARD_FROM_TEMPLATE', 'STAR_BOARD']);
     expect(MAX_OPS_PER_PLAN).toBe(15);
     const ops = [
       { type: 'CREATE_LIST', name: 'Kiểm thử' } as ActionOp,
@@ -452,8 +458,8 @@ describe('chính sách tự chạy an toàn: 8 điều kiện (AUTO / CONFIRM / 
     expect(d.mode === 'CONFIRM' && d.reasons.map((r) => r.code)).toEqual(['NEW_STRUCTURE']);
   });
 
-  it('điều kiện 2 và 6: thao tác ngoài whitelist (xóa, vai trò, quyền, chủ sở hữu, hiển thị...) luôn bị từ chối', () => {
-    for (const opType of ['PURGE_CARD', 'PURGE_LIST', 'SET_ROLE', 'SET_VISIBILITY', 'TRANSFER_OWNERSHIP', 'UPDATE_AUTOMATION_RULE', 'DELETE_AUTOMATION_RULE', '']) {
+  it('điều kiện 2 và 6: thao tác ngoài whitelist (xóa vĩnh viễn, chuyển chủ sở hữu, sửa điều kiện luật, lịch lặp...) luôn bị từ chối', () => {
+    for (const opType of ['PURGE_CARD', 'PURGE_LIST', 'PURGE_BOARD', 'SET_ROLE', 'SET_VISIBILITY', 'TRANSFER_OWNERSHIP', 'UPDATE_AUTOMATION_RULE', 'SET_RECURRING_SCHEDULE', '']) {
       expect(decideExecution(baseDecision({ opTypes: [opType] })), opType).toMatchObject({ mode: 'REFUSE', code: 'INVALID' });
       expect(decideExecution(baseDecision({ opTypes: ['CREATE_CARD', opType] })), `1 trong nhiều: ${opType}`).toMatchObject({ mode: 'REFUSE', code: 'INVALID' });
     }

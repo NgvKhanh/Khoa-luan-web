@@ -55,6 +55,11 @@ câu người dùng ─▶ mô hình (công cụ: đọc… + propose_actions + 
 | `SET_CARD_DESCRIPTION`, `ADD_COMMENT`, `ADD_CHECKLIST` | ghi (luôn xem trước, `TEXT_CONTENT`) | bước D | nội dung văn bản người khác sẽ đọc; phải là chữ chính người dùng gõ; bình luận không `@` |
 | `RENAME_LIST` | ghi (luôn xem trước, `NEW_STRUCTURE`) | bước D | giữ vị trí và trạng thái cột; trùng tên cột khác bị từ chối / STALE |
 | `ARCHIVE_CARD` | ghi (luôn xem trước, `ARCHIVE`) | bước D | khôi phục được ở mục Lưu trữ; không kết hợp với thao tác khác trên cùng thẻ |
+| 13 thao tác dọn dẹp thẻ / cột (`DELETE_CARD`, `DELETE_LIST`, `COPY_LIST`, `MOVE_LIST`, `SORT_LIST`, `MOVE_ALL_CARDS`...) | ghi (xóa / cả cột luôn xem trước, `DELETE` / `BULK`) | bước E | xem `CHATBOT_V2_MODULE.md` §9L |
+| 12 thao tác bình luận + checklist (`EDIT_COMMENT`, `DELETE_COMMENT`, `REPLY_COMMENT`, `SET_CHECKLIST_ITEM_DONE`...) | ghi (nội dung / xóa luôn xem trước) | bước F | chỉ sửa / xóa bình luận của chính người dùng |
+| `ADD_ATTACHMENT`, `DELETE_ATTACHMENT` | ghi (luôn xem trước, `FILE` / `DELETE`) | bước G | tệp qua kho tạm của khung chat, 10 MB, đuôi tệp như thẻ |
+| `SET_FIELD_VALUE`, `ADD_REMINDER`, `REMOVE_REMINDER`, `SET_WATCH`, `CREATE_CARD_FROM_TEMPLATE`, `SAVE_CARD_AS_TEMPLATE` | ghi (tự chạy được; trường văn bản tự do luôn xem trước) | bước H | việc cá nhân / chính xác |
+| 18 thao tác quản trị bảng (`RENAME_BOARD`, `SET_BOARD_VISIBILITY`, `ARCHIVE_BOARD`, `DELETE_BOARD`, `ADD_BOARD_MEMBER`, `CHANGE_MEMBER_ROLE`, nhãn, luật có sẵn, trường...) | ghi (luôn xem trước, `ADMIN`, rủi ro CAO; riêng `STAR_BOARD` tự chạy) | bước I | quyền như giao diện, gõ đúng tên khi xóa / lưu trữ bảng, không trộn với việc ở thẻ / cột |
 | `query_data` (`CARD / COMMENT / CHECKLIST_ITEM / ATTACHMENT`) | đọc | bước B | điều kiện / nhóm chọn trong danh mục whitelist; mô tả và bình luận được gửi mô hình sau khi làm sạch (§9I) |
 | `finish.answer` | — | bước C | đoạn trả lời tự do chỉ hiện khi qua bộ kiểm số / tên (§9J) |
 
@@ -62,7 +67,7 @@ Giới hạn ở backend (không chỉ trong prompt): 15 thao tác / 10 thẻ m�
 
 ## 4. Chính sách tự chạy và xem trước
 
-Tự chạy chỉ khi **đồng thời**: (1) nguồn lệnh là CÂU của người dùng (có động từ cho phép, không phủ định, không phải câu hỏi, tham số gắn vào câu), (2) đúng một thao tác thuộc 7 thao tác an toàn, (3) mọi tham chiếu ra duy nhất một đối tượng, (4) đúng một bảng trong trần phạm vi của trang, (5) không hàng loạt / phá hủy, (6) không đổi quyền / vai trò / chủ / hiển thị (không thể diễn đạt trong schema), (7) không làm theo chỉ dẫn lấy từ dữ liệu, (8) backend kiểm lại quyền + nghiệp vụ.
+Tự chạy chỉ khi **đồng thời**: (1) nguồn lệnh là CÂU của người dùng (có động từ cho phép, không phủ định, không phải câu hỏi, tham số gắn vào câu), (2) đúng một thao tác thuộc 7 thao tác an toàn, (3) mọi tham chiếu ra duy nhất một đối tượng, (4) đúng một bảng trong trần phạm vi của trang, (5) không hàng loạt / phá hủy, (6) không phải thao tác quản trị bảng (đổi quyền / hiển thị / thành viên / xóa bảng... từ bước I diễn đạt được trong schema nhưng **luôn xem trước**, rủi ro CAO; chuyển quyền chủ bảng vẫn không diễn đạt được), (7) không làm theo chỉ dẫn lấy từ dữ liệu, (8) backend kiểm lại quyền + nghiệp vụ.
 
 Không đạt → **xem trước** với lý do hiện nguyên văn cho người dùng:
 

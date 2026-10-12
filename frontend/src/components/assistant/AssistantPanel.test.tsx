@@ -1003,7 +1003,8 @@ describe('AssistantPanel: thao tac cua tro ly', () => {
 
   it('gioi thieu: bat hanh dong thi neu cac thao tac (ke ca noi dung, luu tru) + vi du, tat thi noi ro chi doc', async () => {
     renderAt('/home'); await openPanel();
-    expect(await within(panel()).findByText(/tạo cột và thẻ, đổi tên, đặt hạn và ngày bắt đầu, chuyển cột, đổi trạng thái, giao hoặc bỏ người, gắn hoặc gỡ nhãn/)).toBeInTheDocument();
+    expect(await within(panel()).findByText(/Với thẻ: tạo, đổi tên, đặt hạn và ngày bắt đầu, chuyển cột, đổi trạng thái, giao hoặc bỏ người, gắn hoặc gỡ nhãn/)).toBeInTheDocument();
+    expect(within(panel()).getByText(/Với bảng \(chủ bảng hoặc quản trị viên\): đổi tên, chế độ hiển thị/)).toBeInTheDocument();
     expect(within(panel()).getByText('Chuyển task Login sang Đang làm')).toBeInTheDocument();
     expect(within(panel()).queryByText(/Trợ lý hiện chỉ đọc dữ liệu/)).not.toBeInTheDocument();
     expect(within(panel()).getByRole('textbox', { name: 'Câu hỏi cho trợ lý' })).toHaveAttribute('placeholder', expect.stringContaining('ra lệnh'));
@@ -1012,7 +1013,7 @@ describe('AssistantPanel: thao tac cua tro ly', () => {
     mocks.fetchChatStatus.mockResolvedValue({ llmAvailable: true, engine: 'v2', actions: false });
     renderAt('/home'); await openPanel();
     expect(await within(panel()).findByText(/Trợ lý hiện chỉ đọc dữ liệu/)).toBeInTheDocument();
-    expect(within(panel()).queryByText(/tạo cột và thẻ, đổi tên/)).not.toBeInTheDocument();
+    expect(within(panel()).queryByText(/Với thẻ: tạo, đổi tên/)).not.toBeInTheDocument();
   });
 
   it('lenh chua du chac chan -> khoi xem truoc (ten bang, tung thao tac, ly do, gio het han); bam Ap dung -> thay bang ket qua, KHONG them luot moi', async () => {

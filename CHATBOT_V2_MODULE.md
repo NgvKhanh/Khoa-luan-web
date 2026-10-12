@@ -780,9 +780,60 @@ Không thêm thành phần: bản xem trước dùng khối kế hoạch có s�
 
 ### 9K.7 Giới hạn đã biết
 
-- Bình luận không nhắc tên được (`@`), không trả lời một bình luận cụ thể; checklist chỉ **thêm** (không tick / xóa mục); mô tả chỉ **thay** (chưa “nối thêm”).
-- Chưa sửa trường tùy chỉnh, tạo nhãn mới, xóa hẳn, lưu trữ cột, đổi thứ tự cột, sao chép thẻ.
+- Bình luận không nhắc tên được (`@`); mô tả chỉ **thay** (chưa “nối thêm”). (Trả lời bình luận, tick / sửa / xóa mục checklist đã có từ bước F — §9L.)
+- (Bước E–I đã làm các việc trước đây còn thiếu: sửa trường tùy chỉnh, tạo nhãn mới, xóa, lưu trữ cột, đổi thứ tự cột, sao chép thẻ... — xem §9L.)
 - Danh sách động từ là heuristic tiếng Việt: một cách nói lạ có thể bị từ chối (“chưa thấy câu yêu cầu thao tác này”) — an toàn nhưng không phải lúc nào cũng thuận tiện.
+
+## 9L. Làm được mọi việc có ở bảng (bước E–I, 11–12/10/2026)
+
+### 9L.1 Vì sao
+
+Sau bước D người dùng vẫn gặp câu “Trợ lý chưa hỗ trợ tính năng xóa danh sách hoặc cột”. Yêu cầu: **ở bảng có chức năng nào thì chatbot làm được chức năng đó** (kể cả thêm / sửa / xóa bình luận, đính kèm tệp). Năm bước E–I đưa `propose_actions` từ 18 lên **69 loại thao tác**; mọi thao tác vẫn đi qua đúng đường ống an toàn cũ (mô hình khai ý định tượng trưng → giấy phép động từ → phân giải → kiểm quyền → chính sách tự chạy / xem trước → một transaction → hiệu ứng sau COMMIT). Không migration, không endpoint ghi mới (trừ tải tệp ở bước G).
+
+| Bước | Nhóm | Thao tác |
+|---|---|---|
+| E | dọn dẹp thẻ và cột (13) | `DELETE_CARD`, `RESTORE_CARD`, `COPY_CARD`, `SET_CARD_COVER`, `ARCHIVE_LIST`, `DELETE_LIST`, `RESTORE_LIST`, `COPY_LIST`, `MOVE_LIST`, `SORT_LIST`, `MOVE_ALL_CARDS`, `DELETE_ALL_CARDS`, `SET_LIST_STATUS` |
+| F | bình luận + checklist (12) | `EDIT_COMMENT`, `DELETE_COMMENT`, `REPLY_COMMENT`, `SET_CHECKLIST_ITEM_DONE`, `ADD_CHECKLIST_ITEM`, `EDIT_CHECKLIST_ITEM`, `DELETE_CHECKLIST_ITEM`, `RENAME_CHECKLIST`, `DELETE_CHECKLIST`, `ASSIGN_CHECKLIST_ITEM`, `SET_CHECKLIST_ITEM_DUE`, `CONVERT_ITEM_TO_CARD` |
+| G | tệp đính kèm (2) | `ADD_ATTACHMENT`, `DELETE_ATTACHMENT` (+ kho tạm tải tệp ở khung chat) |
+| H | mở rộng thẻ (6) | `SET_FIELD_VALUE`, `ADD_REMINDER`, `REMOVE_REMINDER`, `SET_WATCH`, `CREATE_CARD_FROM_TEMPLATE`, `SAVE_CARD_AS_TEMPLATE` |
+| I | quản trị bảng (18) | `RENAME_BOARD`, `SET_BOARD_VISIBILITY`, `STAR_BOARD`, `ARCHIVE_BOARD`, `DELETE_BOARD`, `SET_INVITE_LINK`, `CREATE_LABEL`, `UPDATE_LABEL`, `DELETE_LABEL`, `TOGGLE_AUTOMATION_RULE`, `DELETE_AUTOMATION_RULE`, `ADD_BOARD_MEMBER`, `REMOVE_BOARD_MEMBER`, `CHANGE_MEMBER_ROLE`, `CREATE_CUSTOM_FIELD`, `RENAME_CUSTOM_FIELD`, `DELETE_CUSTOM_FIELD`, `ADD_FIELD_OPTION` |
+
+### 9L.2 Cơ chế: mỗi thao tác khai báo MỘT chỗ
+
+18 thao tác cũ vẫn nằm trong các `switch` cũ. 51 thao tác mới đi qua **registry theo nhóm** (`v2/actions/ops/ops.registry.ts`): mỗi nhóm một tệp (`ops.cleanup`, `ops.comments`, `ops.checklist`, `ops.attachment`, `ops.cardextras`, `ops.board`), mỗi thao tác một `defineOp({...})` khai báo cùng lúc: ô tham chiếu (`slots` / `withRef`), **giấy phép động từ** (`licence` — động từ phải đi cùng danh từ / tên riêng của đúng đối tượng), nội dung phải là chữ người dùng gõ (`grounded`), phân giải (`resolve`), quyền (`guard`), kiểm lại giá trị cũ trong transaction (`verify`), ghi (`apply`), hiển thị (`describe`, `danger`), giải thích STALE, **chính sách** (`policy: { autoRun, confirm[], admin?, confirmFor? }`) và đối tượng bị tác động (`targets`, để phát hiện mâu thuẫn trong một lệnh: xóa rồi lại sửa chính nó). Đối tượng con (bình luận, mục checklist, tệp, luật, trường, thẻ mẫu, thẻ / cột đã lưu trữ, lựa chọn) được chỉ bằng vài từ trong nội dung (`match`) qua `chooseFrom`: một cái thì lấy, nhiều thì **nút chọn**, quá nhiều thì hỏi lại; id không bao giờ do mô hình điền. Tệp trong `actions/ops` chỉ import tệp lá (`actions.write.base`, `actions.guard.base`) để không tạo vòng import.
+
+### 9L.3 Chính sách xem trước (không nới lỏng)
+
+- Chỉ các việc **chính xác, hoàn tác được bằng thao tác đối nghịch** mới tự chạy khi là lệnh trực tiếp duy nhất: khôi phục / sao chép thẻ, ảnh bìa, tick / giao / hạn mục checklist, đặt giá trị trường (trừ trường văn bản tự do → `TEXT_CONTENT`), nhắc hạn, theo dõi, tạo thẻ từ mẫu, gắn / bỏ sao bảng.
+- **Luôn xem trước**: mọi thao tác xóa (`DELETE`, rủi ro CAO, thẻ to màu cảnh báo `danger`), thao tác cả cột (`BULK`), nội dung văn bản (`TEXT_CONTENT`), tệp (`FILE`), cấu trúc (`NEW_STRUCTURE`), luật chạy lâu dài (`STANDING_RULE`), **quản trị bảng (`ADMIN`, rủi ro CAO)**.
+- Hai thao tác đối nghịch / mâu thuẫn trong một lệnh bị từ chối; thao tác trùng hệt bị bỏ.
+
+### 9L.4 Quản trị bảng (bước I)
+
+- **Quyền** dùng đúng hàm của giao diện: `assertBoardManage` (chủ bảng, quản trị viên bảng, chủ / quản trị viên không gian) cho hiển thị, link mời, thành viên, quyền; `assertBoardOwner` (chỉ chủ bảng) cho lưu trữ / xóa bảng; quyền sửa cho nhãn, luật, trường, tên, sao. Kiểm lại **trong transaction** (`canManageInTx`, `isOwnerInTx`) vì quyền có thể vừa bị thu hồi.
+- **Lưu trữ / xóa bảng phải gõ đúng tên bảng** (`confirmName`, không chấp nhận “bảng này”), phải là thao tác duy nhất của lệnh; thao tác quản trị thành viên / quyền / hiển thị / link mời chỉ đi cùng thao tác quản trị khác, **không trộn với việc ở thẻ / cột** (lỗi `ADMIN_NOT_ALONE` → `INVALID_PLAN`).
+- **Thêm thành viên chỉ bằng email do chính người dùng gõ**, chỉ người đã có tài khoản đã xác minh (như `addBoardMember`); chưa có tài khoản thì trợ lý **không gửi email**, hướng người dùng sang nút Chia sẻ. Token link mời **không bao giờ hiện trong chat**.
+- Bỏ thành viên / đổi quyền chỉ áp dụng cho người được thêm trực tiếp vào bảng (có dòng thành viên); người vào qua không gian hoặc chủ bảng bị báo rõ, không đoán.
+- Hiệu ứng ra ngoài (socket tới từng người, dọn phòng socket, xóa ảnh nền) gom trong `Effects.afterCommit`, chỉ chạy **sau COMMIT**; transaction hoàn tác thì không phát gì.
+
+### 9L.5 Tệp đính kèm trong khung chat (bước G)
+
+Nút kẹp giấy tải tệp vào **kho tạm** (`UPLOAD_ROOT/chat-staging`, không mount tĩnh, tên trên đĩa là UUID, kèm tệp `<id>.json` ghi chủ sở hữu / tên gốc / kích thước, tự hết hạn sau 60 phút, tối đa 5 tệp / tin nhắn, 10 tệp / người) cùng danh sách đuôi tệp và giới hạn 10 MB như tệp đính kèm của thẻ. Chỉ khi một kế hoạch `ADD_ATTACHMENT` được Áp dụng, tệp mới được chép sang thư mục tệp của thẻ (`adoptCardAttachmentFile`); tệp tạm được dọn sau commit, hoàn tác thì tệp đã chép bị gỡ. Mô hình chỉ nhìn thấy **tên** tệp, không thấy nội dung.
+
+### 9L.6 Hành vi ghi GIỐNG service giao diện
+
+Mỗi nhóm có bộ test chạy **cùng việc bằng chatbot trên bảng Alpha và bằng service giao diện trên bảng Beta** rồi so sánh từng cột dữ liệu, loại Activity, thông báo (kể cả `card.deleted` không có `cardId`), vị trí và sự kiện realtime. Khác biệt có chủ ý: `DELETE_BOARD` báo `board:removed` cho mọi thành viên đang mở bảng (giao diện tự điều hướng sau khi xóa, chatbot thì không biết); tạo nhãn qua chat bắt buộc có tên (giao diện cho phép nhãn chỉ có màu).
+
+### 9L.7 Kiểm thử và đo đạc
+
+- Test mới: `chat.cleanup.pure/api`, `chat.checklist.pure/api`, `chat.attachment`, `chat.cardextras`, `chat.board` (36 test: giấy phép + nguồn gốc, hình dạng kế hoạch, mỗi thao tác so song sinh với service, quyền, STALE, kiểm lại trong transaction); frontend `AssistantPanel.test`, `ActionCard.test`.
+- Kiểm tra đột biến (sửa một hành vi → bộ test phải đỏ) đã chạy cho từng bước; bước I: 8 phép sửa (bỏ kiểm chủ bảng, bỏ gỡ thẻ khi bỏ thành viên, bỏ loại trừ `ids.member` khỏi kiểm quyền người được giao, bỏ luật “không trộn”, kiểm quyền trong transaction luôn đúng, không phát hiệu ứng sau commit, bỏ kiểm đổi tên khi lưu trữ, bỏ loại trừ “khỏi thẻ” của xóa nhãn) — 2 phép sống sót lúc đầu nên đã thêm test trực tiếp `canManageInTx` / `verify` từng thao tác; sau đó **8/8 bị bắt**.
+- **Thăm dò Gemini thật** (`gemini-3.5-flash-lite`, 12/10/2026, `src/scripts/probeChatExtended.ts`, không CSDL, n = 1, 63 lượt gọi): 56 câu dương (51 thao tác mới + 5 cặp dễ nhầm như `REMOVE_LABEL` ↔ `DELETE_LABEL`, `REMOVE_MEMBER` ↔ `REMOVE_BOARD_MEMBER`, `ARCHIVE_CARD` ↔ `ARCHIVE_BOARD`) và 7 câu âm. Lượt đầu: **55/56 chọn đúng loại, qua schema ngay lần đầu 56/56**; câu sai duy nhất (“Gỡ tệp thiết kế.pdf khỏi thẻ Login UI”) mô hình chọn ĐÚNG `DELETE_ATTACHMENT` nhưng giấy phép động từ chỉ nhận “xóa” → bị từ chối an toàn (`NOT_REQUESTED`); đã sửa bằng `REMOVE_OR_DELETE_VERBS` (“gỡ / bỏ / rút” cho bình luận, mục checklist, tệp; riêng bảng / cột / thẻ vẫn chỉ “xóa”) và chạy lại: đúng. Câu âm 7/7 an toàn (chuyển quyền chủ bảng, xóa vĩnh viễn, xóa bảng kèm tạo thẻ, câu hỏi đọc, câu hỏi “có nên…”, “làm theo mô tả thẻ”, chỉ dẫn nằm trong tên thẻ — không thao tác nào phát sinh từ dữ liệu). n = 1 nên chỉ đủ phát hiện lỗi chọn loại, không phải số đo ổn định; **chưa** đưa vào bộ đánh giá đóng băng `evaluateChatActions.ts`.
+- Chỗ còn rủi ro: cách nói lạ không nằm trong danh sách động từ → bị từ chối an toàn (“chưa thấy câu yêu cầu thao tác này”), người dùng nói lại là được.
+
+### 9L.8 Giới hạn đã biết (cố ý không làm)
+
+Chuyển quyền chủ bảng, xóa vĩnh viễn thẻ / bảng đã lưu trữ, lịch lặp (`RecurringSchedule`), tải ảnh nền bảng, xuất dữ liệu, mời qua email, thao tác tài khoản / bảo mật, thao tác nhiều bảng trong một lệnh → trợ lý giải thích chưa hỗ trợ. Sửa **điều kiện / hành động** của luật đã có chưa làm (chỉ bật / tắt / xóa; tạo mới đã có từ Phase 7). Lịch sử trò chuyện vẫn khôi phục cuộc gần nhất khi F5.
 
 ## 10. Nhật ký hợp đồng
 
@@ -799,3 +850,4 @@ Không thêm thành phần: bản xem trước dùng khối kế hoạch có s�
 - 10/10/2026, mốc K (truy vấn tổng quát, bước B): công cụ đọc `query_data` (thực thể `CARD / COMMENT / CHECKLIST_ITEM / ATTACHMENT`, điều kiện / sắp xếp / nhóm chọn trong danh mục whitelist, phạm vi luôn AND ở đầu, id tham chiếu kiểm trong phạm vi); **mô tả và bình luận nay được gửi cho mô hình** (người dùng cho phép) qua `modelView` có làm sạch + ẩn ô giống chỉ dẫn / liên kết / địa chỉ thư; khối “Dữ liệu / Thống kê” ở giao diện. Không migration, không endpoint mới; `block.tool = 'query_data'` là khối mới (client cũ bỏ qua).
 - 10/10/2026, mốc L (câu trả lời tự do có kiểm chứng, bước C): `finish.answer` (≤ 1200 ký tự) chỉ được hiện khi qua `answer.check` (số phải có trong kết quả / câu hỏi, giờ theo giờ Việt Nam, không số thập phân / số bằng chữ, tên riêng và đoạn trích dẫn phải có nguyên văn, không ký hiệu / liên kết); sai thì cho viết lại MỘT lần (`ANSWER_REJECTED` nêu lý do cụ thể) rồi bỏ kèm ghi chú; không có dữ liệu thì chỉ lời nói chung (chào hỏi, giới thiệu) qua được. `answer.aiAnswer` là trường mới tùy chọn, `comment` cũ giữ nguyên. Không migration, không endpoint mới.
 - 10/10/2026, mốc M (sửa nội dung và dọn dẹp thẻ, bước D): 8 thao tác mới của `propose_actions` — `SET_CARD_START`, `REMOVE_MEMBER`, `REMOVE_LABEL` (tự chạy khi là lệnh trực tiếp) và `SET_CARD_DESCRIPTION`, `ADD_COMMENT`, `ADD_CHECKLIST`, `RENAME_LIST`, `ARCHIVE_CARD` (luôn xem trước; lý do mới `TEXT_CONTENT`, `ARCHIVE`, `NEW_STRUCTURE` nay gồm cả đổi tên cột); không có xóa hẳn. Nội dung phải là chữ chính người dùng gõ; mâu thuẫn trong một lệnh bị từ chối; hành vi ghi giống hệt service giao diện (so song song). Không migration, không endpoint mới; `ChatActionPlan.opTypes` là `String[]` nên không đổi lược đồ.
+- 12/10/2026, mốc N (làm được mọi việc có ở bảng, bước E–I): 51 thao tác mới (69 loại tất cả) qua registry theo nhóm `v2/actions/ops` — E dọn dẹp thẻ / cột (xóa, khôi phục, sao chép, di chuyển, sắp xếp), F bình luận + checklist, G tệp đính kèm qua kho tạm của khung chat, H trường tùy chỉnh / nhắc hạn / theo dõi / thẻ mẫu, I quản trị bảng (tên, hiển thị, sao, link mời, lưu trữ / xóa bảng, nhãn, luật có sẵn, thành viên + quyền, trường); lý do xem trước mới `DELETE`, `BULK`, `ADMIN`, `FILE`; `Effects.afterCommit`; kế hoạch quản trị không trộn với việc ở thẻ / cột (`ADMIN_NOT_ALONE`). Hành vi ghi so song song với service giao diện; Gemini thật (n = 1) chọn đúng loại 56/56 sau khi sửa giấy phép “gỡ / bỏ”. Không migration. Xem §9L.

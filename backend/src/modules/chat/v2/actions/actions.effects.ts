@@ -50,9 +50,14 @@ export interface Effects {
    * `remove` = duong dan tep cua the can xoa SAU commit (go tep dinh kem).
    */
   files: { adopted: string[]; release: string[]; remove: string[] };
+  /**
+   * Hieu ung rieng cua thao tac quan tri (su kien socket toi tung nguoi, don anh nen bang...). Chay SAU COMMIT, dung thu tu them vao; mot ham loi
+   * chi duoc ghi log. Khong bao gio chay khi transaction hoan tac.
+   */
+  afterCommit: Array<() => void | Promise<void>>;
 }
 
-export const newEffects = (): Effects => ({ activities: [], notifications: [], automations: [], boardIds: new Set(), files: { adopted: [], release: [], remove: [] } });
+export const newEffects = (): Effects => ({ activities: [], notifications: [], automations: [], boardIds: new Set(), files: { adopted: [], release: [], remove: [] }, afterCommit: [] });
 
 /** Transaction hoan tac: bo cac tep da chep vao thu muc tep the (khong de tep mo coi). */
 export function discardAdopted(effects: Effects): void {
@@ -101,6 +106,15 @@ export async function dispatchEffects(effects: Effects): Promise<DispatchReport>
     } catch (e) {
       report.failed += 1;
       console.error('[chat-actions] phat socket that bai:', e);
+    }
+  }
+  for (const run of effects.afterCommit) {
+    try {
+      await run();
+      report.sockets += 1;
+    } catch (e) {
+      report.failed += 1;
+      console.error('[chat-actions] hieu ung quan tri that bai:', e);
     }
   }
   return report;

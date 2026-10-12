@@ -20,7 +20,7 @@ describe('hợp đồng: 8 thao tác mới', () => {
   it('danh sách loại thao tác; 3 thao tác chính xác được tự chạy, nội dung / cấu trúc / lưu trữ thì không', () => {
     expect([...ACTION_TYPES].slice(10, 18)).toEqual(['SET_CARD_DESCRIPTION', 'SET_CARD_START', 'ADD_COMMENT', 'ADD_CHECKLIST', 'REMOVE_MEMBER', 'REMOVE_LABEL', 'RENAME_LIST', 'ARCHIVE_CARD']);
     expect([...AUTO_RUN_TYPES].slice(0, 10)).toEqual(['CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL', 'SET_CARD_START', 'REMOVE_MEMBER', 'REMOVE_LABEL']);
-    expect([...CONTENT_TYPES]).toEqual(['SET_CARD_DESCRIPTION', 'ADD_COMMENT', 'ADD_CHECKLIST']);
+    expect([...CONTENT_TYPES]).toEqual(['SET_CARD_DESCRIPTION', 'ADD_COMMENT', 'ADD_CHECKLIST', 'EDIT_COMMENT', 'REPLY_COMMENT', 'ADD_CHECKLIST_ITEM', 'EDIT_CHECKLIST_ITEM', 'RENAME_CHECKLIST']);
     expect([...STRUCTURE_TYPES]).toEqual(['CREATE_LIST', 'RENAME_LIST']);
     for (const t of ACTION_TYPES) expect(OP_LABEL[t].length).toBeGreaterThan(3);
     expect(PROPOSE_ACTIONS_PROVIDER_SCHEMA.properties.operations.items.properties.type.enum).toEqual([...ACTION_TYPES]);

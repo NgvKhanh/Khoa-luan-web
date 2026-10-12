@@ -145,6 +145,25 @@ export const ACTION_TYPES = [
   'SET_WATCH',
   'CREATE_CARD_FROM_TEMPLATE',
   'SAVE_CARD_AS_TEMPLATE',
+  // Buoc I: quan tri bang (luon xem truoc tru STAR_BOARD)
+  'RENAME_BOARD',
+  'SET_BOARD_VISIBILITY',
+  'STAR_BOARD',
+  'ARCHIVE_BOARD',
+  'DELETE_BOARD',
+  'SET_INVITE_LINK',
+  'CREATE_LABEL',
+  'UPDATE_LABEL',
+  'DELETE_LABEL',
+  'TOGGLE_AUTOMATION_RULE',
+  'DELETE_AUTOMATION_RULE',
+  'ADD_BOARD_MEMBER',
+  'REMOVE_BOARD_MEMBER',
+  'CHANGE_MEMBER_ROLE',
+  'CREATE_CUSTOM_FIELD',
+  'RENAME_CUSTOM_FIELD',
+  'DELETE_CUSTOM_FIELD',
+  'ADD_FIELD_OPTION',
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
 
@@ -153,7 +172,20 @@ export const CONTENT_TYPES: readonly ActionType[] = ['SET_CARD_DESCRIPTION', 'AD
 /** Thao tac doi CAU TRUC bang (cot): luon xem truoc. */
 export const STRUCTURE_TYPES: readonly ActionType[] = ['CREATE_LIST', 'RENAME_LIST'];
 /** Thao tac XOA (khong khoi phuc duoc o giao dien): luon xem truoc, rui ro CAO, hien canh bao. */
-export const DESTRUCTIVE_TYPES: readonly ActionType[] = ['DELETE_CARD', 'DELETE_LIST', 'DELETE_ALL_CARDS', 'DELETE_COMMENT', 'DELETE_CHECKLIST_ITEM', 'DELETE_CHECKLIST', 'CONVERT_ITEM_TO_CARD', 'DELETE_ATTACHMENT'];
+export const DESTRUCTIVE_TYPES: readonly ActionType[] = ['DELETE_CARD', 'DELETE_LIST', 'DELETE_ALL_CARDS', 'DELETE_COMMENT', 'DELETE_CHECKLIST_ITEM', 'DELETE_CHECKLIST', 'CONVERT_ITEM_TO_CARD', 'DELETE_ATTACHMENT', 'DELETE_BOARD', 'DELETE_LABEL', 'DELETE_AUTOMATION_RULE', 'DELETE_CUSTOM_FIELD', 'REMOVE_BOARD_MEMBER'];
+/** Quan tri bang (thanh vien, quyen, hien thi, link moi, xoa / luu tru bang): chi tron voi thao tac quan tri khac, khong bao gio tu chay. */
+export const BOARD_ADMIN_TYPES: readonly ActionType[] = ['SET_BOARD_VISIBILITY', 'ARCHIVE_BOARD', 'DELETE_BOARD', 'SET_INVITE_LINK', 'ADD_BOARD_MEMBER', 'REMOVE_BOARD_MEMBER', 'CHANGE_MEMBER_ROLE'];
+/** Lam CA BANG bien mat khoi nguoi dung: phai la thao tac DUY NHAT cua ke hoach. */
+export const BOARD_REMOVING_TYPES: readonly ActionType[] = ['ARCHIVE_BOARD', 'DELETE_BOARD'];
+/** `ids.member` cua cac thao tac nay la thanh vien BANG (co the chi-xem hoac chua la thanh vien), khong phai nguoi duoc giao the. */
+export const BOARD_MEMBER_TYPES: readonly ActionType[] = ['ADD_BOARD_MEMBER', 'REMOVE_BOARD_MEMBER', 'CHANGE_MEMBER_ROLE'];
+export const VISIBILITIES = ['PRIVATE', 'WORKSPACE', 'PUBLIC'] as const;
+export const MEMBER_ROLES = ['ADMIN', 'MEMBER', 'VIEWER'] as const;
+export const FIELD_TYPES = ['TEXT', 'NUMBER', 'DATE', 'CHECKBOX', 'DROPDOWN'] as const;
+/** Cung tran voi customField.schema (ten truong / lua chon 60 ky tu, toi da 20 lua chon luc tao) va nhan (50 ky tu). */
+export const MAX_FIELD_NAME = 60;
+export const MAX_FIELD_OPTIONS = 20;
+export const MAX_LABEL_NAME = 50;
 /** Vi tri moi cua cot (MOVE_LIST) va cach sap xep the trong cot (SORT_LIST). */
 export const PLACEMENTS = ['FIRST', 'LAST', 'BEFORE', 'AFTER'] as const;
 export const SORT_KEYS = ['CREATED_DESC', 'CREATED_ASC', 'TITLE_ASC', 'DONE_LAST'] as const;
@@ -194,6 +226,8 @@ export const AUTO_RUN_TYPES: readonly ActionType[] = [
   'REMOVE_REMINDER',
   'SET_WATCH',
   'CREATE_CARD_FROM_TEMPLATE',
+  // Buoc I: dau sao la cua rieng nguoi dung
+  'STAR_BOARD',
 ];
 
 export const ActionOpSchema = z.discriminatedUnion('type', [
@@ -255,6 +289,25 @@ export const ActionOpSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('SET_WATCH'), target: z.enum(WATCH_TARGETS), card: RefSchema.optional(), list: RefSchema.optional(), watch: z.boolean().optional() }).strict(),
   z.object({ type: z.literal('CREATE_CARD_FROM_TEMPLATE'), template: text(200), list: RefSchema.optional(), title: text(500).optional() }).strict(),
   z.object({ type: z.literal('SAVE_CARD_AS_TEMPLATE'), card: RefSchema, name: text(100).optional() }).strict(),
+  // Buoc I: quan tri bang. `confirmName` = dung TEN BANG nguoi dung go (luu tru / xoa bang); `match` = vai tu trong ten luat; `email` phai do chinh nguoi dung go
+  z.object({ type: z.literal('RENAME_BOARD'), name: text(100) }).strict(),
+  z.object({ type: z.literal('SET_BOARD_VISIBILITY'), visibility: z.enum(VISIBILITIES) }).strict(),
+  z.object({ type: z.literal('STAR_BOARD'), starred: z.boolean().optional() }).strict(),
+  z.object({ type: z.literal('ARCHIVE_BOARD'), confirmName: text(100) }).strict(),
+  z.object({ type: z.literal('DELETE_BOARD'), confirmName: text(100) }).strict(),
+  z.object({ type: z.literal('SET_INVITE_LINK'), enabled: z.boolean() }).strict(),
+  z.object({ type: z.literal('CREATE_LABEL'), name: text(MAX_LABEL_NAME), color: z.enum(COLOR_NAMES) }).strict(),
+  z.object({ type: z.literal('UPDATE_LABEL'), label: RefSchema, name: text(MAX_LABEL_NAME).optional(), color: z.enum(COLOR_NAMES).optional() }).strict(),
+  z.object({ type: z.literal('DELETE_LABEL'), label: RefSchema }).strict(),
+  z.object({ type: z.literal('TOGGLE_AUTOMATION_RULE'), match: text(300).optional(), enabled: z.boolean() }).strict(),
+  z.object({ type: z.literal('DELETE_AUTOMATION_RULE'), match: text(300).optional() }).strict(),
+  z.object({ type: z.literal('ADD_BOARD_MEMBER'), email: z.string().trim().toLowerCase().email().max(254), role: z.enum(MEMBER_ROLES).optional() }).strict(),
+  z.object({ type: z.literal('REMOVE_BOARD_MEMBER'), member: RefSchema }).strict(),
+  z.object({ type: z.literal('CHANGE_MEMBER_ROLE'), member: RefSchema, role: z.enum(MEMBER_ROLES) }).strict(),
+  z.object({ type: z.literal('CREATE_CUSTOM_FIELD'), name: text(MAX_FIELD_NAME), fieldType: z.enum(FIELD_TYPES), options: z.array(text(MAX_FIELD_NAME)).min(1).max(MAX_FIELD_OPTIONS).optional() }).strict(),
+  z.object({ type: z.literal('RENAME_CUSTOM_FIELD'), field: text(200), name: text(MAX_FIELD_NAME) }).strict(),
+  z.object({ type: z.literal('DELETE_CUSTOM_FIELD'), field: text(200) }).strict(),
+  z.object({ type: z.literal('ADD_FIELD_OPTION'), field: text(200), value: text(MAX_FIELD_NAME) }).strict(),
 ]);
 export type ActionOp = z.infer<typeof ActionOpSchema>;
 
@@ -322,7 +375,7 @@ export const PROPOSE_ACTIONS_PROVIDER_SCHEMA = {
         properties: {
           type: { type: 'string', enum: [...ACTION_TYPES] },
           key: { type: 'string', description: 'CREATE_LIST / CREATE_CARD: khoa ngan (chu, so, gach duoi) de thao tac khac tro toi cot / the vua tao.' },
-          name: { type: 'string', description: 'CREATE_LIST: ten cot moi; RENAME_LIST: ten moi cua cot (list = cot can doi ten); SAVE_CARD_AS_TEMPLATE: ten the mau. Dung chu nguoi dung go.' },
+          name: { type: 'string', description: 'CREATE_LIST: ten cot moi; RENAME_LIST: ten moi cua cot (list = cot can doi ten); SAVE_CARD_AS_TEMPLATE: ten the mau; RENAME_BOARD: ten moi cua bang; CREATE_LABEL / UPDATE_LABEL: ten nhan; CREATE_CUSTOM_FIELD / RENAME_CUSTOM_FIELD: ten truong. Dung chu nguoi dung go.' },
           card: refHint,
           list: refHint,
           toList: refHint,
@@ -336,9 +389,17 @@ export const PROPOSE_ACTIONS_PROVIDER_SCHEMA = {
           due: dueHint,
           start: dueHint,
           status: { type: 'string', enum: [...Object.values(CardStatus), 'NONE'], description: 'SET_CARD_STATUS: trang thai the; SET_LIST_STATUS: trang thai cua COT (NONE = cot tu do, khong gan trang thai).' },
-          match: { type: 'string', description: 'Chi ra MOT binh luan (EDIT_COMMENT / DELETE_COMMENT / REPLY_COMMENT), MOT tep (DELETE_ATTACHMENT) hoac MOT muc checklist (SET_CHECKLIST_ITEM_DONE, EDIT_/DELETE_/ASSIGN_/SET_..._DUE, CONVERT_ITEM_TO_CARD): vai tu dung trong noi dung do, chep dung chu nguoi dung go. Bo trong khi the chi co mot cai.' },
-          field: { type: 'string', description: 'SET_FIELD_VALUE: ten truong tuy chinh cua bang (chep dung chu nguoi dung go).' },
-          value: { type: 'string', description: 'SET_FIELD_VALUE: gia tri nguoi dung noi (chuoi: so, ngay dd/mm, co / khong, hay ten lua chon); bo trong khi clear.' },
+          match: { type: 'string', description: 'Chi ra MOT luat (TOGGLE_AUTOMATION_RULE / DELETE_AUTOMATION_RULE: vai tu trong ten luat), MOT binh luan (EDIT_COMMENT / DELETE_COMMENT / REPLY_COMMENT), MOT tep (DELETE_ATTACHMENT) hoac MOT muc checklist (SET_CHECKLIST_ITEM_DONE, EDIT_/DELETE_/ASSIGN_/SET_..._DUE, CONVERT_ITEM_TO_CARD): vai tu dung trong noi dung do, chep dung chu nguoi dung go. Bo trong khi the chi co mot cai.' },
+          field: { type: 'string', description: 'SET_FIELD_VALUE / RENAME_CUSTOM_FIELD / DELETE_CUSTOM_FIELD / ADD_FIELD_OPTION: ten truong tuy chinh cua bang (chep dung chu nguoi dung go).' },
+          value: { type: 'string', description: 'SET_FIELD_VALUE: gia tri nguoi dung noi (chuoi: so, ngay dd/mm, co / khong, hay ten lua chon); bo trong khi clear. ADD_FIELD_OPTION: lua chon moi cua truong danh sach chon.' },
+          visibility: { type: 'string', enum: [...VISIBILITIES], description: 'SET_BOARD_VISIBILITY: PRIVATE = rieng tu (chi thanh vien bang), WORKSPACE = ca khong gian lam viec, PUBLIC = cong khai (ai co link cung xem duoc).' },
+          confirmName: { type: 'string', description: 'ARCHIVE_BOARD / DELETE_BOARD: DUNG ten bang ma nguoi dung go.' },
+          email: { type: 'string', description: 'ADD_BOARD_MEMBER: email cua nguoi can them, chep dung chu nguoi dung go.' },
+          role: { type: 'string', enum: [...MEMBER_ROLES], description: 'ADD_BOARD_MEMBER (mac dinh MEMBER) / CHANGE_MEMBER_ROLE: ADMIN quan tri vien, MEMBER thanh vien, VIEWER chi xem.' },
+          enabled: { type: 'boolean', description: 'SET_INVITE_LINK: true = bat link moi, false = tat; TOGGLE_AUTOMATION_RULE: true = bat luat, false = tat.' },
+          starred: { type: 'boolean', description: 'STAR_BOARD: true (mac dinh) = gan sao bang, false = bo sao.' },
+          fieldType: { type: 'string', enum: [...FIELD_TYPES], description: 'CREATE_CUSTOM_FIELD: kieu truong (TEXT van ban, NUMBER so, DATE ngay, CHECKBOX hop kiem, DROPDOWN danh sach chon).' },
+          options: { type: 'array', minItems: 1, maxItems: MAX_FIELD_OPTIONS, items: { type: 'string' }, description: 'CREATE_CUSTOM_FIELD kieu DROPDOWN: cac lua chon, dung chu nguoi dung go.' },
           clear: { type: 'boolean', description: 'SET_FIELD_VALUE: true = xoa gia tri cua truong.' },
           minutes: { type: 'number', enum: [10, 60, 1440], description: 'ADD_REMINDER / REMOVE_REMINDER: nhac truoc han bao nhieu phut (10, 60 = 1 gio, 1440 = 1 ngay); bo trong khi REMOVE de bo moi nhac.' },
           target: { type: 'string', enum: [...WATCH_TARGETS], description: 'SET_WATCH: theo doi the (card), cot (list) hay ca bang (BOARD).' },
@@ -347,7 +408,7 @@ export const PROPOSE_ACTIONS_PROVIDER_SCHEMA = {
           file: { type: 'string', description: 'ADD_ATTACHMENT: ten tep (hoac vai tu trong ten) khi nguoi dung chi gan MOT trong cac tep da dinh kem; bo trong = gan tat ca tep vua dinh kem.' },
           checklist: { type: 'string', description: 'Ten checklist cua the (khi the co nhieu checklist): chep dung chu nguoi dung go.' },
           done: { type: 'boolean', description: 'SET_CHECKLIST_ITEM_DONE: true = danh dau xong (mac dinh), false = bo danh dau.' },
-          color: { type: 'string', enum: [...COVER_COLORS], description: 'SET_CARD_COVER: mau anh bia (NONE = bo anh bia). Chi chon mau nguoi dung noi.' },
+          color: { type: 'string', enum: [...COVER_COLORS], description: 'SET_CARD_COVER: mau anh bia (NONE = bo anh bia); CREATE_LABEL / UPDATE_LABEL: mau nhan (khong dung NONE). Chi chon mau nguoi dung noi.' },
           placement: { type: 'string', enum: [...PLACEMENTS], description: 'MOVE_LIST: FIRST = len dau bang, LAST = xuong cuoi, BEFORE / AFTER = truoc / sau cot `anchor`.' },
           sortBy: { type: 'string', enum: [...SORT_KEYS], description: 'SORT_LIST: CREATED_DESC moi nhat len tren, CREATED_ASC cu nhat len tren, TITLE_ASC theo ten A-Z, DONE_LAST the xong xuong duoi.' },
           trigger: { type: 'string', enum: [...RULE_TRIGGERS], description: 'CREATE_AUTOMATION_RULE: CARD_CREATED = khi co the MOI duoc tao (list = cot, bo trong = moi cot); CARD_MOVED_TO_LIST = khi the duoc chuyen VAO cot (list bat buoc).' },

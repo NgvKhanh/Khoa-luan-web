@@ -12,7 +12,7 @@ import { cardOf, PlanAbort, record, type OpOutcome } from '../actions.write.base
 import { resolveStaged, stagedPath, type StagedUploadRef } from '../../uploads/chat.uploads';
 import { chooseFrom, q } from './ops.common';
 import { defineOp, isOpResult, type AnyHandler, type GuardCtx, type OpResolveResult, type ResolveCtx } from './ops.types';
-import { CARD_NOUNS, DELETE_VERBS, FILE_NOUNS, verbThen } from './ops.words';
+import { CARD_NOUNS, FILE_NOUNS, REMOVE_OR_DELETE_VERBS, verbThen } from './ops.words';
 
 const STRONG_VERBS = [['dinh', 'kem'], ['dinh'], ['upload'], ['tai', 'len'], ['attach'], ['dinh', 'kem', 'vao']] as const;
 const WEAK_VERBS = [['gan'], ['them'], ['dua'], ['dat'], ['luu'], ['gui'], ['bo'], ['nem']] as const;
@@ -129,7 +129,7 @@ const deleteAttachment = defineOp<'DELETE_ATTACHMENT'>({
   slots: (op) => [{ name: 'card', kind: 'card', ref: op.card }],
   withRef: (op, name, ref) => (name === 'card' ? { ...op, card: ref } : op),
   licence(words) {
-    return verbThen(words, DELETE_VERBS, [...FILE_NOUNS, ['dinh', 'kem']], [], 4, GLUE);
+    return verbThen(words, REMOVE_OR_DELETE_VERBS, [...FILE_NOUNS, ['dinh', 'kem']], [], 4, GLUE);
   },
   grounded: (op, words) => allIn([op.match], words),
   async resolve(rc, op) {

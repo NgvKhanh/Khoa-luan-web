@@ -23,6 +23,7 @@ import { canonicalJson, describeOp, failureCategoryOf, OP_LABEL, planChecksum, s
 import { prepare } from '../src/modules/chat/v2/actions/actions.preflight';
 import { laterAssignees, newRunState } from '../src/modules/chat/v2/actions/actions.write';
 import type { ActionErrorCode, StoredOp } from '../src/modules/chat/v2/actions/actions.types';
+import { handlerOf } from '../src/modules/chat/v2/actions/ops/ops.registry';
 
 const TODAY = '2026-10-07'; // Thứ Tư
 const t = (text: string) => ({ by: 'TEXT' as const, text });
@@ -263,7 +264,7 @@ describe('dấu vân tay tham chiếu (một lần tìm, một lần chọn cho 
     expect(foldedName('cột Đang làm')).toBe('dang lam');
   });
 
-  it('slotsOf / withRef đủ cho MỌI loại thao tác (10 loại cũ + 8 loại của bước D + 13 loại của bước E)', () => {
+  it('slotsOf / withRef đủ cho MỌI loại thao tác (10 loại cũ + 8 loại của bước D + 13 loại của bước E; bước F-I có handler riêng)', () => {
     for (const type of ACTION_TYPES) {
       const samples: Record<string, ActionOp> = {
         CREATE_LIST: list('A'),
@@ -299,6 +300,11 @@ describe('dấu vân tay tham chiếu (một lần tìm, một lần chọn cho 
         SET_LIST_STATUS: { type: 'SET_LIST_STATUS', list: t('A'), status: 'DONE' },
       };
       const op = samples[type];
+      // bước F-I: slots của từng thao tác nằm ở handler của nhóm và được kiểm trong test của nhóm đó
+      if (op === undefined) {
+        expect(handlerOf(type), type).toBeDefined();
+        continue;
+      }
       const names = slotsOf(op).map((s) => s.name);
       expect(names, type).toEqual({ CREATE_LIST: [], CREATE_CARD: ['list'], RENAME_CARD: ['card'], SET_CARD_DUE: ['card'], MOVE_CARD: ['card', 'toList'], SET_CARD_STATUS: ['card'], ASSIGN_MEMBER: ['card', 'member'], ADD_LABEL: ['card', 'label'], ASSIGN_UNASSIGNED: ['list'], CREATE_AUTOMATION_RULE: ['list', 'a0.label'], SET_CARD_DESCRIPTION: ['card'], SET_CARD_START: ['card'], ADD_COMMENT: ['card'], ADD_CHECKLIST: ['card'], REMOVE_MEMBER: ['card', 'member'], REMOVE_LABEL: ['card', 'label'], RENAME_LIST: ['list'], ARCHIVE_CARD: ['card'], DELETE_CARD: ['card'], RESTORE_CARD: ['card'], COPY_CARD: ['card'], SET_CARD_COVER: ['card'], ARCHIVE_LIST: ['list'], DELETE_LIST: ['list'], RESTORE_LIST: ['list'], COPY_LIST: ['list'], MOVE_LIST: ['list'], SORT_LIST: ['list'], MOVE_ALL_CARDS: ['list', 'toList'], DELETE_ALL_CARDS: ['list'], SET_LIST_STATUS: ['list'] }[type]);
       // luật tự động hóa chỉ nhắm vào thực thể CÓ SẴN nên không nhận tham chiếu PLAN (withRef bỏ qua)

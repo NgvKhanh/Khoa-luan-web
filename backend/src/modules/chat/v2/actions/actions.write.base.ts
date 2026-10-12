@@ -84,6 +84,29 @@ export async function canEditInTx(tx: Tx, boardId: string, userId: string): Prom
   return (await tx.workspaceMember.count({ where: { workspaceId: board.workspaceId, userId, deletedAt: null } })) > 0;
 }
 
+/** CHU bang (giong assertBoardOwner): xoa, luu tru bang. Doc trong CUNG transaction. */
+export async function isOwnerInTx(tx: Tx, boardId: string, userId: string): Promise<boolean> {
+  return (await tx.board.count({ where: { id: boardId, deletedAt: null, archivedAt: null, ownerId: userId } })) > 0;
+}
+
+/**
+ * Quyen QUAN LY bang (giong canManageBoard): chu bang, quan tri vien bang, chu hoac ADMIN cua khong gian chua bang. Doc trong CUNG transaction
+ * de quyen vua bi thu hoi thi ke hoach hoan tac.
+ */
+export async function canManageInTx(tx: Tx, boardId: string, userId: string): Promise<boolean> {
+  if ((await tx.user.count({ where: { id: userId, deletedAt: null } })) === 0) return false;
+  const board = await tx.board.findFirst({ where: { id: boardId, deletedAt: null, archivedAt: null }, select: { ownerId: true, workspaceId: true } });
+  if (!board) return false;
+  if (board.ownerId === userId) return true;
+  const membership = await tx.boardMember.findFirst({ where: { boardId, userId, deletedAt: null }, select: { role: true } });
+  if (membership && (membership.role === 'ADMIN' || membership.role === 'OWNER')) return true;
+  const ws = await tx.workspace.findFirst({ where: { id: board.workspaceId, deletedAt: null }, select: { ownerId: true } });
+  if (!ws) return false;
+  if (ws.ownerId === userId) return true;
+  const wm = await tx.workspaceMember.findFirst({ where: { workspaceId: board.workspaceId, userId, deletedAt: null }, select: { role: true } });
+  return wm?.role === 'OWNER' || wm?.role === 'ADMIN';
+}
+
 /** Ghi mot dong Activity TRONG transaction. Thoi gian tang dan nghiem ngat de lich su hien dung thu tu thao tac. */
 export async function record(tx: Tx, ctx: WriteContext, state: RunState, effects: Effects, input: { cardId: string | null; type: string; data: Record<string, unknown> }): Promise<void> {
   state.lastActivityMs = Math.max(Date.now(), state.lastActivityMs + 1);

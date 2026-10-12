@@ -35,7 +35,7 @@ function uploadErrorText(err: unknown): string {
   return 'Tải tệp lên chưa được. Hãy thử lại.';
 }
 
-const ACTION_EXAMPLES = ['Chuyển task Login sang Đang làm', 'Giao thẻ Báo cáo tuần cho Lan', 'Đặt hạn thẻ Thiết kế là thứ sáu', 'Thêm bình luận vào thẻ Login: đã review xong', 'Tạo thẻ Deploy rồi thêm checklist gồm build, test', 'Xóa danh sách 5', 'Chuyển hết thẻ cột Cần làm sang cột Đang làm', 'Đính kèm file này vào thẻ Login (bấm nút kẹp giấy)'];
+const ACTION_EXAMPLES = ['Chuyển task Login sang Đang làm', 'Giao thẻ Báo cáo tuần cho Lan', 'Đặt hạn thẻ Thiết kế là thứ sáu', 'Thêm bình luận vào thẻ Login: đã review xong', 'Tạo thẻ Deploy rồi thêm checklist gồm build, test', 'Xóa danh sách 5', 'Chuyển hết thẻ cột Cần làm sang cột Đang làm', 'Đính kèm file này vào thẻ Login (bấm nút kẹp giấy)', 'Đổi quyền Nguyễn Lan thành chỉ xem', 'Tạo nhãn Khẩn cấp màu đỏ'];
 
 function Intro({ busy, status, onAsk }: { busy: boolean; status: ChatStatus | null; onAsk: (q: string) => void }) {
   return (
@@ -48,8 +48,10 @@ function Intro({ busy, status, onAsk }: { busy: boolean; status: ChatStatus | nu
       {status?.actions === true && (
         <div className="space-y-1">
           <p>
-            Trợ lý cũng làm giúp các thao tác trên một bảng: tạo cột và thẻ, đổi tên, đặt hạn và ngày bắt đầu, chuyển cột, đổi trạng thái, giao hoặc bỏ người, gắn hoặc gỡ nhãn,
-            sửa mô tả, viết bình luận, thêm checklist, đổi tên cột, lưu trữ thẻ; xóa, khôi phục và sao chép thẻ hoặc cột, đổi vị trí cột, sắp xếp thẻ, chuyển hết thẻ sang cột khác, đặt ảnh bìa. Việc nhỏ và rõ ràng thì làm ngay; nội dung văn bản, xóa, thao tác cả cột, đổi cấu trúc hay lệnh còn mơ hồ thì hiện bản xem trước để bạn bấm Áp dụng.
+            Trợ lý cũng làm giúp các thao tác trên một bảng. Với thẻ: tạo, đổi tên, đặt hạn và ngày bắt đầu, chuyển cột, đổi trạng thái, giao hoặc bỏ người, gắn hoặc gỡ nhãn, sửa mô tả,
+            bình luận (viết, sửa, trả lời, xóa), checklist (thêm, tick, sửa, giao việc, xóa), đính kèm hoặc gỡ tệp, trường tùy chỉnh, nhắc hạn, theo dõi, thẻ mẫu; lưu trữ, khôi phục, sao chép, xóa.
+            Với cột: đổi tên, đổi vị trí, sắp xếp, sao chép, lưu trữ, xóa, chuyển hết thẻ sang cột khác. Với bảng (chủ bảng hoặc quản trị viên): đổi tên, chế độ hiển thị, gắn sao, link mời, nhãn, luật tự động hóa,
+            thành viên và quyền, trường tùy chỉnh, lưu trữ hoặc xóa bảng. Việc nhỏ và rõ ràng thì làm ngay; nội dung văn bản, xóa, thao tác cả cột, quản trị bảng hay lệnh còn mơ hồ thì hiện bản xem trước để bạn bấm Áp dụng.
           </p>
           <ul className="list-disc pl-4 text-xs text-slate-500 dark:text-slate-400">{ACTION_EXAMPLES.map((e) => <li key={e}>{e}</li>)}</ul>
         </div>

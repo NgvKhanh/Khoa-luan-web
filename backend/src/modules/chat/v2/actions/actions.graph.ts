@@ -7,11 +7,11 @@
 // Kiem tra theo THU TU nay (loi dau tien thang): trung key -> tham chieu thieu -> VONG (ke ca tu tro chinh minh) -> sai loai
 // (khoa the dua vao o cot...) -> vuot gioi han. Tach `analyzeGraph` ra khoi loai thao tac de kiem thu duoc bang du lieu tong hop.
 
-import { DEFAULT_LIMITS, type ActionOp, type PlanLimits, type Ref } from './actions.schema';
+import { BOARD_ADMIN_TYPES, BOARD_REMOVING_TYPES, DEFAULT_LIMITS, type ActionOp, type PlanLimits, type Ref } from './actions.schema';
 import { foldedName, referencedSignatures, slotsOf, withRef, type Slot } from './actions.refs';
 import { RULE_ONLY_TEXT } from './actions.rule';
 
-export type GraphErrorCode = 'DUPLICATE_KEY' | 'MISSING_REF' | 'CYCLE' | 'WRONG_KIND' | 'DUPLICATE_NAME' | 'RULE_NOT_ALONE';
+export type GraphErrorCode = 'DUPLICATE_KEY' | 'MISSING_REF' | 'CYCLE' | 'WRONG_KIND' | 'DUPLICATE_NAME' | 'RULE_NOT_ALONE' | 'ADMIN_NOT_ALONE';
 export type LimitErrorCode = 'TOO_MANY_OPS' | 'TOO_MANY_CARDS' | 'TOO_MANY_LISTS' | 'TOO_MANY_REFS';
 
 export type NodeKind = 'LIST' | 'CARD';
@@ -32,6 +32,7 @@ export type GraphResult =
   | { ok: false; code: GraphErrorCode; text: string; at?: number };
 
 const NO_CHANGE = 'Chưa thay đổi gì.';
+const ADMIN_ONLY_TEXT = `Thao tác quản trị bảng (thành viên, quyền, hiển thị, link mời, lưu trữ hay xóa bảng) cần được làm riêng: xóa / lưu trữ bảng một mình, các thao tác quản trị khác không kèm việc ở thẻ hay cột. Hãy tách thành từng lệnh. ${NO_CHANGE}`;
 const label = (i: number) => `thao tác ${i + 1}`;
 
 export function analyzeGraph(nodes: readonly GraphNode[]): GraphResult {
@@ -200,6 +201,11 @@ export type PlanShape = { ok: true; ops: ActionOp[]; /** thu tu chay: chi so vao
 export function shapePlan(proposed: readonly ActionOp[], limits: PlanLimits = DEFAULT_LIMITS, split?: string): PlanShape {
   // Phase 7: luat tu dong hoa chay mai mai nen duoc tao RIENG (mot lenh = mot luat, khong kem thao tac nao khac / khong tro toi cot do ke hoach tao)
   if (proposed.some((o) => o.type === 'CREATE_AUTOMATION_RULE') && proposed.length > 1) return { ok: false, code: 'RULE_NOT_ALONE', text: RULE_ONLY_TEXT };
+  // Buoc I: xoa / luu tru ca bang dung mot minh; thao tac quan tri khac chi tron voi thao tac quan tri (khong lan voi viec o the / cot)
+  const admin = proposed.filter((o) => (BOARD_ADMIN_TYPES as readonly string[]).includes(o.type));
+  if (admin.length > 0 && (proposed.some((o) => (BOARD_REMOVING_TYPES as readonly string[]).includes(o.type)) ? proposed.length > 1 : admin.length !== proposed.length)) {
+    return { ok: false, code: 'ADMIN_NOT_ALONE', text: ADMIN_ONLY_TEXT };
+  }
   const within = checkLimits(proposed, limits, split);
   if (!within.ok) return within;
   const linked = linkLocalRefs(proposed);

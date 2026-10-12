@@ -2,13 +2,14 @@
 // khong co handler thi la thao tac cu, di qua cac `switch` cu cua tung tep.
 
 import { ATTACHMENT_HANDLERS } from './ops.attachment';
+import { BOARD_HANDLERS } from './ops.board';
 import { CARD_EXTRA_HANDLERS } from './ops.cardextras';
 import { CHECKLIST_HANDLERS } from './ops.checklist';
 import { CLEANUP_HANDLERS } from './ops.cleanup';
 import { COMMENT_HANDLERS } from './ops.comments';
 import type { AnyHandler } from './ops.types';
 
-const ALL: readonly AnyHandler[] = [...CLEANUP_HANDLERS, ...COMMENT_HANDLERS, ...CHECKLIST_HANDLERS, ...ATTACHMENT_HANDLERS, ...CARD_EXTRA_HANDLERS];
+const ALL: readonly AnyHandler[] = [...CLEANUP_HANDLERS, ...COMMENT_HANDLERS, ...CHECKLIST_HANDLERS, ...ATTACHMENT_HANDLERS, ...CARD_EXTRA_HANDLERS, ...BOARD_HANDLERS];
 
 const BY_TYPE = new Map<string, AnyHandler>(ALL.map((h) => [h.type, h]));
 

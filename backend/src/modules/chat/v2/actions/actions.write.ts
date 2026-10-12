@@ -14,6 +14,7 @@ import { Prisma } from '../../../../generated/prisma/client';
 import type { CardStatus } from '../../../../generated/prisma/enums';
 import { initialStatusData, statusWrite } from '../../../card/cardStatus';
 import { findPatchCollision } from './actions.patch.build';
+import { BOARD_MEMBER_TYPES } from './actions.schema';
 import { descriptionHash, summarizeExecuted } from './actions.plan';
 import { foldWords } from './actions.text';
 import { findSameRule } from './actions.rule';
@@ -61,7 +62,8 @@ export async function lockAndVerify(tx: Tx, ctx: WriteContext, ops: readonly Sto
   const ruleActions = (o: StoredOp) => o.params.rule?.actions ?? [];
   const labelIds = unique(ops.flatMap((o) => [...(o.ids.label !== undefined ? [o.ids.label] : []), ...ruleActions(o).flatMap((a) => (a.labelId !== undefined ? [a.labelId] : []))]));
   // bo nguoi khoi the khong can nguoi do con la thanh vien co quyen sua
-  const memberIds = unique(ops.flatMap((o) => [...(o.type !== 'REMOVE_MEMBER' && o.ids.member !== undefined ? [o.ids.member] : []), ...ruleActions(o).flatMap((a) => (a.userId !== undefined ? [a.userId] : []))]));
+  // `ids.member` cua thao tac quan tri thanh vien la nguoi duoc quan ly (co the chi-xem / chua la thanh vien), khong phai nguoi duoc giao the
+  const memberIds = unique(ops.flatMap((o) => [...(o.type !== 'REMOVE_MEMBER' && !(BOARD_MEMBER_TYPES as readonly string[]).includes(o.type) && o.ids.member !== undefined ? [o.ids.member] : []), ...ruleActions(o).flatMap((a) => (a.userId !== undefined ? [a.userId] : []))]));
 
   // Khoa theo THU TU CO DINH (cot truoc, the sau, trong moi nhom theo id) de hai ke hoach dong thoi khong khoa cheo nhau (deadlock).
   // Cot nguon cua cac the (se bi danh lai vi tri khi the roi di) cung phai khoa -> doc cot hien tai cua the truoc khi khoa.

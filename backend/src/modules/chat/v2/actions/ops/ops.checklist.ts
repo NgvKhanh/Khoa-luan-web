@@ -13,7 +13,7 @@ import type { GuardVerdict, StoredOp } from '../actions.types';
 import { canEditInTx, cardOf, PlanAbort, record, type OpOutcome, type Tx } from '../actions.write.base';
 import { chooseFrom, clip, q, type PoolItem } from './ops.common';
 import { defineOp, isOpResult, type AnyHandler, type GuardCtx, type OpResolveResult, type ResolveCtx } from './ops.types';
-import { DELETE_VERBS, EDIT_VERBS, mentions, verbThen } from './ops.words';
+import { EDIT_VERBS, mentions, REMOVE_OR_DELETE_VERBS, verbThen } from './ops.words';
 
 const sha = (text: string): string => createHash('sha256').update(text.trim()).digest('hex');
 
@@ -286,7 +286,7 @@ const deleteItem = defineOp<'DELETE_CHECKLIST_ITEM'>({
   policy: { autoRun: false, confirm: ['DELETE'] },
   slots: (op) => [{ name: 'card', kind: 'card', ref: op.card }],
   withRef: (op, name, ref) => (name === 'card' ? { ...op, card: ref } : op),
-  licence: (words, op) => verbThen(words, DELETE_VERBS, ITEM_NOUNS, [op.match], 4),
+  licence: (words, op) => verbThen(words, REMOVE_OR_DELETE_VERBS, ITEM_NOUNS, [op.match], 4),
   grounded: (op, words) => allIn([op.match, op.checklist], words),
   async resolve(rc, op) {
     const card = await existingCard(rc, op.card, 'xóa mục');
@@ -378,7 +378,7 @@ const deleteChecklist = defineOp<'DELETE_CHECKLIST'>({
   policy: { autoRun: false, confirm: ['DELETE'] },
   slots: (op) => [{ name: 'card', kind: 'card', ref: op.card }],
   withRef: (op, name, ref) => (name === 'card' ? { ...op, card: ref } : op),
-  licence: (words) => verbThen(words, DELETE_VERBS, CHECKLIST_NOUNS, [], 4),
+  licence: (words) => verbThen(words, REMOVE_OR_DELETE_VERBS, CHECKLIST_NOUNS, [], 4),
   grounded: (op, words) => allIn([op.checklist], words),
   async resolve(rc, op) {
     const card = await existingCard(rc, op.card, 'xóa checklist');

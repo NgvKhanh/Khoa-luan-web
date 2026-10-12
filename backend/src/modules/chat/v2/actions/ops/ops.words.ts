@@ -12,6 +12,8 @@ export const ITEM_NOUNS: readonly Phrase[] = [['muc'], ['viec', 'con'], ['cong',
 export const FILE_NOUNS: readonly Phrase[] = [['tep'], ['file'], ['tai', 'lieu'], ['dinh', 'kem'], ['attachment'], ['anh'], ['hinh']];
 
 export const DELETE_VERBS: readonly Phrase[] = [['xoa'], ['delete'], ['remove'], ['loai', 'bo'], ['go', 'bo'], ['xoa', 'bo'], ['tieu', 'huy']];
+/** Xóa NHƯNG cũng là "gỡ / bỏ" - cách nói thường ngày với bình luận, mục checklist, tệp ("gỡ tệp thiết kế.pdf", "bỏ mục build"). Không dùng cho bảng / cột / thẻ (ở đó chỉ "xóa" mới là xóa). */
+export const REMOVE_OR_DELETE_VERBS: readonly Phrase[] = [...DELETE_VERBS, ['go'], ['bo'], ['rut']];
 export const RESTORE_VERBS: readonly Phrase[] = [['khoi', 'phuc'], ['phuc', 'hoi'], ['restore'], ['lay', 'lai'], ['bo', 'luu', 'tru'], ['huy', 'luu', 'tru']];
 export const COPY_VERBS: readonly Phrase[] = [['sao', 'chep'], ['copy'], ['nhan', 'ban'], ['nhan', 'doi'], ['duplicate'], ['clone'], ['tao', 'ban', 'sao']];
 export const ALL_CUES: readonly Phrase[] = [['tat', 'ca'], ['het'], ['toan', 'bo'], ['moi'], ['all'], ['cac']];
