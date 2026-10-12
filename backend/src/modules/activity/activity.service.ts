@@ -1,5 +1,6 @@
 import { prisma } from '../../config/prisma';
 import { emitToBoard } from '../../realtime/socket';
+import { memberWorkspaceIds } from '../workspace/workspace.service';
 
 type ActivityType =
   | 'card.create'
@@ -117,14 +118,39 @@ export async function listHomeActivity(userId: string) {
   return rows.map(redactMovedCard);
 }
 
-// Nhat ky thao tac cua chinh nguoi dung tren moi bang
-export async function listMyActivity(userId: string) {
-  return prisma.activity.findMany({
-    where: { userId },
-    orderBy: { createdAt: 'desc' },
-    take: 60,
+export const MY_ACTIVITY_PAGE = 40;
+
+// Nhat ky thao tac cua chinh nguoi dung, chi tren cac bang HIEN CON quyen xem (chu bang / thanh vien / thanh vien
+// khong gian cua bang muc WORKSPACE): bang da roi hoac bi thu hoi quyen khong con lo ten bang / ten the.
+// Phan trang theo moc thoi gian: `before` = createdAt cua dong cuoi cung trang truoc.
+export async function listMyActivity(userId: string, opts: { before?: Date; limit?: number } = {}) {
+  const limit = Math.min(Math.max(Math.trunc(opts.limit ?? MY_ACTIVITY_PAGE), 1), 100);
+  const myWorkspaceIds = await memberWorkspaceIds(userId);
+  const rows = await prisma.activity.findMany({
+    where: {
+      userId,
+      ...(opts.before ? { createdAt: { lt: opts.before } } : {}),
+      board: {
+        deletedAt: null,
+        archivedAt: null,
+        OR: [
+          { ownerId: userId },
+          { members: { some: { userId, deletedAt: null } } },
+          { visibility: 'WORKSPACE', workspaceId: { in: myWorkspaceIds } },
+        ],
+      },
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: limit + 1,
     include: {
       board: { select: { id: true, name: true } },
+      card: { select: { ...ACTIVITY_CARD_SELECT, deletedAt: true } },
     },
   });
+  const page = rows.slice(0, limit).map((row) => {
+    const removed = row.card?.deletedAt != null;
+    const { card, ...rest } = redactMovedCard(row);
+    return { ...rest, card: card ? { ...card, deleted: removed } : null };
+  });
+  return { activities: page, hasMore: rows.length > limit };
 }

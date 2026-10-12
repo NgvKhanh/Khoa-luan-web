@@ -17,8 +17,15 @@ router.get(
   '/me',
   asyncHandler(async (req, res) => {
     if (!req.user) throw new AppError('Ban chua dang nhap', 401);
-    const activities = await listMyActivity(req.user.id);
-    res.json({ success: true, data: { activities } });
+    // ?before=<ISO> (phan trang: createdAt cua dong cuoi trang truoc), ?limit=1..100
+    const beforeRaw = typeof req.query.before === 'string' ? new Date(req.query.before) : undefined;
+    const before = beforeRaw && !Number.isNaN(beforeRaw.getTime()) ? beforeRaw : undefined;
+    const limitRaw = Number(req.query.limit);
+    const { activities, hasMore } = await listMyActivity(req.user.id, {
+      before,
+      ...(Number.isFinite(limitRaw) && limitRaw > 0 ? { limit: limitRaw } : {}),
+    });
+    res.json({ success: true, data: { activities, hasMore } });
   })
 );
 

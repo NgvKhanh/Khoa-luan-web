@@ -8,6 +8,8 @@ export interface MyActivity {
   data: Record<string, string>;
   createdAt: string;
   board: { id: string; name: string } | null;
+  /** The cua dong nhat ky: ten hien tai (null neu the da chuyen sang bang khac), da bi xoa chua. */
+  card: { id: string; title: string | null; deleted: boolean } | null;
 }
 
 export async function updateProfile(input: {
@@ -42,11 +44,15 @@ export async function uploadAvatar(file: File): Promise<User> {
   return res.data.data.user;
 }
 
-export async function fetchMyActivity(): Promise<MyActivity[]> {
-  const res = await api.get<{ data: { activities: MyActivity[] } }>(
-    '/activities/me'
+/** `before` = createdAt cua dong cuoi cung da co (tai trang tiep theo). */
+export async function fetchMyActivity(
+  before?: string
+): Promise<{ activities: MyActivity[]; hasMore: boolean }> {
+  const res = await api.get<{ data: { activities: MyActivity[]; hasMore?: boolean } }>(
+    '/activities/me',
+    { params: before ? { before } : undefined }
   );
-  return res.data.data.activities;
+  return { activities: res.data.data.activities, hasMore: res.data.data.hasMore === true };
 }
 
 // Quen mat khau: gui email chua link dat lai.
