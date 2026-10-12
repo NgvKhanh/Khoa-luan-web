@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AxiosError, type AxiosResponse } from 'axios';
-import { MemoryRouter, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { MemoryRouter, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssistantProvider } from '../../context/AssistantContext';
 import { QUICK_QUESTIONS } from '../../lib/chatText';
@@ -89,6 +90,14 @@ function LocationProbe() {
   return <output data-testid="location">{loc.pathname + loc.search}</output>;
 }
 
+/** Cho test doi trang bang code (nhu menu bang / sidebar), khong qua lien ket trong cau tra loi. */
+let goTo: (to: string) => void = () => undefined;
+function NavProbe() {
+  const navigate = useNavigate();
+  useEffect(() => { goTo = navigate; }, [navigate]);
+  return null;
+}
+
 /** Hai layout rieng, moi cai co nut Trợ lý rieng (Header bi dung lai khi doi layout nhu app that). */
 function LayoutA() {
   return (
@@ -122,6 +131,7 @@ function renderAt(path: string) {
         </Routes>
         <AssistantPanel />
         <LocationProbe />
+        <NavProbe />
       </AssistantProvider>
     </MemoryRouter>
   );
@@ -537,6 +547,198 @@ describe('AssistantPanel: giu hoi thoai khi doi trang', () => {
     await askQuestion('Những việc nào chưa được phân công?');
     await waitFor(() => expect(mocks.sendChatMessage).toHaveBeenCalledTimes(3));
     expect(mocks.sendChatMessage.mock.calls[2]![0]).toEqual({ message: 'Những việc nào chưa được phân công?', scope: { kind: 'BOARD', boardId: 'b1' }, conversationId: undefined });
+  });
+});
+
+describe('AssistantPanel: roi bang thi lam moi hoi thoai', () => {
+  const OLD_TEXT = 'Bạn có 12 việc sắp đến hạn trong 7 ngày tới.';
+  const lastBody = () => mocks.sendChatMessage.mock.calls.at(-1)![0];
+  const go = async (to: string) => { await act(async () => { goTo(to); }); };
+  const closePanel = () => clickAsync(screen.getByRole('button', { name: 'Đóng trợ lý' }));
+  const saved = (id: string, question: string): ChatConversationHistory => ({ conversation: { id, title: question, updatedAt: GENERATED },
+    turns: [{ id: 7, question, reply: { ...reply({ cards: [], blocks: [] }, {}, id), version: 'v2' }, error: null, createdAt: GENERATED }], hasMore: false, before: 7,
+  });
+
+  it('chat trong bang b1 -> sang bang b2: mo lai tro ly la hoi thoai trang, cau tiep theo khong noi ma cu va mang pham vi b2', async () => {
+    mocks.sendChatMessage.mockResolvedValue(reply());
+    renderAt('/boards/b1'); await openPanel();
+    await askQuestion('Việc sắp đến hạn?');
+    expect(within(panel()).getByText(OLD_TEXT)).toBeInTheDocument();
+
+    await closePanel();
+    await go('/boards/b2');
+    await openPanel();
+    expect(within(panel()).queryByText(OLD_TEXT)).not.toBeInTheDocument();
+    expect(within(panel()).queryByRole('list', { name: 'Hội thoại' })).not.toBeInTheDocument();
+    expect(within(panel()).getByText('Thử hỏi:')).toBeInTheDocument();
+
+    await askQuestion('Còn việc nào?');
+    expect(lastBody()).toEqual({ message: 'Còn việc nào?', scope: { kind: 'BOARD', boardId: 'b2' }, conversationId: undefined });
+  });
+
+  it('roi bang ra trang chu: panel dang mo cung ve hoi thoai trang; cau tiep theo o pham vi MY va khong noi ma cu', async () => {
+    mocks.sendChatMessage.mockResolvedValue(reply());
+    renderAt('/boards/b1'); await openPanel();
+    await askQuestion('Việc sắp đến hạn?');
+    await go('/home');
+    expect(within(panel()).queryByText(OLD_TEXT)).not.toBeInTheDocument();
+    expect(within(panel()).getByText('Thử hỏi:')).toBeInTheDocument();
+
+    await askQuestion('Tôi đang ở bao nhiêu bảng?');
+    expect(lastBody()).toEqual({ message: 'Tôi đang ở bao nhiêu bảng?', scope: { kind: 'MY' }, conversationId: undefined });
+  });
+
+  it('van o cung bang (mo the bang ?card=): hoi thoai con nguyen, cau tiep theo noi tiep ma cu', async () => {
+    mocks.sendChatMessage.mockResolvedValue(reply());
+    renderAt('/boards/b1'); await openPanel();
+    await askQuestion('Việc sắp đến hạn?');
+    await go('/boards/b1?card=c3');
+    expect(within(panel()).getByText(OLD_TEXT)).toBeInTheDocument();
+    await go('/boards/b1/'); // pathname doi (dau / cuoi) nhung van la bang b1
+    expect(within(panel()).getByText(OLD_TEXT)).toBeInTheDocument();
+
+    await askQuestion('còn tuần sau?');
+    expect(lastBody()).toEqual({ message: 'còn tuần sau?', scope: { kind: 'BOARD', boardId: 'b1' }, conversationId: 'conv-1' });
+  });
+
+  it('trang chu -> bang van giu hoi thoai (bat dau ngoai bang); roi bang do thi moi lam moi', async () => {
+    mocks.sendChatMessage.mockResolvedValue(reply());
+    renderAt('/home'); await openPanel();
+    await askQuestion('Việc sắp đến hạn?');
+    await go('/boards/b1');
+    expect(within(panel()).getByText(OLD_TEXT)).toBeInTheDocument();
+    await go('/workspaces/w1');
+    expect(within(panel()).queryByText(OLD_TEXT)).not.toBeInTheDocument();
+  });
+
+  it('dang cho tra loi thi roi bang: tra loi tre khong hien o hoi thoai moi va khong gan ma cu cho cau tiep theo', async () => {
+    let resolveSend!: (r: ChatReply) => void;
+    mocks.sendChatMessage.mockReturnValueOnce(new Promise<ChatReply>((res) => { resolveSend = res; }));
+    renderAt('/boards/b1'); await openPanel();
+    await askQuestion('Việc sắp đến hạn?');
+    await go('/boards/b2');
+    await act(async () => { resolveSend(reply()); });
+    expect(within(panel()).queryByText(OLD_TEXT)).not.toBeInTheDocument();
+    expect(within(panel()).queryByRole('list', { name: 'Hội thoại' })).not.toBeInTheDocument();
+
+    mocks.sendChatMessage.mockResolvedValue(reply({ text: 'Trả lời mới.' }, {}, 'conv-2'));
+    await askQuestion('Câu mới');
+    expect(mocks.sendChatMessage).toHaveBeenCalledTimes(2);
+    expect(lastBody()).toEqual({ message: 'Câu mới', scope: { kind: 'BOARD', boardId: 'b2' }, conversationId: undefined });
+  });
+
+  describe('yeu cau khac dang bay luc roi bang (v2): ket qua tre khong lam hong hoi thoai moi', () => {
+    const v2Reply = (over: Partial<ChatAnswer>, cid: string): ChatReply => ({ ...reply({ cards: [], total: 0, blocks: [], ...over }, {}, cid), version: 'v2' });
+    const clarify = { question: 'Chọn thẻ nào?', options: [{ id: 'o1', label: 'Login UI · Cần làm', kind: 'TARGET' as const }] };
+    beforeEach(() => { mocks.fetchChatStatus.mockResolvedValue({ llmAvailable: true, engine: 'v2', actions: true }); });
+
+    it('"Xem thêm" bao het han tre: khong xoa ma cua hoi thoai moi', async () => {
+      mocks.sendChatMessage.mockResolvedValueOnce(v2Reply({ blocks: [v2Block('q', 'Công việc', ['a'], 1, true)] }, 'conv-1'));
+      let rejectMore!: (e: unknown) => void;
+      mocks.fetchMoreAnswer.mockReturnValueOnce(new Promise((_, rej) => { rejectMore = rej; }));
+      renderAt('/boards/b1'); await openPanel();
+      await askQuestion('Việc sắp đến hạn?');
+      await clickAsync(within(panel()).getByRole('button', { name: 'Xem thêm: Công việc' }));
+      await go('/boards/b2');
+      mocks.sendChatMessage.mockResolvedValueOnce(v2Reply({}, 'conv-2'));
+      await askQuestion('Câu mới');
+      await act(async () => { rejectMore(httpError(404)); });
+      mocks.sendChatMessage.mockResolvedValueOnce(v2Reply({}, 'conv-2'));
+      await askQuestion('Câu nữa');
+      expect(lastBody()).toEqual({ message: 'Câu nữa', scope: { kind: 'BOARD', boardId: 'b2' }, conversationId: 'conv-2' });
+    });
+
+    it('nut chon tra loi tre: khong hien va khong doi ma hoi thoai moi sang ma cu', async () => {
+      mocks.sendChatMessage.mockResolvedValueOnce(v2Reply({ clarify }, 'conv-1'));
+      let resolveChoice!: (r: ChatReply) => void;
+      mocks.sendChatChoice.mockReturnValueOnce(new Promise<ChatReply>((res) => { resolveChoice = res; }));
+      renderAt('/boards/b1'); await openPanel();
+      await askQuestion('Chuyển Login sang Đang làm');
+      await clickAsync(within(panel()).getByRole('button', { name: 'Login UI · Cần làm' }));
+      await go('/boards/b2');
+      mocks.sendChatMessage.mockResolvedValueOnce(v2Reply({}, 'conv-2'));
+      await askQuestion('Câu mới');
+      await act(async () => { resolveChoice(v2Reply({ text: 'Đã chọn xong thẻ cũ.' }, 'conv-1')); });
+      expect(within(panel()).queryByText('Đã chọn xong thẻ cũ.')).not.toBeInTheDocument();
+      mocks.sendChatMessage.mockResolvedValueOnce(v2Reply({}, 'conv-2'));
+      await askQuestion('Câu nữa');
+      expect(lastBody()).toEqual({ message: 'Câu nữa', scope: { kind: 'BOARD', boardId: 'b2' }, conversationId: 'conv-2' });
+    });
+
+    it('mo hoi thoai tu lich su dang tai: roi bang thi khong nhap hoi thoai do vao panel', async () => {
+      const item = { id: 'older', title: 'Hội thoại trước', createdAt: GENERATED, updatedAt: GENERATED, turnCount: 1 };
+      mocks.fetchChatConversations.mockResolvedValue({ conversations: [item], page: 1, hasMore: false });
+      mocks.fetchChatConversation.mockResolvedValueOnce({ conversation: { id: 'x', title: 'x', updatedAt: GENERATED }, turns: [], hasMore: false, before: null });
+      let release!: (h: ChatConversationHistory) => void;
+      mocks.fetchChatConversation.mockReturnValueOnce(new Promise<ChatConversationHistory>((res) => { release = res; }));
+      renderAt('/boards/b1'); await openPanel();
+      await clickAsync(within(panel()).getByRole('button', { name: 'Lịch sử trò chuyện' }));
+      await clickAsync(within(panel()).getByRole('button', { name: /Hội thoại trước/ }));
+      await go('/boards/b2');
+      await act(async () => { release(saved('older', 'Câu hỏi trước')); });
+      expect(within(panel()).queryByText('Câu hỏi trước')).not.toBeInTheDocument();
+      await askQuestion('Câu mới');
+      expect(lastBody()).toEqual({ message: 'Câu mới', scope: { kind: 'BOARD', boardId: 'b2' }, conversationId: undefined });
+    });
+
+    it('"Tải tin nhắn trước" dang cho: roi bang thi khong chen luot cu vao hoi thoai moi', async () => {
+      mocks.fetchChatConversations.mockResolvedValue({ conversations: [{ id: 'saved', title: 'Hội thoại', createdAt: GENERATED, updatedAt: GENERATED, turnCount: 2 }], page: 1, hasMore: false });
+      const turn = (id: number, question: string) => ({ id, question, reply: v2Reply({}, 'saved'), error: null, createdAt: GENERATED });
+      mocks.fetchChatConversation.mockResolvedValueOnce({ conversation: { id: 'saved', title: 'Hội thoại', updatedAt: GENERATED }, turns: [turn(20, 'Câu sau')], hasMore: true, before: 20 });
+      let release!: (h: ChatConversationHistory) => void;
+      mocks.fetchChatConversation.mockReturnValueOnce(new Promise<ChatConversationHistory>((res) => { release = res; }));
+      renderAt('/boards/b1'); await openPanel();
+      await clickAsync(await within(panel()).findByRole('button', { name: 'Tải tin nhắn trước' }));
+      await go('/boards/b2');
+      await act(async () => { release({ conversation: { id: 'saved', title: 'Hội thoại', updatedAt: GENERATED }, turns: [turn(10, 'Câu trước')], hasMore: false, before: 10 }); });
+      expect(within(panel()).queryByText('Câu trước')).not.toBeInTheDocument();
+      expect(within(panel()).queryByRole('list', { name: 'Hội thoại' })).not.toBeInTheDocument();
+    });
+  });
+
+  it('cau dang cho trang thai AI ma roi bang: khong gui cau cua bang cu sang pham vi cua trang moi', async () => {
+    let resolveStatus!: (s: { llmAvailable: boolean; engine: 'v2' }) => void;
+    mocks.fetchChatStatus
+      .mockRejectedValueOnce(httpError(500)) // lan mo dau loi -> lan mo sau hoi lai trang thai
+      .mockReturnValueOnce(new Promise((res) => { resolveStatus = res; }));
+    renderAt('/boards/b1'); await openPanel();
+    await closePanel();
+    await openPanel();
+    await askQuestion('Việc sắp đến hạn?'); // dang cho trang thai AI
+    await go('/boards/b2');
+    await act(async () => { resolveStatus({ llmAvailable: true, engine: 'v2' }); });
+    expect(mocks.sendChatMessage).not.toHaveBeenCalled();
+    expect(within(panel()).queryByText('Việc sắp đến hạn?')).not.toBeInTheDocument();
+  });
+
+  it('v2: roi bang thi khong dung lai hoi thoai gan nhat tu lich su, nhung hoi thoai van con trong danh sach lich su', async () => {
+    mocks.fetchChatStatus.mockResolvedValue({ llmAvailable: true, engine: 'v2' });
+    const recent = { id: 'recent', title: 'Hội thoại gần nhất', createdAt: GENERATED, updatedAt: GENERATED, turnCount: 1 };
+    mocks.fetchChatConversations.mockResolvedValue({ conversations: [recent], page: 1, hasMore: false });
+    mocks.fetchChatConversation.mockResolvedValue(saved('recent', 'Câu hỏi gần nhất'));
+    renderAt('/boards/b1'); await openPanel();
+    expect(await within(panel()).findByText('Câu hỏi gần nhất')).toBeInTheDocument();
+
+    await closePanel();
+    await go('/boards/b2');
+    await openPanel();
+    expect(within(panel()).queryByText('Câu hỏi gần nhất')).not.toBeInTheDocument();
+    expect(mocks.fetchChatConversation).toHaveBeenCalledTimes(1);
+
+    await clickAsync(within(panel()).getByRole('button', { name: 'Lịch sử trò chuyện' }));
+    expect(within(panel()).getByRole('button', { name: /Hội thoại gần nhất/ })).toBeInTheDocument();
+  });
+
+  it('v2: dang tai hoi thoai gan nhat luc mo lan dau thi roi bang: khong nhap hoi thoai do vao panel', async () => {
+    mocks.fetchChatStatus.mockResolvedValue({ llmAvailable: true, engine: 'v2' });
+    mocks.fetchChatConversations.mockResolvedValue({ conversations: [{ id: 'recent', title: 'Hội thoại gần nhất', createdAt: GENERATED, updatedAt: GENERATED, turnCount: 1 }], page: 1, hasMore: false });
+    let release!: (h: ChatConversationHistory) => void;
+    mocks.fetchChatConversation.mockReturnValue(new Promise<ChatConversationHistory>((res) => { release = res; }));
+    renderAt('/boards/b1'); await openPanel();
+    await go('/boards/b2');
+    await act(async () => { release(saved('recent', 'Câu hỏi gần nhất')); });
+    expect(within(panel()).queryByText('Câu hỏi gần nhất')).not.toBeInTheDocument();
+    expect(within(panel()).getByText('Thử hỏi:')).toBeInTheDocument();
   });
 });
 

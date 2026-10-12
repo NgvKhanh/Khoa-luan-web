@@ -89,6 +89,9 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const scope = useMemo(() => assistantScopeFor(pathname), [pathname]);
   const scopeRef = useRef<ChatScope>(scope);
   useEffect(() => { scopeRef.current = scope; }, [scope]);
+  const lastScope = useRef<ChatScope>(scope);
+  // Moi lan bo hoi thoai (hoi thoai moi / roi bang) tang len 1: ket qua cua yeu cau gui TRUOC do khong duoc nhap vao hoi thoai moi.
+  const epoch = useRef(0);
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<AssistantTurn[]>([]);
   const [status, setStatus] = useState<ChatStatus | null>(null);
@@ -135,17 +138,25 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   }, [refreshList]);
   const selectConversation = useCallback(async (id: string) => {
     if (busy) return false;
+    const startEpoch = epoch.current;
     setHistoryLoading(true); setHistoryError(null);
-    try { applyHistory(await fetchChatConversation(id)); return true; }
+    try {
+      const history = await fetchChatConversation(id);
+      if (epoch.current !== startEpoch) return false; // vua roi bang trong luc tai
+      applyHistory(history);
+      return true;
+    }
     catch { setHistoryError('Không thể mở hội thoại này. Hãy thử lại.'); return false; }
     finally { setHistoryLoading(false); }
   }, [busy, applyHistory]);
   const loadOlder = useCallback(async () => {
     const cid = conversationId.current;
     if (busy || !cid || !olderHasMore || !olderBefore.current) return;
+    const startEpoch = epoch.current;
     setHistoryLoading(true); setHistoryError(null);
     try {
       const history = await fetchChatConversation(cid, olderBefore.current);
+      if (epoch.current !== startEpoch) return;
       setTurns((prev) => [...restoredTurns(history), ...prev]);
       olderBefore.current = history.before; setOlderHasMore(history.hasMore);
     } catch { setHistoryError('Không thể tải tin nhắn trước. Hãy thử lại.'); }
@@ -181,13 +192,17 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     }
     if (!historyRequested.current) {
       historyRequested.current = true;
+      const startEpoch = epoch.current;
       setHistoryLoading(true); setHistoryError(null);
       void (async () => {
         try {
           try { const next = await statusPromise.current; engine.current = next?.engine ?? 'v2'; } catch { /* Try v2 history directly. */ }
           if (engine.current === 'legacy') return;
           const result = await refreshList();
-          if (result.conversations[0]) applyHistory(await fetchChatConversation(result.conversations[0].id));
+          if (result.conversations[0]) {
+            const history = await fetchChatConversation(result.conversations[0].id);
+            if (epoch.current === startEpoch) applyHistory(history); // roi bang giua chung thi khong dung lai hoi thoai cu
+          }
         } catch { setHistoryError('Không thể tải lịch sử trò chuyện. Hãy thử lại.'); historyRequested.current = false; }
         finally { setHistoryLoading(false); }
       })();
@@ -203,19 +218,24 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       if (message === '' || busy) return;
       setNotice(null);
       const id = nextId.current++;
+      const startEpoch = epoch.current;
       setTurns((ts) => [...ts, newTurn(id, message)]);
       try {
         if (statusPromise.current) {
           try { const next = await statusPromise.current; engine.current = next.engine ?? 'v2'; }
           catch { /* Keep the selected engine; a failed discovery must not silently downgrade. */ }
         }
+        // Roi bang truoc khi gui: cau nay thuoc bang cu, khong duoc gui sang pham vi cua trang moi.
+        if (epoch.current !== startEpoch) return;
         const body = { message, scope: scopeRef.current, conversationId: conversationId.current ?? undefined };
         const reply = engine.current === 'v2' ? await sendChatMessage(body, 'v2') : await sendChatMessage(body);
+        if (epoch.current !== startEpoch) return; // da roi bang: tra loi nam trong lich su, khong nhap vao hoi thoai moi
         if (reply.conversationReset) {
           setNotice('Hội thoại trước đã hết hạn nên trợ lý bắt đầu hội thoại mới: câu này không nối tiếp câu trước.');
         }
         finish(id, reply);
       } catch (err) {
+        if (epoch.current !== startEpoch) return;
         patch(id, () => ({ status: 'error', error: chatErrorText(err, 'MESSAGE').text }));
         if (engine.current === 'v2') void refreshList().catch(() => setHistoryError('Không thể cập nhật danh sách lịch sử. Hãy thử lại.'));
       }
@@ -228,11 +248,15 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       const cid = conversationId.current;
       if (!cid || busy) return;
       const id = nextId.current++;
+      const startEpoch = epoch.current;
       setTurns((ts) => [...ts, newTurn(id, `Chọn: ${option.label}`)]);
       try {
         const guard = guardScope(scopeRef.current);
-        finish(id, engine.current === 'v2' ? await (guard ? sendChatChoice(cid, option, 'v2', guard) : sendChatChoice(cid, option, 'v2')) : await sendChatChoice(cid, option));
+        const reply = engine.current === 'v2' ? await (guard ? sendChatChoice(cid, option, 'v2', guard) : sendChatChoice(cid, option, 'v2')) : await sendChatChoice(cid, option);
+        if (epoch.current !== startEpoch) return;
+        finish(id, reply);
       } catch (err) {
+        if (epoch.current !== startEpoch) return;
         const e = chatErrorText(err, 'CHOICE');
         if (e.conversationGone) conversationId.current = null;
         patch(id, () => ({ status: 'error', error: e.text }));
@@ -247,11 +271,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       if (!cid || busy || !turn.reply) return;
       const block = turn.reply.answer.blocks?.find((b) => b.id === blockId);
       if (blockId && (!block || block.status !== 'OK' || !block.pagination.hasMore)) return;
+      const startEpoch = epoch.current;
       patch(turn.id, () => ({ loadingMore: true, loadingBlockId: blockId, moreError: null }));
       try {
         const page = block?.status === 'OK' ? block.pagination.page + 1 : turn.page + 1;
         const guard = guardScope(scopeRef.current);
         const next = engine.current === 'v2' ? await (guard ? fetchMoreAnswer(cid, page, blockId, 'v2', guard) : fetchMoreAnswer(cid, page, blockId, 'v2')) : await fetchMoreAnswer(cid, page);
+        if (epoch.current !== startEpoch) return;
         if (blockId && next.answer.blocks) {
           const incoming = next.answer.blocks.find((b) => b.id === blockId);
           if (!incoming) throw new Error('Missing answer block');
@@ -273,6 +299,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           };
         });
       } catch (err) {
+        if (epoch.current !== startEpoch) return;
         const e = chatErrorText(err, 'MORE');
         if (e.conversationGone) conversationId.current = null;
         patch(turn.id, () => ({ loadingMore: false, loadingBlockId: undefined, moreError: e.text }));
@@ -317,12 +344,24 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   );
 
   const newConversation = useCallback(() => {
+    epoch.current += 1;
     conversationId.current = null;
     setActiveConversationId(null);
     setTurns([]);
     setNotice(null);
     olderBefore.current = null; setOlderHasMore(false);
   }, []);
+
+  // Hoi thoai lam trong MOT bang thi gan voi bang do: roi bang (sang bang khac, hoac ra trang khac) -> lan mo tro ly sau la
+  // hoi thoai trang. Lich su van con trong danh sach "Lich su tro chuyen". Di tu trang chu SANG bang (bam lien ket the trong
+  // cau tra loi) thi KHONG lam moi: hoi thoai do bat dau ngoai bang. Doi tham so (?card=) trong cung bang khong doi pathname.
+  useEffect(() => {
+    const prev = lastScope.current;
+    lastScope.current = scope;
+    if (prev.kind !== 'BOARD') return;
+    if (scope.kind === 'BOARD' && scope.boardId === prev.boardId) return;
+    newConversation();
+  }, [scope, newConversation]);
 
   const value = useMemo<AssistantValue>(
     () => ({ open, turns, busy, scope, status, notice, conversations, activeConversationId, historyLoading, historyError, historyHasMore, olderHasMore,
