@@ -22,6 +22,8 @@ export interface OpPolicy {
   confirm: readonly ConfirmReasonCode[];
   /** Thao tac quan tri bang (xoa bang, doi quyen...): khong tron voi thao tac the / cot trong cung mot ke hoach. */
   admin?: boolean;
+  /** Ly do xem truoc phu thuoc CHI TIET thao tac da phan giai (vd chi truong van ban moi la noi dung). */
+  confirmFor?: (op: StoredOp) => readonly ConfirmReasonCode[];
 }
 
 /** Mot "Hit": thuc the da tim thay (id that + ten hien thi). */

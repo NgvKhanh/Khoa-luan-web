@@ -138,6 +138,13 @@ export const ACTION_TYPES = [
   // Buoc G: tep dinh kem
   'ADD_ATTACHMENT',
   'DELETE_ATTACHMENT',
+  // Buoc H: truong tuy chinh, nhac han, theo doi, the mau
+  'SET_FIELD_VALUE',
+  'ADD_REMINDER',
+  'REMOVE_REMINDER',
+  'SET_WATCH',
+  'CREATE_CARD_FROM_TEMPLATE',
+  'SAVE_CARD_AS_TEMPLATE',
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
 
@@ -151,6 +158,9 @@ export const DESTRUCTIVE_TYPES: readonly ActionType[] = ['DELETE_CARD', 'DELETE_
 export const PLACEMENTS = ['FIRST', 'LAST', 'BEFORE', 'AFTER'] as const;
 export const SORT_KEYS = ['CREATED_DESC', 'CREATED_ASC', 'TITLE_ASC', 'DONE_LAST'] as const;
 export const COVER_COLORS = [...COLOR_NAMES, 'NONE'] as const;
+/** Muc nhac han giao dien cho phep (phut truoc han): card.schema.REMINDER_OFFSETS. */
+export const REMINDER_MINUTES = [10, 60, 1440] as const;
+export const WATCH_TARGETS = ['CARD', 'LIST', 'BOARD'] as const;
 /** Gioi han noi dung van ban (cung tran 500 ky tu cua cau lenh nen thuc te nho hon). */
 export const MAX_TEXT_CHARS = 1000;
 export const MAX_CHECKLIST_ITEMS = 20;
@@ -178,6 +188,12 @@ export const AUTO_RUN_TYPES: readonly ActionType[] = [
   'SET_CHECKLIST_ITEM_DONE',
   'ASSIGN_CHECKLIST_ITEM',
   'SET_CHECKLIST_ITEM_DUE',
+  // Buoc H: viec ca nhan / chinh xac
+  'SET_FIELD_VALUE',
+  'ADD_REMINDER',
+  'REMOVE_REMINDER',
+  'SET_WATCH',
+  'CREATE_CARD_FROM_TEMPLATE',
 ];
 
 export const ActionOpSchema = z.discriminatedUnion('type', [
@@ -232,6 +248,13 @@ export const ActionOpSchema = z.discriminatedUnion('type', [
   // Buoc G: `file` = ten tep nguoi dung noi (bo trong = moi tep ho vua dinh kem o khung chat); KHONG co o nao de dien duong dan / id tep
   z.object({ type: z.literal('ADD_ATTACHMENT'), card: RefSchema, file: text(200).optional() }).strict(),
   z.object({ type: z.literal('DELETE_ATTACHMENT'), card: RefSchema, match: text(300).optional() }).strict(),
+  // Buoc H: `field` = ten truong; `value` luon la chuoi (server doc theo kieu truong: so, ngay, hop kiem, lua chon); clear = xoa gia tri
+  z.object({ type: z.literal('SET_FIELD_VALUE'), card: RefSchema, field: text(200), value: text(500).optional(), clear: z.boolean().optional() }).strict(),
+  z.object({ type: z.literal('ADD_REMINDER'), card: RefSchema, minutes: z.union([z.literal(10), z.literal(60), z.literal(1440)]) }).strict(),
+  z.object({ type: z.literal('REMOVE_REMINDER'), card: RefSchema, minutes: z.union([z.literal(10), z.literal(60), z.literal(1440)]).optional() }).strict(),
+  z.object({ type: z.literal('SET_WATCH'), target: z.enum(WATCH_TARGETS), card: RefSchema.optional(), list: RefSchema.optional(), watch: z.boolean().optional() }).strict(),
+  z.object({ type: z.literal('CREATE_CARD_FROM_TEMPLATE'), template: text(200), list: RefSchema.optional(), title: text(500).optional() }).strict(),
+  z.object({ type: z.literal('SAVE_CARD_AS_TEMPLATE'), card: RefSchema, name: text(100).optional() }).strict(),
 ]);
 export type ActionOp = z.infer<typeof ActionOpSchema>;
 
@@ -299,7 +322,7 @@ export const PROPOSE_ACTIONS_PROVIDER_SCHEMA = {
         properties: {
           type: { type: 'string', enum: [...ACTION_TYPES] },
           key: { type: 'string', description: 'CREATE_LIST / CREATE_CARD: khoa ngan (chu, so, gach duoi) de thao tac khac tro toi cot / the vua tao.' },
-          name: { type: 'string', description: 'CREATE_LIST: ten cot moi; RENAME_LIST: ten moi cua cot (list = cot can doi ten). Dung chu nguoi dung go.' },
+          name: { type: 'string', description: 'CREATE_LIST: ten cot moi; RENAME_LIST: ten moi cua cot (list = cot can doi ten); SAVE_CARD_AS_TEMPLATE: ten the mau. Dung chu nguoi dung go.' },
           card: refHint,
           list: refHint,
           toList: refHint,
@@ -314,6 +337,13 @@ export const PROPOSE_ACTIONS_PROVIDER_SCHEMA = {
           start: dueHint,
           status: { type: 'string', enum: [...Object.values(CardStatus), 'NONE'], description: 'SET_CARD_STATUS: trang thai the; SET_LIST_STATUS: trang thai cua COT (NONE = cot tu do, khong gan trang thai).' },
           match: { type: 'string', description: 'Chi ra MOT binh luan (EDIT_COMMENT / DELETE_COMMENT / REPLY_COMMENT), MOT tep (DELETE_ATTACHMENT) hoac MOT muc checklist (SET_CHECKLIST_ITEM_DONE, EDIT_/DELETE_/ASSIGN_/SET_..._DUE, CONVERT_ITEM_TO_CARD): vai tu dung trong noi dung do, chep dung chu nguoi dung go. Bo trong khi the chi co mot cai.' },
+          field: { type: 'string', description: 'SET_FIELD_VALUE: ten truong tuy chinh cua bang (chep dung chu nguoi dung go).' },
+          value: { type: 'string', description: 'SET_FIELD_VALUE: gia tri nguoi dung noi (chuoi: so, ngay dd/mm, co / khong, hay ten lua chon); bo trong khi clear.' },
+          clear: { type: 'boolean', description: 'SET_FIELD_VALUE: true = xoa gia tri cua truong.' },
+          minutes: { type: 'number', enum: [10, 60, 1440], description: 'ADD_REMINDER / REMOVE_REMINDER: nhac truoc han bao nhieu phut (10, 60 = 1 gio, 1440 = 1 ngay); bo trong khi REMOVE de bo moi nhac.' },
+          target: { type: 'string', enum: [...WATCH_TARGETS], description: 'SET_WATCH: theo doi the (card), cot (list) hay ca bang (BOARD).' },
+          watch: { type: 'boolean', description: 'SET_WATCH: true (mac dinh) = bat theo doi, false = bo theo doi.' },
+          template: { type: 'string', description: 'CREATE_CARD_FROM_TEMPLATE: ten the mau cua bang (chep dung chu nguoi dung go).' },
           file: { type: 'string', description: 'ADD_ATTACHMENT: ten tep (hoac vai tu trong ten) khi nguoi dung chi gan MOT trong cac tep da dinh kem; bo trong = gan tat ca tep vua dinh kem.' },
           checklist: { type: 'string', description: 'Ten checklist cua the (khi the co nhieu checklist): chep dung chu nguoi dung go.' },
           done: { type: 'boolean', description: 'SET_CHECKLIST_ITEM_DONE: true = danh dau xong (mac dinh), false = bo danh dau.' },

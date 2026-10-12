@@ -47,6 +47,8 @@ export interface DecisionInput {
   autoExecute: boolean;
   /** Phase 6: co thao tac nao co nguoi nhan do MAY chon (module goi y phan cong) khong. */
   aiChosen?: boolean;
+  /** Ly do xem truoc do chinh thao tac DA PHAN GIAI bao (OpPolicy.confirmFor). */
+  extraReasons?: readonly ConfirmReason['code'][];
 }
 
 export type Decision =
@@ -170,6 +172,7 @@ export function decideExecution(input: DecisionInput): Decision {
   for (const t of new Set(input.opTypes)) {
     for (const code of handlerOf(t)?.policy.confirm ?? []) if (!reasons.some((r) => r.code === code)) push(code);
   }
+  for (const code of input.extraReasons ?? []) if (!reasons.some((r) => r.code === code)) push(code);
   if (!input.autoExecute) push('AUTO_DISABLED');
 
   if (reasons.length === 0) return { mode: 'AUTO', risk: 'LOW', reasons };

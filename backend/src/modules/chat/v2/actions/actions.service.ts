@@ -18,6 +18,7 @@ import type { EntityOption } from '../chat.v2.entities';
 import { OUT_OF_CEILING, resolveExecutionContext, type ExecutionContext } from '../chat.v2.scope';
 import type { V2Session } from '../chat.v2.session';
 import { decideExecution, refusalBeforeResolve } from './actions.autorun';
+import { handlerOf } from './ops/ops.registry';
 import { executePlan } from './actions.executor';
 import { guardPlan } from './actions.guard';
 import { describeOp, errorText, OP_LABEL, planChecksum, stateDigest } from './actions.plan';
@@ -363,6 +364,7 @@ async function conclude(run: Run, resolved: ResolvedPlan): Promise<ActionOutcome
     guard,
     autoExecute: base.autoExecute,
     aiChosen: ops.some((o) => o.choice !== undefined),
+    extraReasons: ops.flatMap((o) => handlerOf(o.type)?.policy.confirmFor?.(o) ?? []),
   });
   if (decision.mode === 'REFUSE') return fail(decision.code, decision.text, ops, true);
 
