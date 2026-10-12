@@ -128,8 +128,8 @@ export function removeAvatarFile(publicPath: string | null): void {
 
 // ===================== TEP DINH KEM CUA THE =====================
 
-const ATTACH_MAX_BYTES = 10 * 1024 * 1024; // 10MB
-const ATTACH_ALLOWED_EXT = new Set([
+export const ATTACH_MAX_BYTES = 10 * 1024 * 1024; // 10MB
+export const ATTACH_ALLOWED_EXT = new Set([
   '.jpg',
   '.jpeg',
   '.png',
@@ -232,6 +232,17 @@ export function uploadCardAttachment(
     }
     next(err instanceof AppError ? err : new AppError('Tải tệp lên thất bại', 400));
   });
+}
+
+/**
+ * Dua mot tep DA CO tren dia (kho tam cua chatbot) vao thu muc tep dinh kem cua the voi ten UUID moi (giu duoi da kiem). Tra ve ten tep + duong dan cong khai.
+ * Dung copy roi de nguoi goi xoa tep nguon sau khi ghi CSDL thanh cong (neu giao dich hong thi tep nguon con de thu lai).
+ */
+export function adoptCardAttachmentFile(sourcePath: string, ext: string): { filename: string; publicPath: string } {
+  const safeExt = ATTACH_ALLOWED_EXT.has(ext.toLowerCase()) ? ext.toLowerCase() : '';
+  const filename = `${crypto.randomUUID()}${safeExt}`;
+  fs.copyFileSync(sourcePath, path.join(CARD_ATTACH_DIR, filename));
+  return { filename, publicPath: cardAttachmentPublicPath(filename) };
 }
 
 export function cardAttachmentPublicPath(filename: string): string {

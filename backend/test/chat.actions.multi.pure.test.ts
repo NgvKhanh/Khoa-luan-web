@@ -263,7 +263,7 @@ describe('dấu vân tay tham chiếu (một lần tìm, một lần chọn cho 
     expect(foldedName('cột Đang làm')).toBe('dang lam');
   });
 
-  it('slotsOf / withRef đủ cho MỌI loại thao tác (10 loại cũ + 8 loại của bước D)', () => {
+  it('slotsOf / withRef đủ cho MỌI loại thao tác (10 loại cũ + 8 loại của bước D + 13 loại của bước E)', () => {
     for (const type of ACTION_TYPES) {
       const samples: Record<string, ActionOp> = {
         CREATE_LIST: list('A'),
@@ -284,10 +284,23 @@ describe('dấu vân tay tham chiếu (một lần tìm, một lần chọn cho 
         REMOVE_LABEL: { type: 'REMOVE_LABEL', card: t('A'), label: t('Gấp') },
         RENAME_LIST: { type: 'RENAME_LIST', list: t('A'), name: 'B' },
         ARCHIVE_CARD: { type: 'ARCHIVE_CARD', card: t('A') },
+        DELETE_CARD: { type: 'DELETE_CARD', card: t('A') },
+        RESTORE_CARD: { type: 'RESTORE_CARD', card: t('A') },
+        COPY_CARD: { type: 'COPY_CARD', card: t('A') },
+        SET_CARD_COVER: { type: 'SET_CARD_COVER', card: t('A'), color: 'RED' },
+        ARCHIVE_LIST: { type: 'ARCHIVE_LIST', list: t('A') },
+        DELETE_LIST: { type: 'DELETE_LIST', list: t('A') },
+        RESTORE_LIST: { type: 'RESTORE_LIST', list: t('A') },
+        COPY_LIST: { type: 'COPY_LIST', list: t('A') },
+        MOVE_LIST: { type: 'MOVE_LIST', list: t('A'), placement: 'FIRST' },
+        SORT_LIST: { type: 'SORT_LIST', list: t('A'), sortBy: 'TITLE_ASC' },
+        MOVE_ALL_CARDS: { type: 'MOVE_ALL_CARDS', list: t('A'), toList: t('B') },
+        DELETE_ALL_CARDS: { type: 'DELETE_ALL_CARDS', list: t('A') },
+        SET_LIST_STATUS: { type: 'SET_LIST_STATUS', list: t('A'), status: 'DONE' },
       };
       const op = samples[type];
       const names = slotsOf(op).map((s) => s.name);
-      expect(names, type).toEqual({ CREATE_LIST: [], CREATE_CARD: ['list'], RENAME_CARD: ['card'], SET_CARD_DUE: ['card'], MOVE_CARD: ['card', 'toList'], SET_CARD_STATUS: ['card'], ASSIGN_MEMBER: ['card', 'member'], ADD_LABEL: ['card', 'label'], ASSIGN_UNASSIGNED: ['list'], CREATE_AUTOMATION_RULE: ['list', 'a0.label'], SET_CARD_DESCRIPTION: ['card'], SET_CARD_START: ['card'], ADD_COMMENT: ['card'], ADD_CHECKLIST: ['card'], REMOVE_MEMBER: ['card', 'member'], REMOVE_LABEL: ['card', 'label'], RENAME_LIST: ['list'], ARCHIVE_CARD: ['card'] }[type]);
+      expect(names, type).toEqual({ CREATE_LIST: [], CREATE_CARD: ['list'], RENAME_CARD: ['card'], SET_CARD_DUE: ['card'], MOVE_CARD: ['card', 'toList'], SET_CARD_STATUS: ['card'], ASSIGN_MEMBER: ['card', 'member'], ADD_LABEL: ['card', 'label'], ASSIGN_UNASSIGNED: ['list'], CREATE_AUTOMATION_RULE: ['list', 'a0.label'], SET_CARD_DESCRIPTION: ['card'], SET_CARD_START: ['card'], ADD_COMMENT: ['card'], ADD_CHECKLIST: ['card'], REMOVE_MEMBER: ['card', 'member'], REMOVE_LABEL: ['card', 'label'], RENAME_LIST: ['list'], ARCHIVE_CARD: ['card'], DELETE_CARD: ['card'], RESTORE_CARD: ['card'], COPY_CARD: ['card'], SET_CARD_COVER: ['card'], ARCHIVE_LIST: ['list'], DELETE_LIST: ['list'], RESTORE_LIST: ['list'], COPY_LIST: ['list'], MOVE_LIST: ['list'], SORT_LIST: ['list'], MOVE_ALL_CARDS: ['list', 'toList'], DELETE_ALL_CARDS: ['list'], SET_LIST_STATUS: ['list'] }[type]);
       // luật tự động hóa chỉ nhắm vào thực thể CÓ SẴN nên không nhận tham chiếu PLAN (withRef bỏ qua)
       const probe = type === 'CREATE_AUTOMATION_RULE' ? t('Z') : plan('k');
       for (const name of names) expect(slotsOf(withRef(op, name, probe)).find((s) => s.name === name)?.ref).toEqual(probe);

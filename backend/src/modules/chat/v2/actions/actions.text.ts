@@ -54,18 +54,18 @@ export function hasAny(words: readonly string[], phrases: readonly Phrase[]): bo
   return phrases.some((p) => hasPhrase(words, p));
 }
 
-function indexesOfAny(words: readonly string[], phrases: readonly Phrase[]): number[] {
+export function indexesOfAny(words: readonly string[], phrases: readonly Phrase[]): number[] {
   return phrases.flatMap((p) => phraseIndexes(words, p)).sort((a, b) => a - b);
 }
 
 // ===================== Dong tu "giay phep" theo loai thao tac =====================
 // Chi la dong tu chi VIEC LAM (khong phai ten rieng): "chuyen", "giao", "doi han"... Chu da bo dau, thuong.
 
-const CREATE_VERBS: readonly Phrase[] = [['tao'], ['them'], ['add'], ['create'], ['new'], ['bo', 'sung'], ['lap']];
-const LIST_NOUNS: readonly Phrase[] = [['cot'], ['list'], ['danh', 'sach'], ['column']];
+export const CREATE_VERBS: readonly Phrase[] = [['tao'], ['them'], ['add'], ['create'], ['new'], ['bo', 'sung'], ['lap']];
+export const LIST_NOUNS: readonly Phrase[] = [['cot'], ['list'], ['danh', 'sach'], ['column']];
 /** Dong tu tao phai dung SAT danh tu "cot" (toi da 3 tu: "tao cot", "them mot cot moi"): "them 3 task vao cot X" khong phai lenh tao cot. */
 const CREATE_LIST_SPAN = 3;
-const RENAME_VERBS: readonly Phrase[] = [
+export const RENAME_VERBS: readonly Phrase[] = [
   ['doi', 'ten'],
   ['sua', 'ten'],
   ['rename'],
@@ -88,7 +88,7 @@ const DUE_VERBS: readonly Phrase[] = [
   ['huy', 'han'],
   ['go', 'han'],
 ];
-const MOVE_VERBS: readonly Phrase[] = [['chuyen'], ['di', 'chuyen'], ['dua'], ['keo'], ['move'], ['dat', 'vao'], ['dat', 'sang']];
+export const MOVE_VERBS: readonly Phrase[] = [['chuyen'], ['di', 'chuyen'], ['dua'], ['keo'], ['move'], ['dat', 'vao'], ['dat', 'sang']];
 const ASSIGN_VERBS: readonly Phrase[] = [['giao'], ['gan'], ['assign'], ['phan', 'cong'], ['chi', 'dinh']];
 // Phase 6: chia viec cho CA COT. Phai co dong tu chia / giao / phan cong VA dau hieu "chua co nguoi" (neu khong thi "giao Login cho Lan" khong the bi doi thanh chia ca cot).
 const SPLIT_VERBS: readonly Phrase[] = [['chia'], ['giao'], ['phan', 'cong'], ['phan', 'bo'], ['assign']];
@@ -203,19 +203,19 @@ export function unsupportedRuleCue(message: string, ownTexts: readonly string[] 
 // ===================== Buoc D: sua noi dung va don dep the =====================
 // Cung nguyen tac "giay phep": thao tac chi duoc chay khi CHINH CAU nguoi dung co dong tu / cum tu tuong ung. Danh tu (mo ta, binh luan, checklist...) phai
 // di cung dong tu (hoac dung dau cau nhu mot menh lenh: "Binh luan vao the X: ..."), de cau hoi "mo ta the nay la gi?" khong bao gio sinh ra thao tac.
-const WRITE_VERBS: readonly Phrase[] = [...CREATE_VERBS, ['viet'], ['sua'], ['doi'], ['cap', 'nhat'], ['dat'], ['ghi'], ['dien'], ['thay'], ['update'], ['set'], ['de', 'lai'], ['gui'], ['post'], ['comment'], ['soan']];
-const DESCRIPTION_NOUNS: readonly Phrase[] = [['mo', 'ta'], ['description'], ['noi', 'dung', 'the']];
-const COMMENT_NOUNS: readonly Phrase[] = [['binh', 'luan'], ['comment'], ['nhan', 'xet'], ['ghi', 'chu']];
-const CHECKLIST_NOUNS: readonly Phrase[] = [['checklist'], ['check', 'list'], ['viec', 'con'], ['cong', 'viec', 'con'], ['subtask'], ['sub', 'task'], ['muc', 'con']];
+export const WRITE_VERBS: readonly Phrase[] = [...CREATE_VERBS, ['viet'], ['sua'], ['doi'], ['cap', 'nhat'], ['dat'], ['ghi'], ['dien'], ['thay'], ['update'], ['set'], ['de', 'lai'], ['gui'], ['post'], ['comment'], ['soan']];
+export const DESCRIPTION_NOUNS: readonly Phrase[] = [['mo', 'ta'], ['description'], ['noi', 'dung', 'the']];
+export const COMMENT_NOUNS: readonly Phrase[] = [['binh', 'luan'], ['comment'], ['nhan', 'xet'], ['ghi', 'chu']];
+export const CHECKLIST_NOUNS: readonly Phrase[] = [['checklist'], ['check', 'list'], ['viec', 'con'], ['cong', 'viec', 'con'], ['subtask'], ['sub', 'task'], ['muc', 'con']];
 /** Cum chi NGAY BAT DAU (rieng): "bat dau" tran khong du vi "chua bat dau" la trang thai Can lam. */
 const START_PHRASES: readonly Phrase[] = [['ngay', 'bat', 'dau'], ['bat', 'dau', 'tu'], ['bat', 'dau', 'vao'], ['bat', 'dau', 'ngay'], ['start', 'date'], ['start'], ['khoi', 'cong']];
-const REMOVE_VERBS: readonly Phrase[] = [['bo'], ['go'], ['xoa'], ['loai'], ['rut'], ['remove'], ['unassign'], ['huy'], ['thu', 'hoi']];
+export const REMOVE_VERBS: readonly Phrase[] = [['bo'], ['go'], ['xoa'], ['loai'], ['rut'], ['remove'], ['unassign'], ['huy'], ['thu', 'hoi']];
 /** Cum tu chi "bo nguoi ra khoi the" ma khong can chu "khoi". */
 const UNASSIGN_PHRASES: readonly Phrase[] = [['huy', 'giao'], ['bo', 'giao'], ['thu', 'hoi'], ['unassign'], ['go', 'giao']];
-const ARCHIVE_PHRASES: readonly Phrase[] = [['luu', 'tru'], ['archive'], ['cat', 'vao', 'kho'], ['dua', 'vao', 'kho', 'luu', 'tru']];
+export const ARCHIVE_PHRASES: readonly Phrase[] = [['luu', 'tru'], ['archive'], ['cat', 'vao', 'kho'], ['dua', 'vao', 'kho', 'luu', 'tru']];
 /** Danh tu dung SAT SAU dong tu (toi da 4 tu) hoac dung dau cau (mot menh lenh: "Mo ta the Login: ..."). */
-const NOUN_SPAN = 4;
-function nounWithVerb(words: readonly string[], nouns: readonly Phrase[], verbs: readonly Phrase[]): number[] {
+export const NOUN_SPAN = 4;
+export function nounWithVerb(words: readonly string[], nouns: readonly Phrase[], verbs: readonly Phrase[]): number[] {
   const nounAt = indexesOfAny(words, nouns);
   if (nounAt.length === 0) return [];
   const verbAt = indexesOfAny(words, verbs).filter((v) => nounAt.some((n) => n >= v && n - v <= NOUN_SPAN));
@@ -223,13 +223,13 @@ function nounWithVerb(words: readonly string[], nouns: readonly Phrase[], verbs:
   return verbAt.length > 0 ? verbAt : nounAt.filter((n) => n <= 1);
 }
 /** Dong tu BO / GO / XOA... dung truoc danh tu `nouns` (toi da NOUN_SPAN tu): "bo nhan Gap", "go Lan khoi the". */
-function removeBefore(words: readonly string[], nouns: readonly Phrase[]): number[] {
+export function removeBefore(words: readonly string[], nouns: readonly Phrase[]): number[] {
   const nounAt = indexesOfAny(words, nouns);
   return indexesOfAny(words, REMOVE_VERBS).filter((v) => nounAt.some((n) => n > v && n - v <= NOUN_SPAN));
 }
 
-const LABEL_WORDS: readonly Phrase[] = [['nhan'], ['label'], ['tag']];
-const LABEL_VERBS: readonly Phrase[] = [['them'], ['gan'], ['dan'], ['add'], ['dat'], ['cho'], ['gui']];
+export const LABEL_WORDS: readonly Phrase[] = [['nhan'], ['label'], ['tag']];
+export const LABEL_VERBS: readonly Phrase[] = [['them'], ['gan'], ['dan'], ['add'], ['dat'], ['cho'], ['gui']];
 const STATUS_VERBS: readonly Phrase[] = [
   ['chuyen'],
   ['doi'],
@@ -301,7 +301,7 @@ export function lastStatusMention(words: readonly string[]): CardStatus | null {
 const NEGATORS: readonly Phrase[] = [['dung'], ['khoi'], ['khong'], ['chua', 'can'], ['khong', 'can'], ['khong', 'duoc'], ['khong', 'nen'], ['cam']];
 
 /** Mot phu dinh nam NGAY TRUOC vi tri `at` (cach toi da 1 tu: "dung chuyen", "khong can phai chuyen"). */
-function negatedAt(words: readonly string[], at: number): boolean {
+export function negatedAt(words: readonly string[], at: number): boolean {
   for (const neg of NEGATORS) {
     for (const start of phraseIndexes(words, neg)) {
       const end = start + neg.length;
@@ -322,6 +322,12 @@ export interface Licence {
  * "Giay phep dong tu": cau cua NGUOI DUNG co dong tu cho loai thao tac nay khong? Thao tac khong co dong tu trong cau
  * (vd mo ta the bao "giao het cho X" + cau hoi binh thuong) khong bao gio duoc tu chay.
  */
+/** Licence tu cac vi tri dong tu (cac nhom thao tac mo rong): rong = chua duoc cau yeu cau; moi vi tri deu bi phu dinh = negated. */
+export function licenceFromPositions(at: readonly number[], words: readonly string[]): Licence {
+  if (at.length === 0) return { licensed: false, negated: false };
+  return { licensed: true, negated: at.every((i) => negatedAt(words, i)) };
+}
+
 export function licenceFor(type: string, words: readonly string[], status?: CardStatus, strictLast = true): Licence {
   let at: number[] = [];
   switch (type) {

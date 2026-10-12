@@ -19,6 +19,7 @@
 
 import { ACTION_TYPES, AUTO_RUN_TYPES, CONTENT_TYPES, MAX_OPS_PER_PLAN, STRUCTURE_TYPES } from './actions.schema';
 import type { ProvenanceReport } from './actions.provenance';
+import { handlerOf } from './ops/ops.registry';
 import type { ActionErrorCode, ConfirmReason, GuardVerdict, PlanRisk } from './actions.types';
 
 /** Cac thao tac duoc phep TU CHAY khi la thao tac duy nhat. */
@@ -67,6 +68,10 @@ export const CONFIRM_REASON_TEXT: Record<ConfirmReason['code'], string> = {
   AI_CHOSEN_TARGET: 'Người nhận do hệ thống gợi ý phân công chọn (không phải tên bạn nêu) nên mình luôn cho bạn xem điểm, độ tin cậy, cờ cảnh báo và ứng viên khác trước khi áp dụng.',
   STANDING_RULE: 'Luật tự động hóa chạy LÂU DÀI mỗi khi điều kiện xảy ra, bằng quyền của bạn (người tạo luật) và có thể thay đổi nhiều thẻ về sau, nên mình luôn cho bạn xem lại trước khi áp dụng và không bao giờ tự chạy.',
   BOARD_PATCH: 'Nội dung cột và thẻ này do AI đề xuất (không phải chữ bạn gõ) nên mình luôn cho bạn xem trước và chỉ thêm mới, không đụng tới dữ liệu cũ.',
+  DELETE: 'Xóa là thẻ, cột, bình luận hoặc tệp biến mất khỏi bảng và không khôi phục lại được ở giao diện nên mình luôn cho bạn xem lại trước khi áp dụng và không bao giờ tự chạy. Muốn giữ lại thì hãy dùng lưu trữ.',
+  BULK: 'Thao tác này tác động lên cả một cột (nhiều thẻ cùng lúc) nên mình luôn cho bạn xem lại số lượng trước khi áp dụng.',
+  ADMIN: 'Đây là thao tác quản trị bảng (thành viên, quyền, hiển thị, lưu trữ hay xóa bảng) ảnh hưởng tới nhiều người nên mình luôn cho bạn xem lại trước khi áp dụng và không bao giờ tự chạy.',
+  FILE: 'Tệp đính kèm sẽ hiện cho mọi người trong bảng nên mình luôn cho bạn xem lại tên và loại tệp trước khi áp dụng.',
 };
 
 const refuse = (code: ActionErrorCode, text: string): Decision => ({ mode: 'REFUSE', code, text });
@@ -92,7 +97,7 @@ export function refusalBeforeResolve(provenance: ProvenanceReport, opLabel?: str
 export function riskOf(opCount: number, reasons: readonly ConfirmReason[]): PlanRisk {
   if (opCount >= HIGH_RISK_OPS) return 'HIGH';
   // Phase 7: luat tu dong hoa chay mai mai bang quyen nguoi tao -> luon CAO
-  if (reasons.some((r) => r.code === 'STANDING_RULE')) return 'HIGH';
+  if (reasons.some((r) => r.code === 'STANDING_RULE' || r.code === 'DELETE' || r.code === 'ADMIN')) return 'HIGH';
   // chia viec hang loat do may chon (>= 4 the) cao hon: nhieu nguoi bi giao cung luc
   if (opCount >= ASSIGN_HIGH_OPS && reasons.some((r) => r.code === 'AI_CHOSEN_TARGET')) return 'HIGH';
   if (opCount >= 2 || reasons.some((r) => r.code !== 'AUTO_DISABLED')) return 'MEDIUM';
@@ -161,6 +166,10 @@ export function decideExecution(input: DecisionInput): Decision {
   if (input.opTypes.some((t) => STRUCTURE_TYPES.includes(t as (typeof STRUCTURE_TYPES)[number]))) push('NEW_STRUCTURE');
   if (input.opTypes.some((t) => CONTENT_TYPES.includes(t as (typeof CONTENT_TYPES)[number]))) push('TEXT_CONTENT');
   if (input.opTypes.includes('ARCHIVE_CARD')) push('ARCHIVE');
+  // thao tac mo rong: ly do xac nhan do chinh handler khai bao (xoa, ca cot, quan tri, tep...)
+  for (const t of new Set(input.opTypes)) {
+    for (const code of handlerOf(t)?.policy.confirm ?? []) if (!reasons.some((r) => r.code === code)) push(code);
+  }
   if (!input.autoExecute) push('AUTO_DISABLED');
 
   if (reasons.length === 0) return { mode: 'AUTO', risk: 'LOW', reasons };

@@ -4,8 +4,8 @@
 import { createHash } from 'node:crypto';
 import { STATUS_LABEL } from '../../../card/cardStatus';
 import { formatDueDate, vnDayOfIso } from './actions.dates';
-import type { ActionType } from './actions.schema';
 import { ruleViewOf } from './actions.rule';
+import { handlerOf, EXTENDED_TYPES } from './ops/ops.registry';
 import type {
   ActionErrorCode,
   AssignChoiceView,
@@ -26,7 +26,7 @@ export const PLAN_TTL_MS = 10 * 60_000;
 const q = (s: string | undefined): string => `“${s ?? ''}”`;
 
 /** Ten ngan cua tung loai thao tac (dung khi noi ro thao tac nao khong duoc yeu cau). */
-export const OP_LABEL: Record<ActionType, string> = {
+const CORE_LABEL: Record<string, string> = {
   CREATE_LIST: 'tạo cột',
   CREATE_CARD: 'tạo thẻ',
   RENAME_CARD: 'đổi tên thẻ',
@@ -45,6 +45,12 @@ export const OP_LABEL: Record<ActionType, string> = {
   REMOVE_LABEL: 'gỡ nhãn khỏi thẻ',
   RENAME_LIST: 'đổi tên cột',
   ARCHIVE_CARD: 'lưu trữ thẻ',
+};
+
+/** Ten ngan cua MOI loai thao tac (cu + mo rong). */
+export const OP_LABEL: Record<string, string> = {
+  ...CORE_LABEL,
+  ...Object.fromEntries(EXTENDED_TYPES.map((t) => [t, handlerOf(t)?.label ?? t])),
 };
 
 /** Dau van tay (sha256) cua mo ta thẻ: luu vao ban xem truoc de phat hien STALE ma khong phai luu ca doan mo ta cu. */
@@ -114,7 +120,7 @@ export function staleReasonOf(seen: StoredOp, fresh: StoredOp): string {
     case 'RENAME_LIST':
       return 'Cột đã được đổi tên kể từ lúc xem trước.';
     default:
-      return 'Dữ liệu đã thay đổi kể từ lúc xem trước.';
+      return handlerOf(seen.type)?.stale ?? 'Dữ liệu đã thay đổi kể từ lúc xem trước.';
   }
 }
 
@@ -203,6 +209,8 @@ export function describeOp(op: StoredOp, index: number): PlanItemView {
       return { index, verb: 'Đổi tên cột', text: `${q(op.before?.listName)} → ${q(op.params.name)}` };
     case 'ARCHIVE_CARD':
       return { index, verb: 'Lưu trữ thẻ', text: q(d.cardTitle), detail: 'Thẻ sẽ ẩn khỏi bảng; khôi phục lại được trong mục Lưu trữ của bảng.', cardId };
+    default:
+      return handlerOf(op.type)?.describe(op, index) ?? { index, verb: op.type, text: '' };
   }
 }
 
@@ -249,6 +257,8 @@ export function summarizeExecuted(op: StoredOp, extra: { movedTo?: string; creat
       return `Đã đổi tên cột ${q(op.before?.listName)} thành ${q(op.params.name)}.`;
     case 'ARCHIVE_CARD':
       return `Đã lưu trữ thẻ ${q(d.cardTitle)}. Khôi phục lại được trong mục Lưu trữ của bảng.`;
+    default:
+      return handlerOf(op.type)?.summary(op) ?? 'Đã xong.';
   }
 }
 

@@ -4,10 +4,11 @@
 import { tokenize } from '../../chat.members';
 import { foldWords, stripLeadingGeneric } from './actions.text';
 import type { ActionOp, MemberRef, Ref } from './actions.schema';
+import { handlerOf } from './ops/ops.registry';
 
 /** Phase 7: o cua luat tu dong hoa: `a0.label`, `a2.member`... = hanh dong thu i cua luat (moi hanh dong co o rieng). */
 export type RuleSlotName = `a${number}.label` | `a${number}.member`;
-export type SlotName = 'card' | 'list' | 'toList' | 'member' | 'label' | RuleSlotName;
+export type SlotName = 'card' | 'list' | 'toList' | 'anchor' | 'member' | 'label' | RuleSlotName;
 /** Loai thuc the ma o do tro toi (thuoc tinh cua o, khong phai cua tham chieu). */
 export type SlotKind = 'card' | 'list' | 'member' | 'label';
 
@@ -56,6 +57,9 @@ export function slotsOf(op: ActionOp): Slot[] {
           a.type === 'ADD_LABEL' ? [{ name: `a${i}.label`, kind: 'label', ref: a.label }] : a.type === 'ASSIGN_MEMBER' ? [{ name: `a${i}.member`, kind: 'member', ref: a.member }] : []
         ),
       ];
+    default:
+      // thao tac mo rong (actions/ops): moi thao tac tu khai bao cac o tham chieu cua no
+      return handlerOf(op.type)?.slots(op) ?? [];
   }
 }
 
@@ -97,7 +101,7 @@ export function withRef(op: ActionOp, name: SlotName, ref: Ref): ActionOp {
       return { ...op, actions: op.actions.map((a, i) => (i !== at ? a : a.type === 'ADD_LABEL' && m[2] === 'label' ? { ...a, label: ref } : a.type === 'ASSIGN_MEMBER' && m[2] === 'member' ? { ...a, member: ref } : a)) };
     }
     default:
-      return op;
+      return handlerOf(op.type)?.withRef(op, name, ref) ?? op;
   }
 }
 

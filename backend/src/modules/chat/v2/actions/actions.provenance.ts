@@ -10,6 +10,7 @@
 import type { IsoDate } from '../../../ai/ai.dates';
 import { groundDue, groundStart, type DueGrounding } from './actions.dates';
 import { slotsOf } from './actions.refs';
+import { handlerOf } from './ops/ops.registry';
 import type { ActionOp, MemberRef } from './actions.schema';
 import {
   delegatesToData,
@@ -21,6 +22,7 @@ import {
   isQuestionForm,
   lastStatusMention,
   licenceFor,
+  licenceFromPositions,
   ruleActionMentioned,
   ruleTriggerMentioned,
   withoutOwnTexts,
@@ -91,12 +93,14 @@ export function assessProvenance(op: ActionOp, message: string, today: IsoDate, 
   const words = foldWords(message);
   const failures: ProvenanceFailure[] = [];
   // `due` giu ca ngay HAN lan ngay BAT DAU (cung hinh dang DueGrounding): bo phan giai doc ra dung theo loai thao tac
-  const due = op.type === 'SET_CARD_DUE' ? groundDue(op.due, message, today) : op.type === 'SET_CARD_START' ? groundStart(op.start, message, today) : undefined;
+  const due = op.type === 'SET_CARD_DUE' || op.type === 'SET_CHECKLIST_ITEM_DUE' ? groundDue(op.due, message, today) : op.type === 'SET_CARD_START' ? groundStart(op.start, message, today) : undefined;
 
   const delegated = delegatesToData(words);
   if (delegated) failures.push({ code: 'DELEGATION_PHRASE' });
 
-  const licence = licenceFor(op.type, words, op.type === 'SET_CARD_STATUS' ? op.status : undefined, strictStatus);
+  // thao tac mo rong: giay phep do chinh handler dinh nghia (dong tu + danh tu / ten rieng cua doi tuong)
+  const extended = handlerOf(op.type);
+  const licence = extended !== undefined ? licenceFromPositions(extended.licence(words, op), words) : licenceFor(op.type, words, op.type === 'SET_CARD_STATUS' ? op.status : undefined, strictStatus);
   if (!licence.licensed) failures.push({ code: 'OP_NOT_LICENSED' });
   else if (licence.negated) failures.push({ code: 'NEGATED' });
 
@@ -129,6 +133,7 @@ export function assessProvenance(op: ActionOp, message: string, today: IsoDate, 
   if (op.type === 'ADD_COMMENT' && !groundedIn(op.text, words, 0.8, false)) failures.push({ code: 'TITLE_NOT_GROUNDED' });
   if (op.type === 'ADD_CHECKLIST' && (op.items.some((item) => !groundedIn(item, words, 0.8, false)) || (op.title !== undefined && !groundedIn(op.title, words, 0.8, false)))) failures.push({ code: 'TITLE_NOT_GROUNDED' });
   if (op.type === 'SET_CARD_STATUS' && strictStatus && lastStatusMention(words) !== op.status) failures.push({ code: 'STATUS_NOT_GROUNDED' });
+  if (extended?.grounded !== undefined && !extended.grounded(op, words)) failures.push({ code: 'TITLE_NOT_GROUNDED' });
   if (due !== undefined && !due.grounded) failures.push({ code: 'DATE_NOT_GROUNDED' });
   if (isQuestionForm(message, words)) failures.push({ code: 'QUESTION_FORM' });
 

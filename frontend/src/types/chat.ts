@@ -40,7 +40,7 @@ export interface ChatStatus {
 export type ChatPlanStatus = 'NEEDS_CHOICE' | 'PROPOSED' | 'EXECUTING' | 'EXECUTED' | 'FAILED' | 'STALE' | 'CANCELLED' | 'EXPIRED';
 export type ChatPlanRisk = 'LOW' | 'MEDIUM' | 'HIGH';
 export interface ChatPlanReason {
-  code: 'AUTO_DISABLED' | 'DELEGATED_TO_DATA' | 'NOT_GROUNDED' | 'FUZZY_DATE' | 'QUESTION_FORM' | 'MULTI_OP' | 'NEW_STRUCTURE' | 'BOARD_PATCH' | 'AI_CHOSEN_TARGET' | 'STANDING_RULE' | 'TEXT_CONTENT' | 'ARCHIVE';
+  code: 'AUTO_DISABLED' | 'DELEGATED_TO_DATA' | 'NOT_GROUNDED' | 'FUZZY_DATE' | 'QUESTION_FORM' | 'MULTI_OP' | 'NEW_STRUCTURE' | 'BOARD_PATCH' | 'AI_CHOSEN_TARGET' | 'STANDING_RULE' | 'TEXT_CONTENT' | 'ARCHIVE' | 'DELETE' | 'BULK' | 'ADMIN' | 'FILE';
   /** Cau giai thich vi sao lenh nay chua tu chay (hien nguyen van cho nguoi dung). */
   text: string;
 }
@@ -68,6 +68,8 @@ export interface ChatPlanItem {
   text: string;
   detail?: string;
   cardId?: string;
+  /** Thao tac xoa / khong khoi phuc duoc: to mau canh bao. */
+  danger?: boolean;
 }
 /** Phase 3 (Board Patch): mot muc AI de xuat nhung KHONG dua vao ke hoach (da co / trung / khong hop le). */
 export interface ChatPatchSkipped {
@@ -85,6 +87,12 @@ export interface ChatPatchView {
   /** So cot / the CO SAN cua bang - khong bi dung toi. */
   untouched: { lists: number; cards: number };
   context: { cardsShown: number; cardsTotal: number; truncated: boolean };
+}
+/** Tep da tai len kho tam cua tro ly, cho gan vao the (nut kep giay o khung chat). */
+export interface ChatStagedFile {
+  id: string;
+  name: string;
+  size: number;
 }
 export interface ChatActionPlan {
   planId: string;

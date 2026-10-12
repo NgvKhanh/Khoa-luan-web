@@ -81,8 +81,39 @@ export const previewText = (count: number): string =>
 const NO_BOARD_TEXT =
   'Bạn muốn thao tác ở bảng nào? Hãy trả lời dạng “bảng Marketing” (hoặc mở bảng đó rồi nhờ mình). Chưa thay đổi gì.';
 
-const KIND_OF: Record<PendingChoice['kind'], EntityOption['kind']> = { card: 'CARD', list: 'COLUMN', member: 'MEMBER', label: 'LABEL' };
-const WHAT: Record<PendingChoice['kind'], string> = { card: 'thẻ', list: 'cột', member: 'người', label: 'nhãn' };
+const KIND_OF: Record<PendingChoice['kind'], EntityOption['kind']> = {
+  card: 'CARD',
+  list: 'COLUMN',
+  member: 'MEMBER',
+  label: 'LABEL',
+  // doi tuong con (binh luan, muc checklist, tep, luat...): giao dien chi can id + ten, nen dung chung kieu 'CARD'
+  comment: 'CARD',
+  item: 'CARD',
+  checklist: 'CARD',
+  attachment: 'CARD',
+  rule: 'CARD',
+  field: 'CARD',
+  template: 'CARD',
+  archivedCard: 'CARD',
+  archivedList: 'COLUMN',
+  option: 'CARD',
+};
+const WHAT: Record<PendingChoice['kind'], string> = {
+  card: 'thẻ',
+  list: 'cột',
+  member: 'người',
+  label: 'nhãn',
+  comment: 'bình luận',
+  item: 'mục checklist',
+  checklist: 'checklist',
+  attachment: 'tệp',
+  rule: 'luật',
+  field: 'trường',
+  template: 'thẻ mẫu',
+  archivedCard: 'thẻ đã lưu trữ',
+  archivedList: 'cột đã lưu trữ',
+  option: 'lựa chọn',
+};
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Bang dich + tran pham vi
@@ -135,6 +166,8 @@ export interface Base {
   symbolic: ActionOp[];
   meta: PlanMeta;
   autoExecute: boolean;
+  /** Buoc G: cac tep tam nguoi dung dinh kem vao tin nhan (rong = khong). */
+  uploads?: { id: string; name: string; size: number; ext: string }[];
 }
 
 interface Run {
@@ -171,6 +204,7 @@ export function storedPlan(base: Base, target: Target | null, ops: StoredOp[], e
     presets: {},
     warnings: [],
     ...(ops.length > 0 ? { stateDigest: stateDigest(ops) } : {}),
+    ...(base.uploads !== undefined && base.uploads.length > 0 ? { uploads: base.uploads } : {}),
     ...extra,
   };
 }
@@ -267,6 +301,8 @@ export interface ProposeInput {
   operations: readonly ActionOp[];
   autoExecute: boolean;
   meta: PlanMeta;
+  /** Buoc G: cac tep tam nguoi dung dinh kem vao tin nhan nay. */
+  uploads?: { id: string; name: string; size: number; ext: string }[];
 }
 
 async function needsChoice(run: Run, pending: PendingChoice, pins: Record<string, string>): Promise<ActionOutcome> {
@@ -359,7 +395,7 @@ async function conclude(run: Run, resolved: ResolvedPlan): Promise<ActionOutcome
 export async function proposeActions(input: ProposeInput): Promise<ActionOutcome> {
   const { session, now, message, meta } = input;
   const symbolic = [...input.operations];
-  const base: Base = { session, now, message, symbolic, meta, autoExecute: input.autoExecute };
+  const base: Base = { session, now, message, symbolic, meta, autoExecute: input.autoExecute, ...(input.uploads !== undefined ? { uploads: input.uploads } : {}) };
 
   // Hinh dang + nguon goc chi phu thuoc cau + de xuat (khong can biet bang): tinh TRUOC de (1) de xuat vuot gioi han / sai do thi / lenh
   // khong he duoc yeu cau bi tu choi ngay, khong hoi "bang nao?" cho mot viec nguoi dung khong nho, (2) dong kiem toan luon ghi dung
@@ -381,7 +417,7 @@ export async function proposeActions(input: ProposeInput): Promise<ActionOutcome
   const { target } = found;
 
   const run: Run = { base, target, prepared, inCeiling: await boardInCeiling(session.uiScope, target.boardId), presets: {}, existing: null };
-  const resolved = await resolvePrepared({ userId: session.userId, exec: target.exec, boardId: target.boardId, bindings: session.bindings, prepared, presets: {}, planNow: now });
+  const resolved = await resolvePrepared({ userId: session.userId, exec: target.exec, boardId: target.boardId, bindings: session.bindings, prepared, presets: {}, planNow: now, ...(input.uploads !== undefined ? { uploads: input.uploads } : {}) });
   return conclude(run, resolved);
 }
 
@@ -429,7 +465,7 @@ export async function choosePlanRef(input: ChoiceInput): Promise<ActionOutcome> 
     completionTokens: row.completionTokens,
     latencyMs: row.latencyMs,
   };
-  const base: Base = { session, now, message: stored.message, symbolic: stored.symbolic, meta, autoExecute: input.autoExecute };
+  const base: Base = { session, now, message: stored.message, symbolic: stored.symbolic, meta, autoExecute: input.autoExecute, ...(stored.uploads !== undefined ? { uploads: stored.uploads } : {}) };
 
   const found2 = await targetBoard(session, now);
   if (!found2.ok) return refuse(base, null, found2.code, found2.text, { presets, existing: row });
@@ -443,7 +479,7 @@ export async function choosePlanRef(input: ChoiceInput): Promise<ActionOutcome> 
   const prep = prepare(stored.symbolic, stored.message, vnToday(row.createdAt));
   if (!prep.ok) return refuse(base, target, prep.code, prep.text, { presets, existing: row, parse: false });
   const run: Run = { base, target, prepared: prep.prepared, inCeiling: await boardInCeiling(session.uiScope, target.boardId), presets, existing: row };
-  const resolved = await resolvePrepared({ userId: session.userId, exec: target.exec, boardId: target.boardId, bindings: session.bindings, prepared: prep.prepared, presets });
+  const resolved = await resolvePrepared({ userId: session.userId, exec: target.exec, boardId: target.boardId, bindings: session.bindings, prepared: prep.prepared, presets, ...(stored.uploads !== undefined ? { uploads: stored.uploads } : {}) });
   return conclude(run, resolved);
 }
 

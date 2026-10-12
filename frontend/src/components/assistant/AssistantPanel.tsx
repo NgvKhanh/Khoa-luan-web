@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import axios from 'axios';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useAssistant } from '../../context/AssistantContext';
 import { MAX_QUESTION_CHARS, PRIVACY_NOTE, QUICK_QUESTIONS } from '../../lib/chatText';
+import { discardChatUpload, uploadChatFile } from '../../lib/api/chat';
 import { scopeChipText, scopeChipTitle } from '../../lib/chatScope';
-import type { ChatStatus } from '../../types/chat';
+import type { ChatStagedFile, ChatStatus } from '../../types/chat';
 import AnswerView from './AnswerView';
 
 /**
@@ -19,7 +21,21 @@ export default function AssistantPanel() {
   return open ? createPortal(<PanelBody />, document.body) : null;
 }
 
-const ACTION_EXAMPLES = ['Chuyển task Login sang Đang làm', 'Giao thẻ Báo cáo tuần cho Lan', 'Đặt hạn thẻ Thiết kế là thứ sáu', 'Thêm bình luận vào thẻ Login: đã review xong', 'Tạo thẻ Deploy rồi thêm checklist gồm build, test'];
+const MAX_FILES = 5;
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const FILE_ACCEPT = '.jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip';
+
+function uploadErrorText(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const message = (err.response?.data as { message?: unknown } | undefined)?.message;
+    if (err.response?.status === 400 && typeof message === 'string' && message !== '') return message;
+    if (err.response?.status === 429) return 'Bạn tải tệp hơi nhiều trong thời gian ngắn. Hãy thử lại sau ít phút.';
+    if (!err.response) return 'Không kết nối được máy chủ. Hãy kiểm tra mạng rồi thử lại.';
+  }
+  return 'Tải tệp lên chưa được. Hãy thử lại.';
+}
+
+const ACTION_EXAMPLES = ['Chuyển task Login sang Đang làm', 'Giao thẻ Báo cáo tuần cho Lan', 'Đặt hạn thẻ Thiết kế là thứ sáu', 'Thêm bình luận vào thẻ Login: đã review xong', 'Tạo thẻ Deploy rồi thêm checklist gồm build, test', 'Xóa danh sách 5', 'Chuyển hết thẻ cột Cần làm sang cột Đang làm', 'Đính kèm file này vào thẻ Login (bấm nút kẹp giấy)'];
 
 function Intro({ busy, status, onAsk }: { busy: boolean; status: ChatStatus | null; onAsk: (q: string) => void }) {
   return (
@@ -33,7 +49,7 @@ function Intro({ busy, status, onAsk }: { busy: boolean; status: ChatStatus | nu
         <div className="space-y-1">
           <p>
             Trợ lý cũng làm giúp các thao tác trên một bảng: tạo cột và thẻ, đổi tên, đặt hạn và ngày bắt đầu, chuyển cột, đổi trạng thái, giao hoặc bỏ người, gắn hoặc gỡ nhãn,
-            sửa mô tả, viết bình luận, thêm checklist, đổi tên cột, lưu trữ thẻ. Việc nhỏ và rõ ràng thì làm ngay; nội dung văn bản, đổi cấu trúc, lưu trữ hay lệnh còn mơ hồ thì hiện bản xem trước để bạn bấm Áp dụng. Trợ lý không xóa hẳn gì.
+            sửa mô tả, viết bình luận, thêm checklist, đổi tên cột, lưu trữ thẻ; xóa, khôi phục và sao chép thẻ hoặc cột, đổi vị trí cột, sắp xếp thẻ, chuyển hết thẻ sang cột khác, đặt ảnh bìa. Việc nhỏ và rõ ràng thì làm ngay; nội dung văn bản, xóa, thao tác cả cột, đổi cấu trúc hay lệnh còn mơ hồ thì hiện bản xem trước để bạn bấm Áp dụng.
           </p>
           <ul className="list-disc pl-4 text-xs text-slate-500 dark:text-slate-400">{ACTION_EXAMPLES.map((e) => <li key={e}>{e}</li>)}</ul>
         </div>
@@ -61,6 +77,10 @@ function PanelBody() {
     refreshHistory, selectConversation, loadOlder, closePanel, ask, choose, loadMore, confirmAction, cancelAction, newConversation } = useAssistant();
   const [draft, setDraft] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [staged, setStaged] = useState<ChatStagedFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const olderScroll = useRef<{ height: number; top: number } | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -83,10 +103,36 @@ function PanelBody() {
 
   function send() {
     const q = draft.trim();
-    if (q === '' || busy) return;
+    if (q === '' || busy || uploading) return;
     setDraft('');
     setHistoryOpen(false);
-    void ask(q);
+    const files = staged;
+    setStaged([]);
+    setUploadError(null);
+    void ask(q, files);
+  }
+
+  async function onPickFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (staged.length >= MAX_FILES) { setUploadError(`Mỗi lần gắn tối đa ${MAX_FILES} tệp.`); return; }
+    if (file.size > MAX_FILE_BYTES) { setUploadError('Tệp quá lớn (tối đa 10MB).'); return; }
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const uploaded = await uploadChatFile(file);
+      setStaged((prev) => [...prev, uploaded]);
+    } catch (err) {
+      setUploadError(uploadErrorText(err));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function removeStaged(id: string) {
+    setStaged((prev) => prev.filter((f) => f.id !== id));
+    void discardChatUpload(id).catch(() => undefined);
   }
 
   function onSubmit(e: FormEvent) {
@@ -233,7 +279,38 @@ function PanelBody() {
       </div>
 
       <form onSubmit={onSubmit} className="border-t border-slate-200 px-4 py-3 dark:border-slate-700">
+        {(staged.length > 0 || uploading || uploadError) && (
+          <div className="mb-2 space-y-1">
+            {staged.length > 0 && (
+              <ul aria-label="Tệp chờ gắn" className="flex flex-wrap gap-1.5">
+                {staged.map((f) => (
+                  <li key={f.id} className="flex max-w-full items-center gap-1 rounded-full border border-slate-300 px-2 py-0.5 text-xs text-slate-700 dark:border-slate-600 dark:text-slate-200">
+                    <span className="truncate">{f.name}</span>
+                    <button type="button" aria-label={`Bỏ tệp ${f.name}`} disabled={busy} onClick={() => removeStaged(f.id)} className="text-slate-500 hover:text-red-600 disabled:opacity-40">×</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {uploading && <p role="status" className="text-xs text-slate-500">Đang tải tệp lên…</p>}
+            {uploadError && <p role="alert" className="text-xs text-red-600 dark:text-red-400">{uploadError}</p>}
+          </div>
+        )}
         <div className="flex items-end gap-2">
+          {status?.actions === true && (
+            <>
+              <input ref={fileRef} type="file" accept={FILE_ACCEPT} aria-label="Chọn tệp để đính kèm" className="hidden" onChange={(e) => void onPickFile(e)} />
+              <button
+                type="button"
+                aria-label="Đính kèm tệp"
+                title="Đính kèm tệp vào một thẻ: chọn tệp rồi gõ lệnh, ví dụ “Đính kèm file này vào thẻ Login”"
+                disabled={busy || uploading}
+                onClick={() => fileRef.current?.click()}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-300 text-slate-500 transition hover:bg-slate-100 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M21 12.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.3-8.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+            </>
+          )}
           <textarea
             ref={inputRef}
             value={draft}
@@ -247,7 +324,7 @@ function PanelBody() {
           />
           <button
             type="submit"
-            disabled={busy || draft.trim() === ''}
+            disabled={busy || uploading || draft.trim() === ''}
             className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             Gửi

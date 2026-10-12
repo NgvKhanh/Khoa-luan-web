@@ -11,6 +11,7 @@
 
 import { z } from 'zod';
 import { CardStatus } from '../../../../generated/prisma/enums';
+import { COLOR_NAMES } from './actions.palette';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
@@ -107,13 +108,49 @@ export const ACTION_TYPES = [
   'REMOVE_LABEL',
   'RENAME_LIST',
   'ARCHIVE_CARD',
+  // Buoc E: don dep the va cot (xoa / khoi phuc / sao chep / di chuyen / sap xep) - xoa luon xem truoc
+  'DELETE_CARD',
+  'RESTORE_CARD',
+  'COPY_CARD',
+  'SET_CARD_COVER',
+  'ARCHIVE_LIST',
+  'DELETE_LIST',
+  'RESTORE_LIST',
+  'COPY_LIST',
+  'MOVE_LIST',
+  'SORT_LIST',
+  'MOVE_ALL_CARDS',
+  'DELETE_ALL_CARDS',
+  'SET_LIST_STATUS',
+  // Buoc F: binh luan va checklist
+  'EDIT_COMMENT',
+  'DELETE_COMMENT',
+  'REPLY_COMMENT',
+  'SET_CHECKLIST_ITEM_DONE',
+  'ADD_CHECKLIST_ITEM',
+  'EDIT_CHECKLIST_ITEM',
+  'DELETE_CHECKLIST_ITEM',
+  'RENAME_CHECKLIST',
+  'DELETE_CHECKLIST',
+  'ASSIGN_CHECKLIST_ITEM',
+  'SET_CHECKLIST_ITEM_DUE',
+  'CONVERT_ITEM_TO_CARD',
+  // Buoc G: tep dinh kem
+  'ADD_ATTACHMENT',
+  'DELETE_ATTACHMENT',
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
 
 /** Thao tac viet NOI DUNG van ban moi (mo ta, binh luan, checklist): nguoi khac se doc nen luon xem truoc, khong bao gio tu chay. */
-export const CONTENT_TYPES: readonly ActionType[] = ['SET_CARD_DESCRIPTION', 'ADD_COMMENT', 'ADD_CHECKLIST'];
+export const CONTENT_TYPES: readonly ActionType[] = ['SET_CARD_DESCRIPTION', 'ADD_COMMENT', 'ADD_CHECKLIST', 'EDIT_COMMENT', 'REPLY_COMMENT', 'ADD_CHECKLIST_ITEM', 'EDIT_CHECKLIST_ITEM', 'RENAME_CHECKLIST'];
 /** Thao tac doi CAU TRUC bang (cot): luon xem truoc. */
 export const STRUCTURE_TYPES: readonly ActionType[] = ['CREATE_LIST', 'RENAME_LIST'];
+/** Thao tac XOA (khong khoi phuc duoc o giao dien): luon xem truoc, rui ro CAO, hien canh bao. */
+export const DESTRUCTIVE_TYPES: readonly ActionType[] = ['DELETE_CARD', 'DELETE_LIST', 'DELETE_ALL_CARDS', 'DELETE_COMMENT', 'DELETE_CHECKLIST_ITEM', 'DELETE_CHECKLIST', 'CONVERT_ITEM_TO_CARD', 'DELETE_ATTACHMENT'];
+/** Vi tri moi cua cot (MOVE_LIST) va cach sap xep the trong cot (SORT_LIST). */
+export const PLACEMENTS = ['FIRST', 'LAST', 'BEFORE', 'AFTER'] as const;
+export const SORT_KEYS = ['CREATED_DESC', 'CREATED_ASC', 'TITLE_ASC', 'DONE_LAST'] as const;
+export const COVER_COLORS = [...COLOR_NAMES, 'NONE'] as const;
 /** Gioi han noi dung van ban (cung tran 500 ky tu cua cau lenh nen thuc te nho hon). */
 export const MAX_TEXT_CHARS = 1000;
 export const MAX_CHECKLIST_ITEMS = 20;
@@ -133,6 +170,14 @@ export const AUTO_RUN_TYPES: readonly ActionType[] = [
   'SET_CARD_START',
   'REMOVE_MEMBER',
   'REMOVE_LABEL',
+  // Buoc E: viec chinh xac, hoan tac duoc
+  'RESTORE_CARD',
+  'COPY_CARD',
+  'SET_CARD_COVER',
+  // Buoc F: viec chinh xac, hoan tac duoc bang chinh thao tac nay
+  'SET_CHECKLIST_ITEM_DONE',
+  'ASSIGN_CHECKLIST_ITEM',
+  'SET_CHECKLIST_ITEM_DUE',
 ];
 
 export const ActionOpSchema = z.discriminatedUnion('type', [
@@ -157,6 +202,36 @@ export const ActionOpSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('REMOVE_LABEL'), card: RefSchema, label: RefSchema }).strict(),
   z.object({ type: z.literal('RENAME_LIST'), list: RefSchema, name: text(100) }).strict(),
   z.object({ type: z.literal('ARCHIVE_CARD'), card: RefSchema }).strict(),
+  // Buoc E
+  z.object({ type: z.literal('DELETE_CARD'), card: RefSchema }).strict(),
+  z.object({ type: z.literal('RESTORE_CARD'), card: RefSchema }).strict(),
+  z.object({ type: z.literal('COPY_CARD'), card: RefSchema, toList: RefSchema.optional(), title: text(500).optional() }).strict(),
+  z.object({ type: z.literal('SET_CARD_COVER'), card: RefSchema, color: z.enum(COVER_COLORS) }).strict(),
+  z.object({ type: z.literal('ARCHIVE_LIST'), list: RefSchema }).strict(),
+  z.object({ type: z.literal('DELETE_LIST'), list: RefSchema }).strict(),
+  z.object({ type: z.literal('RESTORE_LIST'), list: RefSchema }).strict(),
+  z.object({ type: z.literal('COPY_LIST'), list: RefSchema }).strict(),
+  z.object({ type: z.literal('MOVE_LIST'), list: RefSchema, placement: z.enum(PLACEMENTS), anchor: RefSchema.optional() }).strict(),
+  z.object({ type: z.literal('SORT_LIST'), list: RefSchema, sortBy: z.enum(SORT_KEYS) }).strict(),
+  z.object({ type: z.literal('MOVE_ALL_CARDS'), list: RefSchema, toList: RefSchema }).strict(),
+  z.object({ type: z.literal('DELETE_ALL_CARDS'), list: RefSchema }).strict(),
+  z.object({ type: z.literal('SET_LIST_STATUS'), list: RefSchema, status: z.union([z.enum(CardStatus), z.literal('NONE')]) }).strict(),
+  // Buoc F: `match` = chu nguoi dung go de chi ra binh luan / muc (khong dien id); bo trong = the chi co mot cai thi lay cai do, nhieu thi hoi lai
+  z.object({ type: z.literal('EDIT_COMMENT'), card: RefSchema, match: text(300).optional(), text: text(MAX_TEXT_CHARS) }).strict(),
+  z.object({ type: z.literal('DELETE_COMMENT'), card: RefSchema, match: text(300).optional() }).strict(),
+  z.object({ type: z.literal('REPLY_COMMENT'), card: RefSchema, match: text(300).optional(), text: text(MAX_TEXT_CHARS) }).strict(),
+  z.object({ type: z.literal('SET_CHECKLIST_ITEM_DONE'), card: RefSchema, match: text(300), checklist: text(200).optional(), done: z.boolean().optional() }).strict(),
+  z.object({ type: z.literal('ADD_CHECKLIST_ITEM'), card: RefSchema, checklist: text(200).optional(), items: z.array(text(500)).min(1).max(MAX_CHECKLIST_ITEMS) }).strict(),
+  z.object({ type: z.literal('EDIT_CHECKLIST_ITEM'), card: RefSchema, match: text(300), checklist: text(200).optional(), text: text(500) }).strict(),
+  z.object({ type: z.literal('DELETE_CHECKLIST_ITEM'), card: RefSchema, match: text(300), checklist: text(200).optional() }).strict(),
+  z.object({ type: z.literal('RENAME_CHECKLIST'), card: RefSchema, checklist: text(200).optional(), title: text(200) }).strict(),
+  z.object({ type: z.literal('DELETE_CHECKLIST'), card: RefSchema, checklist: text(200).optional() }).strict(),
+  z.object({ type: z.literal('ASSIGN_CHECKLIST_ITEM'), card: RefSchema, match: text(300), checklist: text(200).optional(), member: RefSchema.optional() }).strict(),
+  z.object({ type: z.literal('SET_CHECKLIST_ITEM_DUE'), card: RefSchema, match: text(300), checklist: text(200).optional(), due: DateSpecSchema }).strict(),
+  z.object({ type: z.literal('CONVERT_ITEM_TO_CARD'), card: RefSchema, match: text(300), checklist: text(200).optional() }).strict(),
+  // Buoc G: `file` = ten tep nguoi dung noi (bo trong = moi tep ho vua dinh kem o khung chat); KHONG co o nao de dien duong dan / id tep
+  z.object({ type: z.literal('ADD_ATTACHMENT'), card: RefSchema, file: text(200).optional() }).strict(),
+  z.object({ type: z.literal('DELETE_ATTACHMENT'), card: RefSchema, match: text(300).optional() }).strict(),
 ]);
 export type ActionOp = z.infer<typeof ActionOpSchema>;
 
@@ -228,15 +303,23 @@ export const PROPOSE_ACTIONS_PROVIDER_SCHEMA = {
           card: refHint,
           list: refHint,
           toList: refHint,
+          anchor: refHint,
           member: refHint,
           label: refHint,
-          title: { type: 'string', description: 'Tieu de moi (CREATE_CARD, RENAME_CARD) hoac ten danh sach checklist (ADD_CHECKLIST, tuy chon): dung chu nguoi dung go.' },
+          title: { type: 'string', description: 'Tieu de moi (CREATE_CARD, RENAME_CARD), ten ban sao (COPY_CARD, tuy chon) hoac ten danh sach checklist (ADD_CHECKLIST, tuy chon): dung chu nguoi dung go.' },
           description: { type: 'string', description: 'SET_CARD_DESCRIPTION: noi dung mo ta moi cua the, dung chu nguoi dung go (se THAY mo ta cu).' },
-          text: { type: 'string', description: 'ADD_COMMENT: noi dung binh luan, dung chu nguoi dung go; khong dung @ de nhac ten.' },
-          items: { type: 'array', minItems: 1, maxItems: MAX_CHECKLIST_ITEMS, items: { type: 'string' }, description: 'ADD_CHECKLIST: cac muc cua checklist, dung chu nguoi dung go.' },
+          text: { type: 'string', description: 'ADD_COMMENT / EDIT_COMMENT / REPLY_COMMENT: noi dung binh luan, dung chu nguoi dung go; khong dung @ de nhac ten. EDIT_CHECKLIST_ITEM: noi dung moi cua muc.' },
+          items: { type: 'array', minItems: 1, maxItems: MAX_CHECKLIST_ITEMS, items: { type: 'string' }, description: 'ADD_CHECKLIST / ADD_CHECKLIST_ITEM: cac muc, dung chu nguoi dung go.' },
           due: dueHint,
           start: dueHint,
-          status: { type: 'string', enum: [...Object.values(CardStatus)] },
+          status: { type: 'string', enum: [...Object.values(CardStatus), 'NONE'], description: 'SET_CARD_STATUS: trang thai the; SET_LIST_STATUS: trang thai cua COT (NONE = cot tu do, khong gan trang thai).' },
+          match: { type: 'string', description: 'Chi ra MOT binh luan (EDIT_COMMENT / DELETE_COMMENT / REPLY_COMMENT), MOT tep (DELETE_ATTACHMENT) hoac MOT muc checklist (SET_CHECKLIST_ITEM_DONE, EDIT_/DELETE_/ASSIGN_/SET_..._DUE, CONVERT_ITEM_TO_CARD): vai tu dung trong noi dung do, chep dung chu nguoi dung go. Bo trong khi the chi co mot cai.' },
+          file: { type: 'string', description: 'ADD_ATTACHMENT: ten tep (hoac vai tu trong ten) khi nguoi dung chi gan MOT trong cac tep da dinh kem; bo trong = gan tat ca tep vua dinh kem.' },
+          checklist: { type: 'string', description: 'Ten checklist cua the (khi the co nhieu checklist): chep dung chu nguoi dung go.' },
+          done: { type: 'boolean', description: 'SET_CHECKLIST_ITEM_DONE: true = danh dau xong (mac dinh), false = bo danh dau.' },
+          color: { type: 'string', enum: [...COVER_COLORS], description: 'SET_CARD_COVER: mau anh bia (NONE = bo anh bia). Chi chon mau nguoi dung noi.' },
+          placement: { type: 'string', enum: [...PLACEMENTS], description: 'MOVE_LIST: FIRST = len dau bang, LAST = xuong cuoi, BEFORE / AFTER = truoc / sau cot `anchor`.' },
+          sortBy: { type: 'string', enum: [...SORT_KEYS], description: 'SORT_LIST: CREATED_DESC moi nhat len tren, CREATED_ASC cu nhat len tren, TITLE_ASC theo ten A-Z, DONE_LAST the xong xuong duoi.' },
           trigger: { type: 'string', enum: [...RULE_TRIGGERS], description: 'CREATE_AUTOMATION_RULE: CARD_CREATED = khi co the MOI duoc tao (list = cot, bo trong = moi cot); CARD_MOVED_TO_LIST = khi the duoc chuyen VAO cot (list bat buoc).' },
           actions: {
             type: 'array',

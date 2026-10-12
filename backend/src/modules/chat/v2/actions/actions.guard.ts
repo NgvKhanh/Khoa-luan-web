@@ -6,43 +6,14 @@
 // (cac ham assert nem AppError tieng Viet khong dau).
 
 import { prisma } from '../../../../config/prisma';
-import { AppError } from '../../../../utils/AppError';
 import { assertBoardAccess, isBoardParticipant } from '../../../board/board.service';
 import { assertCardAccess } from '../../../card/card.service';
 import { MAX_CHECKLIST_ITEMS, MAX_RULE_ACTIONS, MAX_TEXT_CHARS } from './actions.schema';
+import { attempt, fail, liveList, mapServiceError, NO_CHANGE } from './actions.guard.base';
+import { handlerOf } from './ops/ops.registry';
 import type { GuardVerdict, StoredOp } from './actions.types';
 
-const NO_CHANGE = 'Chưa thay đổi gì.';
-
-const fail = (code: Extract<GuardVerdict, { ok: false }>['code'], text: string): GuardVerdict => ({ ok: false, code, text });
-
-/** AppError cua service/assert -> loi co ma. Loi 5xx / khong phai AppError duoc nem lai (khong nuot loi he thong). */
-export function mapServiceError(e: unknown): Extract<GuardVerdict, { ok: false }> {
-  if (e instanceof AppError && e.statusCode === 403) {
-    return { ok: false, code: 'FORBIDDEN', text: `Bạn chỉ có quyền xem (hoặc không còn quyền sửa) bảng này nên không thể thay đổi. ${NO_CHANGE}` };
-  }
-  if (e instanceof AppError && e.statusCode === 404) {
-    return { ok: false, code: 'NOT_FOUND', text: `Không tìm thấy thẻ, cột hoặc bảng này (có thể đã bị xoá hoặc lưu trữ). ${NO_CHANGE}` };
-  }
-  if (e instanceof AppError && e.statusCode < 500) {
-    return { ok: false, code: 'INVALID', text: `Không thực hiện được: ${e.message}. ${NO_CHANGE}` };
-  }
-  throw e;
-}
-
-async function attempt(fn: () => Promise<unknown>): Promise<GuardVerdict> {
-  try {
-    await fn();
-    return { ok: true };
-  } catch (e) {
-    return mapServiceError(e);
-  }
-}
-
-async function liveList(boardId: string, listId: string | undefined) {
-  if (listId === undefined) return null;
-  return prisma.list.findFirst({ where: { id: listId, boardId, deletedAt: null, archivedAt: null }, select: { id: true } });
-}
+export { mapServiceError };
 
 /** Quyen SUA bang + tai khoan con hoat dong (VIEWER / nguoi ngoai bi chan o assertBoardAccess). Moi ke hoach chi can kiem MOT lan. */
 export async function guardBoard(userId: string, boardId: string): Promise<GuardVerdict> {
@@ -114,6 +85,30 @@ export async function guardOp(args: { userId: string; boardId: string; op: Store
     const name = op.params.name ?? '';
     if (name.trim() === '' || name.length > 100) return fail('INVALID', `Tên cột phải từ 1 đến 100 ký tự. ${NO_CHANGE}`);
     return (await liveList(boardId, op.ids.list)) ? { ok: true } : fail('NOT_FOUND', `Cột này không còn trong bảng. ${NO_CHANGE}`);
+  }
+
+  // thao tac mo rong (actions/ops): moi nhom tu kiem quyen + nghiep vu; `g.card` kiem the + thuoc dung bang (giong nhanh cu ben duoi)
+  const handler = handlerOf(op.type);
+  if (handler !== undefined) {
+    return handler.guard(
+      {
+        userId,
+        boardId,
+        ...(args.checked !== undefined ? { checked: args.checked } : {}),
+        card: async (cardId) => {
+          if (args.checked?.has(cardId) === true) return { ok: true };
+          try {
+            const card = await assertCardAccess(userId, cardId);
+            if (card.list.boardId !== boardId) return fail('OUT_OF_SCOPE', `Thẻ này không thuộc bảng của kế hoạch. ${NO_CHANGE}`);
+          } catch (e) {
+            return mapServiceError(e);
+          }
+          args.checked?.add(cardId);
+          return { ok: true };
+        },
+      },
+      op
+    );
   }
 
   // moi thao tac con lai nham vao MOT the

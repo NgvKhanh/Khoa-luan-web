@@ -21,6 +21,8 @@ import { refSignature, type SlotKind } from './actions.refs';
 import { descriptionHash } from './actions.plan';
 import { dedupeRuleActions, findSameRule, ruleNameOf, sameRuleText, thenText, whenText } from './actions.rule';
 import { MAX_OPS_PER_PLAN, type ActionOp, type MemberRef, type Ref } from './actions.schema';
+import { handlerOf } from './ops/ops.registry';
+import type { ResolveCtx } from './ops/ops.types';
 import { foldWords, stripLeadingGeneric } from './actions.text';
 import type { ActionErrorCode, AssignChoice, PendingChoice, StoredOp, StoredRuleAction } from './actions.types';
 
@@ -64,6 +66,8 @@ export interface ResolveEnv {
   splitRoom?: number;
   /** Board Patch: cot MOI la cot tu do (khong doan trang thai theo ten, de the do AI tao khong bi gan trang thai bat ngo). */
   freeLists?: boolean;
+  /** Buoc G: cac tep tam nguoi dung dinh kem vao tin nhan. */
+  uploads?: readonly { id: string; name: string; size: number; ext: string }[];
 }
 
 export type ResolveResult =
@@ -586,6 +590,29 @@ export async function resolveOp(env: ResolveEnv, symbolic: ActionOp, presets: Pr
         ...(already ? { noop: `Thẻ “${card.title}” đã có nhãn “${label.name}” rồi.` } : {}),
       });
     }
+    default: {
+      // thao tac mo rong (actions/ops): moi nhom tu phan giai, dung ham tro giup cua bo phan giai nay
+      const handler = handlerOf(symbolic.type);
+      if (!handler) return { kind: 'FAIL', code: 'INVALID', text: 'Thao tác này chưa được trợ lý hỗ trợ. Chưa thay đổi gì.' };
+      const rc: ResolveCtx = {
+        warnings,
+        ok: (op, more) => ({ kind: 'OK', op, ...(more !== undefined ? { more } : {}), warnings }),
+        h: {
+          cardTarget: (ref) => cardTarget(env, ref, presets),
+          listTarget: (ref) => listTarget(env, ref, presets),
+          pick: (kind, ref) => pick(env, kind, ref, presets),
+          preset: (sig) => presets[sig],
+          boardId: env.boardId,
+          userId: env.userId,
+          exec: env.exec,
+          bindings: env.bindings,
+          now: env.planNow ?? env.exec.now,
+          ...(env.due !== undefined ? { due: env.due } : {}),
+          uploads: env.uploads ?? [],
+        },
+      };
+      return handler.resolve(rc, symbolic);
+    }
   }
 }
 
@@ -611,6 +638,14 @@ const EXCLUSIVE: Partial<Record<StoredOp['type'], string>> = {
 const OPPOSITE: Partial<Record<StoredOp['type'], StoredOp['type']>> = { ASSIGN_MEMBER: 'REMOVE_MEMBER', REMOVE_MEMBER: 'ASSIGN_MEMBER', ADD_LABEL: 'REMOVE_LABEL', REMOVE_LABEL: 'ADD_LABEL' };
 
 const cardKeyOf = (op: StoredOp): string | undefined => op.ids.card ?? (op.local?.card !== undefined ? `local:${op.local.card}` : undefined);
+
+/** Doi tuong CO SAN ma mot thao tac tac dong (de tim mau thuan: xoa / luu tru roi lai sua). Thao tac mo rong tu khai bao; thao tac cu suy ra tu the cua no. */
+function targetsOf(op: StoredOp): { key: string; effect: 'MODIFY' | 'REMOVE' }[] {
+  const handler = handlerOf(op.type);
+  if (handler?.targets !== undefined) return handler.targets(op);
+  if (handler !== undefined) return [];
+  return op.ids.card !== undefined ? [{ key: `card:${op.ids.card}`, effect: op.type === 'ARCHIVE_CARD' ? 'REMOVE' : 'MODIFY' }] : [];
+}
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 /**
@@ -653,6 +688,17 @@ export function dedupeOps(ops: readonly StoredOp[]): { ok: true; ops: StoredOp[]
         if ((op.type === 'REMOVE_MEMBER' && prior.type === 'REMOVE_MEMBER' && prior.ids.member === op.ids.member) || (op.type === 'REMOVE_LABEL' && prior.type === 'REMOVE_LABEL' && prior.ids.label === op.ids.label)) duplicate = true;
         if (op.type === 'ASSIGN_MEMBER' && prior.type === 'ASSIGN_MEMBER' && prior.ids.member === op.ids.member) duplicate = true;
         if (op.type === 'ADD_LABEL' && prior.type === 'ADD_LABEL' && prior.ids.label === op.ids.label) duplicate = true;
+      }
+    }
+    // thao tac mo rong: xoa / luu tru mot doi tuong roi lai sua chinh no (hoac xoa hai lan) -> mau thuan hoac trung
+    if (!duplicate) {
+      const mine = targetsOf(op);
+      for (const [j, prior] of kept.entries()) {
+        const theirs = targetsOf(prior);
+        const clash = mine.some((a) => theirs.some((b) => a.key === b.key && (a.effect === 'REMOVE' || b.effect === 'REMOVE')));
+        if (!clash) continue;
+        if (op.type === prior.type && same(op.ids, prior.ids) && same(op.params, prior.params)) duplicate = true;
+        else return { ok: false, text: `Thao tác ${j + 1} và ${i + 1} cùng tác động tới một đối tượng nhưng một trong hai làm nó biến mất (xóa / lưu trữ). Hãy tách thành hai lệnh. Chưa thay đổi gì.` };
       }
     }
     if (duplicate) dropped += 1;

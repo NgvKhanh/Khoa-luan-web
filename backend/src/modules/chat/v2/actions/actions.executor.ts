@@ -19,7 +19,7 @@ import { vnToday } from '../../chat.period';
 import type { ChatScopeInput } from '../../chat.scope';
 import type { EntityOption } from '../chat.v2.entities';
 import { resolveExecutionContext, type ExecutionContext } from '../chat.v2.scope';
-import { dispatchEffects, newEffects, type DispatchReport } from './actions.effects';
+import { discardAdopted, dispatchEffects, newEffects, type DispatchReport, type Effects } from './actions.effects';
 import { guardBoard, guardPlan, mapServiceError } from './actions.guard';
 import { buildResultView, errorText, STALE_TAIL, summarizePatch, summarizePlan } from './actions.plan';
 import { recordAssignOutcomes } from './actions.assign';
@@ -145,12 +145,15 @@ export async function executePlan(input: ExecInput): Promise<ExecOutcome> {
 
   // 4) transaction: nhan cho + khoa + ghi + chot ket qua cung mot COMMIT
   const started = Date.now();
+  // hieu ung cua lan chay gan nhat: neu transaction hoan tac thi cac tep da chep vao thu muc tep the phai bi go
+  let liveEffects: Effects | null = null;
   const attempt = () =>
     prisma.$transaction(
       async (tx) => {
         if (!(await claimPlan(row.id, userId, now, tx))) throw new NotClaimed();
         const state = await lockAndVerify(tx, ctx, ops);
         const effects = newEffects();
+        liveEffects = effects;
         const excl = laterAssignees(ops, state);
         const outcomes: OpOutcome[] = [];
         for (const [index, op] of ops.entries()) outcomes.push(await applyOp(tx, ctx, state, effects, op, index, excl(index)));
@@ -182,6 +185,8 @@ export async function executePlan(input: ExecInput): Promise<ExecOutcome> {
       done = await attempt();
     } catch (e) {
       // xung dot khoa / deadlock voi mot thao tac khac dang sua cung dong: thu lai MOT lan (transaction truoc da rollback han)
+      if (liveEffects !== null) discardAdopted(liveEffects);
+      liveEffects = null;
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034') done = await attempt();
       else throw e;
     }
@@ -190,6 +195,7 @@ export async function executePlan(input: ExecInput): Promise<ExecOutcome> {
     if (!input.autoExecuted) await recordAssignOutcomes({ userId, ops, changed: done.outcomes.map((o) => o.changed), now });
     return { status: 'EXECUTED', result: done.result, replayed: false, bind: bindingsFrom(done.state, done.outcomes, stored.boardName), report };
   } catch (e) {
+    if (liveEffects !== null) discardAdopted(liveEffects);
     if (e instanceof NotClaimed) return replay((await findOwnedPlan(userId, row.id)) ?? row);
     if (e instanceof PlanAbort) {
       const stale = e.code === 'STALE' || e.code === 'NOT_FOUND';

@@ -71,8 +71,9 @@ function PlanCard({ turn, plan, scope, busy, onConfirm, onCancel }: {
   const count = plan.opCount ?? plan.items.length;
   const multi = count > 1;
   const List = multi ? 'ol' : 'ul';
+  const danger = plan.items.some((i) => i.danger === true);
   return (
-    <section aria-label="Kế hoạch thao tác" className={`space-y-2 rounded-lg border p-2 ${PANEL_BORDER}`}>
+    <section aria-label="Kế hoạch thao tác" className={`space-y-2 rounded-lg border p-2 ${danger ? 'border-red-300 dark:border-red-500/50' : PANEL_BORDER}`}>
       <h4 className="text-sm font-semibold">
         {plan.patch ? 'Thêm vào bảng' : multi ? `${count} thay đổi trên bảng` : 'Thao tác trên bảng'}{' '}
         <Link to={`/boards/${encodeURIComponent(plan.boardId)}`} onClick={(e) => e.currentTarget.blur()} className="text-primary-ink hover:underline">{plan.boardName}</Link>
@@ -82,7 +83,7 @@ function PlanCard({ turn, plan, scope, busy, onConfirm, onCancel }: {
       <List className={multi ? 'list-decimal space-y-1.5 pl-5' : 'space-y-1.5'}>
         {plan.items.map((item) => (
           <li key={item.index} className="text-sm">
-            <span className="font-medium">{item.verb}</span>{' '}
+            <span className={`font-medium ${item.danger === true ? 'text-red-700 dark:text-red-300' : ''}`}>{item.verb}</span>{' '}
             {item.rule ? (
               <span className="block space-y-1">
                 <span className="block break-words">{item.rule.when}</span>
@@ -93,7 +94,7 @@ function PlanCard({ turn, plan, scope, busy, onConfirm, onCancel }: {
             ) : (
               <span className="break-words">{item.text}</span>
             )}
-            {item.detail && <span className="block whitespace-pre-line break-words text-xs text-slate-500 dark:text-slate-400">{item.detail}</span>}
+            {item.detail && <span className={`block whitespace-pre-line break-words text-xs ${item.danger === true ? 'text-red-700 dark:text-red-300' : 'text-slate-500 dark:text-slate-400'}`}>{item.detail}</span>}
             {item.choice && <span className="block text-xs text-slate-500 dark:text-slate-400">{choiceLine(item.choice)}</span>}
             {item.choice && item.choice.flags.length > 0 && <span className="block text-xs text-amber-700 dark:text-amber-300">{flagsLine(item.choice.flags)}</span>}
             {item.choice && item.choice.alternatives.length > 0 && <span className="block break-words text-xs text-slate-500 dark:text-slate-400">{alternativesLine(item.choice.alternatives)}</span>}
@@ -117,7 +118,7 @@ function PlanCard({ turn, plan, scope, busy, onConfirm, onCancel }: {
       {turn.actionError && <p role="alert" className="text-xs text-red-600 dark:text-red-400">{turn.actionError}</p>}
       {open && (
         <div className="flex gap-2">
-          <button type="button" disabled={disabled} onClick={() => onConfirm(turn)} className="flex-1 rounded-md bg-primary py-1.5 text-xs font-medium text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="button" disabled={disabled} onClick={() => onConfirm(turn)} className={`flex-1 rounded-md py-1.5 text-xs font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-50 ${danger ? 'bg-red-600 hover:bg-red-700' : 'bg-primary hover:bg-primary-hover'}`}>
             {turn.actionBusy ? 'Đang áp dụng…' : multi ? `Áp dụng ${count} thay đổi` : 'Áp dụng'}
           </button>
           <button type="button" disabled={busy || expired} onClick={() => onCancel(turn)} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs transition hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-700">

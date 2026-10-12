@@ -16,6 +16,7 @@ import { v2Reply, resultBlock } from './chat.v2.answer';
 import { executeChatTool } from './chat.v2.tools';
 import { OUT_OF_CEILING, resolveExecutionContext } from './chat.v2.scope';
 import { v2ChoiceSchema, v2MoreSchema, type V2Reply } from './chat.v2.contract';
+import { refOf, resolveStaged, type StagedUploadRef } from './uploads/chat.uploads';
 
 // `actions` / `autoExecute`: ghi de co CHAT_ACTIONS / CHAT_AUTO_EXECUTE (de kiem thu); mac dinh doc tu env.
 export interface V2ServiceContext { now: Date; sessions?: V2SessionStore; step?: ModelStep; available?: boolean; actions?: boolean; autoExecute?: boolean; patchPlanner?: PatchPlanner }
@@ -45,7 +46,7 @@ export function looksLikeWriteCommand(folded: string, asksQuestion: boolean): bo
   const lead = '(?:hay |vui long |toi muon |toi can )?';
   if (new RegExp(`^${lead}(?:tao |xoa |sua |doi han |giao viec |phan cong |chuyen |luu tru )`).test(folded)) return true;
   if (/(?:tao|xoa|sua|doi han|giao viec|phan cong|chuyen|them).*(?:giup toi|giup minh|gium|ho toi)/.test(folded)) return true;
-  return !asksQuestion && new RegExp(`^${lead}(?:them |bo sung |mo rong |doi ten |dat han |dat ngay |gan (?!day)|giao (?!dien)|danh dau |cap nhat |di chuyen |keo |bo |go |rut |viet |binh luan |luu tru )`).test(folded);
+  return !asksQuestion && new RegExp(`^${lead}(?:them |bo sung |mo rong |doi ten |dat han |dat ngay |gan (?!day)|giao (?!dien)|danh dau |cap nhat |di chuyen |keo |bo |go |rut |viet |binh luan |luu tru |khoi phuc |sao chep |nhan ban |lay lai |sap xep (?:the|cot|danh sach|task|cac the) |dua cot |doi vi tri |dat anh bia |bo anh bia |dat trang thai cot )`).test(folded);
 }
 
 const PAGE_CHANGED_TEXT = 'Bạn đã chuyển sang trang khác nên lựa chọn / kết quả cũ không còn dùng được. Hãy hỏi lại ở trang này.';
@@ -87,7 +88,7 @@ function legacyReply(s: V2Session, reply: ChatReply, aiFailure?: ModelFailReason
   }
   return out;
 }
-async function answerQuestion(s: V2Session, message: string, context: V2ServiceContext): Promise<V2Reply> {
+async function answerQuestion(s: V2Session, message: string, context: V2ServiceContext, uploads: StagedUploadRef[] = []): Promise<V2Reply> {
   const { now } = context;
   const basic = basicStep(message, now);
   const available = context.available ?? v2LlmAvailable();
@@ -121,7 +122,7 @@ async function answerQuestion(s: V2Session, message: string, context: V2ServiceC
     }
     if (found.data.status !== 'NOT_FOUND') bindEntity(s, found.data.options[0]);
   }
-  const commandLike = canModify && !asksQuestion && /(?:doi ten|doi han|thay doi han|dat han|chuyen |giao |gan (?!day)|them |tao |sua |keo |danh dau|cap nhat|di chuyen|phan cong|bo sung|mo rong|len ke hoach|viet them)/.test(folded);
+  const commandLike = canModify && !asksQuestion && /(?:doi ten|doi han|thay doi han|dat han|chuyen |giao |gan (?!day)|them |tao |sua |keo |danh dau|cap nhat|di chuyen|phan cong|bo sung|mo rong|len ke hoach|viet them|khoi phuc|sao chep|nhan ban|sap xep (?:the|cot|danh sach|task|cac the)|dua cot|doi vi tri|anh bia|trang thai cot)/.test(folded);
   const historyQuestion = !writeRequest && !commandLike && /(?:thay doi|da doi|doi han|nhat ky|lich su)/.test(folded);
   const hasHistoryTime = /(?:hom nay|hom qua|tuan|thang|gan day|\bngay\b|\d{1,4}[/-]\d{1,2}|\bvua\b)/.test(folded);
   if (historyQuestion && !hasHistoryTime) {
@@ -131,7 +132,7 @@ async function answerQuestion(s: V2Session, message: string, context: V2ServiceC
   if (available) {
     // Co cong cu ghi thi gui kem propose_actions; ngoai ra giu nguyen buoc goi mo hinh nhu truoc.
     const step: ModelStep = context.step ?? (canModify ? (messages, timeoutMs) => callChatModel(messages, timeoutMs, env.ai, true, [proposeActionsTool, proposeBoardPatchTool]) : callChatModel);
-    const response = await orchestrate(s, message, now, step, 'AI', { ...(canModify ? { actions: { autoExecute, ...(context.patchPlanner ? { patchPlanner: context.patchPlanner } : {}) } } : {}), onModelFailure: (reason) => { aiFailure ??= reason; } });
+    const response = await orchestrate(s, message, now, step, 'AI', { ...(canModify ? { actions: { autoExecute, uploads, ...(context.patchPlanner ? { patchPlanner: context.patchPlanner } : {}) } } : {}), onModelFailure: (reason) => { aiFailure ??= reason; } });
     if (response.mode !== 'BASIC') { s.legacyId = undefined; return response; }
     // Mot LENH ghi (ke ca cau co dong tu ghi o giua cau) khong duoc de roi xuong cac nhanh doc / v1: noi ro la chua thay doi gi va vi sao.
     if (writeRequest || commandLike) { s.pending = undefined; s.queries = []; s.legacyId = undefined; return v2Reply(s, now, [], 'BASIC', aiFailedText(aiFailure)); }
@@ -143,7 +144,7 @@ async function answerQuestion(s: V2Session, message: string, context: V2ServiceC
   s.lastQuestion = message;
   return legacyReply(s, reply, aiFailure);
 }
-export async function handleV2Message(userId: string, input: ChatMessageInput, context: V2ServiceContext): Promise<V2Reply> {
+export async function handleV2Message(userId: string, input: ChatMessageInput & { uploadIds?: string[] }, context: V2ServiceContext): Promise<V2Reply> {
   const store = context.sessions ?? v2Sessions;
   let s = store.get(userId, input.conversationId, context.now);
   const reset = !!input.conversationId && !s;
@@ -163,7 +164,9 @@ export async function handleV2Message(userId: string, input: ChatMessageInput, c
   // cau moi bo qua cau hoi chon dang do -> ke hoach dang cho chon bi bo
   if (s.pending?.kind === 'PLAN_REF' && s.pending.planId) { await cancelPlanRow(s.pending.planId, userId, 'SUPERSEDED', context.now); s.pending = undefined; }
   const message = s.pending?.kind === 'QUESTION' ? `${s.pending.original}\nBổ sung: ${input.message}` : input.message;
-  const reply = await answerQuestion(s, message, context);
+  // tep nguoi dung dinh kem vao CHINH tin nhan nay (kho tam; phai la tep cua ho, con han)
+  const uploads = (input.uploadIds?.length ?? 0) > 0 ? (await resolveStaged(userId, input.uploadIds as string[], context.now)).map(refOf) : [];
+  const reply = await answerQuestion(s, message, context, uploads);
   if (reset) reply.conversationReset = true;
   return reply;
 }

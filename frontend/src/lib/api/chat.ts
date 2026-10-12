@@ -1,5 +1,5 @@
 import { api } from '../axios';
-import type { ChatConversationHistory, ChatConversationList, ChatReply, ChatScope, ChatStatus } from '../../types/chat';
+import type { ChatConversationHistory, ChatConversationList, ChatReply, ChatScope, ChatStagedFile, ChatStatus } from '../../types/chat';
 
 // Lop goi API cua tro ly (CHATBOT_MODULE.md §12). Client CHI gui cau hoi, pham vi va ma hoi
 // thoai - khong bao gio gui vai tro, danh tinh hay id nguoi duoc nhac (server tu kiem quyen).
@@ -24,11 +24,14 @@ export async function sendChatMessage(input: {
   message: string;
   scope: ChatScope;
   conversationId?: string;
+  /** v2: id cac tep da tai len (uploadChatFile) de dinh kem vao tin nhan nay. */
+  uploadIds?: string[];
 }, engine: 'legacy' | 'v2' = 'legacy'): Promise<ChatReply> {
   const body = {
     message: input.message,
     scope: input.scope,
     ...(input.conversationId ? { conversationId: input.conversationId } : {}),
+    ...(engine === 'v2' && input.uploadIds && input.uploadIds.length > 0 ? { uploadIds: input.uploadIds } : {}),
   };
   const res = await api.post<{ data: ChatReply }>(engine === 'v2' ? '/chat/v2/messages' : '/chat/messages', body);
   return res.data.data;
@@ -64,6 +67,19 @@ export async function fetchMoreAnswer(conversationId: string, page: number, bloc
 export async function confirmChatAction(plan: { planId: string; checksum: string }, conversationId: string, scope: ChatScope): Promise<ChatReply> {
   const res = await api.post<{ data: ChatReply }>(`/chat/v2/actions/${encodeURIComponent(plan.planId)}/confirm`, { conversationId, checksum: plan.checksum, scope });
   return res.data.data;
+}
+
+// Tai mot tep len kho tam cua tro ly (chua gan vao the nao: chi gan khi nguoi dung ra lenh va bam Ap dung). Toi da 10 MB.
+export async function uploadChatFile(file: File): Promise<ChatStagedFile> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await api.post<{ data: ChatStagedFile }>('/chat/v2/uploads', form);
+  return res.data.data;
+}
+
+// Bo mot tep tam (nut x).
+export async function discardChatUpload(id: string): Promise<void> {
+  await api.delete(`/chat/v2/uploads/${encodeURIComponent(id)}`);
 }
 
 // Nut "Huy" cua ban xem truoc.

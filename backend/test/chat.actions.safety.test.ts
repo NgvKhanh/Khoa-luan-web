@@ -361,11 +361,11 @@ describe('đầu ra của mô hình không đáng tin: schema đóng, một thao
     expect((await prisma.card.findUniqueOrThrow({ where: { id: f.loginUi.id } })).title).toBe('Đăng nhập giao diện');
   });
 
-  it('thao tác ngoài whitelist (xóa thẻ, đổi vai trò, đổi hiển thị...) không có đường nào tới dịch vụ', async () => {
+  it('thao tác ngoài whitelist (xóa vĩnh viễn, đổi vai trò, đổi hiển thị...) không có đường nào tới dịch vụ', async () => {
     const f = await seedActions();
     for (const op of [
-      { type: 'DELETE_CARD', card: text('Login UI') },
-      { type: 'ARCHIVE_LIST', list: text('Cần làm') },
+      { type: 'PURGE_CARD', card: text('Login UI') },
+      { type: 'PURGE_LIST', list: text('Cần làm') },
       { type: 'SET_ROLE', member: text('Lan'), role: 'ADMIN' },
       { type: 'SET_VISIBILITY', visibility: 'PUBLIC' },
     ]) {

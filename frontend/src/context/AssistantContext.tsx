@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { cancelChatAction, confirmChatAction, fetchChatStatus, fetchChatConversations, fetchChatConversation, fetchMoreAnswer, sendChatChoice, sendChatMessage } from '../lib/api/chat';
 import { appendCards, chatErrorText, SUPERSEDED_TEXT } from '../lib/chatText';
 import { assistantScopeFor, guardScope } from '../lib/chatScope';
-import type { ChatActionView, ChatCard, ChatClarifyOption, ChatConversationHistory, ChatConversationSummary, ChatReply, ChatScope, ChatStatus } from '../types/chat';
+import type { ChatActionView, ChatCard, ChatClarifyOption, ChatConversationHistory, ChatConversationSummary, ChatReply, ChatScope, ChatStagedFile, ChatStatus } from '../types/chat';
 import { mergeV2Block } from '../lib/chatV2';
 
 // Hoi thoai cua tro ly (CHATBOT_MODULE.md §13). Provider dat o ProtectedRoute (TREN cac layout) de
@@ -15,6 +15,8 @@ export interface AssistantTurn {
   id: number;
   /** Cau nguoi dung go, hoac "Chọn: …" khi tra loi cau hoi lai. */
   question: string;
+  /** Ten cac tep dinh kem vao cau nay (chi de hien; server luu theo id). */
+  files?: string[];
   status: 'loading' | 'done' | 'error';
   reply: ChatReply | null;
   /** Danh sach chinh da tai (gop qua cac lan "Xem thêm"). */
@@ -50,7 +52,7 @@ interface AssistantValue {
   openPanel: () => void;
   closePanel: () => void;
   togglePanel: () => void;
-  ask: (text: string) => Promise<void>;
+  ask: (text: string, files?: ChatStagedFile[]) => Promise<void>;
   choose: (option: ChatClarifyOption) => Promise<void>;
   loadMore: (turn: AssistantTurn, blockId?: string) => Promise<void>;
   /** Nut "Ap dung" / "Huy" cua khoi xem truoc (khong goi AI). */
@@ -63,8 +65,8 @@ const AssistantContext = createContext<AssistantValue | undefined>(undefined);
 // Pham vi theo TRANG (assistantScopeFor): trang bang -> BOARD (doc va ghi chi trong bang do); trang khac -> MY (moi bang duoc
 // phep; ten bang nhac trong cau do backend phan giai). Backend kiem lai moi lan, day chi la tran giao dien dang o.
 
-function newTurn(id: number, question: string): AssistantTurn {
-  return { id, question, status: 'loading', reply: null, cards: [], page: 1, error: null, loadingMore: false, moreError: null, actionBusy: false, actionError: null };
+function newTurn(id: number, question: string, files?: string[]): AssistantTurn {
+  return { id, question, ...(files !== undefined && files.length > 0 ? { files } : {}), status: 'loading', reply: null, cards: [], page: 1, error: null, loadingMore: false, moreError: null, actionBusy: false, actionError: null };
 }
 const planIdOf = (a: ChatActionView): string => (a.kind === 'PLAN' ? a.plan.planId : a.result.planId);
 /** Lenh moi (hoac go "huy") lam cac ban xem truoc cu het tac dung: cap nhat the cu cho khop voi server. */
@@ -213,13 +215,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const togglePanel = useCallback(() => (open ? closePanel() : openPanel()), [open, closePanel, openPanel]);
 
   const ask = useCallback(
-    async (text: string) => {
+    async (text: string, files: ChatStagedFile[] = []) => {
       const message = text.trim();
       if (message === '' || busy) return;
       setNotice(null);
       const id = nextId.current++;
       const startEpoch = epoch.current;
-      setTurns((ts) => [...ts, newTurn(id, message)]);
+      setTurns((ts) => [...ts, newTurn(id, message, files.map((f) => f.name))]);
       try {
         if (statusPromise.current) {
           try { const next = await statusPromise.current; engine.current = next.engine ?? 'v2'; }
@@ -227,7 +229,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         }
         // Roi bang truoc khi gui: cau nay thuoc bang cu, khong duoc gui sang pham vi cua trang moi.
         if (epoch.current !== startEpoch) return;
-        const body = { message, scope: scopeRef.current, conversationId: conversationId.current ?? undefined };
+        const body = { message, scope: scopeRef.current, conversationId: conversationId.current ?? undefined, ...(files.length > 0 ? { uploadIds: files.map((f) => f.id) } : {}) };
         const reply = engine.current === 'v2' ? await sendChatMessage(body, 'v2') : await sendChatMessage(body);
         if (epoch.current !== startEpoch) return; // da roi bang: tra loi nam trong lich su, khong nhap vao hoi thoai moi
         if (reply.conversationReset) {

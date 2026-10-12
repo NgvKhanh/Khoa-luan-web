@@ -18,8 +18,8 @@ const lic = (type: string, message: string) => licenceFor(type, foldWords(messag
 
 describe('hợp đồng: 8 thao tác mới', () => {
   it('danh sách loại thao tác; 3 thao tác chính xác được tự chạy, nội dung / cấu trúc / lưu trữ thì không', () => {
-    expect([...ACTION_TYPES].slice(-8)).toEqual(['SET_CARD_DESCRIPTION', 'SET_CARD_START', 'ADD_COMMENT', 'ADD_CHECKLIST', 'REMOVE_MEMBER', 'REMOVE_LABEL', 'RENAME_LIST', 'ARCHIVE_CARD']);
-    expect([...AUTO_RUN_TYPES]).toEqual(['CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL', 'SET_CARD_START', 'REMOVE_MEMBER', 'REMOVE_LABEL']);
+    expect([...ACTION_TYPES].slice(10, 18)).toEqual(['SET_CARD_DESCRIPTION', 'SET_CARD_START', 'ADD_COMMENT', 'ADD_CHECKLIST', 'REMOVE_MEMBER', 'REMOVE_LABEL', 'RENAME_LIST', 'ARCHIVE_CARD']);
+    expect([...AUTO_RUN_TYPES].slice(0, 10)).toEqual(['CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL', 'SET_CARD_START', 'REMOVE_MEMBER', 'REMOVE_LABEL']);
     expect([...CONTENT_TYPES]).toEqual(['SET_CARD_DESCRIPTION', 'ADD_COMMENT', 'ADD_CHECKLIST']);
     expect([...STRUCTURE_TYPES]).toEqual(['CREATE_LIST', 'RENAME_LIST']);
     for (const t of ACTION_TYPES) expect(OP_LABEL[t].length).toBeGreaterThan(3);
@@ -51,7 +51,7 @@ describe('hợp đồng: 8 thao tác mới', () => {
     [{ type: 'REMOVE_MEMBER', card: T('Login'), userId: 'u1' }, 'khóa lạ userId'],
     [{ type: 'RENAME_LIST', list: T('A'), name: 'x'.repeat(101) }, 'tên cột quá dài'],
     [{ type: 'ARCHIVE_CARD', card: T('Login'), hard: true }, 'khóa lạ hard'],
-    [{ type: 'DELETE_CARD', card: T('Login') }, 'không có thao tác xóa'],
+    [{ type: 'PURGE_CARD', card: T('Login') }, 'không có thao tác xóa vĩnh viễn'],
     [{ type: 'SET_CARD_START', card: T('Login'), start: { type: 'ABSOLUTE', date: '10/10' } }, 'ngày sai khuôn'],
   ])('schema từ chối: %j (%s)', (o) => { expect(proposeActionsSchema.safeParse({ operations: [o] }).success).toBe(false); });
 

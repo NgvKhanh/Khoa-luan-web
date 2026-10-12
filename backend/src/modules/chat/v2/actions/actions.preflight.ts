@@ -78,6 +78,8 @@ export interface ResolveArgs {
   mode?: PlanMode;
   /** Thoi diem lap ke hoach (xem ResolveEnv.planNow). */
   planNow?: Date;
+  /** Buoc G: cac tep tam dinh kem vao tin nhan lap ke hoach. */
+  uploads?: readonly { id: string; name: string; size: number; ext: string }[];
 }
 
 export type ResolvedPlan =
@@ -89,7 +91,7 @@ export async function resolvePrepared(args: ResolveArgs): Promise<ResolvedPlan> 
   const { prepared } = args;
   const patch = args.mode === 'PATCH';
   const res = await resolveOps(
-    { userId: args.userId, exec: args.exec, boardId: args.boardId, bindings: args.bindings, ...(patch ? { freeLists: true } : {}), ...(args.planNow !== undefined ? { planNow: args.planNow } : {}) },
+    { userId: args.userId, exec: args.exec, boardId: args.boardId, bindings: args.bindings, ...(patch ? { freeLists: true } : {}), ...(args.planNow !== undefined ? { planNow: args.planNow } : {}), ...(args.uploads !== undefined ? { uploads: args.uploads } : {}) },
     prepared.ordered,
     args.presets,
     prepared.prov.perOp.map((p) => p.due)
@@ -131,7 +133,7 @@ export async function rebuildAndCompare(args: {
   const mode = modeOf(stored);
   const prep = prepare(stored.symbolic, stored.message, args.today, mode);
   if (!prep.ok) return { kind: 'UNRESOLVABLE', code: prep.code, reason: prep.text };
-  const res = await resolvePrepared({ userId: args.userId, exec: args.exec, boardId: stored.boardId, bindings: [], prepared: prep.prepared, presets: stored.presets, mode, ...(args.planNow !== undefined ? { planNow: args.planNow } : {}) });
+  const res = await resolvePrepared({ userId: args.userId, exec: args.exec, boardId: stored.boardId, bindings: [], prepared: prep.prepared, presets: stored.presets, mode, ...(args.planNow !== undefined ? { planNow: args.planNow } : {}), ...(stored.uploads !== undefined ? { uploads: stored.uploads } : {}) });
   if (res.kind === 'CHOICE') return { kind: 'CHANGED', reason: 'Có thêm đối tượng cùng tên kể từ lúc xem trước nên mình không còn chắc bạn muốn đối tượng nào.' };
   if (res.kind === 'FAIL') return { kind: 'UNRESOLVABLE', code: res.code === 'NOT_FOUND' ? 'STALE' : res.code, reason: res.text };
   const seen = stored.ops;

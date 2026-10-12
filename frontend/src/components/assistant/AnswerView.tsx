@@ -284,7 +284,12 @@ export default function AnswerView(props: {
   const { turn } = props;
   return (
     <li className="space-y-2">
-      <p className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-1.5 text-sm text-white">{turn.question}</p>
+      <div className="ml-auto w-fit max-w-[85%] space-y-1">
+        <p className="rounded-2xl rounded-br-sm bg-primary px-3 py-1.5 text-sm text-white">{turn.question}</p>
+        {turn.files && turn.files.length > 0 && (
+          <p className="text-right text-[11px] text-slate-500 dark:text-slate-400">Tệp đính kèm: {turn.files.join(', ')}</p>
+        )}
+      </div>
       <div className="rounded-2xl rounded-bl-sm border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/60">
         {turn.status === 'loading' && (
           <p role="status" className="text-sm text-slate-500 dark:text-slate-400">

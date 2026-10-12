@@ -64,7 +64,11 @@ export type ConfirmReasonCode =
   | 'AI_CHOSEN_TARGET' // Phase 6: nguoi nhan do MAY chon (khong phai nguoi dung goi ten) -> luon xem truoc
   | 'STANDING_RULE' // Phase 7: luat tu dong hoa chay LAU DAI bang quyen cua nguoi tao -> luon xem truoc, rui ro CAO
   | 'TEXT_CONTENT' // Buoc D: viet mo ta / binh luan / checklist -> nguoi khac se doc, luon xem truoc
-  | 'ARCHIVE'; // Buoc D: luu tru the (an khoi bang, khoi phuc duoc) -> luon xem truoc
+  | 'ARCHIVE' // Buoc D: luu tru the (an khoi bang, khoi phuc duoc) -> luon xem truoc
+  | 'DELETE' // Buoc E: xoa the / cot / binh luan / tep... -> khong khoi phuc duoc o giao dien, luon xem truoc
+  | 'BULK' // Buoc E: thao tac len CA mot cot (xoa het the, chuyen het the) -> luon xem truoc
+  | 'ADMIN' // Buoc I: quan tri bang (thanh vien, quyen, hien thi, xoa bang) -> luon xem truoc, rui ro CAO
+  | 'FILE'; // Buoc G: dinh kem tep do chinh nguoi dung tai len -> luon xem truoc
 export interface ConfirmReason {
   code: ConfirmReasonCode;
   text: string;
@@ -110,12 +114,15 @@ export interface StoredOp {
   choice?: AssignChoice;
   /** Chi thao tac TAO (CREATE_LIST / CREATE_CARD): khoa de thao tac sau tro toi thuc the vua tao. */
   key?: string;
-  /** id cua thuc the CO SAN. Thuc the do chinh ke hoach tao thi KHONG co id o day ma nam o `local`. */
-  ids: { card?: string; list?: string; member?: string; label?: string };
+  /**
+   * id cua thuc the CO SAN. Thuc the do chinh ke hoach tao thi KHONG co id o day ma nam o `local`. Cac khoa sau `label` chi dung cho thao tac mo rong
+   * (actions/ops): cot dich, cot moc, binh luan / muc / checklist / tep cua the, luat, truong...
+   */
+  ids: { card?: string; list?: string; member?: string; label?: string; toList?: string; anchor?: string; checklist?: string; item?: string; comment?: string; attachment?: string; rule?: string; field?: string; template?: string; archived?: string };
   /** Tham chieu noi bo: key cua thao tac tao ra the / cot ma thao tac nay dung (id chi co sau khi thao tac do chay). */
   local?: { card?: string; list?: string };
   /** `due`: thoi diem ISO (UTC) hoac null = bo han. `listStatus`: trang thai cot moi (doan theo ten, giong tao cot bang tay). */
-  params: { title?: string; name?: string; due?: string | null; status?: CardStatus; listStatus?: CardStatus | null; rule?: StoredRule; description?: string; text?: string; start?: string | null; items?: string[] };
+  params: { title?: string; name?: string; due?: string | null; status?: CardStatus; listStatus?: CardStatus | null; rule?: StoredRule; description?: string; text?: string; start?: string | null; items?: string[]; [extra: string]: unknown };
   before: {
     title?: string;
     due?: string | null;
@@ -128,16 +135,21 @@ export interface StoredOp {
     start?: string | null;
     descriptionHash?: string;
     descriptionLength?: number;
+    /** Thao tac mo rong: gia tri cu tuy loai (ten, mau, so luong, tep...). */
+    [extra: string]: unknown;
   } | null;
-  display: { cardTitle?: string; listName?: string; toListName?: string; memberName?: string; labelName?: string; dueText?: string; ruleWhen?: string; ruleThen?: string[] };
+  display: { cardTitle?: string; listName?: string; toListName?: string; memberName?: string; labelName?: string; dueText?: string; ruleWhen?: string; ruleThen?: string[]; [extra: string]: unknown };
   /** Khong thay doi gi (da dung roi) -> khong goi service. */
   noop?: string;
 }
 
 /** Tham chieu nhap nhang dang cho nguoi dung chon. `sig` = dau van tay cua tham chieu (actions.refs): mot lan chon ap dung cho moi cho nhac cung chu. */
+/** Loai doi tuong con cua the / bang ma nguoi dung duoc nhac chon (thao tac mo rong). */
+export type ChildKind = 'comment' | 'item' | 'checklist' | 'attachment' | 'rule' | 'field' | 'template' | 'archivedCard' | 'archivedList' | 'option';
+
 export interface PendingChoice {
   sig: string;
-  kind: SlotKind;
+  kind: SlotKind | ChildKind;
   /** Chu nguoi dung go cho tham chieu nay ("" khi khong noi, vd tao the ma khong noi cot). */
   text: string;
   options: { id: string; label: string }[];
@@ -197,6 +209,8 @@ export interface StoredPlan {
   stateDigest?: string;
   /** Ngay he thong da hieu (khong phai ngay LLM khai) + canh bao khi LLM khai khac. */
   warnings: string[];
+  /** Buoc G: cac tep tam nguoi dung dinh kem vao tin nhan tao ke hoach (de dung lai ke hoach luc ap dung). */
+  uploads?: { id: string; name: string; size: number; ext: string }[];
 }
 
 export interface PlanItemView {
@@ -209,6 +223,8 @@ export interface PlanItemView {
   cardId?: string;
   /** Phase 7: luat tu dong hoa - dieu kien, cac viec se lam va ghi chu "chay bang quyen cua ban". */
   rule?: RuleView;
+  /** Thao tac xoa / khong khoi phuc duoc: giao dien to mau canh bao. */
+  danger?: boolean;
 }
 
 export interface RuleView {

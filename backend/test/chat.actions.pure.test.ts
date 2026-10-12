@@ -55,9 +55,9 @@ const verdict = (op: ActionOp, message: string): ProvenanceReport => assessProve
 
 describe('schema đề xuất: chỉ có 7 thao tác, KHÔNG có ô nào để điền id', () => {
   it('nhận 7 loại thao tác của Phase 1 + CREATE_LIST + ASSIGN_UNASSIGNED (Phase 6) + CREATE_AUTOMATION_RULE (Phase 7); chỉ 7 loại Phase 1 được phép tự chạy', () => {
-    expect([...ACTION_TYPES]).toEqual(['CREATE_LIST', 'CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL', 'ASSIGN_UNASSIGNED', 'CREATE_AUTOMATION_RULE', 'SET_CARD_DESCRIPTION', 'SET_CARD_START', 'ADD_COMMENT', 'ADD_CHECKLIST', 'REMOVE_MEMBER', 'REMOVE_LABEL', 'RENAME_LIST', 'ARCHIVE_CARD']);
-    // tự chạy: 7 thao tác của Phase 1 + 3 thao tác chính xác của bước D (đặt ngày bắt đầu, bỏ người, gỡ nhãn); còn lại luôn xem trước
-    expect([...SAFE_ACTION_TYPES]).toEqual(['CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL', 'SET_CARD_START', 'REMOVE_MEMBER', 'REMOVE_LABEL']);
+    expect([...ACTION_TYPES]).toEqual(['CREATE_LIST', 'CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL', 'ASSIGN_UNASSIGNED', 'CREATE_AUTOMATION_RULE', 'SET_CARD_DESCRIPTION', 'SET_CARD_START', 'ADD_COMMENT', 'ADD_CHECKLIST', 'REMOVE_MEMBER', 'REMOVE_LABEL', 'RENAME_LIST', 'ARCHIVE_CARD', 'DELETE_CARD', 'RESTORE_CARD', 'COPY_CARD', 'SET_CARD_COVER', 'ARCHIVE_LIST', 'DELETE_LIST', 'RESTORE_LIST', 'COPY_LIST', 'MOVE_LIST', 'SORT_LIST', 'MOVE_ALL_CARDS', 'DELETE_ALL_CARDS', 'SET_LIST_STATUS']);
+    // tự chạy: 7 thao tác của Phase 1 + 3 thao tác chính xác của bước D (đặt ngày bắt đầu, bỏ người, gỡ nhãn) + 3 thao tác chính xác của bước E (khôi phục thẻ, sao chép thẻ, ảnh bìa); còn lại luôn xem trước
+    expect([...SAFE_ACTION_TYPES]).toEqual(['CREATE_CARD', 'RENAME_CARD', 'SET_CARD_DUE', 'MOVE_CARD', 'SET_CARD_STATUS', 'ASSIGN_MEMBER', 'ADD_LABEL', 'SET_CARD_START', 'REMOVE_MEMBER', 'REMOVE_LABEL', 'RESTORE_CARD', 'COPY_CARD', 'SET_CARD_COVER']);
     expect(MAX_OPS_PER_PLAN).toBe(15);
     const ops = [
       { type: 'CREATE_LIST', name: 'Kiểm thử' } as ActionOp,
@@ -83,8 +83,8 @@ describe('schema đề xuất: chỉ có 7 thao tác, KHÔNG có ô nào để �
       { type: 'MOVE_CARD', card: { by: 'TEXT', text: 'A', id: 'abc' }, toList: t('X') },
       { type: 'ASSIGN_MEMBER', card: t('A'), member: { by: 'TEXT', text: 'Lan', userId: 'u1' } },
       { type: 'CREATE_CARD', title: 'A', boardId: 'b1' },
-      { type: 'DELETE_CARD', card: t('A') },
-      { type: 'ARCHIVE_LIST', list: t('A') },
+      { type: 'PURGE_CARD', card: t('A') },
+      { type: 'PURGE_LIST', list: t('A') },
       { type: 'SET_ROLE', member: t('A'), role: 'ADMIN' },
       { type: 'SET_VISIBILITY', visibility: 'PUBLIC' },
       { type: 'TRANSFER_OWNERSHIP', member: t('A') },
@@ -453,7 +453,7 @@ describe('chính sách tự chạy an toàn: 8 điều kiện (AUTO / CONFIRM / 
   });
 
   it('điều kiện 2 và 6: thao tác ngoài whitelist (xóa, vai trò, quyền, chủ sở hữu, hiển thị...) luôn bị từ chối', () => {
-    for (const opType of ['DELETE_CARD', 'ARCHIVE_LIST', 'SET_ROLE', 'SET_VISIBILITY', 'TRANSFER_OWNERSHIP', 'UPDATE_AUTOMATION_RULE', 'DELETE_AUTOMATION_RULE', '']) {
+    for (const opType of ['PURGE_CARD', 'PURGE_LIST', 'SET_ROLE', 'SET_VISIBILITY', 'TRANSFER_OWNERSHIP', 'UPDATE_AUTOMATION_RULE', 'DELETE_AUTOMATION_RULE', '']) {
       expect(decideExecution(baseDecision({ opTypes: [opType] })), opType).toMatchObject({ mode: 'REFUSE', code: 'INVALID' });
       expect(decideExecution(baseDecision({ opTypes: ['CREATE_CARD', opType] })), `1 trong nhiều: ${opType}`).toMatchObject({ mode: 'REFUSE', code: 'INVALID' });
     }

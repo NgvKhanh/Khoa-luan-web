@@ -9,6 +9,7 @@ import { v2CancelSchema, v2ChoiceSchema, v2ConfirmSchema, v2MessageSchema, v2Mor
 import { conversationHistory, historyListSchema, historyTurnsSchema, listConversations, persistentCancel, persistentChoice, persistentConfirm, persistentMessage, persistentMore } from './chat.v2.history';
 import { z } from 'zod';
 import { v2LlmAvailable } from './chat.v2.llm';
+import { discardStaged, refOf, registerStaged, stageUploadMiddleware } from './uploads/chat.uploads';
 
 export const v2ChatRoutes = Router();
 const active = new Set<string>();
@@ -46,6 +47,23 @@ function post(path: string, schema: typeof v2MessageSchema | typeof v2ChoiceSche
 post('/messages', v2MessageSchema);
 post('/messages/choice', v2ChoiceSchema);
 post('/messages/more', v2MoreSchema);
+
+// Tep dinh kem (buoc G): tai len KHO TAM (chua gan vao the nao); chi gan khi ke hoach ADD_ATTACHMENT duoc Ap dung. Chi khi tro ly bat hanh dong.
+v2ChatRoutes.post('/uploads', chatActionLimiter, (req, _res, next) => {
+  if (!env.chatActions) return next(new AppError('Trợ lý đang tắt chức năng thay đổi dữ liệu nên chưa nhận tệp đính kèm.', 403));
+  next();
+}, stageUploadMiddleware, asyncHandler(async (req, res) => {
+  if (!req.file) throw new AppError('Chưa chọn tệp.', 400);
+  const staged = await registerStaged(req.user!.id, req.file, new Date());
+  const { id, name, size } = refOf(staged);
+  res.json({ success: true, data: { id, name, size } });
+}));
+v2ChatRoutes.delete('/uploads/:id', chatLimiter, asyncHandler(async (req, res) => {
+  const id = z.string().uuid().safeParse(req.params.id);
+  if (!id.success) throw new AppError('Tệp không hợp lệ.', 400);
+  const removed = await discardStaged(req.user!.id, id.data);
+  res.json({ success: true, data: { removed } });
+}));
 
 // Hanh dong (Phase 1). Ap dung / huy chi bang NUT, khong goi LLM; ke hoach nam o CSDL nen khong phu thuoc phien trong bo nho.
 function planIdOf(value: unknown): string {

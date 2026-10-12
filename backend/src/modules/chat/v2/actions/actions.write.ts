@@ -17,95 +17,32 @@ import { findPatchCollision } from './actions.patch.build';
 import { descriptionHash, summarizeExecuted } from './actions.plan';
 import { foldWords } from './actions.text';
 import { findSameRule } from './actions.rule';
+import { handlerOf } from './ops/ops.registry';
 import type { Effects } from './actions.effects';
-import type { ActionErrorCode, StoredOp } from './actions.types';
+import type { StoredOp } from './actions.types';
 
-export type Tx = Prisma.TransactionClient;
-
-/** Dung tien trinh ghi VA hoan tac toan bo transaction. `code` quyet dinh trang thai ket qua (STALE / FORBIDDEN...). */
-export class PlanAbort extends Error {
-  constructor(
-    public readonly code: ActionErrorCode,
-    message: string
-  ) {
-    super(message);
-    this.name = 'PlanAbort';
-  }
-}
-
-export interface WriteContext {
-  userId: string;
-  boardId: string;
-  /** Board Patch: khoa ca bang va kiem trung cot / the ngay trong transaction (nguoi khac co the vua them sau luc xem truoc). */
-  patch?: boolean;
-}
-
-interface CardState {
-  id: string;
-  title: string;
-  dueDate: Date | null;
-  status: CardStatus;
-  listId: string;
-  listName: string;
-  /** Trang thai cua COT dang chua the (null = cot tu do). */
-  listStatus: CardStatus | null;
-}
-
-export interface CreatedEntity {
-  key: string;
-  id: string;
-  kind: 'LIST' | 'CARD';
-  name: string;
-}
-
-export interface RunState {
-  created: Map<string, CreatedEntity>;
-  cards: Map<string, CardState>;
-  /** Moc thoi gian Activity cuoi (de cac dong trong cung ke hoach co thu tu strictly tang). */
-  lastActivityMs: number;
-}
-
-export const newRunState = (): RunState => ({ created: new Map(), cards: new Map(), lastActivityMs: 0 });
-
-export interface OpOutcome {
-  index: number;
-  text: string;
-  /** false: thao tac da dung roi (noop) hoac khong doi gi. */
-  changed: boolean;
-  cardId?: string;
-  listId?: string;
-}
-
-const unique = <T>(xs: readonly T[]): T[] => [...new Set(xs)];
-
-// ---------------------------------------------------------------------------------------------------------------------
-// Quyen trong transaction
-// ---------------------------------------------------------------------------------------------------------------------
-
-/**
- * Nguoi dung co SUA duoc bang khong - doc trong CUNG transaction (dong bo voi du lieu dang ghi). Cung luat voi assertBoardAccess va
- * isBoardParticipant (hai ham do cho ket qua giong nhau): chu bang; thanh vien bang vai tro khac VIEWER; neu khong co membership thi thanh
- * vien khong gian khi bang o muc WORKSPACE. Dung cho CA nguoi ra lenh LAN nguoi duoc giao.
- */
-export async function canEditInTx(tx: Tx, boardId: string, userId: string): Promise<boolean> {
-  if ((await tx.user.count({ where: { id: userId, deletedAt: null } })) === 0) return false;
-  const board = await tx.board.findFirst({ where: { id: boardId, deletedAt: null, archivedAt: null }, select: { ownerId: true, visibility: true, workspaceId: true } });
-  if (!board) return false;
-  if (board.ownerId === userId) return true;
-  const membership = await tx.boardMember.findFirst({ where: { boardId, userId, deletedAt: null }, select: { role: true } });
-  if (membership) return membership.role !== 'VIEWER';
-  if (board.visibility !== 'WORKSPACE') return false;
-  const ws = await tx.workspace.findFirst({ where: { id: board.workspaceId, deletedAt: null }, select: { ownerId: true } });
-  if (!ws) return false;
-  if (ws.ownerId === userId) return true;
-  return (await tx.workspaceMember.count({ where: { workspaceId: board.workspaceId, userId, deletedAt: null } })) > 0;
-}
+import {
+  canEditInTx,
+  cardOf,
+  iso,
+  listIdOf,
+  newRunState,
+  nextCardPosition,
+  PlanAbort,
+  record,
+  statusActivityType,
+  unique,
+  type CardState,
+  type OpOutcome,
+  type RunState,
+  type Tx,
+  type WriteContext,
+} from './actions.write.base';
+export { canEditInTx, newRunState, PlanAbort, type CreatedEntity, type OpOutcome, type RunState, type Tx, type WriteContext } from './actions.write.base';
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Pha 1: khoa + kiem tra lai
 // ---------------------------------------------------------------------------------------------------------------------
-
-const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 
 /** Kiem tra lai moi dieu kien TRONG transaction, sau khi khoa dong. Thieu mot dieu kien -> PlanAbort (rollback, khong ghi gi). */
 export async function lockAndVerify(tx: Tx, ctx: WriteContext, ops: readonly StoredOp[]): Promise<RunState> {
@@ -120,7 +57,7 @@ export async function lockAndVerify(tx: Tx, ctx: WriteContext, ops: readonly Sto
   if (ctx.patch === true || newRules.length > 0) await tx.$queryRaw`SELECT id FROM "Board" WHERE id = ${ctx.boardId} FOR UPDATE`;
 
   const cardIds = unique(ops.flatMap((o) => (o.ids.card !== undefined ? [o.ids.card] : [])));
-  const listIds = unique(ops.flatMap((o) => (o.ids.list !== undefined ? [o.ids.list] : [])));
+  const listIds = unique(ops.flatMap((o) => [o.ids.list, o.ids.toList, o.ids.anchor].filter((id): id is string => id !== undefined)));
   const ruleActions = (o: StoredOp) => o.params.rule?.actions ?? [];
   const labelIds = unique(ops.flatMap((o) => [...(o.ids.label !== undefined ? [o.ids.label] : []), ...ruleActions(o).flatMap((a) => (a.labelId !== undefined ? [a.labelId] : []))]));
   // bo nguoi khoi the khong can nguoi do con la thanh vien co quyen sua
@@ -209,43 +146,17 @@ export async function lockAndVerify(tx: Tx, ctx: WriteContext, ops: readonly Sto
       if (bad) throw new PlanAbort('STALE', 'Dữ liệu của thẻ đã thay đổi kể từ lúc xem trước.');
     }
   }
+  // thao tac mo rong: moi nhom tu kiem lai gia tri cu cua doi tuong cua no ngay trong transaction (da khoa o tren)
+  for (const op of ops) {
+    if (op.noop !== undefined) continue;
+    await handlerOf(op.type)?.verify?.(tx, ctx, op);
+  }
   return state;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Pha 2: ghi
 // ---------------------------------------------------------------------------------------------------------------------
-
-/** Ghi mot dong Activity TRONG transaction. Thoi gian tang dan nghiem ngat de lich su hien dung thu tu thao tac. */
-async function record(tx: Tx, ctx: WriteContext, state: RunState, effects: Effects, input: { cardId: string | null; type: string; data: Record<string, unknown> }): Promise<void> {
-  state.lastActivityMs = Math.max(Date.now(), state.lastActivityMs + 1);
-  await tx.activity.create({
-    data: { boardId: ctx.boardId, cardId: input.cardId, userId: ctx.userId, type: input.type, data: input.data as object, createdAt: new Date(state.lastActivityMs) },
-  });
-  effects.activities.push({ type: input.type, cardId: input.cardId });
-}
-
-/** Loai Activity cho mot lan doi trang thai (giong logStatusChange): vao DONE = card.done, roi DONE = card.undone, con lai card.status. */
-const statusActivityType = (from: CardStatus, to: CardStatus): string => (to === 'DONE' ? 'card.done' : from === 'DONE' ? 'card.undone' : 'card.status');
-
-function cardOf(state: RunState, op: StoredOp): CardState {
-  const id = op.ids.card ?? (op.local?.card !== undefined ? state.created.get(op.local.card)?.id : undefined);
-  const card = id !== undefined ? state.cards.get(id) : undefined;
-  if (!card) throw new PlanAbort('INVALID', 'Thao tác nhắc tới một thẻ không có trong kế hoạch.');
-  return card;
-}
-
-function listIdOf(state: RunState, op: StoredOp): string {
-  const id = op.ids.list ?? (op.local?.list !== undefined ? state.created.get(op.local.list)?.id : undefined);
-  if (id === undefined) throw new PlanAbort('INVALID', 'Thao tác nhắc tới một cột không có trong kế hoạch.');
-  return id;
-}
-
-/** Vi tri ke tiep o cuoi cot (giong createCard / createList). */
-async function nextCardPosition(tx: Tx, listId: string): Promise<number> {
-  const last = await tx.card.findFirst({ where: { listId, deletedAt: null, archivedAt: null }, orderBy: { position: 'desc' }, select: { position: true } });
-  return last ? last.position + 1 : 0;
-}
 
 interface MoveResult {
   moved: boolean;
@@ -521,6 +432,11 @@ export async function applyOp(tx: Tx, ctx: WriteContext, state: RunState, effect
       await tx.cardLabel.upsert({ where: { cardId_labelId: { cardId: card.id, labelId } }, create: { cardId: card.id, labelId }, update: {} });
       effects.boardIds.add(boardId);
       return { index, text: summarizeExecuted(op), changed: true, cardId: card.id };
+    }
+    default: {
+      const handler = handlerOf(op.type);
+      if (!handler) throw new PlanAbort('INVALID', 'Thao tác này chưa được trợ lý hỗ trợ.');
+      return handler.apply({ tx, ctx, state, effects, index, excl }, op);
     }
   }
 }

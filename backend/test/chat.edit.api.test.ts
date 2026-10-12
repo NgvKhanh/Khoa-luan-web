@@ -413,9 +413,9 @@ describe('an toàn: quyền, nguồn lệnh, mâu thuẫn', () => {
     expect((await prisma.card.findUniqueOrThrow({ where: { id: f.loginBeta.id } })).archivedAt).toBeNull();
   });
 
-  it('thao tác "xóa hẳn" không tồn tại: mô hình bịa DELETE_CARD bị schema đóng chặn, kế hoạch không được tạo', async () => {
+  it('thao tác "xóa vĩnh viễn" không tồn tại: mô hình bịa PURGE_CARD bị schema đóng chặn, kế hoạch không được tạo', async () => {
     const f = await seedActions();
-    const reply = await handleV2Message(f.owner.id, { message: 'Xóa thẻ Login UI', scope: onBoard(f) }, actionContext({ step: script([propose({ type: 'DELETE_CARD', card: text('Login UI') })]) }));
+    const reply = await handleV2Message(f.owner.id, { message: 'Xóa vĩnh viễn thẻ Login UI', scope: onBoard(f) }, actionContext({ step: script([propose({ type: 'PURGE_CARD', card: text('Login UI') })]) }));
     expect(reply.answer.action).toBeUndefined();
     expect(await prisma.card.count({ where: { id: f.loginUi.id, deletedAt: null } })).toBe(1);
   });

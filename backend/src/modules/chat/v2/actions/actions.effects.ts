@@ -9,6 +9,8 @@
 import { emitToBoard } from '../../../../realtime/socket';
 import { runAutomationsForCard } from '../../../automation/automation.service';
 import { cardMemberIds, notify, type NotificationType } from '../../../notification/notification.service';
+import { removeCardAttachmentFile } from '../../../../config/upload';
+import { releaseStaged } from '../uploads/chat.uploads';
 
 /** Ai nhan thong bao: nhung nguoi dang la thanh vien / theo doi the LUC PHAT (tru `exclude`), hoac danh sach cu the. */
 export type NotifyTarget = { kind: 'MEMBERS'; cardId: string; exclude: readonly string[] } | { kind: 'USERS'; ids: readonly string[] };
@@ -17,7 +19,8 @@ export interface NotificationJob {
   type: NotificationType;
   actorId: string;
   boardId: string;
-  cardId: string;
+  /** null: thong bao khong gan voi the (the da bi xoa nen khong co lien ket de mo), giong deleteCard. */
+  cardId: string | null;
   data: Record<string, unknown>;
   to: NotifyTarget;
 }
@@ -42,9 +45,19 @@ export interface Effects {
   automations: AutomationJob[];
   /** Bang can bao realtime: MOT su kien moi bang cho ca ke hoach (thao tac tay phat nhieu su kien). */
   boardIds: Set<string>;
+  /**
+   * Tep tren dia: `adopted` = tep da chep vao thu muc tep the TRONG transaction (xoa neu transaction hoan tac); `release` = id tep tam can don SAU commit;
+   * `remove` = duong dan tep cua the can xoa SAU commit (go tep dinh kem).
+   */
+  files: { adopted: string[]; release: string[]; remove: string[] };
 }
 
-export const newEffects = (): Effects => ({ activities: [], notifications: [], automations: [], boardIds: new Set() });
+export const newEffects = (): Effects => ({ activities: [], notifications: [], automations: [], boardIds: new Set(), files: { adopted: [], release: [], remove: [] } });
+
+/** Transaction hoan tac: bo cac tep da chep vao thu muc tep the (khong de tep mo coi). */
+export function discardAdopted(effects: Effects): void {
+  for (const publicPath of effects.files.adopted) removeCardAttachmentFile(publicPath);
+}
 
 export interface DispatchReport {
   notifications: number;
@@ -63,7 +76,7 @@ export async function dispatchEffects(effects: Effects): Promise<DispatchReport>
     try {
       const to = job.to;
       const recipients = to.kind === 'USERS' ? [...to.ids] : (await cardMemberIds(to.cardId)).filter((id) => !to.exclude.includes(id));
-      await notify({ recipients, actorId: job.actorId, type: job.type, boardId: job.boardId, cardId: job.cardId, data: job.data });
+      await notify({ recipients, actorId: job.actorId, type: job.type, boardId: job.boardId, ...(job.cardId !== null ? { cardId: job.cardId } : {}), data: job.data });
       report.notifications += 1;
     } catch (e) {
       report.failed += 1;
@@ -79,6 +92,8 @@ export async function dispatchEffects(effects: Effects): Promise<DispatchReport>
       console.error('[chat-actions] chay tu dong hoa that bai:', e);
     }
   }
+  for (const id of effects.files.release) await releaseStaged(id).catch(() => undefined);
+  for (const publicPath of effects.files.remove) removeCardAttachmentFile(publicPath);
   for (const boardId of effects.boardIds) {
     try {
       emitToBoard(boardId, 'board:lists-changed');

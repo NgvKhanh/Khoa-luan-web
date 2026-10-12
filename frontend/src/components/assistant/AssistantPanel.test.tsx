@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   fetchChatConversation: vi.fn(),
   confirmChatAction: vi.fn(),
   cancelChatAction: vi.fn(),
+  uploadChatFile: vi.fn(),
+  discardChatUpload: vi.fn(),
 }));
 vi.mock('../../lib/api/chat', () => mocks);
 
@@ -1190,5 +1192,55 @@ describe('AssistantPanel: thao tac cua tro ly', () => {
     await askQuestion('Chuyển Login sang Đang làm');
     await clickAsync(within(panel()).getByRole('button', { name: 'Login UI · Cần làm' }));
     expect(mocks.sendChatChoice).toHaveBeenLastCalledWith('conv-2', { id: 'o1', label: 'Login UI · Cần làm', kind: 'TARGET' }, 'v2');
+  });
+});
+
+describe('AssistantPanel: dinh kem tep (nut kep giay)', () => {
+  const pick = async (name = 'bao-cao.pdf', size = 1200) => {
+    const input = screen.getByLabelText('Chọn tệp để đính kèm') as HTMLInputElement;
+    const file = new File([new Uint8Array(size)], name, { type: 'application/pdf' });
+    await act(async () => { fireEvent.change(input, { target: { files: [file] } }); });
+  };
+  beforeEach(() => {
+    mocks.fetchChatStatus.mockResolvedValue({ llmAvailable: true, engine: 'v2', actions: true });
+    mocks.sendChatMessage.mockResolvedValue({ ...reply({ cards: [], blocks: [] }), version: 'v2' });
+  });
+
+  it('chi co khi tro ly bat hanh dong; chon tep -> hien chip; gui kem uploadIds roi xoa chip; cau hoi hien ten tep', async () => {
+    mocks.uploadChatFile.mockResolvedValue({ id: 'up-1', name: 'bao-cao.pdf', size: 1200 });
+    renderAt('/boards/b1'); await openPanel();
+    expect(await within(panel()).findByRole('button', { name: 'Đính kèm tệp' })).toBeInTheDocument();
+    await pick();
+    expect(mocks.uploadChatFile).toHaveBeenCalledTimes(1);
+    expect(within(panel()).getByRole('list', { name: 'Tệp chờ gắn' })).toHaveTextContent('bao-cao.pdf');
+    await askQuestion('Đính kèm file này vào thẻ Login UI');
+    expect(mocks.sendChatMessage).toHaveBeenLastCalledWith({ message: 'Đính kèm file này vào thẻ Login UI', scope: { kind: 'BOARD', boardId: 'b1' }, conversationId: undefined, uploadIds: ['up-1'] }, 'v2');
+    expect(within(panel()).queryByRole('list', { name: 'Tệp chờ gắn' })).not.toBeInTheDocument();
+    expect(within(panel()).getByText('Tệp đính kèm: bao-cao.pdf')).toBeInTheDocument();
+  });
+
+  it('bo tep bang nut x goi huy tep tam; tep qua lon / loi may chu hien thong bao, khong tao chip', async () => {
+    mocks.uploadChatFile.mockResolvedValue({ id: 'up-2', name: 'a.pdf', size: 10 });
+    mocks.discardChatUpload.mockResolvedValue(undefined);
+    renderAt('/boards/b1'); await openPanel();
+    await within(panel()).findByRole('button', { name: 'Đính kèm tệp' });
+    await pick('a.pdf', 10);
+    await clickAsync(within(panel()).getByRole('button', { name: 'Bỏ tệp a.pdf' }));
+    expect(mocks.discardChatUpload).toHaveBeenCalledWith('up-2');
+    expect(within(panel()).queryByRole('list', { name: 'Tệp chờ gắn' })).not.toBeInTheDocument();
+    await pick('lon.pdf', 10 * 1024 * 1024 + 1);
+    expect(within(panel()).getByRole('alert')).toHaveTextContent('Tệp quá lớn (tối đa 10MB)');
+    expect(mocks.uploadChatFile).toHaveBeenCalledTimes(1);
+    mocks.uploadChatFile.mockRejectedValueOnce(httpError(429));
+    await pick('b.pdf', 10);
+    expect(within(panel()).getByRole('alert')).toHaveTextContent('tải tệp hơi nhiều');
+    expect(within(panel()).queryByRole('list', { name: 'Tệp chờ gắn' })).not.toBeInTheDocument();
+  });
+
+  it('tro ly chi doc (actions tat): khong co nut kep giay', async () => {
+    mocks.fetchChatStatus.mockResolvedValue({ llmAvailable: true, engine: 'v2', actions: false });
+    renderAt('/home'); await openPanel();
+    await within(panel()).findByText(/Trợ lý hiện chỉ đọc dữ liệu/);
+    expect(within(panel()).queryByRole('button', { name: 'Đính kèm tệp' })).not.toBeInTheDocument();
   });
 });

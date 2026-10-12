@@ -13,7 +13,8 @@ export const v2MoreSchema = z.object({ conversationId: uuid, blockId: uuid.optio
 export const v2ConfirmSchema = z.object({ conversationId: uuid, checksum: z.string().regex(/^[0-9a-f]{64}$/), scope: chatScopeSchema }).strict();
 export const v2CancelSchema = z.object({ conversationId: uuid }).strict();
 export const v2PlanIdSchema = uuid;
-export const v2MessageSchema = z.object({ message: z.string().trim().min(1).max(500), scope: chatScopeSchema, conversationId: uuid.optional() }).strict();
+// `uploadIds`: cac tep da tai len kho tam (POST /uploads) dinh kem vao tin nhan nay; chi dung khi lenh gan tep vao the.
+export const v2MessageSchema = z.object({ message: z.string().trim().min(1).max(500), scope: chatScopeSchema, conversationId: uuid.optional(), uploadIds: z.array(uuid).max(5).optional() }).strict();
 export type V2Block = {
   [K in Exclude<ToolName, 'resolve_entities'>]: {
     id: string; title: string; status: 'OK'; tool: K; source: ToolResult['source']; data: ToolDataMap[K];

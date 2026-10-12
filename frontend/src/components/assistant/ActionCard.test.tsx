@@ -422,3 +422,24 @@ describe('ActionCard: thao tac noi dung (mo ta, binh luan, checklist) va luu tru
     expect(block).toHaveTextContent('khôi phục lại được trong mục Lưu trữ');
   });
 });
+
+describe('ActionCard: thao tac xoa (canh bao, khong khoi phuc duoc)', () => {
+  it('muc xoa duoc to mau canh bao, nut Ap dung doi mau do; ly do DELETE hien ro; thao tac khong xoa thi giu mau thuong', () => {
+    const turn = turnOf({ kind: 'PLAN', plan: plan({
+      risk: 'HIGH', warnings: [],
+      reasons: [{ code: 'DELETE', text: 'Xóa là thẻ, cột, bình luận hoặc tệp biến mất khỏi bảng và không khôi phục lại được ở giao diện.' }],
+      items: [{ index: 0, verb: 'Xóa cột', text: '“5”', detail: 'Cột cùng 2 thẻ trong cột biến mất khỏi bảng và không khôi phục lại được ở giao diện.', danger: true }],
+    }) });
+    renderCard(turn);
+    const block = screen.getByRole('region', { name: 'Kế hoạch thao tác' });
+    expect(block.className).toContain('border-red-300');
+    expect(within(block).getByText('Xóa cột').className).toContain('text-red-700');
+    expect(within(block).getByRole('button', { name: 'Áp dụng' }).className).toContain('bg-red-600');
+    expect(within(block).getByRole('note')).toHaveTextContent('không khôi phục lại được ở giao diện');
+    cleanup();
+    renderCard(turnOf({ kind: 'PLAN', plan: plan() }));
+    const normal = screen.getByRole('region', { name: 'Kế hoạch thao tác' });
+    expect(normal.className).not.toContain('border-red-300');
+    expect(within(normal).getByRole('button', { name: 'Áp dụng' }).className).toContain('bg-primary');
+  });
+});
