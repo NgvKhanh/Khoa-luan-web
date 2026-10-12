@@ -42,6 +42,9 @@ const POSITIVE: readonly Case[] = [
   c('E-move-all', 'Chuyển hết thẻ cột Cần làm sang cột Đang làm', 'MOVE_ALL_CARDS'),
   c('E-delete-all', 'Xóa hết thẻ trong cột Hoàn thành', 'DELETE_ALL_CARDS'),
   c('E-list-status', 'Đặt cột Đang làm thành trạng thái đang thực hiện', 'SET_LIST_STATUS', 'ANY'),
+  c('E-list-status-natural', 'chuyển cột 2 từ đang làm sang chưa làm', 'SET_LIST_STATUS', 'ANY'),
+  c('E-delete-list-natural', 'xoá cho tôi cột "5"', 'DELETE_LIST'),
+  c('E-delete-all-typo', 'xoá hết các thẻ trong cột 2 cho tôi', 'DELETE_ALL_CARDS'),
   // F
   c('F-edit-comment', 'Sửa bình luận “đã review xong” của thẻ Login UI thành “đã duyệt”', 'EDIT_COMMENT'),
   c('F-delete-comment', 'Xóa bình luận “đã review xong” của thẻ Login UI', 'DELETE_COMMENT'),

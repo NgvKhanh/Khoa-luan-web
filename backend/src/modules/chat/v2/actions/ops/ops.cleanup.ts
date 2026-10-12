@@ -731,8 +731,15 @@ const setListStatus = defineOp<'SET_LIST_STATUS'>({
   slots: (op) => [{ name: 'list', kind: 'list', ref: op.list }],
   withRef: (op, name, ref) => (name === 'list' ? { ...op, list: ref } : op),
   licence(words, op) {
-    if (!mentions(words, [['trang', 'thai'], ['status']])) return [];
-    return verbThen(words, [['dat'], ['doi'], ['chuyen'], ['cap', 'nhat'], ['gan'], ['bo'], ['xoa'], ['set']], [['trang', 'thai'], ...LIST_NOUNS_VI], ownTexts(op.list), 4);
+    if (mentions(words, [['trang', 'thai'], ['status']])) {
+      return verbThen(words, [['dat'], ['doi'], ['chuyen'], ['cap', 'nhat'], ['gan'], ['bo'], ['xoa'], ['set']], [['trang', 'thai'], ...LIST_NOUNS_VI], ownTexts(op.list), 4);
+    }
+    // Khong noi "trang thai" nhung goi THANG ten trang thai cua cot (nhan o dau cot): "chuyen cot 2 tu dang lam sang chua lam".
+    // Chi cho trang thai da duoc nhac; "chuyen het the cot A sang Dang lam" khong qua (giua dong tu va "cot" con "het the").
+    if (op.status !== 'NONE' && statusMentions(words).some((m) => m.status === op.status)) {
+      return verbThen(words, [['doi'], ['chuyen'], ['dat'], ['cap', 'nhat']], LIST_NOUNS_VI, [], 4, ['tu']);
+    }
+    return [];
   },
   // trang thai phai la trang thai DUOC NHAC (khong tu chon); NONE phai co cum bo / tu do / khong gan
   grounded: (op, words) =>

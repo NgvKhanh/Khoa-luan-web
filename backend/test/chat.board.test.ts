@@ -141,6 +141,17 @@ describe('thuần: giấy phép + nguồn gốc + hình dạng kế hoạch', ()
     expect(lic('Xóa thẻ Login UI khỏi cột 5', list).licensed).toBe(false);
   });
 
+  it('trạng thái cột: "chuyển cột 2 từ đang làm sang chưa làm" (không nói "trạng thái" nhưng gọi thẳng tên trạng thái)', () => {
+    const o = { type: 'SET_LIST_STATUS', list: t('2'), status: 'TODO' };
+    expect(lic('chuyển cột 2 từ đang làm sang chưa làm', o).licensed).toBe(true);
+    expect(prov('chuyển cột 2 từ đang làm sang chưa làm', o).verdict).toBe('USER_DIRECT');
+    expect(lic('đổi cột 2 sang chưa làm', o).licensed).toBe(true);
+    // trạng thái mô hình đề xuất phải là trạng thái người dùng NHẮC; "chuyển hết thẻ" là chuyển thẻ, không phải đổi trạng thái cột
+    expect(lic('chuyển cột 2 từ đang làm sang chưa làm', { ...o, status: 'DONE' }).licensed).toBe(false);
+    expect(lic('chuyển hết thẻ cột 2 sang chưa làm', o).licensed).toBe(false);
+    expect(lic('Chuyển thẻ Login sang chưa làm', o).licensed).toBe(false);
+  });
+
   it('luật / trường: động từ + danh từ đúng loại', () => {
     expect(lic('Tắt luật tự động hóa đánh dấu xong', { type: 'TOGGLE_AUTOMATION_RULE', match: 'đánh dấu xong', enabled: false }).licensed).toBe(true);
     expect(lic('Bật luật đánh dấu xong', { type: 'TOGGLE_AUTOMATION_RULE', match: 'đánh dấu xong', enabled: false }).licensed).toBe(false);
