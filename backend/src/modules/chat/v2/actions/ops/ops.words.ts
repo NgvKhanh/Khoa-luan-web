@@ -19,8 +19,8 @@ export const COPY_VERBS: readonly Phrase[] = [['sao', 'chep'], ['copy'], ['nhan'
 export const ALL_CUES: readonly Phrase[] = [['tat', 'ca'], ['het'], ['toan', 'bo'], ['moi'], ['all'], ['cac']];
 export const EDIT_VERBS: readonly Phrase[] = [['sua'], ['doi'], ['cap', 'nhat'], ['chinh', 'sua'], ['edit'], ['update'], ['thay'], ['thay', 'doi'], ['viet', 'lai']];
 
-/** Tu dem (khong chi doi tuong) co the nam giua dong tu va danh tu ma khong doi nghia: "xoa GIUP TOI CAI the", "xoa TAT CA CAC the". */
-const FILLERS: ReadonlySet<string> = new Set(['cai', 'mot', 'cac', 'nhung', 'nay', 'do', 'tat', 'ca', 'het', 'toan', 'bo', 'giup', 'toi', 'minh', 'di', 'nhe', 'dum', 'ho', 'vui', 'long', 'hay', 'xin', 'lam', 'on', 'vai', 'moi', 'dang', 'dung', 'luon', 'ngay', 'bay', 'gio', 'cu', 'het']);
+/** Tu dem (khong chi doi tuong) co the nam giua dong tu va danh tu ma khong doi nghia: "xoa GIUP TOI CAI the", "xoa TAT CA CAC the", "xoa CHO TOI cot 5" (12/10: cau that cua nguoi dung bi tu choi vi thieu "cho"). */
+const FILLERS: ReadonlySet<string> = new Set(['cai', 'mot', 'cac', 'nhung', 'nay', 'do', 'tat', 'ca', 'het', 'toan', 'bo', 'giup', 'toi', 'minh', 'di', 'nhe', 'dum', 'ho', 'vui', 'long', 'hay', 'xin', 'lam', 'on', 'vai', 'moi', 'dang', 'dung', 'luon', 'ngay', 'bay', 'gio', 'cu', 'het', 'cho', 'gium', 'gium', 'em', 'anh', 'chi', 'ban']);
 
 /**
  * Vi tri bat dau cua cac dong tu `verbs` ma NGAY SAU no (chi cach bang cac tu dem) la mot danh tu trong `nouns` HOAC mot cum `own` (ten rieng cua doi

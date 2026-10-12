@@ -403,9 +403,9 @@ export function licenceFor(type: string, words: readonly string[], status?: Card
       at = removeBefore(words, LABEL_WORDS);
       break;
     case 'RENAME_LIST': {
-      // dong tu doi ten dung truoc danh tu "cot / list / danh sach" (toi da 3 tu): "doi ten cot A thanh B"
+      // dong tu doi ten dung truoc danh tu "cot / list / danh sach": "doi ten cot A thanh B", "doi ten cho toi cot A thanh B" ("doi ten" da chiem 2 tu)
       const nouns = indexesOfAny(words, LIST_NOUNS);
-      at = indexesOfAny(words, RENAME_VERBS).filter((v) => nouns.some((n) => n >= v && n - v <= CREATE_LIST_SPAN));
+      at = indexesOfAny(words, RENAME_VERBS).filter((v) => nouns.some((n) => n >= v && n - v <= NOUN_SPAN));
       break;
     }
     case 'ARCHIVE_CARD':

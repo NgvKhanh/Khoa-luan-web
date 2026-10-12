@@ -129,6 +129,18 @@ describe('thuần: giấy phép + nguồn gốc + hình dạng kế hoạch', ()
     expect(lic('Bỏ qua bình luận của thẻ Login UI', { type: 'DELETE_COMMENT', card: t('Login UI') }).licensed).toBe(false);
   });
 
+  it('câu thật của người dùng: "xóa CHO TÔI cột 5", "lưu trữ cho mình cột ..." (chữ "cho" giữa động từ và danh từ)', () => {
+    const list = { type: 'DELETE_LIST', list: t('5') };
+    expect(lic('xoá cho tôi cột "5"', list).licensed).toBe(true);
+    expect(lic('xoá cột 5" cho tôi', list).licensed).toBe(true);
+    expect(lic('hãy xóa giùm tôi cột 5 đi', list).licensed).toBe(true);
+    expect(lic('lưu trữ cho mình cột 5', { type: 'ARCHIVE_LIST', list: t('5') }).licensed).toBe(true);
+    expect(prov('đổi tên cho tôi cột Cần làm thành Việc cần làm', { type: 'RENAME_LIST', list: t('Cần làm'), name: 'Việc cần làm' }).verdict).toBe('USER_DIRECT');
+    // vẫn không cấp phép khi giữa động từ và danh từ còn từ chỉ ĐỐI TƯỢNG khác
+    expect(lic('Xóa cho tôi thẻ Login UI trong bảng Dự án Alpha', { type: 'DELETE_BOARD', confirmName: 'Dự án Alpha' }).licensed).toBe(false);
+    expect(lic('Xóa thẻ Login UI khỏi cột 5', list).licensed).toBe(false);
+  });
+
   it('luật / trường: động từ + danh từ đúng loại', () => {
     expect(lic('Tắt luật tự động hóa đánh dấu xong', { type: 'TOGGLE_AUTOMATION_RULE', match: 'đánh dấu xong', enabled: false }).licensed).toBe(true);
     expect(lic('Bật luật đánh dấu xong', { type: 'TOGGLE_AUTOMATION_RULE', match: 'đánh dấu xong', enabled: false }).licensed).toBe(false);
