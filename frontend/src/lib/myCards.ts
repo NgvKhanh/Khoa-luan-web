@@ -1,4 +1,5 @@
 // Phan nhom / mo ta han cho trang "Cong viec cua toi". HAM THUAN: nhan `now` de kiem thu duoc.
+import { fold } from './textFold';
 
 export type Bucket = 'overdue' | 'today' | 'week' | 'later' | 'none';
 
@@ -43,15 +44,7 @@ export function dueNote(dueIso: string | null, now: Date): { text: string; tone:
   return null;
 }
 
-/** So khop khong phan biet hoa thuong va dau tieng Viet. Chuoi tim rong = khop het. */
-export function fold(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/đ/gi, 'd')
-    .toLocaleLowerCase('vi')
-    .trim();
-}
+export { fold };
 
 export function matchesTitle(title: string, query: string): boolean {
   const q = fold(query);

@@ -298,6 +298,10 @@ export async function createBoardFromTemplate(
       name: name?.trim() || tpl.name,
       color: tpl.color,
       members: { create: { userId, role: 'OWNER' } },
+      // Mau co nhan rieng thi tao san; khong thi bang dung bo nhan mac dinh (tao khi mo danh sach nhan lan dau)
+      ...(tpl.labels && tpl.labels.length > 0
+        ? { labels: { create: tpl.labels.map((l) => ({ name: l.name, color: l.color })) } }
+        : {}),
       lists: {
         create: tpl.lists.map((l, li) => ({
           name: l.name,

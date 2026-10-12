@@ -19,7 +19,7 @@ import {
   setBoardStar,
   updateBoard,
 } from './board.service';
-import { BOARD_TEMPLATES } from './boardTemplates';
+import { BOARD_TEMPLATES, TEMPLATE_CATEGORIES } from './boardTemplates';
 
 function requireUserId(req: Request): string {
   if (!req.user) {
@@ -95,7 +95,7 @@ export const purgeBoardHandler = asyncHandler(
 
 export const listTemplatesHandler = asyncHandler(
   async (_req: Request, res: Response) => {
-    res.json({ success: true, data: { templates: BOARD_TEMPLATES } });
+    res.json({ success: true, data: { templates: BOARD_TEMPLATES, categories: TEMPLATE_CATEGORIES } });
   }
 );
 

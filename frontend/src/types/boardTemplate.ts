@@ -9,6 +9,8 @@ export interface UserBoardTemplateList {
   id: string;
   name: string;
   position: number;
+  /** Trang thai cot luc chup mau (null = cot tu do). */
+  status?: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'DONE' | 'BLOCKED' | null;
   cards: UserBoardTemplateCard[];
 }
 

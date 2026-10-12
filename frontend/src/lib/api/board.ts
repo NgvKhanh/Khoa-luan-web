@@ -8,6 +8,7 @@ import type {
   InvitePreview,
   JoinRequest,
 } from '../../types/board';
+import type { CardStatus } from '../../types/card';
 
 export async function fetchMyBoards(): Promise<Board[]> {
   const res = await api.get<{ data: { boards: Board[] } }>('/boards');
@@ -140,14 +141,26 @@ export interface BoardTemplate {
   id: string;
   name: string;
   description: string;
+  /** Nhom (id trong TemplateCategory). */
+  category: string;
   color: string;
-  lists: { name: string; cards: string[] }[];
+  /** Nhan tao san cua mau; khong co = bang dung bo nhan mac dinh. */
+  labels?: { name: string; color: string }[];
+  /** `status`: trang thai cua cot (null = cot tu do). */
+  lists: { name: string; status: CardStatus | null; cards: string[] }[];
 }
-export async function fetchTemplates(): Promise<BoardTemplate[]> {
-  const res = await api.get<{ data: { templates: BoardTemplate[] } }>(
-    '/boards/templates'
-  );
-  return res.data.data.templates;
+export interface TemplateCategory {
+  id: string;
+  name: string;
+}
+export async function fetchTemplates(): Promise<{
+  templates: BoardTemplate[];
+  categories: TemplateCategory[];
+}> {
+  const res = await api.get<{
+    data: { templates: BoardTemplate[]; categories: TemplateCategory[] };
+  }>('/boards/templates');
+  return { templates: res.data.data.templates, categories: res.data.data.categories ?? [] };
 }
 export async function createBoardFromTemplate(
   templateId: string,
