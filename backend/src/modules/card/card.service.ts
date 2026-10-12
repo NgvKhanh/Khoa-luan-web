@@ -183,6 +183,8 @@ export async function listMyCards(userId: string) {
       id: true,
       title: true,
       isDone: true,
+      // Trang thai the + cot + mau bang: trang "Cong viec cua toi" hien huy hieu trang thai khi the lech cot va cham mau bang
+      status: true,
       startDate: true,
       dueDate: true,
       coverColor: true,
@@ -190,8 +192,9 @@ export async function listMyCards(userId: string) {
         select: {
           id: true,
           name: true,
+          status: true,
           boardId: true,
-          board: { select: { id: true, name: true } },
+          board: { select: { id: true, name: true, color: true } },
         },
       },
       labels: { include: { label: true } },

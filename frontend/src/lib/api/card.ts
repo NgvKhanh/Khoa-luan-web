@@ -27,14 +27,17 @@ export interface MyCard {
   id: string;
   title: string;
   isDone: boolean;
+  status: CardStatus;
   startDate: string | null;
   dueDate: string | null;
   coverColor: string | null;
   list: {
     id: string;
     name: string;
+    /** Trang thai cua cot (null = cot tu do). */
+    status: CardStatus | null;
     boardId: string;
-    board: { id: string; name: string };
+    board: { id: string; name: string; color: string };
   };
   labels: { labelId: string; label: Label }[];
 }
