@@ -52,6 +52,7 @@ import searchRoutes from './modules/search/search.routes';
 import unsplashRoutes from './modules/unsplash/unsplash.routes';
 import workspaceRoutes from './modules/workspace/workspace.routes';
 import { AppError } from './utils/AppError';
+import { clientErrorOf } from './utils/clientError';
 
 /**
  * Tao va cau hinh Express app.
@@ -153,6 +154,13 @@ export function createApp() {
         ...(err.code ? { code: err.code } : {}),
         ...(err.data ? { data: err.data } : {}),
       });
+      return;
+    }
+
+    // Loi do client gui (JSON sai cu phap, body qua lon...): 4xx, khong phai loi he thong
+    const clientError = clientErrorOf(err);
+    if (clientError) {
+      res.status(clientError.status).json({ success: false, message: clientError.message });
       return;
     }
 

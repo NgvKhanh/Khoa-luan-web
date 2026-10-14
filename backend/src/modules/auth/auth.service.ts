@@ -5,6 +5,7 @@ import { prisma } from '../../config/prisma';
 import { avatarPublicPath, removeAvatarFile } from '../../config/upload';
 import { disconnectUserSockets } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
+import { isUniqueViolation } from '../../utils/clientError';
 import { signToken } from '../../utils/jwt';
 import { comparePassword, hashPassword } from '../../utils/password';
 import { createPersonalWorkspace } from '../workspace/workspace.service';
@@ -76,14 +77,21 @@ export async function registerUser(input: RegisterInput) {
 
   const passwordHash = await hashPassword(input.password);
 
-  const user = await prisma.user.create({
-    data: {
-      name: input.name,
-      email: input.email,
-      passwordHash,
-    },
-    select: PUBLIC_USER_SELECT,
-  });
+  // Hai yeu cau dang ky cung email dong thoi (hoac email cua tai khoan da xoa mem) deu qua duoc buoc
+  // kiem tra o tren; rang buoc duy nhat cua CSDL la hang rao cuoi cung -> 409 thay vi 500.
+  const user = await prisma.user
+    .create({
+      data: {
+        name: input.name,
+        email: input.email,
+        passwordHash,
+      },
+      select: PUBLIC_USER_SELECT,
+    })
+    .catch((err: unknown) => {
+      if (isUniqueViolation(err)) throw new AppError('Email nay da duoc su dung', 409);
+      throw err;
+    });
 
   // Moi nguoi dung co san 1 khong gian ca nhan
   await createPersonalWorkspace(user.id, user.name);
@@ -214,17 +222,25 @@ export async function loginWithGoogle(input: GoogleLoginInput) {
 
   // 3) Nguoi dung moi hoan toan
   if (!user) {
-    user = await prisma.user.create({
-      data: {
-        email,
-        name,
-        googleId,
-        avatarUrl: picture,
-        emailVerifiedAt: new Date(),
-        // passwordHash de trong -> tai khoan chi dang nhap Google
-      },
-      select: PUBLIC_USER_SELECT,
-    });
+    user = await prisma.user
+      .create({
+        data: {
+          email,
+          name,
+          googleId,
+          avatarUrl: picture,
+          emailVerifiedAt: new Date(),
+          // passwordHash de trong -> tai khoan chi dang nhap Google
+        },
+        select: PUBLIC_USER_SELECT,
+      })
+      .catch((err: unknown) => {
+        // Bam nut hai lan: yeu cau kia dang tao cung tai khoan nay
+        if (isUniqueViolation(err)) {
+          throw new AppError('Tai khoan dang duoc khoi tao. Hay thu lai sau it giay.', 409);
+        }
+        throw err;
+      });
     // Moi nguoi dung co san 1 khong gian ca nhan
     await createPersonalWorkspace(user.id, user.name);
   }
