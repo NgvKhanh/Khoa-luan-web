@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import AssistantPanel from '../components/assistant/AssistantPanel';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { AssistantProvider } from '../context/AssistantContext';
 import { useAuth } from '../context/AuthContext';
 import { BoardsProvider } from '../context/BoardsContext';
@@ -43,7 +44,10 @@ export default function ProtectedRoute() {
       <BoardsProvider>
         <AssistantProvider>
           <Outlet />
-          <AssistantPanel />
+          {/* Khung tro ly la phan phu: hong thi tu an di, khong keo theo trang dang mo */}
+          <ErrorBoundary scope="assistant" fallback={() => null}>
+            <AssistantPanel />
+          </ErrorBoundary>
         </AssistantProvider>
       </BoardsProvider>
     </WorkspacesProvider>

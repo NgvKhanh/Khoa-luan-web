@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import BoardSidebar, { BoardMobileNav } from '../components/BoardSidebar';
+import ErrorBoundary from '../components/ErrorBoundary';
 import Header from '../components/Header';
 import { useBoards } from '../context/BoardsContext';
 import type { Board } from '../types/board';
@@ -16,6 +17,7 @@ export interface BoardOutletContext {
 export default function BoardViewLayout() {
   const { boards, isLoading, error, upsertBoard } = useBoards();
   const [navOpen, setNavOpen] = useState(false);
+  const { pathname } = useLocation();
 
   const ctx: BoardOutletContext = {
     boards,
@@ -31,7 +33,9 @@ export default function BoardViewLayout() {
       <div className="flex min-h-0 flex-1">
         <BoardSidebar />
         <main className="min-w-0 flex-1 overflow-hidden">
-          <Outlet context={ctx} />
+          <ErrorBoundary scope="board-page" resetKey={pathname}>
+            <Outlet context={ctx} />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

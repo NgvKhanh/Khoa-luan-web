@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import EmailVerifyBanner from '../components/EmailVerifyBanner';
+import ErrorBoundary from '../components/ErrorBoundary';
 import Header from '../components/Header';
 import Sidebar, { MainMobileNav } from '../components/Sidebar';
 
@@ -24,7 +25,10 @@ export default function MainLayout() {
             key={pathname}
             className={`tf-page-in mx-auto w-full p-4 sm:p-6 ${wide ? 'max-w-6xl' : 'max-w-5xl'} ${fill ? 'md:h-full' : ''}`}
           >
-            <Outlet />
+            {/* Trang loi chi mat phan noi dung; Header + Sidebar con nguyen de nguoi dung di sang trang khac */}
+            <ErrorBoundary scope="page" resetKey={pathname}>
+              <Outlet />
+            </ErrorBoundary>
           </div>
         </main>
       </div>

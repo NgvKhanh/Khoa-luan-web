@@ -37,6 +37,8 @@ import CustomFieldsPanel from '../components/board/CustomFieldsPanel';
 import BoardFilterPanel from '../components/board/BoardFilterPanel';
 import BoardMembers from '../components/board/BoardMembers';
 import CardModal from '../components/board/CardModal';
+import CardModalCrash from '../components/board/CardModalCrash';
+import ErrorBoundary from '../components/ErrorBoundary';
 import CardItem from '../components/board/CardItem';
 import { CardHighlightContext } from '../components/board/CardHighlightContext';
 import ListColumn from '../components/board/ListColumn';
@@ -1284,15 +1286,24 @@ export default function BoardPage() {
       />
 
       {openCardId && (
-        <CardModal
-          cardId={openCardId}
-          lists={lists.map((l) => ({ id: l.id, name: l.name, status: l.status }))}
-          boardMembers={members}
-          currentUserId={user?.id}
-          readOnly={readOnly}
-          onClose={() => setOpenCardId(null)}
-          onChanged={reloadLists}
-        />
+        // key theo the: mo the khac thi boundary la moi, khong dinh trang thai loi cua the truoc
+        <ErrorBoundary
+          key={openCardId}
+          scope="card-modal"
+          fallback={({ reset }) => (
+            <CardModalCrash onClose={() => setOpenCardId(null)} onRetry={reset} />
+          )}
+        >
+          <CardModal
+            cardId={openCardId}
+            lists={lists.map((l) => ({ id: l.id, name: l.name, status: l.status }))}
+            boardMembers={members}
+            currentUserId={user?.id}
+            readOnly={readOnly}
+            onClose={() => setOpenCardId(null)}
+            onChanged={reloadLists}
+          />
+        </ErrorBoundary>
       )}
 
       {shortcutsOpen && (
