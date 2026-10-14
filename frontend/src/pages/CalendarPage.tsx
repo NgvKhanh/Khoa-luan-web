@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   DndContext,
@@ -17,6 +17,7 @@ import {
   type CalendarChecklistItem,
 } from '../lib/api/card';
 import { getErrorMessage } from '../lib/errorMessage';
+import DayDialog from '../components/calendar/DayDialog';
 
 const WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 const MONTHS = [
@@ -141,6 +142,9 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [moving, setMoving] = useState(false);
+  // Ngày (key ymd) đang mở hộp xem đủ việc; null = đóng
+  const [openDay, setOpenDay] = useState<string | null>(null);
+  const closeDay = useCallback(() => setOpenDay(null), []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -207,6 +211,8 @@ export default function CalendarPage() {
   }, [checklistItems]);
 
   const todayKey = ymd(new Date());
+  // Cột thứ của hôm nay (chỉ khi hôm nay nằm trong khoảng đang xem)
+  const todayColumn = days.some((d) => ymd(d) === todayKey) ? mondayIndex(new Date()) : -1;
   const shift = (delta: number) => {
     if (mode === 'week') {
       setAnchor((a) => {
@@ -260,6 +266,9 @@ export default function CalendarPage() {
       .catch((err) => setError(getErrorMessage(err, 'Không đổi được hạn.')))
       .finally(() => setMoving(false));
   }
+
+  // Đổi tháng/tuần khiến ngày đang mở không còn trong lưới thì hộp tự đóng
+  const openDayDate = openDay ? days.find((d) => ymd(d) === openDay) : undefined;
 
   const title =
     mode === 'week'
@@ -330,10 +339,14 @@ export default function CalendarPage() {
         {/* Màn hình hẹp: lịch cuộn ngang trong vùng riêng để mỗi ô đủ rộng đọc được tên thẻ */}
         <div className="overflow-x-auto rounded-xl">
         <div className="grid min-w-[640px] grid-cols-7 overflow-hidden rounded-xl border border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-800">
-          {WEEKDAYS.map((w) => (
+          {WEEKDAYS.map((w, col) => (
             <div
               key={w}
-              className="border-b border-slate-200 bg-slate-50 py-1.5 text-center text-xs font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+              className={`border-b border-slate-200 bg-slate-50 py-1.5 text-center text-xs font-semibold dark:border-slate-700 dark:bg-slate-900 ${
+                col === todayColumn
+                  ? 'text-primary-ink'
+                  : 'text-slate-500 dark:text-slate-400'
+              }`}
             >
               {w}
             </div>
@@ -341,47 +354,84 @@ export default function CalendarPage() {
           {days.map((d, i) => {
             const key = ymd(d);
             const inMonth = mode === 'week' || d.getMonth() === anchor.getMonth();
+            const isToday = key === todayKey;
             const dayCards = byDay.get(key) ?? [];
             const dayChecklist = checklistByDay.get(key) ?? [];
+            const total = dayCards.length + dayChecklist.length;
+            // Thẻ và mục checklist chung một danh sách, cắt đúng số dòng ô chứa được;
+            // phần còn lại (hidden) xem trong hộp của ngày.
+            const entries = [
+              ...dayCards.map((e) => ({ kind: 'card' as const, ...e })),
+              ...dayChecklist.map((item) => ({ kind: 'item' as const, item })),
+            ];
             const visibleCount = mode === 'week' ? 8 : 3;
+            const hidden = total - visibleCount;
+            const numberClass = `grid h-6 min-w-6 place-items-center rounded-full px-1 text-xs ${
+              isToday
+                ? 'bg-primary font-semibold text-white'
+                : inMonth
+                  ? 'text-slate-500 dark:text-slate-400'
+                  : 'text-slate-300 dark:text-slate-600'
+            }`;
+            const dayLabel = `${d.getDate()}/${d.getMonth() + 1}`;
             return (
               <DayCell key={i} dayKey={key}>
                 <div
                   className={`${mode === 'week' ? 'min-h-[220px]' : 'min-h-[92px]'} border-b border-r border-slate-100 p-1 dark:border-slate-700/60 ${
-                    inMonth ? '' : 'bg-slate-50/60 dark:bg-slate-900/40'
+                    isToday
+                      ? 'bg-primary-soft'
+                      : inMonth
+                        ? ''
+                        : 'bg-slate-50/60 dark:bg-slate-900/40'
                   }`}
                 >
-                  <div
-                    className={`mb-1 text-right text-xs ${
-                      key === todayKey
-                        ? 'font-bold text-primary-ink'
-                        : inMonth
-                          ? 'text-slate-500'
-                          : 'text-slate-300 dark:text-slate-600'
-                    }`}
-                  >
-                    {d.getDate()}
+                  <div className="mb-1 flex justify-end">
+                    {total > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setOpenDay(key)}
+                        aria-label={`Xem ${total} việc ngày ${dayLabel}`}
+                        aria-current={isToday ? 'date' : undefined}
+                        className={`${numberClass} ${
+                          isToday
+                            ? 'hover:bg-primary-hover'
+                            : 'hover:bg-slate-100 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {d.getDate()}
+                      </button>
+                    ) : (
+                      <span aria-current={isToday ? 'date' : undefined} className={numberClass}>
+                        {d.getDate()}
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-col gap-1">
-                    {dayCards.slice(0, visibleCount).map(({ card, isDue }) => (
-                      <CardChip
-                        key={card.id}
-                        card={card}
-                        isDue={isDue}
-                        onOpen={() => openCard(card)}
-                      />
-                    ))}
-                    {dayChecklist.slice(0, visibleCount).map((item) => (
-                      <ChecklistChip
-                        key={item.id}
-                        item={item}
-                        onOpen={() => openChecklistCard(item)}
-                      />
-                    ))}
-                    {dayCards.length + dayChecklist.length > visibleCount && (
-                      <span className="px-1 text-[10px] text-slate-400">
-                        +{dayCards.length + dayChecklist.length - visibleCount} nữa
-                      </span>
+                    {entries.slice(0, visibleCount).map((entry) =>
+                      entry.kind === 'card' ? (
+                        <CardChip
+                          key={`c:${entry.card.id}`}
+                          card={entry.card}
+                          isDue={entry.isDue}
+                          onOpen={() => openCard(entry.card)}
+                        />
+                      ) : (
+                        <ChecklistChip
+                          key={`i:${entry.item.id}`}
+                          item={entry.item}
+                          onOpen={() => openChecklistCard(entry.item)}
+                        />
+                      )
+                    )}
+                    {hidden > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setOpenDay(key)}
+                        aria-label={`Xem thêm ${hidden} việc ngày ${dayLabel}`}
+                        className="rounded px-1 py-0.5 text-left text-[11px] font-medium text-primary-ink hover:bg-primary-soft hover:underline dark:hover:bg-slate-700"
+                      >
+                        +{hidden} nữa
+                      </button>
                     )}
                   </div>
                 </div>
@@ -392,8 +442,20 @@ export default function CalendarPage() {
         </div>
       </DndContext>
       <p className="mt-2 text-xs text-slate-400">
-        Kéo một thẻ sang ngày khác để đổi hạn. Thẻ có mũi tên "→" là đang diễn ra (chưa tới hạn); viền nét đứt là mục checklist có hạn.
+        Kéo một thẻ sang ngày khác để đổi hạn. Bấm số ngày hoặc "+N nữa" để xem đủ việc của ngày đó. Thẻ có mũi tên "→" là đang diễn ra (chưa tới hạn); viền nét đứt là mục checklist có hạn.
       </p>
+
+      {openDayDate && (
+        <DayDialog
+          day={openDayDate}
+          isToday={openDay === todayKey}
+          cards={byDay.get(openDay ?? '') ?? []}
+          checklist={checklistByDay.get(openDay ?? '') ?? []}
+          onOpenCard={openCard}
+          onOpenChecklist={openChecklistCard}
+          onClose={closeDay}
+        />
+      )}
     </div>
   );
 }
