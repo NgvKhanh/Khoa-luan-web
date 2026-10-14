@@ -22,9 +22,10 @@ vi.mock('../lib/api/assign', () => ({
   myCvUrl: () => 'http://api.test/me/assign-profile/cv',
 }));
 
-const EMPTY: DeclaredProfile = { useForAssign: true, skillsText: '', workItems: [], cv: null, cvText: null };
+const EMPTY: DeclaredProfile = { useForAssign: true, cvShared: false, skillsText: '', workItems: [], cv: null, cvText: null };
 const FILLED: DeclaredProfile = {
   useForAssign: true,
+  cvShared: false,
   skillsText: 'React, SQL',
   workItems: [{ id: 'a1', title: 'Trang quản trị', description: 'Dashboard' }],
   cv: { fileName: 'CV Lan.pdf', size: 153_600, uploadedAt: '2026-09-20T05:00:00.000Z' },
@@ -118,6 +119,7 @@ describe('DeclaredProfileSection - sửa và lưu', () => {
     await waitFor(() => expect(mocks.saveDeclaredProfile).toHaveBeenCalledTimes(1));
     expect(mocks.saveDeclaredProfile).toHaveBeenCalledWith({
       useForAssign: false,
+      cvShared: false,
       skillsText: 'React, SQL, Docker',
       workItems: [
         { id: 'a1', title: 'Trang quản trị', description: 'Dashboard' },
@@ -240,5 +242,35 @@ describe('DeclaredProfileSection - CV', () => {
     expect(screen.getByText('Chưa tải CV lên.')).toBeInTheDocument();
     expect(screen.getByText(/Gợi ý đang dùng phần chữ CV bạn nhập tay trước đây/)).toBeInTheDocument();
     expect(screen.queryByLabelText('Nội dung CV dùng cho gợi ý')).not.toBeInTheDocument();
+  });
+});
+
+describe('DeclaredProfileSection - công tắc chia sẻ CV (mặc định tắt)', () => {
+  const shareSwitch = () => screen.getByRole('checkbox', { name: /Cho phép quản trị bảng/ });
+
+  it('mặc định TẮT; bật rồi Lưu gửi cvShared: true', async () => {
+    await setup(FILLED);
+    expect(shareSwitch()).not.toBeChecked();
+    fireEvent.click(shareSwitch());
+    expect(shareSwitch()).toBeChecked();
+    mocks.saveDeclaredProfile.mockResolvedValue({ ...FILLED, cvShared: true });
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(mocks.saveDeclaredProfile).toHaveBeenCalledTimes(1));
+    expect(mocks.saveDeclaredProfile).toHaveBeenCalledWith(expect.objectContaining({ cvShared: true }));
+    expect(await screen.findByText('Đã lưu hồ sơ kỹ năng.')).toBeInTheDocument();
+  });
+
+  it('hồ sơ đã chia sẻ hiện công tắc BẬT; tắt lại thì có thay đổi chưa lưu', async () => {
+    await setup({ ...FILLED, cvShared: true });
+    expect(shareSwitch()).toBeChecked();
+    expect(saveBtn()).toBeDisabled();
+    fireEvent.click(shareSwitch());
+    expect(saveBtn()).toBeEnabled();
+  });
+
+  it('tắt "Dùng hồ sơ này cho gợi ý" thì giải thích rõ công tắc chia sẻ chưa có tác dụng', async () => {
+    await setup({ ...FILLED, cvShared: true });
+    fireEvent.click(screen.getByRole('checkbox', { name: /Dùng hồ sơ này/ }));
+    expect(screen.getByText(/chưa có tác dụng vì bạn đã tắt/)).toBeInTheDocument();
   });
 });

@@ -16,6 +16,7 @@ import {
 
 const PROFILE: DeclaredProfile = {
   useForAssign: true,
+  cvShared: false,
   skillsText: 'React, SQL',
   workItems: [
     { id: 'a1', title: 'Trang quản trị', description: 'Dashboard' },
@@ -37,6 +38,7 @@ describe('draftOf / inputOf', () => {
   it('draftOf: ma cua may chu lam khoa; mo ta / chu CV null -> chuoi rong', () => {
     expect(draftOf(PROFILE)).toEqual({
       useForAssign: true,
+      cvShared: false,
       skillsText: 'React, SQL',
       workItems: [
         { key: 'a1', id: 'a1', title: 'Trang quản trị', description: 'Dashboard' },
@@ -57,6 +59,7 @@ describe('draftOf / inputOf', () => {
     });
     expect(inputOf(d)).toEqual({
       useForAssign: true,
+      cvShared: false,
       skillsText: 'React, SQL',
       workItems: [
         { id: 'a1', title: 'Trang quản trị', description: 'Dashboard' },
@@ -67,11 +70,15 @@ describe('draftOf / inputOf', () => {
     expect('id' in inputOf(d).workItems[1]!).toBe(false);
     expect(inputOf(draft({ cvText: 'Kinh nghiệm React' })).cvText).toBe('Kinh nghiệm React');
     expect(inputOf(draft({ useForAssign: false })).useForAssign).toBe(false);
+    expect(inputOf(draft({ cvShared: true })).cvShared).toBe(true);
+    // may chu cu chua co truong nay -> coi nhu chua chia se
+    expect(draftOf({ ...PROFILE, cvShared: undefined as unknown as boolean }).cvShared).toBe(false);
   });
 
   it('VONG TRON: inputOf(draftOf(p)) giu nguyen noi dung ho so', () => {
     expect(inputOf(draftOf(PROFILE))).toEqual({
       useForAssign: true,
+      cvShared: false,
       skillsText: 'React, SQL',
       workItems: [
         { id: 'a1', title: 'Trang quản trị', description: 'Dashboard' },

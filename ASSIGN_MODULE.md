@@ -2846,6 +2846,26 @@ lọt quản trị không gian rời nhóm (thiếu test), chủ CV rời bảng
 lấy nhiều dòng hơn (đã ghi chú trong mã). Chạy thử luật trên CSDL dev (chỉ đọc): chủ bảng nay xem được CV của thành viên bảng; chiều ngược lại
 vẫn bị chặn. Câu chữ ở trang Hồ sơ đổi theo.
 
+### Công tắc chia sẻ CV, mặc định TẮT (14/10/2026, user chọn)
+
+**Vì sao**: luật bảng của 04/10 cho chủ / quản trị bảng tải CV của mọi thành viên bảng. Mà thêm người đã có tài khoản vào bảng **không cần họ chấp nhận**
+(`addBoardMember`), nên bất kỳ ai tạo một bảng riêng rồi thêm nạn nhân bằng email đều tải được CV của họ (`useForAssign` mặc định bật). Đã tái hiện bằng
+test trước khi sửa (404 → thêm vào bảng → 200). User chọn trong 3 phương án (công tắc chia sẻ / lời mời phải chấp nhận / chỉ ghi cảnh báo).
+
+**Luật mới**: cột `UserAssignProfile.cvShared` (migration `20261014180000_cv_shared`, **mặc định false**). Người KHÁC chỉ tải được tệp CV khi
+**đồng thời** (1) có quan hệ quản lý theo bảng / không gian như 04/10 (`managedAmong`, không đổi), (2) chủ CV đang bật "dùng cho gợi ý", (3) chủ CV bật
+`cvShared`. Chính chủ luôn tải được. `PUT /api/me/assign-profile` nhận `cvShared` tùy chọn (không gửi = giữ giá trị hiện tại). `cvFileFor` và
+`cvDownloadableOf` (đường của `cvAvailable`, `cv-access`, nút "Xem CV") dùng chung một điều kiện nên nút nào hiện ra cũng bấm được.
+Gợi ý phân công **vẫn dùng chữ trích từ CV** (`cvText`) dù tắt chia sẻ: công tắc chỉ quản **tệp**.
+
+**Hệ quả với dữ liệu có sẵn**: mọi hồ sơ cũ nhận `false` → chủ / quản trị bảng mất nút "Xem CV" cho tới khi từng người bật công tắc ở trang Hồ sơ.
+
+**Giao diện**: một công tắc dưới khung CV; khi "dùng cho gợi ý" đang tắt, dòng giải thích nói rõ công tắc chia sẻ chưa có tác dụng.
+
+**Kiểm chứng**: `assign.profileapi.test.ts` thêm nhóm `cvShared` (mặc định / lưu / giữ / tắt, 400 khi không phải boolean, ca "người lạ tạo bảng rồi thêm
+nạn nhân" từ 404 → 200 chỉ sau khi chủ CV bật, tắt dùng-cho-gợi ý ghi đè) và sửa các ca cũ cho khớp mặc định mới; chạy lại trên mã cũ: 2 ca mới thất bại.
+Frontend: `DeclaredProfileSection.test.tsx` (3 ca mới), `declaredProfile.test.ts`.
+
 ### Nút "Xem CV" ở danh sách thành viên (04/10/2026, user chọn)
 
 Trước đây nút tải CV thành viên **chỉ** nằm trong mục "Vì sao?" của gợi ý phân công (ô Thành viên của một thẻ) — khó thấy. Thêm:

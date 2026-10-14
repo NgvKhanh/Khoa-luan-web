@@ -1,5 +1,6 @@
 // Buoc 17 - API ho so tu khai + CV (ASSIGN_MODULE.md §17.8-17.9): luu ho so, tai CV len (trich chu, luu tep RIENG), xoa, tai ve co
-// quyen (chu CV / OWNER-ADMIN khong gian chung; con lai 404), gioi han. Test tich hop qua HTTP tren DB THAT + tien trinh con THAT.
+// quyen (chu CV, hoac chu / quan tri bang / khong gian chung KHI chu CV BAT "chia se CV" - mac dinh tat; con lai 404), gioi han.
+// Test tich hop qua HTTP tren DB THAT + tien trinh con THAT.
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -29,6 +30,12 @@ const userCv = (u: TestUser | null, id: string) => {
   return u ? r.set('Cookie', u.cookie) : r;
 };
 const filesInCv = () => (fs.existsSync(CV_DIR) ? fs.readdirSync(CV_DIR) : []);
+// Chu CV chu dong BAT "chia se CV" (mac dinh TAT) qua API that. PUT khong gui cvShared se GIU gia tri, nen goi lai ho so hien co.
+const setShare = async (u: TestUser, cvShared: boolean) => {
+  const cur = (await get(u)).body.data;
+  return put(u, { useForAssign: cur.useForAssign, cvShared, skillsText: cur.skillsText, workItems: cur.workItems, cvText: cur.cvText });
+};
+const shareCv = (u: TestUser) => setShare(u, true);
 
 // Test tao tep that trong CV_DIR (thu muc TAM cua test - test/uploadsIsolation.ts, khong phai backend/uploads): don cac tep MOI
 // sinh ra sau moi test (TRUNCATE chi xoa dong CSDL). Danh sach "tep co san" chup NGAY khi nap tep va sau moi lan don: ban dau de
@@ -60,7 +67,7 @@ describe('GET / PUT /api/me/assign-profile', () => {
   it('chua khai -> ho so rong mac dinh (bat "dung cho goi y"); chua dang nhap 401; PUT luu du, cap ma cong viec; lan sau giu ma', async () => {
     const u = await makeDirectUser('A');
     expect((await get(null)).status).toBe(401);
-    expect((await get(u)).body.data).toEqual({ useForAssign: true, skillsText: '', workItems: [], cv: null, cvText: null });
+    expect((await get(u)).body.data).toEqual({ useForAssign: true, cvShared: false, skillsText: '', workItems: [], cv: null, cvText: null });
     const r = await put(u, VALID);
     expect(r.status).toBe(200);
     const items = r.body.data.workItems as { id: string; title: string; description: string | null }[];
@@ -90,6 +97,7 @@ describe('GET / PUT /api/me/assign-profile', () => {
       ['thieu cong viec', { useForAssign: true, skillsText: '', cvText: null }],
       ['thieu chu CV', { useForAssign: true, skillsText: '', workItems: [] }],
       ['cong tac khong phai boolean', { ...VALID, useForAssign: 'yes' }],
+      ['cvShared khong phai boolean', { ...VALID, cvShared: 'yes' }],
     ];
     for (const [label, body] of bad) expect((await put(u, body)).status, label).toBe(400);
     expect(await prisma.userAssignProfile.count()).toBe(0);
@@ -282,6 +290,11 @@ describe('GET /api/users/:userId/assign-profile/cv - quyen tai CV (luat 04/10: q
     await mkBoard(ws2.id, otherOwner.id);
     await upload(target, await cvDocx());
 
+    // Mac dinh chia se TAT: ke ca chu / quan tri bang va khong gian chua target cung KHONG tai duoc; chinh chu thi duoc
+    for (const u of [boardOwner, boardAdmin, wsOwner, wsAdmin]) expect((await userCv(u, target.id)).status, u.name).toBe(404);
+    expect((await userCv(target, target.id).buffer(true)).status).toBe(200);
+    expect((await shareCv(target)).status).toBe(200);
+
     for (const u of [target, boardOwner, boardAdmin, wsOwner, wsAdmin]) {
       const r = await userCv(u, target.id).buffer(true);
       expect(r.status, u.name).toBe(200);
@@ -391,7 +404,7 @@ describe('cvDownloadableOf - hoi theo lo (duong cua cvAvailable)', () => {
     ]);
     // Dong ho so + tep that trong CV_DIR (thu muc TAM cua test)
     for (const u of [stay, left, boss]) {
-      await prisma.userAssignProfile.create({ data: { userId: u.id, cvStoredName: `${u.id}.pdf`, cvFileName: 'cv.pdf', cvSize: 1, cvUploadedAt: new Date() } });
+      await prisma.userAssignProfile.create({ data: { userId: u.id, cvShared: true, cvStoredName: `${u.id}.pdf`, cvFileName: 'cv.pdf', cvSize: 1, cvUploadedAt: new Date() } });
       fs.writeFileSync(path.join(CV_DIR, `${u.id}.pdf`), 'pdf');
     }
     await prisma.userAssignProfile.create({ data: { userId: noCv.id, skillsText: 'React' } });
@@ -399,6 +412,11 @@ describe('cvDownloadableOf - hoi theo lo (duong cua cvAvailable)', () => {
     expect([...(await cvDownloadableOf(boss.id, [stay.id, left.id, noCv.id, boss.id]))].sort()).toEqual([boss.id, stay.id].sort());
     expect([...(await cvDownloadableOf(stay.id, [stay.id, boss.id]))]).toEqual([stay.id]); // thanh vien thuong: chi chinh minh
     expect([...(await cvDownloadableOf(boss.id, []))]).toEqual([]);
+    // Chu CV TAT chia se -> khong con trong danh sach cua nguoi quan ly (chinh chu van tai duoc); bat lai thi tro lai
+    await prisma.userAssignProfile.update({ where: { userId: stay.id }, data: { cvShared: false } });
+    expect([...(await cvDownloadableOf(boss.id, [stay.id, boss.id]))]).toEqual([boss.id]);
+    expect([...(await cvDownloadableOf(stay.id, [stay.id]))]).toEqual([stay.id]);
+    await prisma.userAssignProfile.update({ where: { userId: stay.id }, data: { cvShared: true } });
     // Dong con nhung TEP MAT tren dia -> khong co nut (ke ca chinh chu): nut nao hien ra cung bam duoc
     fs.rmSync(path.join(CV_DIR, `${stay.id}.pdf`));
     fs.rmSync(path.join(CV_DIR, `${boss.id}.pdf`));
@@ -417,6 +435,8 @@ describe('GET /api/me/assign-profile/cv-access - ai trong danh sach minh tai duo
     const w = await world();
     await upload(w.bob, await cvDocx());
     await upload(w.alice, await cvDocx());
+    await shareCv(w.bob);
+    await shareCv(w.alice);
     const q = `?userIds=${w.alice.id},%20${w.bob.id},${w.bob.id},${w.viewer.id},khong-ton-tai,${w.owner.id}`;
     const r = await access(w.owner, q);
     expect(r.status).toBe(200);
@@ -464,6 +484,10 @@ describe('CV di vao bo cham, chu CV khong ra ngoai', () => {
     const w = await world();
     const target = await newTarget(w.listId);
     await upload(w.bob, await cvDocx());
+    // Chua bat chia se -> khong ai ngoai bob co nut tai CV
+    expect(candOf((await suggest(w.owner, target.id)).body, w.bob).cvAvailable).toBe(false);
+    expect(candOf((await suggest(w.bob, target.id)).body, w.bob).cvAvailable).toBe(true);
+    await shareCv(w.bob);
     // bob CHI la thanh vien BANG (khong phai thanh vien khong gian) - chu bang van thay (luat 04/10)
     let res = await suggest(w.owner, target.id);
     expect(candOf(res.body, w.bob).cvAvailable).toBe(true);
@@ -484,6 +508,47 @@ describe('CV di vao bo cham, chu CV khong ra ngoai', () => {
     // bob tat cong tac -> khong ai khac thay
     await put(w.bob, { ...VALID, useForAssign: false });
     expect(candOf((await suggest(w.owner, target.id)).body, w.bob).cvAvailable).toBe(false);
+  });
+});
+
+describe('cvShared - cong tac chia se CV (14/10/2026: truoc do bat ky ai them nguoi vao bang cua minh deu tai duoc CV)', () => {
+  it('mac dinh TAT; PUT luu / giu / tat; gia tri khong phai boolean -> 400', async () => {
+    const u = await makeDirectUser('Chu CV');
+    expect((await get(u)).body.data.cvShared).toBe(false);
+    expect((await put(u, VALID)).body.data.cvShared).toBe(false); // khong gui cvShared -> mac dinh tat
+    expect((await put(u, { ...VALID, cvShared: true })).body.data.cvShared).toBe(true);
+    // Ban cu cua client khong gui cvShared -> GIU gia tri hien tai (khong tat ngam)
+    expect((await put(u, { ...VALID, skillsText: 'Docker' })).body.data.cvShared).toBe(true);
+    expect((await get(u)).body.data.cvShared).toBe(true);
+    expect((await put(u, { ...VALID, cvShared: false })).body.data.cvShared).toBe(false);
+    expect((await put(u, { ...VALID, cvShared: 1 })).status).toBe(400);
+    expect((await get(u)).body.data.cvShared).toBe(false);
+  });
+
+  it('nguoi la tao bang rieng roi them nan nhan vao DO KHONG tai duoc CV khi chua bat chia se; bat roi moi tai duoc; tat lai thi het', async () => {
+    startTracking();
+    const victim = await makeDirectUser('Nan nhan');
+    const stranger = await makeDirectUser('Nguoi la');
+    await upload(victim, await cvDocx());
+    const board = await agent().post('/api/boards').set('Cookie', stranger.cookie).send({ name: 'Bang cua nguoi la', workspaceId: stranger.personalWorkspaceId });
+    expect(board.status).toBe(201);
+    const add = await agent()
+      .post(`/api/boards/${board.body.data.board.id}/members`)
+      .set('Cookie', stranger.cookie)
+      .send({ email: victim.email, role: 'MEMBER' });
+    expect(add.status).toBe(201); // them thang, khong can dong y (hanh vi sao chep Trello cua he thong)
+
+    expect((await userCv(stranger, victim.id)).status).toBe(404); // truoc day: 200
+    expect((await shareCv(victim)).status).toBe(200);
+    expect((await userCv(stranger, victim.id).buffer(true)).status).toBe(200);
+    // Tat "dung cho goi y" ghi de chia se: rut CV khoi moi nguoi
+    await put(victim, { ...VALID, useForAssign: false });
+    expect((await userCv(stranger, victim.id)).status).toBe(404);
+    await put(victim, { ...VALID, useForAssign: true });
+    expect((await userCv(stranger, victim.id).buffer(true)).status).toBe(200);
+    await setShare(victim, false);
+    expect((await userCv(stranger, victim.id)).status).toBe(404);
+    expect((await myCv(victim)).status).toBe(200); // chinh chu luon tai duoc
   });
 });
 

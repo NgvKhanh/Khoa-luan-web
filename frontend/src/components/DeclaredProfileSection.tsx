@@ -32,7 +32,46 @@ import {
 
 // Mục "Hồ sơ kỹ năng" của trang Hồ sơ cá nhân (ASSIGN_MODULE.md §17): kỹ năng, công việc đã làm và CV mà người dùng TỰ KHAI để
 // gợi ý phân công dùng làm thành phần "Hồ sơ" ở MỌI không gian. Tải CV lên = máy chủ trích chữ (không dùng AI); tệp CV chỉ chính
-// chủ và chủ / quản trị viên của một bảng có người đó (hoặc của không gian chứa bảng đó) tải được.
+// chủ và chủ / quản trị viên của một bảng có người đó (hoặc của không gian chứa bảng đó) tải được, VÀ chỉ khi chính chủ bật công tắc
+// "chia sẻ CV" (mặc định tắt) - xem declaredProfile.service.ts (managedAmong, cvFileFor).
+
+/** Một hàng công tắc (checkbox trình bày như công tắc): tiêu đề + giải thích. */
+function SwitchRow({
+  title,
+  hint,
+  checked,
+  onChange,
+}: {
+  title: string;
+  hint: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200">
+      <span className="min-w-0">
+        <span className="font-medium">{title}</span>
+        <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">{hint}</span>
+      </span>
+      <span className="relative mt-0.5 inline-flex shrink-0">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          className="peer sr-only"
+        />
+        <span
+          aria-hidden="true"
+          className="h-6 w-11 rounded-full bg-slate-300 transition-colors peer-checked:bg-primary peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary dark:bg-slate-600"
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-xs transition-transform peer-checked:translate-x-5 motion-reduce:transition-none"
+        />
+      </span>
+    </label>
+  );
+}
 
 const inputCls = profileInput + ' resize-y';
 const labelCls = 'mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200';
@@ -161,30 +200,12 @@ export default function DeclaredProfileSection() {
 
   return (
     <div className="flex flex-col gap-6">
-      <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200">
-        <span className="min-w-0">
-          <span className="font-medium">Dùng hồ sơ này cho gợi ý phân công</span>
-          <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
-            Tắt thì gợi ý coi như bạn chưa khai, và người khác không tải được CV của bạn.
-          </span>
-        </span>
-        <span className="relative mt-0.5 inline-flex shrink-0">
-          <input
-            type="checkbox"
-            checked={draft.useForAssign}
-            onChange={(e) => patch({ useForAssign: e.target.checked })}
-            className="peer sr-only"
-          />
-          <span
-            aria-hidden="true"
-            className="h-6 w-11 rounded-full bg-slate-300 transition-colors peer-checked:bg-primary peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary dark:bg-slate-600"
-          />
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-xs transition-transform peer-checked:translate-x-5 motion-reduce:transition-none"
-          />
-        </span>
-      </label>
+      <SwitchRow
+        title="Dùng hồ sơ này cho gợi ý phân công"
+        hint="Tắt thì gợi ý coi như bạn chưa khai, và người khác không tải được CV của bạn."
+        checked={draft.useForAssign}
+        onChange={(checked) => patch({ useForAssign: checked })}
+      />
 
       <div>
         <label htmlFor="declared-skills" className={labelCls}>
@@ -375,11 +396,18 @@ export default function DeclaredProfileSection() {
             />
           </div>
         </div>
-        <p className={hintCls}>
-          Tệp chỉ bạn và chủ / quản trị viên của các bảng bạn tham gia (hoặc của không gian chứa các bảng đó) tải được. Tắt gợi
-          ý phân công để ngừng chia sẻ CV với người khác.
-        </p>
       </div>
+
+      <SwitchRow
+        title="Cho phép quản trị bảng / không gian chung tải tệp CV của tôi"
+        hint={
+          draft.useForAssign
+            ? 'Mặc định TẮT: khi tắt, chỉ mình bạn tải được tệp CV. Khi bật, chủ hoặc quản trị viên của bảng (hoặc không gian) mà bạn tham gia tải được. Gợi ý phân công vẫn dùng chữ trích từ CV dù công tắc này tắt.'
+            : 'Hiện chưa có tác dụng vì bạn đã tắt "Dùng hồ sơ này cho gợi ý phân công" (khi đó người khác không tải được CV của bạn).'
+        }
+        checked={draft.cvShared}
+        onChange={(checked) => patch({ cvShared: checked })}
+      />
 
       {issues.length > 0 && (
         <ul

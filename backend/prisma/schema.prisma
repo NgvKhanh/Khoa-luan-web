@@ -1,4 +1,6 @@
-// Prisma schema - phien ban skeleton: chi con xac thuc nguoi dung.
+// Prisma schema cua TaskFlow: nguoi dung / khong gian / bang / the, chia se + thong bao, tu dong hoa, module AI
+// (tao bang, goi y phan cong, chatbot). Rang buoc bat bien cua the (status / isDone / completedAt) giu o
+// src/modules/card/cardStatus.ts, KHONG o day.
 // Quy uoc: createdAt, updatedAt, deletedAt (xoa mem thay vi xoa cung).
 
 generator client {
@@ -987,11 +989,15 @@ model Activity {
 
 // Ho so TU KHAI cua 1 nguoi (buoc 16, ASSIGN_MODULE.md §17.2, §17.8): dung o MOI khong gian, sua o trang Ho so ca nhan.
 // Cascade theo nguoi dung (du lieu rieng - xoa tai khoan phai xoa theo). Tep CV nam o uploads/cv/<cvStoredName> (thu muc
-// RIENG, khong mount tinh); chi chu CV va OWNER/ADMIN khong gian chung tai duoc (buoc 17).
+// RIENG, khong mount tinh); chi chu CV va chu / quan tri bang (hoac khong gian) chung tai duoc (buoc 17), VA chi khi
+// chu CV BAT cvShared (14/10/2026: truoc do bat ky ai them nguoi nay vao bang cua minh deu tai duoc, khong can ho dong y).
 model UserAssignProfile {
   userId       String    @id
   // Tat -> coi nhu khong co ho so (co NO_PROFILE)
   useForAssign Boolean   @default(true)
+  // Cho phep nguoi QUAN LY chung tai TEP CV. Mac dinh TAT: nguoi khac khong tai duoc cho toi khi chu CV bat.
+  // Khong anh huong goi y phan cong (van dung chu trich tu CV).
+  cvShared     Boolean   @default(false)
   skillsText   String    @default("")
   // [{ id, title, description }] - toi da 30 muc (kiem o zod)
   workItems    Json      @default("[]")

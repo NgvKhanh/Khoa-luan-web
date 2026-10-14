@@ -20,6 +20,8 @@ export interface WorkItemDraft {
 
 export interface ProfileDraft {
   useForAssign: boolean;
+  /** Cho phep nguoi quan ly chung tai tep CV (mac dinh tat). */
+  cvShared: boolean;
   skillsText: string;
   workItems: WorkItemDraft[];
   /** Chu CV dang sua; '' = khong co. */
@@ -29,6 +31,7 @@ export interface ProfileDraft {
 export function draftOf(p: DeclaredProfile): ProfileDraft {
   return {
     useForAssign: p.useForAssign,
+    cvShared: p.cvShared === true,
     skillsText: p.skillsText,
     workItems: p.workItems.map((w) => ({ key: w.id, id: w.id, title: w.title, description: w.description ?? '' })),
     cvText: p.cvText ?? '',
@@ -39,6 +42,7 @@ export function draftOf(p: DeclaredProfile): ProfileDraft {
 export function inputOf(d: ProfileDraft): DeclaredProfileInput {
   return {
     useForAssign: d.useForAssign,
+    cvShared: d.cvShared,
     skillsText: d.skillsText,
     workItems: d.workItems.map((w) => ({
       ...(w.id ? { id: w.id } : {}),

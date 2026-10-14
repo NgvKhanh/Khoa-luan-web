@@ -19,6 +19,8 @@ export const workItemSchema = z.object({
 
 export const declaredProfileSchema = z.object({
   useForAssign: z.boolean(),
+  // Chia se TEP CV voi nguoi quan ly bang / khong gian chung. Tuy chon: khong gui = giu nguyen (mac dinh tat).
+  cvShared: z.boolean().optional(),
   skillsText: z.string().max(SKILLS_MAX_CHARS, `Kỹ năng tối đa ${SKILLS_MAX_CHARS} ký tự`),
   workItems: z.array(workItemSchema).max(WORK_ITEMS_MAX, `Tối đa ${WORK_ITEMS_MAX} công việc`),
   cvText: z.string().max(CV_TEXT_MAX, `Nội dung CV tối đa ${CV_TEXT_MAX} ký tự`).nullable(),

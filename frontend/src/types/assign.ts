@@ -218,6 +218,8 @@ export interface DeclaredCvInfo {
 export interface DeclaredProfile {
   /** Tat = bo cham coi nhu nguoi nay khong khai. */
   useForAssign: boolean;
+  /** Cho phep chu / quan tri bang (khong gian) chung TAI TEP CV. Mac dinh TAT - nguoi khac khong tai duoc neu chua bat. */
+  cvShared: boolean;
   skillsText: string;
   workItems: DeclaredWorkItem[];
   cv: DeclaredCvInfo | null;
@@ -227,6 +229,8 @@ export interface DeclaredProfile {
 
 export interface DeclaredProfileInput {
   useForAssign: boolean;
+  /** Bo qua = giu gia tri hien tai tren may chu. */
+  cvShared?: boolean;
   skillsText: string;
   /** Muc moi khong co `id` (may chu cap). */
   workItems: { id?: string; title: string; description?: string | null }[];

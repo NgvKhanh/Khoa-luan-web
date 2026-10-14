@@ -1,7 +1,8 @@
 // Ho so TU KHAI cua chinh nguoi dung (ky nang, cong viec da lam, CV) - ASSIGN_MODULE.md §17.2, §17.8, §17.9 (buoc 17).
 // Mot ho so / nguoi, dung o MOI khong gian. Doc CV = TRICH CHU bang bo trich cua module AI (khong goi LLM); nguoi dung sua chu
-// roi luu. Tep CV la du lieu ca nhan nhay cam: thu muc RIENG (khong mount tinh), ten ngau nhien, chi chu CV va OWNER/ADMIN cua
-// mot khong gian ma chu CV la thanh vien tai duoc - nguoi khac nhan 404 (khong lo ra la co CV hay khong).
+// roi luu. Tep CV la du lieu ca nhan nhay cam: thu muc RIENG (khong mount tinh), ten ngau nhien. Chi chu CV tai duoc, tru khi chu CV
+// BAT "chia se CV" (cvShared, mac dinh tat) - khi do chu / quan tri cua bang (hoac khong gian chua bang) co chu CV la thanh vien
+// moi tai duoc. Nguoi khac nhan 404 (khong lo ra la co CV hay khong).
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -27,6 +28,8 @@ export interface CvInfo {
 
 export interface DeclaredProfileView {
   useForAssign: boolean;
+  /** Cho phep nguoi quan ly chung tai TEP CV (mac dinh false). */
+  cvShared: boolean;
   skillsText: string;
   workItems: WorkItemView[];
   cv: CvInfo | null;
@@ -34,7 +37,7 @@ export interface DeclaredProfileView {
   cvText: string | null;
 }
 
-const EMPTY: DeclaredProfileView = { useForAssign: true, skillsText: '', workItems: [], cv: null, cvText: null };
+const EMPTY: DeclaredProfileView = { useForAssign: true, cvShared: false, skillsText: '', workItems: [], cv: null, cvText: null };
 
 type Row = NonNullable<Awaited<ReturnType<typeof readRow>>>;
 
@@ -55,6 +58,7 @@ function viewOf(row: Row | null): DeclaredProfileView {
   if (!row) return { ...EMPTY };
   return {
     useForAssign: row.useForAssign,
+    cvShared: row.cvShared,
     skillsText: row.skillsText,
     workItems: workItemsOf(row.workItems),
     cv:
@@ -77,7 +81,12 @@ export async function saveMyDeclaredProfile(userId: string, input: DeclaredProfi
     description: w.description ?? null,
   }));
   const data = { useForAssign: input.useForAssign, skillsText: input.skillsText, workItems, cvText: input.cvText };
-  const row = await prisma.userAssignProfile.upsert({ where: { userId }, create: { userId, ...data }, update: data });
+  // cvShared la tuy chon trong than PUT (ban cu cua client khong gui): bo qua = giu gia tri hien tai (mac dinh tat)
+  const row = await prisma.userAssignProfile.upsert({
+    where: { userId },
+    create: { userId, ...data, cvShared: input.cvShared ?? false },
+    update: { ...data, ...(input.cvShared !== undefined ? { cvShared: input.cvShared } : {}) },
+  });
   return viewOf(row);
 }
 
@@ -194,7 +203,8 @@ export async function cvFileFor(requesterId: string, targetId: string): Promise<
   if (!(await canDownloadCv(requesterId, targetId))) throw notFound;
   const row = await readRow(targetId);
   if (!row?.cvStoredName || !row.cvFileName) throw notFound;
-  if (requesterId !== targetId && !row.useForAssign) throw notFound;
+  // Nguoi khac chi tai duoc khi chu CV dang dung ho so cho goi y VA chu dong bat chia se CV
+  if (requesterId !== targetId && !(row.useForAssign && row.cvShared)) throw notFound;
   const diskPath = cvDiskPath(row.cvStoredName);
   if (!fs.existsSync(diskPath)) throw notFound;
   return { diskPath, fileName: row.cvFileName, storedName: row.cvStoredName };
@@ -209,13 +219,13 @@ export async function cvDownloadableOf(requesterId: string, userIds: readonly st
   if (userIds.length === 0) return out;
   const rows = await prisma.userAssignProfile.findMany({
     where: { userId: { in: [...userIds] }, cvStoredName: { not: null }, cvFileName: { not: null } },
-    select: { userId: true, useForAssign: true, cvStoredName: true },
+    select: { userId: true, useForAssign: true, cvShared: true, cvStoredName: true },
   });
   const others: string[] = [];
   for (const r of rows) {
     if (!fs.existsSync(cvDiskPath(r.cvStoredName!))) continue;
     if (r.userId === requesterId) out.add(r.userId);
-    else if (r.useForAssign) others.push(r.userId);
+    else if (r.useForAssign && r.cvShared) others.push(r.userId);
   }
   for (const id of await managedAmong(requesterId, others)) out.add(id);
   return out;
