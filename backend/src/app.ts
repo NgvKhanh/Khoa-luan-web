@@ -1,6 +1,7 @@
 import cookieParser from 'cookie-parser';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { env } from './config/env';
 import { AVATAR_DIR, BOARD_BG_DIR } from './config/upload';
 import { optionalAuth } from './middleware/auth.middleware';
@@ -61,6 +62,28 @@ import { clientErrorOf } from './utils/clientError';
 export function createApp() {
   const app = express();
 
+  // Khong lo "X-Powered-By: Express" (helmet cung bo header nay; dat ro de khong phu thuoc phien ban)
+  app.disable('x-powered-by');
+  // Sau reverse proxy phai khai bao TRUST_PROXY, neu khong moi gioi han theo IP gop chung ca nguoi dung
+  if (env.trustProxy !== null) app.set('trust proxy', env.trustProxy);
+
+  // Bo header an toan (X-Content-Type-Options, X-Frame-Options, Referrer-Policy...).
+  app.use(
+    helmet({
+      // Anh dai dien / anh nen / tep the duoc nhung tu frontend o NGUON KHAC (localhost:5173 -> :4000).
+      // Mac dinh "same-origin" cua helmet se chan <img src=".../uploads/...">.
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      // API tra JSON va tep tinh, khong phuc vu trang HTML: CSP chat chi co loi (chan neu mot phan hoi
+      // bi trinh duyet hieu nham la HTML), khong anh huong anh / tep.
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] },
+      },
+      // HSTS chi co y nghia qua HTTPS: bat o production, tat o dev (http://localhost).
+      strictTransportSecurity: env.isProduction ? { maxAge: 15_552_000 } : false,
+    })
+  );
+
   // Chi cho phep frontend trong danh sach CORS_ORIGIN goi API
   app.use(
     cors({
@@ -70,8 +93,9 @@ export function createApp() {
   );
 
   // Doc du lieu JSON gui len (gioi han 1mb de tranh request qua lon)
+  // Chi nhan JSON (va multipart o cac route upload, do multer xu ly rieng). KHONG bat urlencoded: khong
+  // endpoint nao dung, va nhan form-post cheo trang se la cua ngo CSRF cho moi route co cookie.
   app.use(express.json({ limit: '1mb' }));
-  app.use(express.urlencoded({ extended: true }));
   // Doc cookie (dung de lay JWT luu trong cookie httpOnly)
   app.use(cookieParser());
 

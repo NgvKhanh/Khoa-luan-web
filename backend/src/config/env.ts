@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { parseTrustProxy } from './trustProxy';
 
 // Doc file .env va nap vao process.env
 dotenv.config();
@@ -103,6 +104,11 @@ export const env = {
   nodeEnv,
   isProduction: nodeEnv === 'production',
   port: getPort('PORT', 4000),
+  /**
+   * Tin bao nhieu cap reverse proxy khi tinh req.ip (gioi han theo IP). null = khong tin (mac dinh).
+   * Xem config/trustProxy.ts. BAT BUOC dat khi chay sau nginx / Cloudflare...
+   */
+  trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
   /** Danh sach domain frontend duoc phep goi API */
   corsOrigins: getString('CORS_ORIGIN', 'http://localhost:5173')
     .split(',')
