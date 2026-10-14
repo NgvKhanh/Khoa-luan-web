@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import EmailVerifyBanner from '../components/EmailVerifyBanner';
 import ErrorBoundary from '../components/ErrorBoundary';
 import Header from '../components/Header';
+import PageLoading from '../components/PageLoading';
 import Sidebar, { MainMobileNav } from '../components/Sidebar';
 
 export default function MainLayout() {
@@ -27,7 +28,9 @@ export default function MainLayout() {
           >
             {/* Trang loi chi mat phan noi dung; Header + Sidebar con nguyen de nguoi dung di sang trang khac */}
             <ErrorBoundary scope="page" resetKey={pathname}>
-              <Outlet />
+              <Suspense fallback={<PageLoading />}>
+                <Outlet />
+              </Suspense>
             </ErrorBoundary>
           </div>
         </main>

@@ -99,7 +99,8 @@ describe('noi tro ly vao app', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Trợ lý' }));
     });
-    const panel = screen.getByRole('dialog', { name: 'Trợ lý công việc' });
+    // Khung trợ lý là React.lazy: chunk tải xong mới có hộp thoại
+    const panel = await screen.findByRole('dialog', { name: 'Trợ lý công việc' });
     fireEvent.change(within(panel).getByRole('textbox', { name: 'Câu hỏi cho trợ lý' }), { target: { value: 'Việc của tôi?' } });
     await act(async () => {
       fireEvent.click(within(panel).getByRole('button', { name: 'Gửi' }));

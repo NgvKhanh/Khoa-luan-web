@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import BoardCard from '../components/BoardCard';
 import { Skeleton, SkeletonBoardGrid, SkeletonRegion } from '../components/Skeleton';
-import AiGenerateBoardModal from '../components/board/AiGenerateBoardModal';
-import CreateBoardDialog from '../components/board/CreateBoardDialog';
+import { AiGenerateBoardModal, CreateBoardDialog } from '../components/board/lazy';
+import { ModalLoading } from '../components/PageLoading';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useBoards } from '../context/BoardsContext';
 import { useWorkspaces } from '../context/WorkspacesContext';
@@ -53,30 +53,34 @@ function CreateBoardTile({
       </button>
 
       {open && (
-        <CreateBoardDialog
-          className="tf-menu-in absolute left-0 top-[calc(100%+6px)] z-40"
-          workspaceId={workspaceId}
-          onClose={() => setOpen(false)}
-          onOpenAi={() => {
-            setOpen(false);
-            setAiOpen(true);
-          }}
-          onCreated={(board) => {
-            onCreated(board);
-            setOpen(false);
-          }}
-        />
+        <Suspense fallback={null}>
+          <CreateBoardDialog
+            className="tf-menu-in absolute left-0 top-[calc(100%+6px)] z-40"
+            workspaceId={workspaceId}
+            onClose={() => setOpen(false)}
+            onOpenAi={() => {
+              setOpen(false);
+              setAiOpen(true);
+            }}
+            onCreated={(board) => {
+              onCreated(board);
+              setOpen(false);
+            }}
+          />
+        </Suspense>
       )}
     </div>
     {aiOpen && (
-      <AiGenerateBoardModal
-        workspaceId={workspaceId}
-        onClose={() => setAiOpen(false)}
-        onCreated={(board) => {
-          onCreated(board);
-          setAiOpen(false);
-        }}
-      />
+      <Suspense fallback={<ModalLoading />}>
+        <AiGenerateBoardModal
+          workspaceId={workspaceId}
+          onClose={() => setAiOpen(false)}
+          onCreated={(board) => {
+            onCreated(board);
+            setAiOpen(false);
+          }}
+        />
+      </Suspense>
     )}
     </>
   );

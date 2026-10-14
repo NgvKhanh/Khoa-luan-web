@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import BoardSidebar, { BoardMobileNav } from '../components/BoardSidebar';
 import ErrorBoundary from '../components/ErrorBoundary';
 import Header from '../components/Header';
+import PageLoading from '../components/PageLoading';
 import { useBoards } from '../context/BoardsContext';
 import type { Board } from '../types/board';
 
@@ -34,7 +35,9 @@ export default function BoardViewLayout() {
         <BoardSidebar />
         <main className="min-w-0 flex-1 overflow-hidden">
           <ErrorBoundary scope="board-page" resetKey={pathname}>
-            <Outlet context={ctx} />
+            <Suspense fallback={<PageLoading />}>
+              <Outlet context={ctx} />
+            </Suspense>
           </ErrorBoundary>
         </main>
       </div>

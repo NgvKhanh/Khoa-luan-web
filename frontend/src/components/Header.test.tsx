@@ -110,11 +110,12 @@ describe('Header - menu "Tạo mới" + modal AI', () => {
     expect(modal()).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Tạo mới/ }));
-    expect(popoverTitle()).toBeInTheDocument();
+    // Hộp thoại tạo bảng và modal AI là React.lazy: chunk tải xong mới hiện
+    expect(await screen.findByText('Tạo bảng', { exact: true })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Tạo bằng AI/ }));
 
+    expect(await screen.findByRole('heading', { name: 'Tạo bảng bằng AI' })).toBeInTheDocument();
     expect(popoverTitle()).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Tạo bảng bằng AI' })).toBeInTheDocument();
 
     // mousedown ngoài vùng popover (đúng thứ làm popover tự đóng): modal vẫn ở đó và gõ được
     const box = screen.getByRole('textbox', { name: 'Mô tả công việc' });
@@ -136,8 +137,8 @@ describe('Header - menu "Tạo mới" + modal AI', () => {
   it('tạo bảng từ modal: upsertBoard đúng bảng, gọi apply đúng kế hoạch, chuyển sang /boards/:id, modal biến mất', async () => {
     const user = renderMenu();
     await user.click(screen.getByRole('button', { name: /Tạo mới/ }));
-    await user.click(screen.getByRole('button', { name: /Tạo bằng AI/ }));
-    await user.click(screen.getByRole('textbox', { name: 'Mô tả công việc' }));
+    await user.click(await screen.findByRole('button', { name: /Tạo bằng AI/ }));
+    await user.click(await screen.findByRole('textbox', { name: 'Mô tả công việc' }));
     await user.paste('- Viết báo cáo tuần\n- Gửi cho trưởng nhóm');
     await user.click(screen.getByRole('button', { name: 'Tạo kế hoạch' }));
     await screen.findByRole('heading', { name: 'Xem trước kế hoạch' });

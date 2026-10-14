@@ -1,11 +1,12 @@
-import { useEffect, useId, useState } from 'react';
+import { Suspense, useEffect, useId, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { useBoards } from '../context/BoardsContext';
 import { useWorkspaces } from '../context/WorkspacesContext';
 import { NAV_ITEMS, boardSwatchStyle, useWorkspaceOpenState } from '../lib/sidebarNav';
 import type { Board } from '../types/board';
-import CreateBoardDialog from './board/CreateBoardDialog';
+import { CreateBoardDialog } from './board/lazy';
+import { ModalLoading } from './PageLoading';
 import NavDrawer from './nav/NavDrawer';
 
 const COLLAPSED_KEY = 'taskflow_board_sidebar_collapsed';
@@ -153,7 +154,9 @@ function CreateBoardModal({ workspaceId, onClose, onCreated }: {
       onKeyDown={(e) => e.stopPropagation()}
     >
       <div role="dialog" aria-label="Tạo bảng mới" className="max-h-full overflow-y-auto rounded-xl">
-        <CreateBoardDialog workspaceId={workspaceId} onClose={onClose} onCreated={onCreated} className="tf-menu-in" />
+        <Suspense fallback={<ModalLoading />}>
+          <CreateBoardDialog workspaceId={workspaceId} onClose={onClose} onCreated={onCreated} className="tf-menu-in" />
+        </Suspense>
       </div>
     </div>,
     document.body

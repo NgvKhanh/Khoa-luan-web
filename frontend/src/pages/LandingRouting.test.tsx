@@ -96,21 +96,22 @@ beforeEach(() => {
 });
 
 describe('Landing page and workspace entry', () => {
-  it('keeps registration as the guest CTA while the session check is pending', () => {
+  it('keeps registration as the guest CTA while the session check is pending', async () => {
     mocks.isLoading = true;
     open();
-    expect(screen.getByRole('link', { name: 'Bắt đầu ngay' })).toHaveAttribute('href', '/register');
+    expect(await screen.findByRole('link', { name: 'Bắt đầu ngay' })).toHaveAttribute('href', '/register');
     screen.getAllByRole('link', { name: 'Bắt đầu sử dụng' }).forEach((link) => {
       expect(link).toHaveAttribute('href', '/register');
     });
     fireEvent.click(screen.getByRole('link', { name: 'Bắt đầu ngay' }));
+    // Chuyen trang qua startTransition: vi tri chi doi sau khi trang (lazy) tai xong
+    expect(await screen.findByRole('heading', { name: 'Tạo tài khoản' })).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('/register');
-    expect(screen.getByRole('heading', { name: 'Tạo tài khoản' })).toBeInTheDocument();
   });
 
-  it('closes the mobile menu outside and returns focus to its trigger on Escape', () => {
+  it('closes the mobile menu outside and returns focus to its trigger on Escape', async () => {
     open();
-    const trigger = screen.getByRole('button', { name: 'Mở menu' });
+    const trigger = await screen.findByRole('button', { name: 'Mở menu' });
     fireEvent.click(trigger);
     fireEvent.pointerDown(screen.getByRole('heading', { level: 1 }));
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
@@ -123,7 +124,7 @@ describe('Landing page and workspace entry', () => {
     expect(trigger).toHaveFocus();
   });
 
-  it('waits for the session before redirecting an unknown route for a member', () => {
+  it('waits for the session before redirecting an unknown route for a member', async () => {
     mocks.isLoading = true;
     const view = open('/mistyped-path');
     expect(screen.getByText('Đang kiểm tra đăng nhập…')).toHaveAttribute('role', 'status');
@@ -131,19 +132,19 @@ describe('Landing page and workspace entry', () => {
     mocks.user = USER;
     mocks.isLoading = false;
     view.rerender(appAt('/mistyped-path'));
-    expect(screen.getByRole('heading', { name: 'Danh sách bảng của bạn' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Danh sách bảng của bạn' })).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('/boards');
   });
 
-  it('returns guests to the public landing for an unknown route', () => {
+  it('returns guests to the public landing for an unknown route', async () => {
     open('/mistyped-path');
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Công việc rõ ràng.');
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Công việc rõ ràng.');
     expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/);
   });
 
-  it('shows the public landing without mounting workspace data providers', () => {
+  it('shows the public landing without mounting workspace data providers', async () => {
     open();
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Công việc rõ ràng.');
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Công việc rõ ràng.');
     expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/);
     expect(screen.getByRole('link', { name: 'Bắt đầu ngay' })).toHaveAttribute('href', '/register');
     expect(mocks.workspacesMounted).not.toHaveBeenCalled();
@@ -152,7 +153,7 @@ describe('Landing page and workspace entry', () => {
   it('keeps the landing for signed-in users and opens their boards from its CTA', async () => {
     mocks.user = USER;
     open();
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Công việc rõ ràng.');
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Công việc rõ ràng.');
     fireEvent.click(screen.getAllByRole('link', { name: 'Mở TaskFlow' })[0]);
     expect(
       await screen.findByRole('heading', { name: 'Danh sách bảng của bạn' })
@@ -160,9 +161,9 @@ describe('Landing page and workspace entry', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/boards');
   });
 
-  it('lets visitors switch preview views and inspect different example plans', () => {
+  it('lets visitors switch preview views and inspect different example plans', async () => {
     open();
-    fireEvent.click(screen.getByRole('button', { name: 'Lịch' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Lịch' }));
     expect(
       screen.getByRole('group', { name: 'Lịch công việc minh họa tháng 10' })
     ).toBeInTheDocument();
@@ -179,7 +180,7 @@ describe('Landing page and workspace entry', () => {
 
   it('sends a regular login into the workspace instead of back to the landing', async () => {
     open('/login');
-    fireEvent.change(screen.getByPlaceholderText('email@example.com'), {
+    fireEvent.change(await screen.findByPlaceholderText('email@example.com'), {
       target: { value: USER.email },
     });
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="password"]')!, {
@@ -194,7 +195,7 @@ describe('Landing page and workspace entry', () => {
 
   it('sends a new registration into the workspace', async () => {
     open('/register');
-    fireEvent.change(screen.getByPlaceholderText('Nguyễn Văn A'), { target: { value: USER.name } });
+    fireEvent.change(await screen.findByPlaceholderText('Nguyễn Văn A'), { target: { value: USER.name } });
     fireEvent.change(screen.getByPlaceholderText('email@example.com'), {
       target: { value: USER.email },
     });
@@ -210,10 +211,10 @@ describe('Landing page and workspace entry', () => {
 
   it('requires login for the boards list and returns to an invitation after login', async () => {
     const first = open('/boards');
-    expect(screen.getByRole('heading', { name: 'Đăng nhập' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Đăng nhập' })).toBeInTheDocument();
     first.unmount();
     open('/join/invite-token?source=email');
-    fireEvent.change(screen.getByPlaceholderText('email@example.com'), {
+    fireEvent.change(await screen.findByPlaceholderText('email@example.com'), {
       target: { value: USER.email },
     });
     fireEvent.change(document.querySelector<HTMLInputElement>('input[type="password"]')!, {
@@ -223,17 +224,17 @@ describe('Landing page and workspace entry', () => {
     await waitFor(() =>
       expect(screen.getByTestId('location')).toHaveTextContent('/join/invite-token?source=email')
     );
-    expect(screen.getByRole('heading', { name: 'Lời mời invite-token' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Lời mời invite-token' })).toBeInTheDocument();
   });
 
-  it('preserves direct board links for visitors and members', () => {
+  it('preserves direct board links for visitors and members', async () => {
     const guest = open('/boards/board-1');
-    expect(screen.getByRole('heading', { name: 'Bảng công khai board-1' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Bảng công khai board-1' })).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('/public/boards/board-1');
     guest.unmount();
     mocks.user = USER;
     open('/boards/board-1');
-    expect(screen.getByRole('heading', { name: 'Bảng đang mở' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Bảng đang mở' })).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent(/^\/boards\/board-1$/);
   });
 });

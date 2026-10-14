@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { Suspense, useCallback, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ConfirmDialog from '../components/ConfirmDialog';
-import CreateBoardDialog from '../components/board/CreateBoardDialog';
+import { CreateBoardDialog } from '../components/board/lazy';
+import { ModalLoading } from '../components/PageLoading';
 import WorkspaceBoardsPanel from '../components/workspace/WorkspaceBoardsPanel';
 import WorkspaceMembersPanel, { type AssignableRole } from '../components/workspace/WorkspaceMembersPanel';
 import WorkspaceSettingsPanel from '../components/workspace/WorkspaceSettingsPanel';
@@ -359,7 +360,11 @@ function WorkspaceSettingsContent({ workspaceId }: { workspaceId: string }) {
         {tab === 'boards' && <div ref={createRef} className="relative w-full shrink-0 sm:w-auto">
           <button ref={createButtonRef} type="button" disabled={busy} aria-expanded={createOpen} aria-controls="workspace-create-board" onClick={() => setCreateOpen((value) => !value)} className={`w-full ${PRIMARY_BUTTON}`}><WorkspaceIcon path="M12 5v14M5 12h14" />Tạo bảng mới</button>
           <div id="workspace-create-board" hidden={!createOpen} className="absolute right-0 top-[calc(100%+8px)] z-40">
-            {createOpen && <CreateBoardDialog workspaceId={ws.id} onClose={() => { setCreateOpen(false); createButtonRef.current?.focus(); }} onCreated={onCreated} className="tf-menu-in max-w-[calc(100vw-2rem)]" />}
+            {createOpen && (
+              <Suspense fallback={<ModalLoading />}>
+                <CreateBoardDialog workspaceId={ws.id} onClose={() => { setCreateOpen(false); createButtonRef.current?.focus(); }} onCreated={onCreated} className="tf-menu-in max-w-[calc(100vw-2rem)]" />
+              </Suspense>
+            )}
           </div>
         </div>}
       </header>

@@ -94,7 +94,7 @@ describe('Workspace management', () => {
     const user = userEvent.setup();
     setup();
     await user.click(await screen.findByRole('button', { name: 'Tạo bảng mới' }));
-    await user.type(screen.getByPlaceholderText('Nhập tên bảng...'), 'Bảng vừa tạo');
+    await user.type(await screen.findByPlaceholderText('Nhập tên bảng...'), 'Bảng vừa tạo');
     await user.click(screen.getByRole('button', { name: 'Tạo mới' }));
     await waitFor(() => expect(mocks.createBoard).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: 'w1', name: 'Bảng vừa tạo' })));
     expect(await screen.findByRole('link', { name: 'Mở bảng Bảng vừa tạo' })).toBeInTheDocument();

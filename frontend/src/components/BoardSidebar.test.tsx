@@ -207,7 +207,7 @@ describe('BoardSidebar', () => {
     const user = userEvent.setup();
     renderSidebar();
     await user.click(screen.getByRole('button', { name: 'Tạo bảng mới' }));
-    const dialog = screen.getByTestId('create-dialog');
+    const dialog = await screen.findByTestId('create-dialog');
     expect(dialog).toHaveAttribute('data-workspace', 'team');
     await user.click(within(dialog).getByRole('button', { name: 'Xác nhận tạo' }));
     expect(mocks.upsertBoard).toHaveBeenCalledWith(expect.objectContaining({ id: 'b9' }));
@@ -219,7 +219,7 @@ describe('BoardSidebar', () => {
     const user = userEvent.setup();
     renderSidebar();
     await user.click(screen.getByRole('button', { name: 'Tạo bảng mới' }));
-    expect(screen.getByTestId('create-dialog')).toBeInTheDocument();
+    expect(await screen.findByTestId('create-dialog')).toBeInTheDocument();
     await user.keyboard('{Escape}');
     expect(screen.queryByTestId('create-dialog')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tạo bảng mới' })).toBeInTheDocument();

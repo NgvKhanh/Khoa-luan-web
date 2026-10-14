@@ -1,10 +1,13 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import AssistantPanel from '../components/assistant/AssistantPanel';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { AssistantProvider } from '../context/AssistantContext';
 import { useAuth } from '../context/AuthContext';
 import { BoardsProvider } from '../context/BoardsContext';
 import { WorkspacesProvider } from '../context/WorkspacesContext';
+
+// Khung trợ lý (nhiều khối trả lời, hành động...) là chunk riêng: tải ngay sau khi đăng nhập nhưng không chặn lần hiện trang.
+const AssistantPanel = lazy(() => import('../components/assistant/AssistantPanel'));
 
 /** Chi cho vao ben trong neu da dang nhap, con khong thi dua ve trang dang nhap. */
 export default function ProtectedRoute() {
@@ -46,7 +49,9 @@ export default function ProtectedRoute() {
           <Outlet />
           {/* Khung tro ly la phan phu: hong thi tu an di, khong keo theo trang dang mo */}
           <ErrorBoundary scope="assistant" fallback={() => null}>
-            <AssistantPanel />
+            <Suspense fallback={null}>
+              <AssistantPanel />
+            </Suspense>
           </ErrorBoundary>
         </AssistantProvider>
       </BoardsProvider>

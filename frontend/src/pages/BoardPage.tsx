@@ -1,4 +1,5 @@
 import {
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -36,7 +37,8 @@ import BoardTableView from '../components/board/BoardTableView';
 import CustomFieldsPanel from '../components/board/CustomFieldsPanel';
 import BoardFilterPanel from '../components/board/BoardFilterPanel';
 import BoardMembers from '../components/board/BoardMembers';
-import CardModal from '../components/board/CardModal';
+import { CardModal } from '../components/board/lazy';
+import { ModalLoading } from '../components/PageLoading';
 import CardModalCrash from '../components/board/CardModalCrash';
 import ErrorBoundary from '../components/ErrorBoundary';
 import CardItem from '../components/board/CardItem';
@@ -1294,15 +1296,17 @@ export default function BoardPage() {
             <CardModalCrash onClose={() => setOpenCardId(null)} onRetry={reset} />
           )}
         >
-          <CardModal
-            cardId={openCardId}
-            lists={lists.map((l) => ({ id: l.id, name: l.name, status: l.status }))}
-            boardMembers={members}
-            currentUserId={user?.id}
-            readOnly={readOnly}
-            onClose={() => setOpenCardId(null)}
-            onChanged={reloadLists}
-          />
+          <Suspense fallback={<ModalLoading />}>
+            <CardModal
+              cardId={openCardId}
+              lists={lists.map((l) => ({ id: l.id, name: l.name, status: l.status }))}
+              boardMembers={members}
+              currentUserId={user?.id}
+              readOnly={readOnly}
+              onClose={() => setOpenCardId(null)}
+              onChanged={reloadLists}
+            />
+          </Suspense>
         </ErrorBoundary>
       )}
 

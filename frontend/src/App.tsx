@@ -1,28 +1,33 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import PageLoading from './components/PageLoading';
 import BoardViewLayout from './layouts/BoardViewLayout';
 import MainLayout from './layouts/MainLayout';
-import BoardPage from './pages/BoardPage';
-import CalendarPage from './pages/CalendarPage';
-import ChangePasswordPage from './pages/ChangePasswordPage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
-import HomeDashboard from './pages/HomeDashboard';
-import HomePage from './pages/HomePage';
-import JoinBoardPage from './pages/JoinBoardPage';
-import LoginPage from './pages/LoginPage';
-import LandingPage from './pages/LandingPage';
-import PublicBoardPage from './pages/PublicBoardPage';
-import ResetPasswordPage from './pages/ResetPasswordPage';
-import VerifyEmailPage from './pages/VerifyEmailPage';
-import MyActivityPage from './pages/MyActivityPage';
-import MyCardsPage from './pages/MyCardsPage';
-import NotificationSettingsPage from './pages/NotificationSettingsPage';
-import ProfilePage from './pages/ProfilePage';
-import TemplatesPage from './pages/TemplatesPage';
-import RegisterPage from './pages/RegisterPage';
-import SearchPage from './pages/SearchPage';
-import WorkspaceSettingsPage from './pages/WorkspaceSettingsPage';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { useAuth } from './context/AuthContext';
+
+// Mỗi trang là một chunk riêng, chỉ tải khi người dùng vào trang đó (trước đây cả ứng dụng nằm trong MỘT gói
+// JS ~975 kB). Layout (Header / Sidebar) vẫn nạp sẵn vì gần như trang nào cũng dùng.
+const BoardPage = lazy(() => import('./pages/BoardPage'));
+const CalendarPage = lazy(() => import('./pages/CalendarPage'));
+const ChangePasswordPage = lazy(() => import('./pages/ChangePasswordPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
+const HomeDashboard = lazy(() => import('./pages/HomeDashboard'));
+const HomePage = lazy(() => import('./pages/HomePage'));
+const JoinBoardPage = lazy(() => import('./pages/JoinBoardPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const PublicBoardPage = lazy(() => import('./pages/PublicBoardPage'));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
+const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'));
+const MyActivityPage = lazy(() => import('./pages/MyActivityPage'));
+const MyCardsPage = lazy(() => import('./pages/MyCardsPage'));
+const NotificationSettingsPage = lazy(() => import('./pages/NotificationSettingsPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const TemplatesPage = lazy(() => import('./pages/TemplatesPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const SearchPage = lazy(() => import('./pages/SearchPage'));
+const WorkspaceSettingsPage = lazy(() => import('./pages/WorkspaceSettingsPage'));
 
 function UnknownRoute() {
   const { user, isLoading } = useAuth();
@@ -41,6 +46,9 @@ function UnknownRoute() {
 
 function App() {
   return (
+    // Suspense ngoài cùng cho các trang không nằm trong layout (landing, đăng nhập...); mỗi layout có Suspense riêng
+    // quanh vùng nội dung để Header / Sidebar không biến mất lúc tải trang.
+    <Suspense fallback={<PageLoading />}>
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
@@ -74,6 +82,7 @@ function App() {
 
       <Route path="*" element={<UnknownRoute />} />
     </Routes>
+    </Suspense>
   );
 }
 

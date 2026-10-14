@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
@@ -11,8 +11,8 @@ import { getErrorMessage } from '../lib/errorMessage';
 import type { Board } from '../types/board';
 import AssistantButton from './assistant/AssistantButton';
 import Avatar from './Avatar';
-import AiGenerateBoardModal from './board/AiGenerateBoardModal';
-import CreateBoardDialog from './board/CreateBoardDialog';
+import { AiGenerateBoardModal, CreateBoardDialog } from './board/lazy';
+import { ModalLoading } from './PageLoading';
 import Logo from './Logo';
 import NotificationBell from './NotificationBell';
 
@@ -463,30 +463,34 @@ export function CreateBoardMenu({ label }: { label?: string } = {}) {
       </button>
 
       {open && (
-        <CreateBoardDialog
-          className="tf-menu-in absolute right-0 top-11 z-40"
-          onClose={() => setOpen(false)}
-          onOpenAi={() => {
-            setOpen(false);
-            setAiOpen(true);
-          }}
-          onCreated={(board) => {
-            upsertBoard(board);
-            setOpen(false);
-            navigate(`/boards/${board.id}`);
-          }}
-        />
+        <Suspense fallback={null}>
+          <CreateBoardDialog
+            className="tf-menu-in absolute right-0 top-11 z-40"
+            onClose={() => setOpen(false)}
+            onOpenAi={() => {
+              setOpen(false);
+              setAiOpen(true);
+            }}
+            onCreated={(board) => {
+              upsertBoard(board);
+              setOpen(false);
+              navigate(`/boards/${board.id}`);
+            }}
+          />
+        </Suspense>
       )}
     </div>
     {aiOpen && (
-      <AiGenerateBoardModal
-        onClose={() => setAiOpen(false)}
-        onCreated={(board) => {
-          upsertBoard(board);
-          setAiOpen(false);
-          navigate(`/boards/${board.id}`);
-        }}
-      />
+      <Suspense fallback={<ModalLoading />}>
+        <AiGenerateBoardModal
+          onClose={() => setAiOpen(false)}
+          onCreated={(board) => {
+            upsertBoard(board);
+            setAiOpen(false);
+            navigate(`/boards/${board.id}`);
+          }}
+        />
+      </Suspense>
     )}
     </>
   );
