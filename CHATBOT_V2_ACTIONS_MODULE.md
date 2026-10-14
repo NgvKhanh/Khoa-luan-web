@@ -1,6 +1,6 @@
 # Chatbot v2 — mô-đun hành động (hợp đồng cuối, Phase 8)
 
-Ngày chốt: 09/10/2026 · Phạm vi: `backend/src/modules/chat/v2/actions/*`, các công cụ đọc mở rộng, giao diện `frontend/src/components/assistant/*` · Trạng thái: **Phase 1–4, 6, 7, 8 đã triển khai** (Phase 5 trong lộ trình gốc được thu gọn thành Board Patch ở Phase 3).
+Ngày chốt: 09/10/2026 (cập nhật 14/10/2026 cho bước E–I) · Phạm vi: `backend/src/modules/chat/v2/actions/*`, các công cụ đọc mở rộng, giao diện `frontend/src/components/assistant/*` · Trạng thái: **Phase 1–4, 6, 7, 8 đã triển khai** (Phase 5 trong lộ trình gốc được thu gọn thành Board Patch ở Phase 3).
 
 Tài liệu này là **bản tổng hợp hợp đồng**: một chỗ để đọc “mô-đun này làm gì, không làm gì, bảo đảm gì và đã được kiểm chứng ra sao”. Chi tiết từng giai đoạn (lý do thiết kế, số liệu đo, bẫy gặp phải) ở `CHATBOT_V2_MODULE.md` §9–§9F; kế hoạch gốc và các quyết định D0–D7 ở `CHATBOT_V2_ACTIONS_PLAN.md`. Hợp đồng của chatbot **chỉ đọc** (v1 và phần đọc của v2) vẫn ở `CHATBOT_MODULE.md` / `CHATBOT_V2_MODULE.md` §1–§8.
 
@@ -19,7 +19,9 @@ Người dùng ra lệnh bằng tiếng Việt trong khung Trợ lý; trợ lý 
 | Luật tự động hóa | “Khi thẻ vào cột Hoàn thành thì gắn nhãn Gấp” | Xem trước, rủi ro CAO, nói rõ “chạy bằng quyền của bạn” → Áp dụng |
 | Đọc mở rộng | “Board này tiến độ bao nhiêu?”, “Ai phù hợp nhất cho task X?” | Khối kết quả do server dựng, nhận xét AI ngắn (tùy chọn) |
 
-**Không làm (cố ý):** xóa hẳn bất kỳ thứ gì, lưu trữ cột / bảng (chỉ lưu trữ được **thẻ**, khôi phục được), đổi vai trò / quyền / chủ sở hữu / hiển thị, thao tác nhiều bảng, hoàn tác, sửa / tắt / xóa luật tự động hóa đã có, hẹn giờ / nhắc hạn / gửi email. Các yêu cầu đó được trả lời bằng “chưa hỗ trợ” (xem mục 9).
+**Không làm (cố ý):** chuyển quyền chủ bảng, thao tác nhiều bảng trong một kế hoạch, chuyển thẻ sang bảng khác, hoàn tác (chưa có lệnh hoặc nút hoàn tác), sửa NỘI DUNG luật tự động hóa đã có, gửi email. Các yêu cầu đó được trả lời bằng “chưa hỗ trợ” (xem mục 9).
+
+**Đã làm từ bước E–I (11–12/10/2026), luôn xem trước, không bao giờ tự chạy:** xóa thẻ / cột / bình luận / tệp / nhãn / trường, lưu trữ cột và bảng, xóa bảng (phải gõ lại đúng tên), đổi hiển thị, thêm / bỏ thành viên, đổi vai trò, link mời, bật / tắt / xóa luật có sẵn. Mỗi thao tác dùng đúng hàm `assert*` của giao diện và bị đánh giá rủi ro CAO (`DELETE`, `ADMIN`, `BULK`). Bản gốc của mục này (09/10) ghi “không xóa, không đổi quyền / hiển thị”: đã lỗi thời so với mục 3.
 
 ## 2. Đường đi của một lệnh
 
@@ -67,7 +69,7 @@ Giới hạn ở backend (không chỉ trong prompt): 15 thao tác / 10 thẻ m�
 
 ## 4. Chính sách tự chạy và xem trước
 
-Tự chạy chỉ khi **đồng thời**: (1) nguồn lệnh là CÂU của người dùng (có động từ cho phép, không phủ định, không phải câu hỏi, tham số gắn vào câu), (2) đúng một thao tác thuộc 7 thao tác an toàn, (3) mọi tham chiếu ra duy nhất một đối tượng, (4) đúng một bảng trong trần phạm vi của trang, (5) không hàng loạt / phá hủy, (6) không phải thao tác quản trị bảng (đổi quyền / hiển thị / thành viên / xóa bảng... từ bước I diễn đạt được trong schema nhưng **luôn xem trước**, rủi ro CAO; chuyển quyền chủ bảng vẫn không diễn đạt được), (7) không làm theo chỉ dẫn lấy từ dữ liệu, (8) backend kiểm lại quyền + nghiệp vụ.
+Tự chạy chỉ khi **đồng thời**: (1) nguồn lệnh là CÂU của người dùng (có động từ cho phép, không phủ định, không phải câu hỏi, tham số gắn vào câu), (2) đúng một thao tác thuộc danh sách tự chạy (`AUTO_RUN_TYPES`, hiện 22 loại: 7 thao tác của Phase 1, thêm `SET_CARD_START` / `REMOVE_MEMBER` / `REMOVE_LABEL` ở bước D và các việc chính xác / cá nhân của bước E–I), (3) mọi tham chiếu ra duy nhất một đối tượng, (4) đúng một bảng trong trần phạm vi của trang, (5) không hàng loạt / phá hủy, (6) không phải thao tác quản trị bảng (đổi quyền / hiển thị / thành viên / xóa bảng... từ bước I diễn đạt được trong schema nhưng **luôn xem trước**, rủi ro CAO; chuyển quyền chủ bảng vẫn không diễn đạt được), (7) không làm theo chỉ dẫn lấy từ dữ liệu, (8) backend kiểm lại quyền + nghiệp vụ.
 
 Không đạt → **xem trước** với lý do hiện nguyên văn cho người dùng:
 
@@ -90,7 +92,7 @@ Từ chối ngay (không tạo kế hoạch): câu không có lệnh cho thao t�
 |---|---|---|---|
 | I1 | Mô hình không bao giờ chạm id / quyền / chữ hiển thị | schema `.strict()` không có ô id; resolver server; `modelView` lọc dữ liệu gửi mô hình | `chat.actions.pure`, `chat.read.tools`, kho an toàn S01–S03 |
 | I2 | DỮ LIỆU ≠ CHỈ DẪN: chữ trong tiêu đề / mô tả / bình luận không cấp phép cho hành động | giấy phép động từ trên CÂU người dùng; “làm theo nội dung…” không tự chạy (luật: từ chối thẳng) | `chat.actions.safety`, `chat.rule`, kho U01–U04 |
-| I3 | Không có thao tác phá hủy / đổi quyền | danh mục đóng; Board Patch chặn xóa / thay thế (`DESTRUCTIVE`); chiều dữ liệu cũ bảo toàn | `chat.patch.*`, kho D01–D07, P01–P05 |
+| I3 | Thao tác phá hủy / đổi quyền / hiển thị (bước E–I) không bao giờ tự chạy; chuyển quyền chủ bảng không diễn đạt được | danh mục đóng; `policy.confirm` của từng handler (`DELETE`, `ADMIN`, `BULK`) buộc xem trước + rủi ro CAO; xóa bảng gõ lại tên; Board Patch chặn xóa / thay thế (`DESTRUCTIVE`); chiều dữ liệu cũ bảo toàn | `chat.patch.*`, `chat.cleanup.*`, `chat.board.test`, kho D01–D07, P01–P05 |
 | I4 | Một lần xem trước = một lần ghi, tất cả hoặc không gì | transaction duy nhất, nhận chỗ nguyên tử, idempotent, checksum, `STALE` | `chat.actions.multi.api`, `chat.actions.parity` |
 | I5 | Quyền kiểm lại ở mỗi bước (đề xuất, áp dụng, trong transaction) | chính hàm `assert*` của giao diện + `canEditInTx` | `chat.actions.guard`, `chat.actions.api` |
 | I6 | Tác dụng phụ chỉ sau COMMIT, đúng số lần | outbox trong bộ nhớ | `chat.actions.multi.api` |
@@ -120,7 +122,7 @@ Cờ môi trường: `CHAT_ACTIONS` (công tắc tổng; **tắt ở production 
 | 7 | luật tự động hóa | 28/28 |
 | 8 | adapter thử lại `auto`, lõi chấm điểm đánh giá, kho an toàn | 11/11 (+ 2 phép tương đương, có lý do) |
 
-Toàn bộ hiện tại: **backend 139 tệp / 1898 test đạt**, frontend 58 tệp / 497 test đạt; `tsc`, ESLint backend, `tsc -b`, oxlint và `vite build` sạch. Mỗi lần chạy đầu đều có mutant sống sót và mỗi mutant sống sót dẫn tới một test mới (được ghi ở từng mục §9x).
+Toàn bộ tại thời điểm chốt (09/10): backend 139 tệp / 1898 test đạt, frontend 58 tệp / 497 test đạt. **Cập nhật 15/10/2026**: backend 164 tệp / 2.440 test, frontend 73 tệp / 620 test (bước A–I và các đợt rà soát sau đó); `tsc`, ESLint backend, `tsc -b`, oxlint (chỉ cảnh báo) và `vite build` sạch. Mỗi lần chạy đầu đều có mutant sống sót và mỗi mutant sống sót dẫn tới một test mới (được ghi ở từng mục §9x).
 
 ### 7.2 Kho câu an toàn đối kháng (xác định, mô hình “ngoan ngoãn” bị tiêm chỉ dẫn)
 
@@ -155,7 +157,7 @@ Phase 3, 4, 6, 7 mỗi giai đoạn đã thử đầu-cuối bằng trình duy�
 ## 9. Giới hạn đã biết (tổng hợp)
 
 - Một bảng mỗi kế hoạch; không chuyển thẻ xuyên bảng; không thao tác nhiều bảng.
-- Không có hoàn tác; không có `DELETE_*`; chưa sửa / tắt / xóa luật đã có qua chat.
+- Không có hoàn tác. Từ bước E–I có `DELETE_*`, lưu trữ / xóa bảng và quản trị bảng, nhưng luôn xem trước (mục 1, 4); chưa chuyển quyền chủ bảng; luật có sẵn bật / tắt / xóa được nhưng chưa sửa nội dung.
 - Luật: phải đứng một mình; chỉ cột / nhãn / người có sẵn; nhận diện “ngoài engine” bằng cụm từ nên có thể bỏ sót cách nói lạ (người dùng vẫn thấy đúng điều kiện / việc ở bản xem trước); engine chạy luật theo người tạo mà không kiểm lại quyền hiện tại của họ (hành vi sẵn có của `automation.service`).
 - Phân công: ngân sách gợi ý nằm trong bộ nhớ một tiến trình; chia tối đa 15 việc mỗi lần; “người phù hợp nhất” dùng nguyên xếp hạng của module phân công (dữ liệu mỏng khi nhóm mới).
 - Board Patch: chỉ thêm cột / thẻ mới, không gắn người / hạn / nhãn lên thẻ mới; không chọn / bỏ từng thao tác.

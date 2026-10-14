@@ -188,6 +188,9 @@ Chạy trong `backend/`. Cả hai script từ chối chạy khi `NODE_ENV=produc
 | `AI_TIMEOUT_MS` | | Thời gian chờ tối đa một lượt gọi LLM, mặc định `30000` |
 | `AI_MAX_INPUT_CHARS` | | Số ký tự tối đa module tạo bảng phân tích, mặc định `20000` |
 | `CHAT_ENGINE` | | `v2` hoặc `legacy`: chọn phiên bản chatbot giao diện dùng |
+| `CHAT_ACTIONS` | | Cho chatbot v2 **thực hiện** thao tác (tạo thẻ, đổi cột, xoá...). Mặc định bật ở development / test, **tắt ở production** |
+| `CHAT_AUTO_EXECUTE` | | Cho thao tác đơn giản, rõ ràng tự chạy không cần bấm "Áp dụng". Mặc định như `CHAT_ACTIONS` |
+| `TRUST_PROXY` | | Số cấp reverse proxy tin cậy (thường `1`) khi chạy sau nginx / Cloudflare... Để trống = không tin proxy nào. Quên đặt khi có proxy thì mọi giới hạn theo IP (đăng nhập, đăng ký) gộp chung cả người dùng |
 
 Đổi nhà cung cấp LLM chỉ cần đổi ba biến `AI_*`. Trong `.env.example` có sẵn cấu hình mẫu cho Gemini, Groq, OpenRouter, Mistral và GitHub Models.
 
@@ -407,7 +410,7 @@ Khi trưởng nhóm giao thẻ cho một người khác với người đứng �
 
 - Mỗi người khai **kỹ năng**, **công việc đã làm** (tối đa 30 mục) và có thể **tải CV** (`.docx` / `.pdf`) ở trang Hồ sơ. Hồ sơ gắn với người dùng và dùng chung cho mọi không gian.
 - Nội dung CV được trích chữ (không dùng LLM) và cắt thành các đoạn để so khớp.
-- **Quyền xem CV**: chủ CV, cùng chủ hoặc quản trị của một bảng (hoặc không gian chứa bảng) mà cả hai cùng tham gia. Người khác chỉ thấy các cụm kỹ năng đã khớp, không tải được tệp. Chủ CV có thể tắt chia sẻ.
+- **Quyền xem CV**: mặc định **chỉ chủ CV** tải được tệp. Chủ CV phải chủ động **bật công tắc "Cho phép quản trị bảng / không gian chung tải tệp CV của tôi"** (trang Hồ sơ, mặc định TẮT) thì chủ hoặc quản trị viên của một bảng (hoặc không gian chứa bảng) mà cả hai cùng tham gia mới tải được. Người khác chỉ thấy các cụm kỹ năng đã khớp, không tải được tệp. Tắt "Dùng hồ sơ này cho gợi ý" thì rút CV khỏi mọi người. Chữ trích từ CV vẫn dùng để tính điểm gợi ý dù công tắc chia sẻ tắt. (Trước 14/10, bất kỳ ai thêm người đó vào bảng của mình đều tải được CV mà không cần họ đồng ý.)
 - **Hồ sơ làm việc theo không gian**: sức chứa (số thẻ chồng lấn tối đa, từ 1 đến 30) và ngày tạm nghỉ.
 
 ### Giao diện
@@ -471,8 +474,9 @@ Chỉ bật khi `CHAT_ACTIONS=true` (mặc định bật ở môi trường phá
 
 - **LLM không bao giờ chạm id hay quyền**: nó chỉ đưa ra kế hoạch bằng chữ người dùng gõ; backend tự tìm đối tượng trong đúng bảng, kiểm quyền bằng chính hàm của giao diện, rồi mới ghi, trong **một transaction**.
 - **Dữ liệu không phải chỉ dẫn**: chữ nằm trong tiêu đề, mô tả hay bình luận của thẻ không bao giờ cho phép một hành động; chỉ câu của người dùng mới có tác dụng.
-- **Không xoá, không đổi quyền / chủ sở hữu / hiển thị, không hoàn tác** (cố ý). Yêu cầu đó được trả lời "chưa hỗ trợ".
-- Đánh giá với Gemini thật và kho câu an toàn đối kháng: xem mục 7 của [CHATBOT_V2_ACTIONS_MODULE.md](CHATBOT_V2_ACTIONS_MODULE.md) và `backend/eval-chat-actions-result.md`.
+- **Phạm vi thao tác**: 69 loại thao tác trên đúng một bảng mỗi lần (thẻ, cột, bình luận, checklist, tệp, nhãn, trường tuỳ chỉnh, luật tự động hóa, thành viên, hiển thị, lưu trữ / xoá). Chỉ **22 loại thao tác đơn giản, chính xác** (tạo thẻ, đổi tên, đặt hạn, chuyển cột, đổi trạng thái, giao / bỏ người, gắn / gỡ nhãn, khôi phục thẻ, tick checklist, nhắc hạn, theo dõi, gắn sao bảng...) được tự chạy, và chỉ khi lệnh là MỘT thao tác rõ ràng. Mọi thao tác **xoá, hàng loạt hoặc quản trị bảng** (đổi hiển thị, thành viên, vai trò, link mời, lưu trữ / xoá bảng) **luôn phải xem trước và bấm Áp dụng**, được đánh giá rủi ro CAO và không bao giờ tự chạy; xoá bảng còn phải gõ lại đúng tên bảng.
+- **Cố ý không làm**: chuyển quyền chủ bảng, thao tác trên nhiều bảng trong một lần, chuyển thẻ sang bảng khác, hoàn tác (chưa có lệnh hoặc nút hoàn tác). Yêu cầu đó được trả lời "chưa hỗ trợ".
+- Đánh giá với Gemini thật và kho câu an toàn đối kháng: xem mục 7 của [CHATBOT_V2_ACTIONS_MODULE.md](CHATBOT_V2_ACTIONS_MODULE.md). **Kết quả đầy đủ trên tập test chưa có** (hết hạn mức ngày giữa chừng): xem [backend/eval-chat-actions-lite-partial.md](backend/eval-chat-actions-lite-partial.md) và mục "Mức độ bằng chứng" ở §13.
 
 ---
 
@@ -500,14 +504,16 @@ Khi người dùng mất quyền (bị xoá khỏi bảng hoặc không gian, b�
 
 - **Phiên đăng nhập**: JWT trong cookie `httpOnly`; đổi hoặc đặt lại mật khẩu sẽ thu hồi mọi phiên và socket cũ.
 - **Kiểm tra quyền ở backend** cho mọi thao tác, theo ba mức: xem, sửa, quản lý. Quyền được tính từ vai trò trong bảng, vai trò trong không gian và mức hiển thị của bảng.
-- **Kiểm tra dữ liệu vào** bằng Zod ở mọi route; JSON body giới hạn 1MB.
+- **Kiểm tra dữ liệu vào** bằng Zod ở mọi route; JSON body giới hạn 1MB. Chỉ nhận JSON và multipart (không nhận `application/x-www-form-urlencoded`, để không có đường CSRF bằng form-post chéo trang). Dữ liệu client gửi sai (JSON hỏng, body quá lớn) trả 400 / 413, không phải 500.
+- **Header an toàn**: `helmet` (`X-Content-Type-Options`, chống nhúng khung, `Referrer-Policy`, HSTS ở production), không lộ `X-Powered-By`. Phía sau reverse proxy phải đặt `TRUST_PROXY` để giới hạn tần suất theo IP đúng.
+- **Riêng tư khi xem bảng công khai**: người chỉ xem được bảng vì bảng ở mức PUBLIC không thấy email thành viên ở bất kỳ đường đọc nào (danh sách và thẻ, chi tiết thẻ, xuất bảng, danh sách thành viên). Mã link mời chỉ trả ở `/invite-link` cho người quản lý, không nằm trong danh sách bảng, phản hồi sửa bảng hay bản xuất.
 - **Giới hạn tần suất gọi** cho đăng nhập, đăng ký, đăng nhập Google, quên và đặt lại mật khẩu, gửi lại email xác minh, xem bảng công khai, các API AI (đọc tệp, tạo kế hoạch, áp dụng kế hoạch), gợi ý phân công, chia việc, tải CV và chatbot.
-- **Tệp đính kèm**: tệp của thẻ được phục vụ qua route có kiểm quyền (bảng công khai thì khách xem được). Chỉ thư mục ảnh đại diện và ảnh nền được phục vụ tĩnh; thư mục gốc chứa tệp tải lên không được mở công khai, nên đường dẫn mã hoá kiểu `/uploads/%63ards/...` không lách qua được. Kiểu nội dung được suy ra từ đuôi tệp trong danh sách cho phép, không tin giá trị client gửi lên.
+- **Tệp đính kèm**: tệp của thẻ được phục vụ qua route có kiểm quyền (bảng công khai thì khách xem được). Chỉ thư mục ảnh đại diện và ảnh nền được phục vụ tĩnh; thư mục gốc chứa tệp tải lên không được mở công khai, nên đường dẫn mã hoá kiểu `/uploads/%63ards/...` không lách qua được. Kiểu nội dung được suy ra từ đuôi tệp trong danh sách cho phép, không tin giá trị client gửi lên. Tệp của thẻ hoặc danh sách đã xoá / lưu trữ không còn được phục vụ (khôi phục thì tải lại được).
 - **Token email** (xác minh, đặt lại mật khẩu) dùng một lần, có hạn, chỉ lưu bản băm.
 - **Module AI**: lược đồ đầu ra cố định để chặn prompt injection; tệp tải lên được kiểm chữ ký và đọc trong tiến trình con; dữ liệu đo đạc không lưu khoá API.
 - **Cơ sở dữ liệu test tách biệt**: bộ test từ chối chạy nếu `DATABASE_URL` không trỏ rõ ràng tới một CSDL test cục bộ, và ghi tệp tải lên vào thư mục tạm chứ không vào `backend/uploads`.
 
-Các đợt rà soát bảo mật và lỗi đã vá được ghi trong [CODE_REVIEW.md](CODE_REVIEW.md), [REVIEW_2026-09-26.md](REVIEW_2026-09-26.md) và [REVIEW_BACKEND_2026-09-30.md](REVIEW_BACKEND_2026-09-30.md).
+Các đợt rà soát bảo mật và lỗi đã vá được ghi trong [CODE_REVIEW.md](CODE_REVIEW.md), [REVIEW_2026-09-26.md](REVIEW_2026-09-26.md), [REVIEW_BACKEND_2026-09-30.md](REVIEW_BACKEND_2026-09-30.md) và [REVIEW_2026-10-14.md](REVIEW_2026-10-14.md) (kèm tình trạng từng phát hiện).
 
 ---
 
@@ -575,20 +581,29 @@ Một vài điểm thiết kế:
 
 ```bash
 # Backend: cần PostgreSQL đang chạy ở localhost:5432.
-# CSDL "taskflow_test" được tạo và migrate tự động; mỗi test làm sạch dữ liệu trước khi chạy.
+# CSDL "taskflow_test" được tạo và migrate tự động.
 cd backend
-npm test
+npm test                  # cả hai nhóm (xem dưới)
+npm run test:unit         # chỉ nhóm test thuần, không chạm CSDL (~1,5 phút)
+npm run test:integration  # chỉ nhóm tích hợp (HTTP thật + PostgreSQL thật)
+npm run test:coverage     # chạy tất cả kèm đo độ phủ mã (báo cáo ở backend/coverage)
 npm run typecheck
 npm run lint
 
 # Frontend
 cd frontend
 npm test
+npm run test:coverage     # báo cáo ở frontend/coverage
 npm run lint
 npm run build
 ```
 
-Backend có khoảng 120 tệp test, chạy qua HTTP thật trên PostgreSQL thật. Toàn bộ bộ test mất hơn 10 phút. Các test dùng chung một CSDL test, vì vậy không chạy hai lượt test backend cùng lúc. Frontend có khoảng 55 tệp test.
+Backend chia hai nhóm (cấu hình ở `backend/vitest.config.ts`):
+
+- **unit**: 61 tệp, 1.222 test hàm thuần, không chạm CSDL. Không `TRUNCATE` trước mỗi test, và Prisma bị thay bằng bản "câm" nên test lỡ chạm CSDL sẽ thất bại ngay với thông báo rõ. Test mới viết thuần thì đặt tên `*.unit.test.ts`.
+- **integration**: phần còn lại, chạy tuần tự qua HTTP thật trên PostgreSQL thật, `TRUNCATE` mọi bảng trước mỗi test. Vì dùng chung một CSDL test nên **không chạy hai lượt test backend cùng lúc**.
+
+Số liệu lượt chạy cuối (15/10/2026): backend 164 tệp / 2.440 test đều qua trong 20,6 phút (kèm đo độ phủ), độ phủ dòng 93,4% (không tính script đánh giá / seed và mã Prisma sinh ra); frontend 73 tệp / 620 test đều qua, độ phủ dòng 57,7%.
 
 ### Script đánh giá các module AI
 
@@ -605,6 +620,23 @@ Chạy trong `backend/`. Các script dùng bộ nhớ đệm phản hồi LLM n�
 | `npm run assign:keywords`, `npm run assign:suggest` | Xem từ khoá TF-IDF và gợi ý trên dữ liệu mô phỏng |
 
 Gói Gemini miễn phí có hạn mức theo phút và theo ngày. Khi gặp lỗi 429, chờ rồi chạy lại đúng lệnh cũ; các lượt đã có trong bộ nhớ đệm sẽ không bị gọi lại.
+
+### Mức độ bằng chứng của từng kết quả
+
+Không phải con số nào ở trên cũng có sức nặng như nhau. Bảng dưới ghi rõ dữ liệu, quy mô và giới hạn để dùng đúng khi trích dẫn trong báo cáo:
+
+| Kết quả | Dữ liệu | Quy mô | Mức bằng chứng |
+|---|---|---|---|
+| Tạo bảng: F1 nhận dòng thành thẻ (B0 0,95 / B1 0,966 / B2 0,994) | 25 mẫu do tác giả tự soạn | 3 lần × 3 nhánh, Gemini thật | **Thật nhưng tập nhỏ, tự soạn**: khoảng tin cậy rộng, chưa phải mẫu từ người dùng khác |
+| Phân công lớp 1 (đúng hạn 0,441 so với 0,389 giao ngẫu nhiên) và lớp 2 (dồn việc 35,3% giảm còn 22,2% / 28,9%) | Dữ liệu **mô phỏng** có kiểm soát (bộ sinh cố ý lệch khỏi giả định của bộ chấm), đóng băng bằng mã băm | 20 hạt giống, bootstrap 95% | **Mô phỏng**: cho thấy thuật toán đúng như thiết kế trên dữ liệu tổng hợp; **chưa phải** dữ liệu làm việc thật của một nhóm |
+| Phân công: thành phần Hồ sơ tự khai | Mô phỏng | 1/4 so sánh đăng ký trước đạt | **Chưa đủ bằng chứng** để kết luận hồ sơ cải thiện phân công |
+| Chatbot v1: khớp hoàn toàn (B0 82,9% / B1 95,9% / B2 94,9%) | 105 câu tập test tự soạn | 3 lần, Gemini thật | **Thật nhưng tập nhỏ, tự soạn** |
+| Chatbot v2, phần đọc | Dữ liệu giả của bài kiểm tra | Vài câu đối chiếu (smoke) | **Smoke**, không phải tỷ lệ chính xác (đã ghi trong `CHATBOT_V2_VERIFICATION.md`) |
+| Chatbot v2, hành động: chọn tuyến 96,8%, khớp kế hoạch 81,3%, tự chạy nhầm 0/28 | 45 câu (13 dev / 32 test) tự soạn, đóng băng sha256 | Tập dev: 1 lần, đủ. Tập test: **một phần**, 62/156 lượt có phản hồi (hết hạn mức ngày) | **Một phần**: phần an toàn đối kháng và mở rộng bảng của tập test **chưa chạy**; ở tập dev chỉ có 5 câu đối kháng (0/5 tự chạy). `eval-chat-actions-result.md` chưa có |
+| Chatbot v2: 51 thao tác mới (bước E–I) | Thăm dò Gemini thật, không CSDL | **n = 1** (56 câu dương, 7 câu âm, 63 lượt gọi): 55/56 đúng loại ở lượt đầu | **Thăm dò**, chưa có khoảng tin cậy |
+| An toàn của chatbot hành động (không tự chạy việc phá huỷ, không lộ dữ liệu) | Kho 32 câu đối kháng **xác định** (mô hình giả luôn làm theo chỉ dẫn xấu) cùng test từng giai đoạn | Chạy trong `npm test` | **Mạnh nhất**: bảo đảm bằng mã và test, không phụ thuộc LLM thật. 30/32 từ chối hoàn toàn, 2/32 chỉ tới xem trước, 0 tự chạy, 0 thay đổi dữ liệu |
+
+Hệ quả khi viết chương đánh giá: các kết luận về **độ chính xác** của AI nên ghi là "trên tập tự soạn / dữ liệu mô phỏng"; các kết luận về **an toàn** nên dựa vào kho đối kháng xác định và test, không dựa vào lượt chạy LLM thật.
 
 ---
 

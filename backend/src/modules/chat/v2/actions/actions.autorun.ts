@@ -2,11 +2,14 @@
 //
 // Tam dieu kien (theo yeu cau 07/10) de mot thao tac duoc TU CHAY, khong can bam "Ap dung":
 //   1. nguon cua hanh dong la lenh truc tiep cua nguoi dung        -> provenance = USER_DIRECT
-//   2. thao tac thuoc whitelist an toan (7 thao tac cua Phase 1)   -> AUTO_RUN_TYPES
+//   2. thao tac thuoc whitelist an toan                            -> AUTO_RUN_TYPES (22 loai: 7 cua Phase 1 +
+//      SET_CARD_START / REMOVE_MEMBER / REMOVE_LABEL (buoc D) + cac viec chinh xac / ca nhan o buoc E-I)
 //   3. moi tham chieu resolve DUNG MOT doi tuong                   -> refsUnique
 //   4. chi tac dong MOT bang, nam trong tran pham vi               -> boardIds / inCeiling
 //   5. khong hang loat, khong huy hoai                             -> DUNG MOT thao tac, khong co bo chon / xoa
-//   6. khong doi quyen / vai tro / chu so huu / hien thi           -> khong the dien dat (schema dong)
+//   6. khong phai thao tac quan tri bang                           -> (doi quyen / vai tro / hien thi / thanh vien /
+//      luu tru / xoa bang, tu buoc I) policy.confirm co ADMIN: LUON xem truoc, rui ro CAO, khong bao gio tu chay;
+//      chuyen quyen CHU bang khong dien dat duoc trong schema
 //   7. khong thuc thi chi dan lay tu du lieu                       -> provenance khong phai DELEGATED_TO_DATA / UNGROUNDED
 //   8. backend kiem quyen + nghiep vu truoc khi chay               -> guard
 // Khong dat -> CONFIRM (xem truoc + bam Ap dung, kem ly do) hoac REFUSE (khong ghi gi). Ten the xuat hien trong ngu canh hoi

@@ -21,7 +21,9 @@ Khoá luận tốt nghiệp (bắt đầu 08/2026). Ứng dụng quản lý côn
 ```
 backend/            API Express + Prisma
   src/modules/       auth, workspace, board, list, card, label, customField,
-                      activity, notification, automation, search, unsplash, watch
+                      activity, notification, automation, search, unsplash, watch,
+                      ai (tạo bảng từ mô tả), assign (gợi ý phân công),
+                      declaredProfile (hồ sơ tự khai + CV), chat (chatbot v1 + v2)
   src/realtime/       socket.ts — hub emit sự kiện Socket.IO
   test/               vitest + supertest, DB test riêng (taskflow_test)
 frontend/           SPA Vite + React
@@ -46,11 +48,17 @@ Frontend chạy ở host, cổng 5173.
 
 Chi tiết & lưu ý (thêm dependency backend, sửa schema, biến môi trường...) xem thêm trong ghi chú vận hành nội bộ.
 
+> Thêm dependency backend khi chạy bằng Docker: `node_modules` của container là volume riêng nên `npm i` ở máy KHÔNG tới container. Chạy `docker compose exec -T backend npm i` rồi `docker compose restart backend`.
+>
+> Tài liệu đầy đủ và cập nhật nhất là [README.md](README.md).
+
 ## Mô hình dữ liệu chính (Prisma)
 
 `User`, `Workspace` + `WorkspaceMember`, `Board` + `BoardMember` + `BoardStar` + `BoardJoinRequest`, `List`, `Card` + `CardMember` + `CardReminder`, `Label` + `CardLabel`, `CustomField` + `CustomFieldOption` + `CardFieldValue`, `Checklist` + `ChecklistItem`, `Comment`, `Attachment`, `Activity`, `Watch`, `Notification` + `NotificationPreference`, `SavedFilter`, `AuthToken`, `BoardTemplate`/`BoardTemplateList`/`BoardTemplateCard`, `CardTemplate`/`CardTemplateChecklist`/`CardTemplateItem`, `RecurringCardSchedule`, `AutomationRule` + `AutomationAction`.
 
-Điểm thiết kế đáng chú ý: `Card.status` (enum Cần làm/Đang thực hiện/Chờ duyệt/Hoàn thành/Bị chặn) **độc lập** với `List` (cột Kanban tự do do người dùng đặt) — kéo thẻ sang cột khác không tự đổi status; phục vụ đồng thời giao diện kiểu Trello lẫn các số liệu thống kê chuẩn hoá theo đề tài.
+Module AI: `AiRun` (nhật ký đo đạc tạo bảng), `UserAssignProfile` (hồ sơ tự khai + CV), `MemberWorkProfile`, `WorkspaceAssignWeights` + `AssignWeightHistory`, `AssignRun` (gợi ý phân công); chatbot: `ChatConversation` + `ChatTurn`, `ChatActionPlan` (kế hoạch thao tác: xem trước, trạng thái, kết quả).
+
+Điểm thiết kế đáng chú ý: `Card.status` (enum Cần làm/Đang thực hiện/Chờ duyệt/Hoàn thành/Bị chặn) **liên kết hai chiều** với cột. Cột (`List.status`) có thể gán một trạng thái hoặc để trống (cột tự do): kéo thẻ vào cột có trạng thái thì thẻ đổi sang trạng thái đó; đổi trạng thái bằng tay thì thẻ chuyển sang cột mang trạng thái ấy (nếu bảng có). Bất biến `status = DONE ⇔ isDone ⇔ completedAt != null` do `backend/src/modules/card/cardStatus.ts` giữ — mọi đường ghi phải đi qua đó. Cách này phục vụ đồng thời giao diện kiểu Trello lẫn các số liệu thống kê theo trạng thái.
 
 ## Chức năng đã có
 
