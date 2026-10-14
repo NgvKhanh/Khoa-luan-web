@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Bao cao do bao phu ma (npm run test:coverage)
+coverage

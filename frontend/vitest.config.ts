@@ -10,5 +10,13 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
+    // Do do bao phu ma nguon ung dung (npm run test:coverage)
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**', 'src/main.tsx', 'src/vite-env.d.ts', 'src/types/**'],
+      reporter: ['text-summary', 'json-summary', 'html'],
+      reportsDirectory: './coverage',
+    },
   },
 });

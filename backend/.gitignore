@@ -28,3 +28,6 @@ node_modules
 
 # Du lieu tho khi chay danh gia chatbot v2 (evaluateChat.ts, bo cau hoi v2); bao cao .md thi COMMIT
 /eval-chat2-*.json
+
+# Bao cao do bao phu ma (npm run test:coverage)
+/coverage
