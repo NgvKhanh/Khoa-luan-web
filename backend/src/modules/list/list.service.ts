@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
+import { maskEmails } from '../../utils/privacy';
 import { runAutomationsForCard } from '../automation/automation.service';
 import { assertBoardAccess, assertBoardView } from '../board/board.service';
 import {
@@ -43,8 +44,8 @@ export async function assertListView(userId: string, listId: string) {
 }
 
 export async function listBoardLists(userId: string, boardId: string) {
-  await assertBoardView(userId, boardId);
-  return prisma.list.findMany({
+  const { insider } = await assertBoardView(userId, boardId);
+  const lists = await prisma.list.findMany({
     where: { boardId, deletedAt: null, archivedAt: null },
     orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
     include: {
@@ -67,6 +68,9 @@ export async function listBoardLists(userId: string, boardId: string) {
       },
     },
   });
+  // Nguoi xem chi vi bang la PUBLIC khong duoc thay email that cua thanh vien the
+  // (giong GET .../members). Thanh vien / chu bang van thay nhu cu.
+  return insider ? lists : maskEmails(lists);
 }
 
 export async function createList(

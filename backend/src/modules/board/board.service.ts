@@ -9,6 +9,7 @@ import {
   reconcileBoardRoomAccess,
 } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
+import { maskEmails } from '../../utils/privacy';
 import {
   assertWorkspaceAccess,
   memberWorkspaceIds,
@@ -65,7 +66,11 @@ export async function assertBoardAccess(userId: string, boardId: string) {
 // QUYEN XEM: chu bang / thanh vien bang / thanh vien khong gian (bang WORKSPACE)
 // -> xem (+ sua neu khong phai VIEWER); bang PUBLIC -> ai cung xem (chi doc),
 // KE CA KHACH CHUA DANG NHAP (userId = null) - dung cho lien ket cong khai.
-// Tra ve { board, canEdit }.
+// Tra ve { board, canEdit, insider }.
+//  - insider = chu bang / thanh vien bang (ke ca VIEWER) / thanh vien khong gian cua bang WORKSPACE:
+//    duoc thay email that cua nguoi khac. Nguoi xem chi vi bang la PUBLIC thi insider = false:
+//    moi duong doc long nhau (danh sach + the, chi tiet the, xuat bang) phai che email cho ho
+//    (utils/privacy.maskEmails) - cung quy tac voi GET .../members.
 export async function assertBoardView(
   userId: string | null,
   boardId: string
@@ -78,25 +83,35 @@ export async function assertBoardView(
   }
   if (userId) {
     if (board.ownerId === userId) {
-      return { board, canEdit: true };
+      return { board, canEdit: true, insider: true };
     }
     const membership = await prisma.boardMember.findFirst({
       where: { boardId, userId, deletedAt: null },
     });
     if (membership) {
-      return { board, canEdit: membership.role !== 'VIEWER' };
+      return { board, canEdit: membership.role !== 'VIEWER', insider: true };
     }
     if (
       board.visibility === 'WORKSPACE' &&
       (await workspaceRoleOf(userId, board.workspaceId)) !== null
     ) {
-      return { board, canEdit: true };
+      return { board, canEdit: true, insider: true };
     }
   }
   if (board.visibility === 'PUBLIC') {
-    return { board, canEdit: false };
+    return { board, canEdit: false, insider: false };
   }
   throw new AppError('Ban khong co quyen truy cap bang nay', 403);
+}
+
+// Bo cac truong BI MAT ra khoi 1 dong Board truoc khi tra ve client. Hien chi co `inviteToken`: ma cua
+// link moi, CHI endpoint /invite-link (yeu cau quyen quan ly) moi duoc tra. Truoc day moi duong ghi / doc
+// tra thang doi tuong Prisma nen thanh vien thuong (ke ca VIEWER) van lay duoc ma qua GET /api/boards.
+export function withoutBoardSecrets<T extends { inviteToken?: string | null }>(
+  board: T
+): Omit<T, 'inviteToken'> {
+  const { inviteToken: _inviteToken, ...safe } = board;
+  return safe;
 }
 
 // Lay chi tiet 1 bang (kem ten khong gian).
@@ -210,7 +225,7 @@ export async function listMyBoards(userId: string) {
 
   const progress = await cardProgressByBoard(boards.map((b) => b.id));
 
-  return boards.map(({ _count, members, stars, workspace, ...board }) => ({
+  return boards.map(({ _count, members, stars, workspace, inviteToken: _inviteToken, ...board }) => ({
     ...board,
     workspaceName: workspace.name,
     workspaceIsPersonal: workspace.isPersonal,
@@ -291,7 +306,7 @@ export async function createBoardFromTemplate(
   if (!tpl) {
     throw new AppError('Không tìm thấy mẫu này', 404);
   }
-  return prisma.board.create({
+  const created = await prisma.board.create({
     data: {
       ownerId: userId,
       workspaceId,
@@ -318,11 +333,12 @@ export async function createBoardFromTemplate(
       },
     },
   });
+  return withoutBoardSecrets(created);
 }
 
 export async function createBoard(userId: string, input: CreateBoardInput) {
   await assertWorkspaceAccess(userId, input.workspaceId);
-  return prisma.board.create({
+  const created = await prisma.board.create({
     data: {
       ownerId: userId,
       workspaceId: input.workspaceId,
@@ -334,6 +350,7 @@ export async function createBoard(userId: string, input: CreateBoardInput) {
       members: { create: { userId, role: 'OWNER' } },
     },
   });
+  return withoutBoardSecrets(created);
 }
 
 export async function updateBoard(
@@ -398,7 +415,7 @@ export async function updateBoard(
     void reconcileBoardRoomAccess(boardId);
   }
 
-  return updated;
+  return withoutBoardSecrets(updated);
 }
 
 export async function setBoardBackground(
@@ -417,7 +434,7 @@ export async function setBoardBackground(
   removeBoardBackgroundFile(board.backgroundImage);
 
   emitToBoard(boardId, 'board:meta-changed');
-  return updated;
+  return withoutBoardSecrets(updated);
 }
 
 export async function clearBoardBackground(userId: string, boardId: string) {
@@ -431,7 +448,7 @@ export async function clearBoardBackground(userId: string, boardId: string) {
   removeBoardBackgroundFile(board.backgroundImage);
 
   emitToBoard(boardId, 'board:meta-changed');
-  return updated;
+  return withoutBoardSecrets(updated);
 }
 
 // Danh sach cac muc da luu tru cua 1 bang (the + danh sach)
@@ -475,7 +492,7 @@ export async function listBoardArchive(userId: string, boardId: string) {
 
 // Xuat toan bo noi dung bang thanh 1 doi tuong JSON long nhau
 export async function exportBoard(userId: string, boardId: string) {
-  await assertBoardView(userId, boardId);
+  const { insider } = await assertBoardView(userId, boardId);
 
   const USER = { id: true, name: true, email: true } as const;
   const board = await prisma.board.findUnique({
@@ -514,7 +531,14 @@ export async function exportBoard(userId: string, boardId: string) {
   });
   if (!board) throw new AppError('Khong tim thay bang', 404);
 
-  return { exportedAt: new Date().toISOString(), version: 1, board };
+  // inviteToken khong bao gio nam trong ban xuat (la ma truy cap, khong phai noi dung bang);
+  // nguoi xem chi vi bang PUBLIC thi bi che email cua moi thanh vien / nguoi binh luan.
+  const safeBoard = withoutBoardSecrets(board);
+  return {
+    exportedAt: new Date().toISOString(),
+    version: 1,
+    board: insider ? safeBoard : maskEmails(safeBoard),
+  };
 }
 
 export async function deleteBoard(userId: string, boardId: string) {

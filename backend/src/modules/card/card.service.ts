@@ -1,10 +1,12 @@
 import { prisma } from '../../config/prisma';
 import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
+import { maskEmails } from '../../utils/privacy';
 import { logActivity } from '../activity/activity.service';
 import { runAutomationsForCard } from '../automation/automation.service';
 import {
   assertBoardAccess,
+  assertBoardView,
   isBoardParticipant,
 } from '../board/board.service';
 import { cardMemberIds, notify } from '../notification/notification.service';
@@ -341,7 +343,10 @@ export async function searchCards(userId: string, query: string) {
 export async function getCardDetail(userId: string, cardId: string) {
   // assertCardView kiem tra CA danh sach cha con hoat dong (khong bi xoa/luu tru),
   // khac voi kiem assertBoardView truc tiep o day truoc day (bo sot list da xoa).
-  await assertCardView(userId, cardId);
+  const viewed = await assertCardView(userId, cardId);
+  // Nguoi xem chi vi bang la PUBLIC (khong phai chu / thanh vien) khong duoc thay email that
+  // cua thanh vien the va nguoi binh luan - giong GET .../members.
+  const { insider } = await assertBoardView(userId, viewed.list.boardId);
 
   const card = await prisma.card.findFirst({
     where: { id: cardId, deletedAt: null, archivedAt: null },
@@ -380,11 +385,12 @@ export async function getCardDetail(userId: string, cardId: string) {
     },
   });
   if (!card) throw new AppError('Khong tim thay the', 404);
-  return {
+  const detail = {
     ...card,
     comments: maskDeletedComments(card.comments),
     isWatching: await isWatchingCard(userId, cardId),
   };
+  return insider ? detail : maskEmails(detail);
 }
 
 export async function createCard(
