@@ -35,6 +35,7 @@ interface CraftCand {
   userId: string;
   score: number | null;
   f: Feat;
+  declared?: number | null;
 }
 
 /** Dung san mot AssignRun (dung dinh dang createRun ghi) voi ung vien + dac trung `scaled` da biet. */
@@ -54,6 +55,7 @@ async function craftRun(w: World, cardId: string, top: string | null, cands: Cra
       experience: comp(c.f ? c.f[0] : null),
       reliability: comp(c.f ? c.f[1] : null),
       availability: comp(c.f ? c.f[2] : null),
+      ...(c.declared !== undefined ? { declared: comp(c.declared) } : {}),
     },
     evidence: [],
   }));
@@ -202,11 +204,36 @@ describe('POST outcome - hoc trong so (muc 2)', () => {
     ]);
     const res = await postOutcome(w.owner, runId, { chosenUserId: w.bob.id });
     expect(res.body.data.learning).toEqual({ learned: true, reason: 'LEARNED' });
-    // S = {kinh nghiem, kha dung}, khoi 1 - 0,24 - 0,20: (0,36 - 0,05; 0,20 + 0,05) = (0,31; 0,25) - tin cay 0,24 va Ho so 0,20 khong doi
-    expect(closeTo(wApi(res.body.data.weights), [0.31, 0.24, 0.25, 0.2])).toBe(true);
+    // D_top = 0,80, D_chosen = 0,56: delta = (-0,70; +1), chieu S -> (-0,0425; +0,0425).
+    expect(closeTo(wApi(res.body.data.weights), [0.3175, 0.24, 0.2425, 0.2])).toBe(true);
     const row = await rowOf(w.wsId);
     expect([row.wReliability, row.wDeclared]).toEqual([0.24, 0.2]);
-    expect(closeTo(wOf(row) as number[], [0.31, 0.24, 0.25, 0.2])).toBe(true);
+    expect(closeTo(wOf(row) as number[], [0.3175, 0.24, 0.2425, 0.2])).toBe(true);
+  });
+
+  it('nguoi duoc chon thieu lich su: API luu buoc hoc THU HEP khoang cach diem, va chi ghi mot lan', async () => {
+    const { w, target } = await learnWorld();
+    await prisma.workspaceAssignWeights.create({ data: { workspaceId: w.wsId, feedbackCount: 9 } });
+    const runId = await craftRun(w, target.id, w.alice.id, [
+      { userId: w.alice.id, score: 80, f: [1, 1, 0.8], declared: 0.2 },
+      { userId: w.bob.id, score: 45, f: [null, null, 0.7], declared: 0.2 },
+    ]);
+    const res = await postOutcome(w.owner, runId, { chosenUserId: w.bob.id });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ feedbackCount: 10, learning: { learned: true, reason: 'LEARNED' } });
+    expect(closeTo(wApi(res.body.data.weights), [0.36, 0.24, 0.2065, 0.1935])).toBe(true);
+    const row = await rowOf(w.wsId);
+    const topScore = 100 * (row.wExperience + row.wReliability + row.wAvailability * 0.8 + row.wDeclared! * 0.2);
+    const chosenScore = 100 * (row.wAvailability * 0.7 + row.wDeclared! * 0.2) / (row.wAvailability + row.wDeclared!);
+    expect(topScore - chosenScore).toBeCloseTo(34.5775, 10);
+    expect(topScore - chosenScore).toBeLessThan(35);
+    const history = await prisma.assignWeightHistory.findMany({ where: { runId } });
+    expect(history).toHaveLength(1);
+    expect(closeTo(wOf(history[0]!) as number[], wOf(row) as number[])).toBe(true);
+    const replay = await postOutcome(w.owner, runId, { chosenUserId: w.bob.id });
+    expect(replay.status).toBe(200);
+    expect((await rowOf(w.wsId)).feedbackCount).toBe(10);
+    expect(await prisma.assignWeightHistory.count({ where: { runId } })).toBe(1);
   });
 
   it('PHEP CHIEU o CSDL that: (0,70; 0,20; 0,05; Ho so 0,05) + 0,05 * (+1; 0; +1) tren khoi 0,95 -> (0,70; 0,175; 0,075; 0,05) (kep-roi-chuan-hoa se ra (0,665; 0,19; 0,095), khac)', async () => {

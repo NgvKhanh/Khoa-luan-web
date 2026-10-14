@@ -2,9 +2,11 @@
 //
 // Perceptron xep hang theo cap (cung ho voi RankNet), hoc truc tuyen tung luot phan hoi:
 // module xep `a` dung dau nhung nguoi dung giao cho `b` -> keo trong so ve phia cac thanh phan `b` hon `a`:
-//     w <- chieu( w + eta * (x_b - x_a) )
+//     w_S <- chieu( w_S + eta * min(D_a, D_b) * (x_b / D_b - x_a / D_a)_S )
 // `x` la cac gia tri DUNG DE CONG (`scaled`, da chuan hoa trong nhom o buoc 4b) - chinh la thu tao ra diem, nen
-// buoc cap nhat di dung huong voi cai da xep sai. Gia tri tho (`value`) khong dung: no khong quyet dinh hang.
+// phai chia theo MAU SO DIEM D_u = tong trong so cac thanh phan tham gia diem cua tung nguoi. Thieu du lieu thi D_a va
+// D_b co the khac nhau; dung x_b - x_a truc tiep co the hoc NGUOC phan hoi. min(D_a, D_b) giu buoc hoc nhu cu khi hai
+// mau so bang nhau va khong khuech dai dac trung vuot [0,1]. Gia tri tho (`value`) khong quyet dinh hang.
 //
 // CHIEU thay vi "kep roi chuan hoa" (§8 ghi ban dau): kep tung so vao [0,05; 0,70] roi chia cho tong CO THE lam
 // vo chinh bat bien §14 - (0,70; 0,05; 0,05) chuan hoa thanh (0,875; 0,0625; 0,0625), vuot tran. Phep chieu tim
@@ -30,6 +32,12 @@ export const LEARN_MIN_SHARED = 2;
 /** Cac thanh phan CO GIA TRI THAT cua mot ung vien (gia tri `scaled`); khoa vang = thieu du lieu. */
 export type Features = Readonly<Partial<Record<ComponentKey, number>>>;
 
+/** Cac thanh phan tham gia MAU SO DIEM, ke ca gia tri dien NEUTRAL (khong phai bang chung hoc). */
+export interface LearningScoreComponents {
+  top: readonly ComponentKey[];
+  chosen: readonly ComponentKey[];
+}
+
 const isNum = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
 
 /** S (§17.7): cac thanh phan ca hai deu co, theo thu tu COMPONENT_KEYS. */
@@ -37,11 +45,30 @@ export function sharedComponents(a: Features, b: Features): ComponentKey[] {
   return COMPONENT_KEYS.filter((k) => isNum(a[k]) && isNum(b[k]));
 }
 
+function scoringMass(w: Weights, features: Features, components?: readonly ComponentKey[]): number {
+  const present = COMPONENT_KEYS.filter((k) => isNum(features[k]));
+  const scored = components ?? present;
+  if (new Set(scored).size !== scored.length || scored.some((k) => !COMPONENT_KEYS.includes(k)) || present.some((k) => !scored.includes(k))) {
+    throw new RangeError('thanh phan tinh diem khong hop le');
+  }
+  // Thu tu co dinh, khop combine() cua bo cham va khong phu thuoc thu tu trong JSON.
+  let mass = 0;
+  for (const k of COMPONENT_KEYS) {
+    if (!scored.includes(k)) continue;
+    if (!isNum(w[k]) || w[k] < 0) throw new RangeError(`gia tri ${k} khong hop le`);
+    mass += w[k];
+  }
+  if (!(mass > 0) || !Number.isFinite(mass)) throw new RangeError('mau so diem phai la so huu han > 0');
+  return mass;
+}
+
 /**
- * Mot buoc cap nhat tren S = sharedComponents(top, chosen): keo trong so ve phia thanh phan nguoi duoc chon (`chosen`) hon nguoi xep
- * dau (`top`), roi chieu cac so trong S len {tong = tong cu cua S, moi so trong khoang}. Ngoai S khong doi.
+ * Mot buoc cap nhat tren S = sharedComponents(top, chosen), theo huong tang (diem_chosen - diem_top) voi MAU SO RIENG.
+ * Chieu len {tong = tong cu cua S, moi so trong khoang}; ngoai S khong doi. Moi khoa trong S tham gia diem cua ca hai,
+ * nen giu tong S cung giu nguyen hai mau so: chenh lech diem la tuyen tinh tren mien chieu, khong tang khoang cach sai.
+ * `scoring` chi ro cac khoa tham gia diem, gom ca NEUTRAL; khong truyen thi suy ra tu `features` (du lieu cu / goi truc tiep).
  */
-export function learnStep(w: Weights, top: Features, chosen: Features, eta: number = LEARN_ETA): Weights {
+export function learnStep(w: Weights, top: Features, chosen: Features, eta: number = LEARN_ETA, scoring?: LearningScoreComponents): Weights {
   if (!Number.isFinite(eta) || eta <= 0) throw new RangeError('eta phai la so huu han > 0');
   // Khoa CO MAT ma khong phai so huu han la loi cua nguoi goi (khong am tham coi la thieu)
   for (const k of COMPONENT_KEYS) {
@@ -53,10 +80,15 @@ export function learnStep(w: Weights, top: Features, chosen: Features, eta: numb
   if (keys.length < LEARN_MIN_SHARED) {
     throw new RangeError(`can it nhat ${LEARN_MIN_SHARED} thanh phan chung de hoc (co ${keys.length})`);
   }
+  const topMass = scoringMass(w, top, scoring?.top);
+  const chosenMass = scoringMass(w, chosen, scoring?.chosen);
+  const commonMass = Math.min(topMass, chosenMass);
+  const topScale = commonMass / topMass;
+  const chosenScale = commonMass / chosenMass;
   const raw: Weights = { ...w };
   for (const k of keys) {
     if (!Number.isFinite(w[k])) throw new RangeError(`gia tri ${k} khong hop le`);
-    raw[k] = w[k] + eta * (chosen[k]! - top[k]!);
+    raw[k] = w[k] + eta * (chosenScale * chosen[k]! - topScale * top[k]!);
   }
   return projectWithin(raw, keys);
 }
@@ -66,6 +98,8 @@ export interface LearnCandidate {
   score: number | null;
   /** Cac thanh phan co gia tri that; null = nhat ky hong (khong co thanh phan nao). Hoc tren phan CHUNG voi nguoi kia (§17.7). */
   features: Features | null;
+  /** Khoa co `scaled` hop le trong nhat ky, gom ca NEUTRAL. Vang = suy ra tu features (nguoi goi cu). */
+  scoreComponents?: readonly ComponentKey[];
 }
 
 export type LearnReason =
@@ -120,7 +154,10 @@ export function learningDecision(input: LearnInput): LearnDecision {
   }
   if (!(top.score > chosen.score)) return { learn: false, reason: 'TIE' };
 
-  const next = learnStep(weights, top.features, chosen.features, input.eta);
+  const next = learnStep(weights, top.features, chosen.features, input.eta, {
+    top: top.scoreComponents ?? COMPONENT_KEYS.filter((k) => isNum(top.features![k])),
+    chosen: chosen.scoreComponents ?? COMPONENT_KEYS.filter((k) => isNum(chosen.features![k])),
+  });
   if (sameWeights(next, weights)) return { learn: false, reason: 'NO_CHANGE' };
   return { learn: true, reason: 'LEARNED', next };
 }
@@ -158,7 +195,14 @@ export function parseRunCandidates(json: unknown, opts: ParseOptions = {}): Lear
     if (typeof raw !== 'object' || raw === null) continue;
     const c = raw as Record<string, unknown>;
     if (typeof c.userId !== 'string') continue;
-    out.push({ userId: c.userId, score: isNum(c.score) ? c.score : null, features: featuresOf(c.components, opts.includeFilled ?? false) });
+    // scaled co gia tri thi tham gia DIEM, du value null. featuresOf van loai gia tri dien khoi S khi hoc.
+    const scoredFeatures = featuresOf(c.components, true);
+    out.push({
+      userId: c.userId,
+      score: isNum(c.score) ? c.score : null,
+      features: featuresOf(c.components, opts.includeFilled ?? false),
+      scoreComponents: COMPONENT_KEYS.filter((k) => isNum(scoredFeatures?.[k])),
+    });
   }
   return out;
 }

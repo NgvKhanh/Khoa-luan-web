@@ -366,8 +366,11 @@ RankNet. Học trực tuyến, không cần huấn luyện offline, không cần
 
 Khi module xếp `a` đứng đầu mà người dùng chọn `b` (khác `a`):
 
-- Gọi `x_a`, `x_b` là véc-tơ ba thành phần của hai người.
-- Nếu `score(a) > score(b)`: `trọng số <- trọng số + eta * (x_b - x_a)`, `eta = 0.05`.
+- Gọi `x_a`, `x_b` là các giá trị `scaled` của hai người, **S** là các thành phần cả hai có dữ liệu thật,
+  và `D_u` là tổng trọng số các thành phần thực sự tham gia điểm của người `u` (kể cả giá trị điền NEUTRAL).
+- Nếu `score(a) > score(b)`: cập nhật trong S theo
+  `w_S <- w_S + eta * min(D_a, D_b) * (x_b / D_b - x_a / D_a)_S`, `eta = 0.05`.
+  Hai mẫu số bằng nhau thì trở về bước học cũ; khác nhau thì cần chia theo mẫu số riêng để đi đúng hướng phản hồi.
 - Đưa về tập hợp lệ: mỗi trọng số trong `[0.05, 0.70]`, tổng bằng 1. **Cài đặt dùng phép chiếu
   vuông góc** (điểm hợp lệ gần nhất) thay cho "kẹp rồi chia cho tổng" — xem "Cài đặt (bước 6a)" bên
   dưới vì sao.
@@ -391,6 +394,10 @@ Có nút đặt lại về mặc định. Trọng số hiện tại luôn xem đ
 
 - **Đặc trưng `x` là giá trị đã chuẩn hoá `scaled`** (thứ thực sự tạo ra điểm, bước 4b), không phải
   giá trị thô: bước cập nhật phải đi đúng hướng với cái đã xếp sai. Đọc lại từ `AssignRun.candidates`.
+- **Mẫu số điểm riêng của từng người**: `parseRunCandidates` giữ riêng các khoá có `scaled` hữu hạn trong
+  `scoreComponents`, kể cả NEUTRAL; chỉ các khoá có giá trị thật mới vào tập học S. Tính `D_u` bằng trọng số
+  hiện tại của nhóm. Hệ số `min(D_a, D_b)` giữ độ lớn bước cũ khi hai mẫu số bằng nhau và giữ đặc trưng dùng học
+  trong [0,1]. Tổng trọng số trong S không đổi nên hai mẫu số cũng không đổi sau phép chiếu.
 - **Phép chiếu thay cho "kẹp rồi chuẩn hoá"**: kẹp từng số rồi chia cho tổng **có thể phá chính bất
   biến §14** — `(0,70; 0,05; 0,05)` chuẩn hoá thành `(0,875; 0,0625; 0,0625)`, vượt trần 0,70. Phép chiếu
   tìm điểm hợp lệ **gần nhất**: `w_i = kẹp(v_i − τ)` với `τ` chọn (chia đôi, tất định) sao cho tổng = 1;
@@ -1125,9 +1132,13 @@ chỉ 4–13 lần cập nhật trên ~105 quyết định). Luật mới:
 - **S** = các thành phần mà **cả hai người** (người xếp đầu và người được chọn) đều có **giá trị thật** (`value ≠ null`) —
   không học từ giá trị được điền bằng NEUTRAL (giữ đúng ý chốt chặn cũ).
 - `|S| < 2` → `MISSING_COMPONENT` (một chiều thì không có tỉ lệ nào để chỉnh).
-- Cập nhật **chỉ trong S**: `w_S ← projectOnto(w_S + η·(x_chọn − x_đầu)_S, khối = Σ_{k∈S} w_k)`, mỗi số trong
+- Cập nhật **chỉ trong S**: đặt `D_u = Σ_{k có scaled hữu hạn} w_k`,
+  `w_S ← projectOnto(w_S + η·min(D_đầu,D_chọn)·(x_chọn/D_chọn − x_đầu/D_đầu)_S, khối = Σ_{k∈S} w_k)`, mỗi số trong
   `[0,05; 0,70]`; trọng số ngoài S **giữ nguyên** (chiếu toàn cục sẽ kéo cả chúng đi một lượng τ mà không có bằng chứng).
-  Luôn khả thi vì điểm hiện tại đã thoả ràng buộc. `S` đủ 4 → đúng luật cũ mở rộng.
+  Luôn khả thi vì điểm hiện tại đã thoả ràng buộc. Hai mẫu số bằng nhau → đúng luật cũ, kể cả khi `S` đủ 4.
+  NEUTRAL có trong mẫu số nhưng không trong S; ghi nhận riêng các khoá tham gia điểm khi đọc nhật ký.
+  Vì mọi khoá trong S tham gia điểm của cả hai, giữ tổng S giữ nguyên hai mẫu số. Chênh lệch điểm tuyến tính trên
+  miền chiếu, nên bước học theo hướng này không tăng khoảng cách `score(đầu) − score(chọn)` trên các đặc trưng đã ghi.
 - `projectWeights` viết lại thành `projectOnto(values, mass)` (bản hiện tại gắn cứng 3 khoá trong phần gán kết quả).
 - `parseRunCandidates` đọc được JSON cũ 3 thành phần: Hồ sơ vắng → coi như thiếu → tự rơi khỏi S, không cần nhánh riêng.
 - Thứ tự lý do của `learningDecision` giữ nguyên. Nhánh đo thêm (chỉ đánh giá): học trên giá trị đã điền NEUTRAL.
@@ -1978,6 +1989,16 @@ khoảng tin cậy bootstrap, chỉ số đúng hạn + Gini, và **đường h�
 | `evalAssignRun.ts` | Bộ chạy ba chế độ `HISTORY` / `ARM` / `LEADER`, `planDecisions`, `summarizeDecisions`, hai nhánh **tham chiếu** cần kỹ năng ẩn (người giỏi nhất, tối ưu), `EVAL_SEEDS`, `STREAM_SALTS` |
 | `evalAssignReport.ts` | Dựng bảng markdown (bảng chính, so sánh cặp, cắt bỏ, đối chiếu phát lại), nhãn kết luận tự động theo khoảng tin cậy, mã băm dữ liệu |
 | `evaluateAssign.ts` | CLI `npm run eval:assign` (ở 7a chỉ có `--exp=arms`; 7b thêm các thí nghiệm khác) |
+
+**Cache đánh giá (sửa ngày 06/10/2026)**: `evalAssignCache.ts` chỉ tái sử dụng kết quả khi khớp mã băm của cây import từ CLI
+(gồm bộ chấm, học trọng số, bộ sinh, tham số các thí nghiệm), `package.json` / `package-lock.json` / `tsconfig.json`, dữ liệu
+và mã băm từng hạt giống, danh sách hạt giống theo đúng thứ tự, ngày bắt đầu đánh giá, hệ số phạt tải và phiên bản Node.
+Cache có phiên bản lược đồ, kiểm tra mã băm kết quả và ghi qua tệp tạm để tránh đọc JSON đang ghi dở. Cache cũ chỉ có
+`tên.số-hạt-giống.json` không đủ thông tin truy xuất nguồn nên bị bỏ qua; thí nghiệm được chọn sẽ chạy lại tự động.
+`--exp=report` chỉ dựng từ cache hợp lệ; nếu thiếu kết quả cho đầu ra yêu cầu thì dừng trước khi ghi báo cáo.
+Ngày lập báo cáo và thời điểm hoàn tất từng thí nghiệm được ghi riêng trong markdown / JSON; dựng lại báo cáo không đổi thời điểm chạy thật.
+`--refresh=1` vẫn buộc chạy lại. Chạy lại đầy đủ sau khi sửa thuật toán:
+`npm run eval:assign -- --exp=all --out=eval-assign-result.md --out-sweeps=eval-assign-sweeps.md` (trong `backend/`).
 
 **Sửa**: `simGenerator.ts` — gom công thức rút kết quả thành `sampleOutcome()` (giữ nguyên thứ tự gọi bộ số ngẫu nhiên; **mã băm
 đóng băng `e7ddf9ac…` không đổi**, test đang canh), thêm tham số `loadPenalty` cho `onTimeProbability` (không đưa vào `SimConfig`
@@ -2839,4 +2860,3 @@ Trước đây nút tải CV thành viên **chỉ** nằm trong mục "Vì sao?"
   `WorkspaceSettingsPage.cv.test.tsx` (mới — trang này trước đây chưa có test). Cài lỗi 19 phép (backend 8, frontend 11): lần đầu 17/19 — lọt
   "trả theo thứ tự tập thay vì thứ tự gửi" (test chỉ gửi một thứ tự, tình cờ trùng) và "trả kết quả của danh sách cũ khi danh sách mới chưa về"
   → thêm 2 kiểm → 19/19.
-

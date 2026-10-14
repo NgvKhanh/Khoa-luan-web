@@ -16,6 +16,7 @@
     "eval:assign": "tsx src/scripts/evaluateAssign.ts",
     "eval:plan": "tsx src/scripts/evalPlan.ts",
     "seed:sim": "tsx src/scripts/seedSimulation.ts",
+    "seed:team": "tsx src/scripts/seedTeam.ts",
     "assign:keywords": "tsx src/scripts/showKeywords.ts",
     "assign:suggest": "tsx src/scripts/showSuggestions.ts",
     "prisma:generate": "prisma generate",

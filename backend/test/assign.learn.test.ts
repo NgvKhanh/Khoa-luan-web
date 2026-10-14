@@ -37,6 +37,12 @@ const W = (experience: number, reliability: number, availability: number, declar
 });
 const near = (a: Weights, b: Weights, eps = 1e-12) => WEIGHT_KEYS.every((k) => Math.abs(a[k] - b[k]) <= eps);
 
+// Oracle diem: chia cho tong trong so cua cac thanh phan THUC SU tham gia diem.
+const featureScore = (w: Weights, x: Features): number => {
+  const present = WEIGHT_KEYS.filter((k) => x[k] !== undefined);
+  return 100 * present.reduce((s, k) => s + w[k] * x[k]!, 0) / present.reduce((s, k) => s + w[k], 0);
+};
+
 describe('hang so hoc', () => {
   it('eta 0,05 (§5.8) va chi hoc tu phan hoi thu 10 (§8 chot chan 1)', () => {
     expect(LEARN_ETA).toBe(0.05);
@@ -100,6 +106,48 @@ describe('learnStep - mot buoc cap nhat (bo trong so kieu cu: Ho so = 0)', () =>
 });
 
 describe('buoc 13 (§17.7): hoc tren S = cac thanh phan CA HAI nguoi deu co', () => {
+  it('phan hoi chon nguoi thieu lich su phai THU HEP khoang cach diem, khong tang tu 35 len 35,1625', () => {
+    const top: Features = { experience: 1, reliability: 1, availability: 0.8, declared: 0.2 };
+    const chosen: Features = { availability: 0.7, declared: 0.2 };
+    const topScore = featureScore(DEFAULT_WEIGHTS, top);
+    const chosenScore = featureScore(DEFAULT_WEIGHTS, chosen);
+    expect([topScore, chosenScore]).toEqual([80, 45]);
+    const decision = learningDecision({
+      weights: DEFAULT_WEIGHTS,
+      feedbackCount: 10,
+      topUserId: 'top',
+      chosenUserId: 'chosen',
+      candidates: [
+        { userId: 'top', score: topScore, features: top },
+        { userId: 'chosen', score: chosenScore, features: chosen },
+      ],
+    });
+    if (!decision.learn) throw new Error('phan hoi nay phai hoc');
+    expect(featureScore(decision.next, top) - featureScore(decision.next, chosen)).toBeLessThan(35);
+    expect(decision.next.availability).toBeGreaterThan(DEFAULT_WEIGHTS.availability);
+    expect(decision.next.declared).toBeLessThan(DEFAULT_WEIGHTS.declared);
+    expect([decision.next.experience, decision.next.reliability]).toEqual([0.36, 0.24]);
+    expect(weightIssues(decision.next)).toEqual([]);
+  });
+
+  it('nhieu mau thieu du lieu: moi buoc hoc khong tang khoang cach diem top - chosen', () => {
+    const rng = new Rng(61006);
+    let checked = 0;
+    for (let i = 0; i < 1500; i += 1) {
+      const w = projectWithin(W(rng.next(), rng.next(), rng.next(), rng.next()), WEIGHT_KEYS);
+      const features = (): Features => Object.fromEntries(WEIGHT_KEYS.filter(() => rng.chance(0.75)).map((k) => [k, rng.next()]));
+      const top = features();
+      const chosen = features();
+      if (sharedComponents(top, chosen).length < 2) continue;
+      const before = featureScore(w, top) - featureScore(w, chosen);
+      const next = learnStep(w, top, chosen);
+      const after = featureScore(next, top) - featureScore(next, chosen);
+      expect(after, JSON.stringify({ w, top, chosen, before, after })).toBeLessThanOrEqual(before + 1e-10);
+      checked += 1;
+    }
+    expect(checked).toBeGreaterThan(800);
+  });
+
   it('sharedComponents: theo thu tu co dinh, chi so huu han, can o CA HAI', () => {
     expect(sharedComponents({ declared: 0.1, experience: 1, availability: 0 }, { availability: 1, declared: 0, reliability: 0.2 })).toEqual(['availability', 'declared']);
     expect(sharedComponents({ experience: Number.NaN, reliability: 1 }, { experience: 0, reliability: 0 })).toEqual(['reliability']);
@@ -109,7 +157,8 @@ describe('buoc 13 (§17.7): hoc tren S = cac thanh phan CA HAI nguoi deu co', ()
 
   it('S = 2 (thieu tin cay o mot nguoi): chinh kinh nghiem + kha dung trong khoi 1 - 0,30; tin cay va Ho so KHONG doi (tinh tay)', () => {
     const out = learnStep(LEGACY_WEIGHTS_V1, { experience: 1, availability: 0 }, { experience: 0, reliability: 0.9, availability: 1 });
-    expect(near(out, W(0.4, 0.3, 0.3, 0))).toBe(true);
+    // D_top = 0,70, D_chosen = 1: delta = (-1; +0,70); chieu giu khoi 0,70 -> (-0,0425; +0,0425).
+    expect(near(out, W(0.4075, 0.3, 0.2925, 0))).toBe(true);
     expect(out.reliability).toBe(0.3);
   });
 
@@ -152,6 +201,29 @@ describe('buoc 13 (§17.7): hoc tren S = cac thanh phan CA HAI nguoi deu co', ()
     if (!strict.learn || !filled.learn) throw new Error('phai hoc');
     expect(strict.next.declared).toBe(0.2); // Ho so ngoai S
     expect(filled.next.declared).toBeGreaterThan(0.2); // Ho so trong S
+  });
+
+  it('NEUTRAL van nam trong mau so diem, du khong duoc dung lam bang chung hoc', () => {
+    const comp = (value: number | null, scaled: number | null = value) => ({ value, scaled });
+    const topScoreFeatures: Features = { experience: 0.8, reliability: 1, availability: 0.2, declared: 0.5 };
+    const chosenScoreFeatures: Features = { experience: 0.7, availability: 0.2, declared: 0.2 };
+    const candidates = parseRunCandidates([
+      { userId: 'a', score: featureScore(DEFAULT_WEIGHTS, topScoreFeatures), components: {
+        experience: comp(0.8), reliability: comp(1), availability: comp(0.2), declared: comp(null, 0.5),
+      } },
+      { userId: 'b', score: featureScore(DEFAULT_WEIGHTS, chosenScoreFeatures), components: {
+        experience: comp(0.7), reliability: comp(null), availability: comp(0.2), declared: comp(0.2),
+      } },
+    ]);
+    expect(candidates[0]!.features!.declared).toBeUndefined();
+    expect(candidates[0]!.scoreComponents).toEqual(WEIGHT_KEYS);
+    const decision = learningDecision({ weights: DEFAULT_WEIGHTS, feedbackCount: 10, topUserId: 'a', chosenUserId: 'b', candidates });
+    if (!decision.learn) throw new Error('phan hoi nay phai hoc');
+    const before = candidates[0]!.score! - candidates[1]!.score!;
+    const after = featureScore(decision.next, topScoreFeatures) - featureScore(decision.next, chosenScoreFeatures);
+    expect(after).toBeLessThan(before);
+    expect(decision.next.experience).toBeGreaterThan(DEFAULT_WEIGHTS.experience);
+    expect([decision.next.reliability, decision.next.declared]).toEqual([0.24, 0.2]);
   });
 
   it('3000 tinh huong ngau nhien (S bat ky, >= 2): hop le, ngoai S giu tung bit, tong trong S giu nguyen', () => {
@@ -309,8 +381,8 @@ describe('parseRunCandidates - doc lai AssignRun.candidates', () => {
   it('lay diem va DAC TRUNG theo `scaled` (khong phai `value`), giu thu tu, bo qua khoa la', () => {
     const out = parseRunCandidates([good('a', 61.5), good('b')]);
     expect(out).toEqual([
-      { userId: 'a', score: 61.5, features: { experience: 1, reliability: 0.5, availability: 0 } },
-      { userId: 'b', score: 50, features: { experience: 1, reliability: 0.5, availability: 0 } },
+      { userId: 'a', score: 61.5, features: { experience: 1, reliability: 0.5, availability: 0 }, scoreComponents: LEGACY_KEYS },
+      { userId: 'b', score: 50, features: { experience: 1, reliability: 0.5, availability: 0 }, scoreComponents: LEGACY_KEYS },
     ]);
   });
 

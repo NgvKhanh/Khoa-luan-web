@@ -244,6 +244,18 @@ describe('datasetFingerprint', () => {
 });
 
 describe('buildArmsReport', () => {
+  it('phan biet ngay lap bao cao voi thoi diem chay that duoc luu trong cache', () => {
+    const m: ReportMeta = {
+      ...meta(20), date: '2026-10-06', sourceSha256: 'source-v1', nodeVersion: 'v22.0.0',
+      experimentRuns: { arms: '2026-09-21T12:00:00.000Z' },
+    };
+    const text = buildArmsReport({ meta: m, closed: allArms(20), history: allArms(20) });
+    expect(text).toContain('Ngày lập báo cáo 2026-10-06');
+    expect(text).toContain('`arms`: 2026-09-21T12:00:00.000Z');
+    expect(text).toContain('sha256 mã nguồn `source-v1`');
+    expect(text).not.toContain('Ngày chạy 2026-10-06');
+  });
+
   it('du cac muc, dong dau ghi ngay / so hat giong / ma bam; 20 hat giong thi khong co canh bao', () => {
     const text = buildArmsReport({ meta: meta(20), closed: allArms(20), history: allArms(20) });
     for (const h of ['## 1. ', '## 2. ', '## 3. ', '## 4. ', '## Giới hạn']) expect(text).toContain(h);

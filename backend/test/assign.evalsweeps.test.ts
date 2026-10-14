@@ -551,6 +551,20 @@ describe('textTable / objectiveTable', () => {
 });
 
 describe('buildSweepReport', () => {
+  it('bao cao gop giu thoi diem chay rieng cua tung thi nghiem', () => {
+    const text = buildSweepReport({ meta: {
+      date: '2026-10-06', seeds: [2001, 2002], datasetSha256: 'dataset-v1', minDay: 60, loadPenalty: 0.06,
+      sourceSha256: 'source-v1', experimentRuns: {
+        params: '2026-10-01T01:00:00.000Z', learn: '2026-10-02T02:00:00.000Z',
+      },
+    } });
+    expect(text).toContain('Ngày lập báo cáo 2026-10-06');
+    expect(text).toContain('`params`: 2026-10-01T01:00:00.000Z');
+    expect(text).toContain('`learn`: 2026-10-02T02:00:00.000Z');
+    expect(text).toContain('sha256 mã nguồn `source-v1`');
+    expect(text).not.toContain('Ngày chạy 2026-10-06');
+  });
+
   const meta = (n: number): ReportMeta => ({
     date: '2026-09-21',
     seeds: Array.from({ length: n }, (_, i) => 2001 + i),

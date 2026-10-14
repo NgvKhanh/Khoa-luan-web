@@ -4,7 +4,7 @@
 
 import { fmt, fmtPct, mdTable } from './evalMetrics';
 import { bootstrapMeanCI, comparePaired, mean, type PairedComparison } from './evalAssignStats';
-import { fmtDiff, fmtMeanCI, verdict, type ReportMeta } from './evalAssignReport';
+import { fmtDiff, fmtMeanCI, provenanceLines, verdict, type ReportMeta } from './evalAssignReport';
 import type { LearningResult, ObjectiveResult, SweepResult, TextResult } from './evalAssignExperiments';
 import { PERSONAS } from './evalAssignLeader';
 import type { RunSummary } from './evalAssignRun';
@@ -464,9 +464,10 @@ export function buildSweepReport(input: SweepReportInput): string {
   out.push('# Đánh giá module gợi ý phân công — quét tham số, học trọng số, độ bền vững (bước 7b)');
   out.push('');
   out.push(
-    `Ngày chạy ${meta.date} · ${n} hạt giống (${meta.seeds[0]}–${meta.seeds[n - 1]}) · giai đoạn đánh giá từ ngày ${meta.minDay} · ` +
+    `${meta.experimentRuns ? 'Ngày lập báo cáo' : 'Ngày chạy'} ${meta.date} · ${n} hạt giống (${meta.seeds[0]}–${meta.seeds[n - 1]}) · giai đoạn đánh giá từ ngày ${meta.minDay} · ` +
       `sha256 dữ liệu \`${meta.datasetSha256.slice(0, 16)}…\``
   );
+  out.push(...provenanceLines(meta));
   if (n < 20) out.push('', `> **Cảnh báo**: chỉ ${n} hạt giống (< 20) — khoảng tin cậy kém tin cậy, chỉ dùng để chạy thử.`);
   out.push('');
   out.push(

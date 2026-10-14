@@ -15,12 +15,28 @@ export interface ArmResult {
 }
 
 export interface ReportMeta {
+  /** Ngay lap bao cao; thoi diem chay that cua tung thi nghiem nam trong experimentRuns. */
   date: string;
   seeds: readonly number[];
   /** sha256 tong cua cac bo du lieu (xem datasetFingerprint) - de biet so lieu ung voi dung bo du lieu nao. */
   datasetSha256: string;
   minDay: number;
   loadPenalty: number;
+  sourceSha256?: string;
+  nodeVersion?: string;
+  experimentRuns?: Readonly<Record<string, string>>;
+}
+
+/** Giu lai thoi diem chay that khi dung lai cache, ke ca bao cao gop nhieu lan chay. */
+export function provenanceLines(meta: ReportMeta): string[] {
+  const out: string[] = [];
+  if (meta.sourceSha256) out.push('', `sha256 mã nguồn \`${meta.sourceSha256}\`${meta.nodeVersion ? ` · Node ${meta.nodeVersion}` : ''}`);
+  if (meta.experimentRuns) {
+    out.push('', 'Thời điểm hoàn tất thí nghiệm (UTC):', '', ...Object.entries(meta.experimentRuns).map(
+      ([name, time]) => `- \`${name}\`: ${time}`,
+    ));
+  }
+  return out;
 }
 
 export type Getter = (s: RunSummary) => number | null;
@@ -192,10 +208,11 @@ export function buildArmsReport(input: ArmsReportInput): string {
   out.push('# Đánh giá module gợi ý phân công — so sánh các nhánh (bước 7a)');
   out.push('');
   out.push(
-    `Ngày chạy ${meta.date} · ${n} hạt giống (${meta.seeds[0]}–${meta.seeds[n - 1]}) · ` +
+    `${meta.experimentRuns ? 'Ngày lập báo cáo' : 'Ngày chạy'} ${meta.date} · ${n} hạt giống (${meta.seeds[0]}–${meta.seeds[n - 1]}) · ` +
       `giai đoạn đánh giá từ ngày ${meta.minDay} · hệ số phạt tải của thế giới ${fmt(meta.loadPenalty, 2)} · ` +
       `sha256 dữ liệu \`${meta.datasetSha256.slice(0, 16)}…\``
   );
+  out.push(...provenanceLines(meta));
   if (n < 20) out.push('', `> **Cảnh báo**: chỉ ${n} hạt giống (< 20) — khoảng tin cậy kém tin cậy, chỉ dùng để chạy thử.`);
   out.push('');
   out.push('## 1. Vòng kín: mỗi nhánh tự giao người xếp đầu, kết quả rút từ mô hình của bộ sinh');

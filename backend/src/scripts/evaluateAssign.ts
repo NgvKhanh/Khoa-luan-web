@@ -25,6 +25,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { AssignEvaluationCache, sourceFingerprint } from './evalAssignCache';
 import { ABLATION_ARMS, MAIN_ARMS, type Arm, type ArmSpec } from './evalAssignArms';
 import { buildArmsReport, datasetFingerprint, type ArmResult, type ReportMeta } from './evalAssignReport';
 import {
@@ -53,8 +54,6 @@ import {
   type DatasetProvider,
   type LearningResult,
   type ObjectiveResult,
-  type SweepResult,
-  type TextResult,
 } from './evalAssignExperiments';
 import { PERSONAS, type PersonaId } from './evalAssignLeader';
 import { DEFAULT_MIN_DAY, EVAL_SEEDS, bestSkillArm, oracleArm, runArm, type RunMode } from './evalAssignRun';
@@ -115,26 +114,6 @@ function parseArgs(argv: string[]): Args {
 }
 
 const log = (line: string) => console.error(line);
-
-/** Nho ket qua cua tung thi nghiem (theo ten + so hat giong): chay lai / chay song song cac phan khong phai lam lai tu dau. */
-function cached<T>(args: Args, name: Exp, compute: () => T): T {
-  const file = path.join(args.cacheDir, `${name}.${args.seeds}.json`);
-  if (!args.refresh && fs.existsSync(file)) {
-    log(`[${name}] dung ket qua da nho (${file})`);
-    return JSON.parse(fs.readFileSync(file, 'utf8')) as T;
-  }
-  const t0 = Date.now();
-  const value = compute();
-  fs.mkdirSync(args.cacheDir, { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(value), 'utf8');
-  log(`[${name}] xong sau ${((Date.now() - t0) / 1000).toFixed(0)} s -> ${file}`);
-  return value;
-}
-
-function loadCached<T>(args: Args, name: Exp): T | undefined {
-  const file = path.join(args.cacheDir, `${name}.${args.seeds}.json`);
-  return fs.existsSync(file) ? (JSON.parse(fs.readFileSync(file, 'utf8')) as T) : undefined;
-}
 
 // ---------- 7a: so sanh cac nhanh ----------
 
@@ -224,55 +203,68 @@ function main(): void {
   const provider = makeDatasetProvider();
   const defaults = seeds.map((s) => provider(s, undefined));
   const finger = datasetFingerprint(defaults);
+  const backendDir = path.resolve(__dirname, '../..');
+  const sourceSha256 = sourceFingerprint(__filename, ['package.json', 'package-lock.json', 'tsconfig.json'].map((file) => path.join(backendDir, file)));
   const meta: ReportMeta = {
     date: new Date().toISOString().slice(0, 10),
     seeds,
     datasetSha256: finger.combined,
     minDay: DEFAULT_MIN_DAY,
     loadPenalty: DEFAULT_LOAD_PENALTY,
+    sourceSha256,
+    nodeVersion: process.version,
   };
+  const cache = new AssignEvaluationCache(args.cacheDir, {
+    sourceSha256,
+    datasetSha256: finger.combined,
+    datasetSha256PerSeed: finger.perSeed,
+    seeds,
+    minDay: DEFAULT_MIN_DAY,
+    loadPenalty: DEFAULT_LOAD_PENALTY,
+    nodeVersion: process.version,
+  }, log);
+  const experimentRuns: Record<string, string> = {};
 
   const run = (name: Exp) => !args.reportOnly && args.exps.includes(name);
+  const result = <T>(name: Exp, compute: () => T): T | undefined => {
+    const entry = run(name) ? cache.run(name, compute, args.refresh) : cache.load<T>(name);
+    if (entry) experimentRuns[name] = entry.completedAt;
+    return entry?.data;
+  };
 
   // ----- Chay / nap tung thi nghiem -----
-  const arms = run('arms') ? cached(args, 'arms', () => computeArms(defaults)) : loadCached<ArmsData>(args, 'arms');
-  const params = run('params')
-    ? cached(args, 'params', () => runSweep(seeds, paramSweepPoints(), provider, log))
-    : loadCached<SweepResult[]>(args, 'params');
-  const norm = run('norm')
-    ? cached(args, 'norm', () => runSweep(seeds, normalizationPoints(), provider, log))
-    : loadCached<SweepResult[]>(args, 'norm');
-  const weights = run('weights')
-    ? cached(args, 'weights', () => runSweep(seeds, weightsGridPoints(), provider, log))
-    : loadCached<SweepResult[]>(args, 'weights');
-  const world = run('world')
-    ? cached(args, 'world', () => ({
-        penalty: runSweep(seeds, loadPenaltyPoints(), provider, log),
-        density: runSweep(seeds, densityPoints(), provider, log),
-      }))
-    : loadCached<{ penalty: SweepResult[]; density: SweepResult[] }>(args, 'world');
-  const robust = run('robust')
-    ? cached(args, 'robust', () => runSweep(seeds, robustnessPoints(), provider, log))
-    : loadCached<SweepResult[]>(args, 'robust');
-  const learn = run('learn') ? cached(args, 'learn', () => computeLearn(seeds, provider)) : loadCached<LearnData>(args, 'learn');
-  const text = run('text')
-    ? cached(args, 'text', () => runTextVariants(seeds, provider))
-    : loadCached<TextResult[]>(args, 'text');
+  const arms = result('arms', () => computeArms(defaults));
+  const params = result('params', () => runSweep(seeds, paramSweepPoints(), provider, log));
+  const norm = result('norm', () => runSweep(seeds, normalizationPoints(), provider, log));
+  const weights = result('weights', () => runSweep(seeds, weightsGridPoints(), provider, log));
+  const world = result('world', () => ({
+    penalty: runSweep(seeds, loadPenaltyPoints(), provider, log),
+    density: runSweep(seeds, densityPoints(), provider, log),
+  }));
+  const robust = result('robust', () => runSweep(seeds, robustnessPoints(), provider, log));
+  const learn = result('learn', () => computeLearn(seeds, provider));
+  const text = result('text', () => runTextVariants(seeds, provider));
+  const hasSweeps = !!(params || norm || weights || world || robust || learn || text);
+  if ((!arms && !hasSweeps) || (args.out !== null && !arms) || (args.outSweeps !== null && !hasSweeps)) {
+    console.error('Khong du ket qua cache hop le de tao bao cao yeu cau. Chay lai --exp=arms / cac thi nghiem can thiet / --exp=all voi cung --seeds va --cache-dir.');
+    process.exit(1);
+  }
 
   // ----- Bao cao 7a -----
   if (arms) {
-    const report = buildArmsReport({ meta, closed: arms.closed, history: arms.history });
+    const armsMeta: ReportMeta = { ...meta, experimentRuns: { arms: experimentRuns.arms! } };
+    const report = buildArmsReport({ meta: armsMeta, closed: arms.closed, history: arms.history });
     console.log(report);
     if (args.out !== null) {
       fs.writeFileSync(args.out, report, 'utf8');
-      fs.writeFileSync(`${args.out}.json`, JSON.stringify({ meta, datasetSha256PerSeed: finger.perSeed, ...arms }), 'utf8');
+      fs.writeFileSync(`${args.out}.json`, JSON.stringify({ meta: armsMeta, datasetSha256PerSeed: finger.perSeed, ...arms }), 'utf8');
       log(`Da ghi ${args.out} va ${args.out}.json`);
     }
   }
 
   // ----- Bao cao 7b (chi nhung muc co ket qua) -----
   const input: SweepReportInput = {
-    meta,
+    meta: { ...meta, experimentRuns: Object.fromEntries(Object.entries(experimentRuns).filter(([name]) => name !== 'arms')) },
     params,
     norm,
     weights,
@@ -282,7 +274,7 @@ function main(): void {
     learn,
     text,
   };
-  if (params || norm || weights || world || robust || learn || text) {
+  if (hasSweeps) {
     const report = buildSweepReport(input);
     console.log('\n' + report);
     writeSweepOutputs(args, report, input, learn);
