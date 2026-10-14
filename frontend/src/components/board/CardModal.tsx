@@ -32,6 +32,7 @@ import {
   fetchBoardLabels,
   fetchCardDetail,
   fetchCardReminders,
+  getCardConflict,
   moveCard,
   removeCardMember,
   removeCardReminder,
@@ -40,6 +41,7 @@ import {
   setCardWatch,
   updateCard,
   updateChecklistItem,
+  type CardGuardedFields,
   type CardReminder,
   type ReminderOffset,
 } from '../../lib/api/card';
@@ -71,6 +73,7 @@ import { CARD_STATUS_ORDER, STATUS_META, targetListForStatus } from '../../lib/c
 import StatusBadge from './StatusBadge';
 import type { BoardList } from '../../types/list';
 import AssignSuggestPanel from './cardModal/AssignSuggestPanel';
+import CardConflictDialog, { type ConflictRow } from './cardModal/CardConflictDialog';
 import { AddItemInput } from './cardModal/AddItemInput';
 import CommentComposer from './cardModal/CommentComposer';
 import CommentThread from './cardModal/CommentThread';
@@ -102,6 +105,13 @@ interface Props {
 // Nut "Thêm vào thẻ": chung kiểu dáng, mỗi nút có biểu tượng để quét mắt nhanh hơn
 const ADD_TO_CARD_BTN =
   'inline-flex items-center gap-1.5 rounded bg-slate-200 dark:bg-slate-600 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600';
+
+const CONFLICT_LABELS: Record<keyof CardGuardedFields, string> = {
+  title: 'Tiêu đề',
+  description: 'Mô tả',
+  startDate: 'Ngày bắt đầu',
+  dueDate: 'Ngày hết hạn',
+};
 
 const ADD_ICON_PATHS = {
   labels: 'M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0L3 13V3h10l7.6 7.6a2 2 0 010 2.8zM7.5 7.5h.01',
@@ -189,6 +199,27 @@ export default function CardModal({
   const [editingTitle, setEditingTitle] = useState(false);
   const [descDraft, setDescDraft] = useState('');
   const [editingDesc, setEditingDesc] = useState(false);
+  // Khoa lac quan (nhieu nguoi sua cung 1 the): gia tri GOC cua truong luc BAT DAU
+  // sua - gui kem khi luu de server phat hien nguoi khac da doi truong do.
+  // Lay luc bat dau sua (khong lay luc bam Luu) vi `card` co the da duoc tai lai
+  // o giua, luc do gia tri hien tai khong con la "cai minh da thay".
+  const editBase = useRef<CardGuardedFields>({});
+  // Esc o o tieu de = huy sua (khong luu). Danh dau de onBlur (neu con chay luc o go
+  // bi go khoi DOM) khong luu nham. Reset moi lan mo o sua.
+  const titleEscapeRef = useRef(false);
+  // Nguoi khac da luu de len cho minh vua sua -> hop thoai chon giu ban nao
+  const [conflict, setConflict] = useState<{
+    patch: CardGuardedFields;
+    base: CardGuardedFields;
+    theirs: CardGuardedFields;
+  } | null>(null);
+  const conflictRef = useRef(false);
+  useEffect(() => {
+    conflictRef.current = conflict !== null;
+  }, [conflict]);
+  const [conflictBusy, setConflictBusy] = useState(false);
+  // Co thay doi tren bang trong luc dang sua -> nhac nhe (khong chan)
+  const [changedWhileEditing, setChangedWhileEditing] = useState(false);
   const [panel, setPanel] = useState<
     | 'labels'
     | 'due'
@@ -255,11 +286,25 @@ export default function CardModal({
     };
   }, [moveBoardId]);
 
+  // Dang go tieu de / mo ta -> tai lai the KHONG duoc ghi de ban nhap (truoc day
+  // chi su kien realtime tranh duoc, con tu thao tac cua chinh minh thi mat ban nhap)
+  const editingTitleRef = useRef(false);
+  const editingDescRef = useRef(false);
+  useEffect(() => {
+    editingTitleRef.current = editingTitle;
+    editingDescRef.current = editingDesc;
+  }, [editingTitle, editingDesc]);
+  // Nhieu lan tai lai chay chong nhau (realtime + sau khi luu): chi lan MOI NHAT
+  // duoc ap dung, lan cu ve tre khong de len du lieu moi hon.
+  const reloadSeq = useRef(0);
+
   const reload = useCallback(async () => {
+    const seq = (reloadSeq.current += 1);
     const d = await fetchCardDetail(cardId);
+    if (seq !== reloadSeq.current) return d;
     setCard(d);
-    setTitleDraft(d.title);
-    setDescDraft(d.description ?? '');
+    if (!editingTitleRef.current) setTitleDraft(d.title);
+    if (!editingDescRef.current) setDescDraft(d.description ?? '');
     return d;
   }, [cardId]);
 
@@ -298,7 +343,8 @@ export default function CardModal({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      // Dang hien hop thoai xung dot: Esc chi dong hop thoai do, khong dong the
+      if (e.key === 'Escape' && !conflictRef.current) onClose();
     };
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
@@ -313,7 +359,127 @@ export default function CardModal({
   editingRef.current = editingTitle || editingDesc;
   const boardIdRef = useRef<string | null>(null);
   boardIdRef.current = card?.list.boardId ?? null;
-  useCardRealtime({ reload, editingRef, boardIdRef });
+  const markChangedWhileEditing = useCallback(() => setChangedWhileEditing(true), []);
+  useCardRealtime({
+    reload,
+    editingRef,
+    editing: editingTitle || editingDesc,
+    boardIdRef,
+    onChangedWhileEditing: markChangedWhileEditing,
+  });
+
+  // Luu cac truong co khoa lac quan. `base` = gia tri GOC luc bat dau sua. Server
+  // thay truong do da bi nguoi khac doi -> 409, ta mo hop thoai thay vi bao loi chung.
+  // Tra ve true neu luu thanh cong.
+  // `onFail`: loi KHONG phai xung dot (vd noi dung qua dai) -> goi de mo lai o soan thao
+  // voi ban nhap con nguyen, thay vi dong lai roi mat chu da go.
+  async function saveGuarded(
+    patch: CardGuardedFields,
+    base: CardGuardedFields,
+    onFail?: () => void
+  ): Promise<boolean> {
+    if (readOnly || !card) return false;
+    setError(null);
+    try {
+      await updateCard(card.id, { ...patch, expected: base });
+    } catch (err) {
+      const c = getCardConflict(err);
+      if (c) {
+        setConflict({ patch, base, theirs: c.current });
+      } else {
+        setError(getErrorMessage(err, 'Thao tác thất bại.'));
+        onFail?.();
+      }
+      return false;
+    }
+    try {
+      await reload();
+      onChanged();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Thao tác thất bại.'));
+    }
+    return true;
+  }
+
+  // "Ghi de": van gui kem gia tri goc = ban moi nhat vua thay, de neu giua chung
+  // lai co nguoi thu 3 luu thi van duoc bao thay vi am tham de len.
+  async function overwriteConflict() {
+    if (!conflict) return;
+    setConflictBusy(true);
+    try {
+      const ok = await saveGuarded(conflict.patch, { ...conflict.base, ...conflict.theirs });
+      if (ok) setConflict(null);
+    } finally {
+      setConflictBusy(false);
+    }
+  }
+
+  async function acceptTheirsConflict() {
+    setConflict(null);
+    setError(null);
+    try {
+      await reload();
+      onChanged();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Không tải được thẻ.'));
+    }
+  }
+
+  // Quay lai o soan thao voi noi dung cua minh, lay ban moi nhat lam goc moi
+  // (chi cho tieu de / mo ta; ngay thang thi dung ban moi roi chon lai)
+  async function keepEditingConflict() {
+    if (!conflict) return;
+    const { patch } = conflict;
+    setConflict(null);
+    setError(null);
+    try {
+      const d = await reload();
+      if (patch.title !== undefined) {
+        editBase.current.title = d.title;
+        titleEscapeRef.current = false;
+        setTitleDraft(patch.title);
+        setChangedWhileEditing(false);
+        setEditingTitle(true);
+      } else if (patch.description !== undefined) {
+        editBase.current.description = d.description ?? null;
+        setDescDraft(patch.description ?? '');
+        setChangedWhileEditing(false);
+        setEditingDesc(true);
+      }
+    } catch (err) {
+      setError(getErrorMessage(err, 'Không tải được thẻ.'));
+    }
+  }
+
+  function startEditDesc() {
+    if (readOnly || !card) return;
+    editBase.current.description = card.description ?? null;
+    setChangedWhileEditing(false);
+    setEditingDesc(true);
+  }
+
+  // Luu ngay bat dau / het han tu 2 o datetime-local ('' = bo ngay). Chi gui
+  // truong THUC SU doi (so o datetime-local, do chinh xac phut) de sua 1 ngay
+  // khong bi coi la xung dot voi viec nguoi khac vua doi ngay kia.
+  function saveDates(startVal: string | undefined, dueVal: string | undefined) {
+    if (!card) return;
+    const baseStart =
+      editBase.current.startDate !== undefined ? editBase.current.startDate : card.startDate;
+    const baseDue =
+      editBase.current.dueDate !== undefined ? editBase.current.dueDate : card.dueDate;
+    const patch: CardGuardedFields = {};
+    const base: CardGuardedFields = {};
+    if ((startVal ?? '') !== toDatetimeLocalValue(baseStart)) {
+      patch.startDate = startVal ? new Date(startVal).toISOString() : null;
+      base.startDate = baseStart;
+    }
+    if ((dueVal ?? '') !== toDatetimeLocalValue(baseDue)) {
+      patch.dueDate = dueVal ? new Date(dueVal).toISOString() : null;
+      base.dueDate = baseDue;
+    }
+    if (Object.keys(patch).length === 0) return;
+    void saveGuarded(patch, base);
+  }
 
   // Tra ve true neu chinh thao tac `fn` thanh cong (ke ca khi tai lai the sau do loi) - noi goi dung de biet co nen lam buoc
   // tiep theo khong (vd ghi lai lua chon o o Thanh vien co goi y phan cong).
@@ -392,6 +558,20 @@ export default function CardModal({
   const dueRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+
+  // Hang cua hop thoai xung dot: ban cua minh canh ban moi nhat tren the
+  const conflictRows: ConflictRow[] = conflict
+    ? (Object.keys(conflict.theirs) as (keyof CardGuardedFields)[]).map((k) => {
+        const show = (v: string | null | undefined) =>
+          v === null || v === undefined ? '' : k === 'startDate' || k === 'dueDate' ? fmt(v) : v;
+        return {
+          key: k,
+          label: CONFLICT_LABELS[k],
+          mine: show(conflict.patch[k]),
+          theirs: show(conflict.theirs[k]),
+        };
+      })
+    : [];
 
   return createPortal(
     <div
@@ -747,17 +927,35 @@ export default function CardModal({
                     <textarea
                       autoFocus
                       value={titleDraft}
+                      maxLength={500}
                       onChange={(e) => setTitleDraft(e.target.value)}
                       onBlur={() => {
+                        if (titleEscapeRef.current) {
+                          titleEscapeRef.current = false;
+                          return;
+                        }
                         setEditingTitle(false);
                         const t = titleDraft.trim();
-                        if (t && t !== card.title) void run(() => updateCard(card.id, { title: t }));
+                        // So voi tieu de LUC BAT DAU sua, khong phai card.title hien tai
+                        // (the co the vua duoc nguoi khac doi): neu minh khong doi gi thi
+                        // khong luu, de ban moi cua ho khong bi ghi de bang ban cu.
+                        const base = editBase.current.title ?? card.title;
+                        if (t && t !== base) {
+                          void saveGuarded({ title: t }, { title: base }, () => setEditingTitle(true));
+                        }
                         else setTitleDraft(card.title);
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           (e.target as HTMLTextAreaElement).blur();
+                        } else if (e.key === 'Escape') {
+                          // Huy sua tieu de, KHONG dong ca the (truoc day Esc dong the
+                          // va mat ban nhap)
+                          e.stopPropagation();
+                          titleEscapeRef.current = true;
+                          setEditingTitle(false);
+                          setTitleDraft(card.title);
                         }
                       }}
                       rows={1}
@@ -765,7 +963,13 @@ export default function CardModal({
                     />
                   ) : (
                     <h2
-                      onClick={() => !readOnly && setEditingTitle(true)}
+                      onClick={() => {
+                        if (readOnly) return;
+                        editBase.current.title = card.title;
+                        titleEscapeRef.current = false;
+                        setChangedWhileEditing(false);
+                        setEditingTitle(true);
+                      }}
                       className={`text-lg font-semibold ${
                         readOnly ? '' : 'cursor-pointer'
                       } ${
@@ -776,6 +980,16 @@ export default function CardModal({
                     </h2>
                   )}
                 </div>
+
+                {changedWhileEditing && (editingTitle || editingDesc) && (
+                  <p
+                    role="status"
+                    className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+                  >
+                    Thẻ này vừa có thay đổi trong lúc bạn đang sửa. Nếu trùng chỗ bạn sửa, bạn sẽ
+                    được hỏi giữ bản nào khi lưu.
+                  </p>
+                )}
 
                 {/* Theo doi the: nhan thong bao hoat dong du khong phai thanh vien duoc gan */}
                 <div className="mb-4 pl-7">
@@ -912,7 +1126,14 @@ export default function CardModal({
                     <button
                       key={p}
                       type="button"
-                      onClick={() => setPanel(panel === p ? null : p)}
+                      onClick={() => {
+                        // Mo bang "Ngay": ghi lai gia tri goc de khoa lac quan khi luu
+                        if (p === 'due' && panel !== 'due') {
+                          editBase.current.startDate = card.startDate;
+                          editBase.current.dueDate = card.dueDate;
+                        }
+                        setPanel(panel === p ? null : p);
+                      }}
                       className={ADD_TO_CARD_BTN}
                     >
                       <AddIcon name={p} />
@@ -990,6 +1211,8 @@ export default function CardModal({
                                 })
                               );
                             }}
+                            aria-label={`Màu bìa ${c}`}
+                            aria-pressed={card.coverColor === c && !card.coverImageUrl}
                             className="grid h-8 place-items-center rounded"
                             style={{ backgroundColor: c }}
                           >
@@ -1032,6 +1255,7 @@ export default function CardModal({
                       <input
                         autoFocus
                         value={clTitle}
+                        maxLength={200}
                         onChange={(e) => setClTitle(e.target.value)}
                         onFocus={(e) => e.target.select()}
                         className="mb-3 w-full rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-sm focus:border-primary focus:outline-none"
@@ -1117,12 +1341,7 @@ export default function CardModal({
                             const s = startRef.current?.value;
                             const v = dueRef.current?.value;
                             setPanel(null);
-                            void run(() =>
-                              updateCard(card.id, {
-                                startDate: s ? new Date(s).toISOString() : null,
-                                dueDate: v ? new Date(v).toISOString() : null,
-                              })
-                            );
+                            saveDates(s, v);
                           }}
                           className="flex-1 rounded bg-primary py-1.5 text-sm font-medium text-white hover:bg-primary-hover"
                         >
@@ -1133,12 +1352,7 @@ export default function CardModal({
                             type="button"
                             onClick={() => {
                               setPanel(null);
-                              void run(() =>
-                                updateCard(card.id, {
-                                  startDate: null,
-                                  dueDate: null,
-                                })
-                              );
+                              saveDates('', '');
                             }}
                             className="rounded px-2 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                           >
@@ -1286,7 +1500,16 @@ export default function CardModal({
                         autoFocus
                         rows={5}
                         value={descDraft}
+                        maxLength={5000}
                         onChange={(e) => setDescDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            // Huy sua mo ta, KHONG dong ca the
+                            e.stopPropagation();
+                            setEditingDesc(false);
+                            setDescDraft(card.description ?? '');
+                          }
+                        }}
                         placeholder="**đậm**, *nghiêng*, - danh sách, [chữ](liên kết)..."
                         className="w-full rounded-lg border border-slate-300 dark:border-slate-600 p-2 text-sm focus:border-primary focus:outline-none"
                       />
@@ -1295,8 +1518,16 @@ export default function CardModal({
                           type="button"
                           onClick={() => {
                             setEditingDesc(false);
-                            void run(() =>
-                              updateCard(card.id, { description: descDraft.trim() || null })
+                            const next = descDraft.trim() || null;
+                            const base = editBase.current.description ?? null;
+                            // Khong doi gi so voi luc bat dau sua -> khong luu (tranh
+                            // ghi de ban moi cua nguoi khac bang chinh ban cu)
+                            if (next === base) {
+                              setDescDraft(card.description ?? '');
+                              return;
+                            }
+                            void saveGuarded({ description: next }, { description: base }, () =>
+                              setEditingDesc(true)
                             );
                           }}
                           className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover"
@@ -1319,9 +1550,9 @@ export default function CardModal({
                     <div
                       role="button"
                       tabIndex={0}
-                      onClick={() => setEditingDesc(true)}
+                      onClick={startEditDesc}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') setEditingDesc(true);
+                        if (e.key === 'Enter') startEditDesc();
                       }}
                       className="cursor-pointer rounded-lg bg-white dark:bg-slate-800 p-2 ring-1 ring-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                     >
@@ -1330,7 +1561,7 @@ export default function CardModal({
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setEditingDesc(true)}
+                      onClick={startEditDesc}
                       className="block w-full rounded-lg bg-white dark:bg-slate-800 p-2 text-left text-sm text-slate-600 dark:text-slate-300 ring-1 ring-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
                     >
                       Thêm mô tả chi tiết hơn...
@@ -1744,6 +1975,19 @@ export default function CardModal({
           </>
         )}
       </div>
+      {conflict && (
+        <CardConflictDialog
+          rows={conflictRows}
+          busy={conflictBusy}
+          onOverwrite={() => void overwriteConflict()}
+          onUseTheirs={() => void acceptTheirsConflict()}
+          onKeepEditing={
+            conflict.patch.title !== undefined || conflict.patch.description !== undefined
+              ? () => void keepEditingConflict()
+              : undefined
+          }
+        />
+      )}
     </div>,
     document.body
   );

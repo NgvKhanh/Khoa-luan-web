@@ -1,5 +1,4 @@
 import { prisma } from '../../config/prisma';
-import { Prisma } from '../../generated/prisma/client';
 import { emitToBoard } from '../../realtime/socket';
 import { AppError } from '../../utils/AppError';
 import { logActivity } from '../activity/activity.service';
@@ -421,6 +420,62 @@ export async function createCard(
   return (await prisma.card.findUnique({ where: { id: card.id } })) ?? card;
 }
 
+type ConflictFields = {
+  title?: string;
+  description?: string | null;
+  startDate?: string | null;
+  dueDate?: string | null;
+};
+
+const dateMs = (v: Date | string | null | undefined): number | null =>
+  v ? new Date(v).getTime() : null;
+
+/**
+ * Khoa lac quan theo truong cho updateCard(). Voi MOI truong dang duoc sua ma client
+ * co gui gia tri goc (`expected`): neu gia tri hien tai trong DB khac gia tri goc VA
+ * khac gia tri sap ghi -> nguoi khac da sua truong do. Tra ve gia tri hien tai cua
+ * cac truong xung dot, hoac null neu khong co xung dot.
+ *
+ * Gia tri hien tai == gia tri sap ghi la KHONG xung dot (hai nguoi cung sua ra mot
+ * ket qua - ghi lai khong mat gi). Truong khong duoc sua thi khong bao gio xung dot.
+ */
+export function findCardConflicts(
+  current: {
+    title: string;
+    description: string | null;
+    startDate: Date | null;
+    dueDate: Date | null;
+  },
+  input: Pick<UpdateCardInput, 'title' | 'description' | 'startDate' | 'dueDate'>,
+  expected: NonNullable<UpdateCardInput['expected']>
+): ConflictFields | null {
+  const out: ConflictFields = {};
+  if (
+    expected.title !== undefined &&
+    input.title !== undefined &&
+    current.title !== expected.title &&
+    current.title !== input.title
+  ) {
+    out.title = current.title;
+  }
+  if (
+    expected.description !== undefined &&
+    input.description !== undefined &&
+    current.description !== expected.description &&
+    current.description !== input.description
+  ) {
+    out.description = current.description;
+  }
+  for (const key of ['startDate', 'dueDate'] as const) {
+    if (expected[key] === undefined || input[key] === undefined) continue;
+    const cur = dateMs(current[key]);
+    if (cur !== dateMs(expected[key]) && cur !== dateMs(input[key])) {
+      out[key] = current[key]?.toISOString() ?? null;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 export async function updateCard(
   userId: string,
   cardId: string,
@@ -456,15 +511,44 @@ export async function updateCard(
       ? await firstListWithStatus(boardId, statusReq.to)
       : null;
 
+  const expected = input.expected;
+  const hasExpected = expected !== undefined && Object.keys(expected).length > 0;
+
   const { row: updated, change, previous } = await prisma.$transaction(async (tx) => {
     // Read the actual previous title/due date while holding the row lock, so
     // concurrent updates do not record an outdated before-value in Activity.
-    if ((statusReq && !moveTo) || input.title !== undefined || input.dueDate !== undefined) {
+    // Co `expected` -> luon khoa: so sanh gia tri goc voi gia tri hien tai phai
+    // nam CUNG giao dich voi lan ghi, neu khong 2 nguoi van lot qua nhau.
+    if (
+      (statusReq && !moveTo) ||
+      input.title !== undefined ||
+      input.dueDate !== undefined ||
+      hasExpected
+    ) {
       await tx.$queryRaw`SELECT id FROM "Card" WHERE id = ${cardId} FOR UPDATE`;
     }
     const previous = await tx.card.findUniqueOrThrow({
-      where: { id: cardId }, select: { status: true, title: true, dueDate: true },
+      where: { id: cardId },
+      select: {
+        status: true,
+        title: true,
+        dueDate: true,
+        description: true,
+        startDate: true,
+      },
     });
+    if (hasExpected) {
+      // Khoa lac quan: nguoi khac da doi dung truong nay ke tu luc nguoi dung bat
+      // dau sua -> tu choi, KHONG ghi de (client hien "giu ban nao"). Nem o day de
+      // giao dich rollback, chua co hieu ung phu nao (nhat ky/thong bao) da chay.
+      const conflicts = findCardConflicts(previous, input, expected);
+      if (conflicts) {
+        throw new AppError('The vua duoc nguoi khac cap nhat', 409, {
+          code: 'CARD_CONFLICT',
+          data: { fields: Object.keys(conflicts), current: conflicts },
+        });
+      }
+    }
     let change: { from: CardStatus; to: CardStatus } | null = null;
     if (statusReq && !moveTo) {
       // CODE_REVIEW.md #13: khoa dong the (SELECT ... FOR UPDATE) roi doc trang thai
@@ -691,72 +775,17 @@ export async function moveCard(
   const sourceBoardId = card.list.boardId;
   const crossBoard = sourceBoardId !== targetList.boardId;
 
-  const targetCards = await prisma.card.findMany({
-    where: {
-      listId: input.listId,
-      deletedAt: null,
-      archivedAt: null,
-      id: { not: cardId },
-    },
-    orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
-    select: { id: true },
-  });
-  const index = Math.min(Math.max(input.position, 0), targetCards.length);
-  const orderedIds = [
-    ...targetCards.slice(0, index).map((c) => c.id),
-    cardId,
-    ...targetCards.slice(index).map((c) => c.id),
-  ];
-
-  const writes: Prisma.PrismaPromise<unknown>[] = orderedIds.map((id, i) =>
-    prisma.card.update({
-      where: { id },
-      data: { position: i, listId: input.listId },
-    })
-  );
-
-  // Sang cot KHAC co trang thai -> the doi theo cot. Keo doi cho trong cung
-  // cot thi khong dong toi trang thai (giu trang thai da doi tay neu co).
-  const targetStatus =
-    sourceListId !== input.listId ? targetList.status : null;
-  const statusWriteIndex = targetStatus
-    ? writes.push(statusWrite(prisma, { id: cardId }, targetStatus)) - 1
-    : -1;
-
-  if (sourceListId !== input.listId) {
-    const remaining = await prisma.card.findMany({
-      where: {
-        listId: sourceListId,
-        deletedAt: null,
-        archivedAt: null,
-        id: { not: cardId },
-      },
-      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
-      select: { id: true },
-    });
-    remaining.forEach((c, i) => {
-      writes.push(
-        prisma.card.update({ where: { id: c.id }, data: { position: i } })
-      );
-    });
-  }
-
   // Chuyen sang bang khac: don du lieu khong con hop le o bang dich - nhan
   // gan tren the / gan tren muc checklist khong con la thanh vien bang dich
   // thi go ra (khong xoa the); nhan cua the thuoc bang cu cung bi go vi
   // Label la rieng theo tung bang. Gia tri truong tuy chinh cung rieng theo
   // tung bang (CustomField.boardId) nen cung phai go, khong the giu lai vi
   // bang dich khong co dinh nghia truong tuong ung.
+  // Phan DOC (thanh vien nao khong con hop le) lam truoc giao dich; phan GHI nam
+  // trong giao dich ben duoi.
+  let staleMemberIds: string[] = [];
+  let staleItemIds: string[] = [];
   if (crossBoard) {
-    writes.push(
-      prisma.cardLabel.deleteMany({
-        where: { cardId, label: { boardId: { not: targetList.boardId } } },
-      }),
-      prisma.cardFieldValue.deleteMany({
-        where: { cardId, field: { boardId: { not: targetList.boardId } } },
-      })
-    );
-
     const [members, items] = await Promise.all([
       prisma.cardMember.findMany({ where: { cardId }, select: { userId: true } }),
       prisma.checklistItem.findMany({
@@ -764,7 +793,7 @@ export async function moveCard(
         select: { id: true, assigneeId: true },
       }),
     ]);
-    const staleMemberIds = (
+    staleMemberIds = (
       await Promise.all(
         members.map(async (m) => ({
           userId: m.userId,
@@ -774,13 +803,6 @@ export async function moveCard(
     )
       .filter((m) => m.stale)
       .map((m) => m.userId);
-    if (staleMemberIds.length > 0) {
-      writes.push(
-        prisma.cardMember.deleteMany({
-          where: { cardId, userId: { in: staleMemberIds } },
-        })
-      );
-    }
 
     const distinctAssigneeIds = [
       ...new Set(items.map((it) => it.assigneeId as string)),
@@ -797,24 +819,120 @@ export async function moveCard(
         .filter((a) => a.stale)
         .map((a) => a.uid)
     );
-    const staleItemIds = items
+    staleItemIds = items
       .filter((it) => staleAssigneeIds.has(it.assigneeId as string))
       .map((it) => it.id);
-    if (staleItemIds.length > 0) {
-      writes.push(
-        prisma.checklistItem.updateMany({
-          where: { id: { in: staleItemIds } },
-          data: { assigneeId: null },
-        })
-      );
-    }
   }
 
-  const results = await prisma.$transaction(writes);
-  // updateMany co dieu kien: count = 0 nghia la the von da o dung trang thai
-  const statusChanged =
-    statusWriteIndex >= 0 &&
-    (results[statusWriteIndex] as { count: number }).count > 0;
+  // Sang cot KHAC co trang thai -> the doi theo cot. Keo doi cho trong cung
+  // cot thi khong dong toi trang thai (giu trang thai da doi tay neu co).
+  const targetStatus =
+    sourceListId !== input.listId ? targetList.status : null;
+
+  // Doc danh sach the + danh lai vi tri phai nam TRONG giao dich va sau khi khoa cot:
+  // truoc day doc ngoai giao dich nen 2 nguoi cung keo vao 1 cot dua tren cung 1 anh
+  // chup cu -> vi tri trung nhau / nguoi sau ghi de thu tu cua nguoi truoc.
+  const statusChanged = await prisma.$transaction(
+    async (tx) => {
+      // Khoa cot dich + cot nguon theo THU TU ID co dinh: 2 lan keo dong thoi di qua
+      // cung cac cot se xep hang cho nhau, khong the khoa cheo (deadlock).
+      // Dung khoa tu van (advisory) theo id cot chu KHONG khoa dong cua bang List:
+      // doi ten / sap xep lai cot cap nhat nhieu dong List theo thu tu vi tri, khoa
+      // dong theo thu tu id o day co the khoa cheo voi no. Khoa tu van tu nha khi
+      // giao dich ket thuc va chi co tac dung giua cac lan keo the voi nhau.
+      for (const listId of [...new Set([input.listId, sourceListId])].sort()) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${listId}, 0))`;
+      }
+      // Cot hien tai cua the (co the vua bi lan keo khac dua di noi khac trong luc cho khoa)
+      const current = await tx.card.findUnique({
+        where: { id: cardId },
+        select: { listId: true },
+      });
+      const fromListId = current?.listId ?? sourceListId;
+
+      const targetCards = await tx.card.findMany({
+        where: {
+          listId: input.listId,
+          deletedAt: null,
+          archivedAt: null,
+          id: { not: cardId },
+        },
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        select: { id: true, position: true },
+      });
+      const index = Math.min(Math.max(input.position, 0), targetCards.length);
+      const ordered = [
+        ...targetCards.slice(0, index),
+        { id: cardId, position: -1 },
+        ...targetCards.slice(index),
+      ];
+      // Chi ghi nhung the thuc su doi vi tri (do do khong lam nhay updatedAt cua
+      // ca cot moi lan keo)
+      for (let i = 0; i < ordered.length; i += 1) {
+        const c = ordered[i];
+        if (c.id === cardId) {
+          await tx.card.update({
+            where: { id: cardId },
+            data: { position: i, listId: input.listId },
+          });
+        } else if (c.position !== i) {
+          await tx.card.update({ where: { id: c.id }, data: { position: i } });
+        }
+      }
+
+      // updateMany co dieu kien: count = 0 nghia la the von da o dung trang thai
+      let changed = false;
+      if (targetStatus) {
+        const r = await statusWrite(tx, { id: cardId }, targetStatus);
+        changed = r.count > 0;
+      }
+
+      if (fromListId !== input.listId) {
+        const remaining = await tx.card.findMany({
+          where: {
+            listId: fromListId,
+            deletedAt: null,
+            archivedAt: null,
+            id: { not: cardId },
+          },
+          orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+          select: { id: true, position: true },
+        });
+        for (let i = 0; i < remaining.length; i += 1) {
+          if (remaining[i].position !== i) {
+            await tx.card.update({
+              where: { id: remaining[i].id },
+              data: { position: i },
+            });
+          }
+        }
+      }
+
+      if (crossBoard) {
+        await tx.cardLabel.deleteMany({
+          where: { cardId, label: { boardId: { not: targetList.boardId } } },
+        });
+        await tx.cardFieldValue.deleteMany({
+          where: { cardId, field: { boardId: { not: targetList.boardId } } },
+        });
+        if (staleMemberIds.length > 0) {
+          await tx.cardMember.deleteMany({
+            where: { cardId, userId: { in: staleMemberIds } },
+          });
+        }
+        if (staleItemIds.length > 0) {
+          await tx.checklistItem.updateMany({
+            where: { id: { in: staleItemIds } },
+            data: { assigneeId: null },
+          });
+        }
+      }
+      return changed;
+    },
+    // Moi lan ghi la 1 lenh rieng (chi nhung the doi vi tri) -> cot rat dai van can
+    // nhieu thoi gian hon 5s mac dinh cua giao dich tuong tac.
+    { timeout: 15_000 }
+  );
 
   if (sourceListId !== input.listId) {
     await logActivity({

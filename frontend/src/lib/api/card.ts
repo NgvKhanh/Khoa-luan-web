@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { api } from '../axios';
 import type {
   Card,
@@ -113,6 +114,40 @@ export async function searchCards(query: string): Promise<SearchCard[]> {
   return res.data.data.cards;
 }
 
+/** Cac truong cua the co khoa lac quan khi nhieu nguoi sua cung luc. */
+export interface CardGuardedFields {
+  title?: string;
+  description?: string | null;
+  startDate?: string | null;
+  dueDate?: string | null;
+}
+
+/** Loi 409 CARD_CONFLICT: nguoi khac da doi (cac) truong nay truoc khi minh luu. */
+export interface CardConflict {
+  fields: (keyof CardGuardedFields)[];
+  /** Gia tri HIEN TAI tren server cua cac truong xung dot. */
+  current: CardGuardedFields;
+}
+
+const GUARDED_KEYS: (keyof CardGuardedFields)[] = [
+  'title',
+  'description',
+  'startDate',
+  'dueDate',
+];
+
+/** Tra ve thong tin xung dot neu `err` la 409 CARD_CONFLICT, nguoc lai null. */
+export function getCardConflict(err: unknown): CardConflict | null {
+  if (!axios.isAxiosError(err) || err.response?.status !== 409) return null;
+  const body = err.response.data as
+    | { code?: string; data?: { current?: CardGuardedFields } }
+    | undefined;
+  if (body?.code !== 'CARD_CONFLICT' || !body.data?.current) return null;
+  const current = body.data.current;
+  const fields = GUARDED_KEYS.filter((k) => k in current);
+  return fields.length > 0 ? { fields, current } : null;
+}
+
 export async function updateCard(
   cardId: string,
   input: {
@@ -126,6 +161,9 @@ export async function updateCard(
     dueDate?: string | null;
     coverColor?: string | null;
     coverImageUrl?: string | null;
+    // Khoa lac quan: gia tri GOC cua cac truong dang sua (luc bat dau sua). Neu
+    // nguoi khac da doi truong do -> 409 (xem getCardConflict), khong ghi de.
+    expected?: CardGuardedFields;
   }
 ): Promise<Card> {
   const res = await api.patch<{ data: { card: Card } }>(

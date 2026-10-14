@@ -147,7 +147,12 @@ export function createApp() {
   // Bat moi loi phat sinh trong app va tra ve dang JSON thong nhat
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof AppError) {
-      res.status(err.statusCode).json({ success: false, message: err.message });
+      res.status(err.statusCode).json({
+        success: false,
+        message: err.message,
+        ...(err.code ? { code: err.code } : {}),
+        ...(err.data ? { data: err.data } : {}),
+      });
       return;
     }
 
