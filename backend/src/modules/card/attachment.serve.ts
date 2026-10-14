@@ -28,15 +28,32 @@ export async function serveCardAttachment(
   try {
     const userId = req.user?.id ?? null;
 
-    // req.path o day la phan sau "/uploads/cards", vd "/abc-123.png"
-    const filename = path.basename(decodeURIComponent(req.path));
+    // req.path o day la phan sau "/uploads/cards", vd "/abc-123.png". Ma hoa phan tram hong
+    // (vd "%E0%A4%A") lam decodeURIComponent nem URIError: khong phai loi he thong -> 404.
+    let filename: string;
+    try {
+      filename = path.basename(decodeURIComponent(req.path));
+    } catch {
+      res.status(404).json({ success: false, message: 'Khong tim thay tep' });
+      return;
+    }
     if (!filename || filename === '.' || filename === '/') {
       res.status(404).json({ success: false, message: 'Khong tim thay tep' });
       return;
     }
 
+    // Chi phuc vu tep cua the / danh sach CON HOAT DONG. The hoac danh sach da xoa / luu tru khong con
+    // hien o bat ky man hinh nao (endpoint public cua the cung da tra 404), nen ai con giu duong dan cu
+    // - ke ca khach chua dang nhap cua bang PUBLIC - cung khong duoc tai tiep. Khoi phuc thi tep lai tai duoc.
     const att = await prisma.attachment.findFirst({
-      where: { url: cardAttachmentPublicPath(filename) },
+      where: {
+        url: cardAttachmentPublicPath(filename),
+        card: {
+          deletedAt: null,
+          archivedAt: null,
+          list: { deletedAt: null, archivedAt: null },
+        },
+      },
       select: {
         name: true,
         card: { select: { list: { select: { boardId: true } } } },
