@@ -140,6 +140,8 @@ export interface ChatConversationSummary {
   createdAt: string;
   updatedAt: string;
   turnCount: number;
+  /** Trang ma cau hoi cuoi cung duoc gui tu. May chu cu khong tra thi khong co. */
+  scope?: ChatScope;
 }
 export interface ChatConversationList {
   conversations: ChatConversationSummary[];

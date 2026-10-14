@@ -80,6 +80,16 @@ function settleOlderPlans(turns: AssistantTurn[], currentId: number, action: Cha
     return { ...t, reply: { ...t.reply, answer: { ...t.reply.answer, action: next } } };
   });
 }
+/**
+ * Hoi thoai da luu co thuoc trang dang mo khong: trang bang -> dung bang do; trang khac (trang chu, khong gian...) -> hoi thoai
+ * bat dau ngoai bang. May chu cu khong tra `scope` thi coi nhu khop (hanh vi cu).
+ */
+export function savedConversationFits(saved: ChatScope | undefined, here: ChatScope): boolean {
+  if (!saved) return true;
+  if (here.kind === 'BOARD') return saved.kind === 'BOARD' && saved.boardId === here.boardId;
+  return saved.kind !== 'BOARD';
+}
+const sameScopeNow = (a: ChatScope, b: ChatScope): boolean => JSON.stringify(a) === JSON.stringify(b);
 function restoredTurns(history: ChatConversationHistory): AssistantTurn[] {
   return history.turns.map((t) => ({ ...newTurn(t.id, t.question), status: t.error ? 'error' : 'done',
     reply: t.reply, cards: t.reply?.answer.cards ?? [], page: t.reply?.answer.page ?? 1, error: t.error,
@@ -201,9 +211,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           try { const next = await statusPromise.current; engine.current = next?.engine ?? 'v2'; } catch { /* Try v2 history directly. */ }
           if (engine.current === 'legacy') return;
           const result = await refreshList();
-          if (result.conversations[0]) {
-            const history = await fetchChatConversation(result.conversations[0].id);
-            if (epoch.current === startEpoch) applyHistory(history); // roi bang giua chung thi khong dung lai hoi thoai cu
+          // Chi khoi phuc hoi thoai gan nhat CUA CHINH trang dang mo (vao bang B khong duoc hien hoi thoai cua bang A);
+          // khong co thi de trong, lich su van o danh sach "Lich su tro chuyen".
+          const here = scopeRef.current;
+          const match = result.conversations.find((c) => savedConversationFits(c.scope, here));
+          if (match) {
+            const history = await fetchChatConversation(match.id);
+            if (epoch.current === startEpoch && sameScopeNow(scopeRef.current, here)) applyHistory(history); // roi bang giua chung thi khong dung lai hoi thoai cu
           }
         } catch { setHistoryError('Không thể tải lịch sử trò chuyện. Hãy thử lại.'); historyRequested.current = false; }
         finally { setHistoryLoading(false); }

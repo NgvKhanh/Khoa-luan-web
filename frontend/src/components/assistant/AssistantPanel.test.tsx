@@ -6,7 +6,7 @@ import { MemoryRouter, Outlet, Route, Routes, useLocation, useNavigate } from 'r
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssistantProvider } from '../../context/AssistantContext';
 import { QUICK_QUESTIONS } from '../../lib/chatText';
-import type { ChatActionPlan, ChatActionResult, ChatAnswer, ChatCard, ChatConversationHistory, ChatReply, ChatUnderstood } from '../../types/chat';
+import type { ChatActionPlan, ChatActionResult, ChatAnswer, ChatCard, ChatConversationHistory, ChatConversationSummary, ChatReply, ChatUnderstood } from '../../types/chat';
 import type { ChatV2Block } from '../../types/chat';
 import AssistantButton from './AssistantButton';
 import AssistantPanel from './AssistantPanel';
@@ -741,6 +741,51 @@ describe('AssistantPanel: roi bang thi lam moi hoi thoai', () => {
     await act(async () => { release(saved('recent', 'Câu hỏi gần nhất')); });
     expect(within(panel()).queryByText('Câu hỏi gần nhất')).not.toBeInTheDocument();
     expect(within(panel()).getByText('Thử hỏi:')).toBeInTheDocument();
+  });
+
+  describe('khoi phuc hoi thoai khi mo tro ly lan dau chi lay hoi thoai CUA trang dang mo', () => {
+    const conv = (id: string, title: string, scope: ChatConversationSummary['scope']): ChatConversationSummary => ({ id, title, createdAt: GENERATED, updatedAt: GENERATED, turnCount: 1, scope });
+
+    it('vao bang B (tai trang / mo tab moi) khi hoi thoai gan nhat thuoc bang A -> de trong, hoi thoai bang A van o danh sach', async () => {
+      mocks.fetchChatStatus.mockResolvedValue({ llmAvailable: true, engine: 'v2' });
+      mocks.fetchChatConversations.mockResolvedValue({ conversations: [conv('a', 'Hội thoại bảng A', { kind: 'BOARD', boardId: 'bA' })], page: 1, hasMore: false });
+      mocks.fetchChatConversation.mockResolvedValue(saved('a', 'Câu hỏi của bảng A'));
+      renderAt('/boards/bB'); await openPanel();
+      expect(within(panel()).getByText('Thử hỏi:')).toBeInTheDocument();
+      expect(within(panel()).queryByText('Câu hỏi của bảng A')).not.toBeInTheDocument();
+      expect(within(panel()).queryByText(/Đã mở hội thoại đã lưu/)).not.toBeInTheDocument();
+      expect(mocks.fetchChatConversation).not.toHaveBeenCalled();
+      await clickAsync(within(panel()).getByRole('button', { name: 'Lịch sử trò chuyện' }));
+      expect(within(panel()).getByRole('button', { name: /Hội thoại bảng A/ })).toBeInTheDocument();
+    });
+
+    it('lay hoi thoai gan nhat CUA bang dang mo, bo qua hoi thoai moi hon cua bang khac', async () => {
+      mocks.fetchChatStatus.mockResolvedValue({ llmAvailable: true, engine: 'v2' });
+      mocks.fetchChatConversations.mockResolvedValue({
+        conversations: [conv('a', 'Hội thoại bảng A', { kind: 'BOARD', boardId: 'bA' }), conv('b', 'Hội thoại bảng B', { kind: 'BOARD', boardId: 'bB' })],
+        page: 1,
+        hasMore: false,
+      });
+      mocks.fetchChatConversation.mockImplementation(async (id: string) => saved(id, id === 'b' ? 'Câu hỏi của bảng B' : 'Câu hỏi của bảng A'));
+      renderAt('/boards/bB'); await openPanel();
+      expect(await within(panel()).findByText('Câu hỏi của bảng B')).toBeInTheDocument();
+      expect(mocks.fetchChatConversation).toHaveBeenCalledTimes(1);
+      expect(mocks.fetchChatConversation).toHaveBeenCalledWith('b');
+    });
+
+    it('o trang chu chi khoi phuc hoi thoai bat dau ngoai bang, khong lay hoi thoai cua mot bang', async () => {
+      mocks.fetchChatStatus.mockResolvedValue({ llmAvailable: true, engine: 'v2' });
+      mocks.fetchChatConversations.mockResolvedValue({
+        conversations: [conv('a', 'Hội thoại bảng A', { kind: 'BOARD', boardId: 'bA' }), conv('home', 'Hội thoại trang chủ', { kind: 'MY' })],
+        page: 1,
+        hasMore: false,
+      });
+      mocks.fetchChatConversation.mockImplementation(async (id: string) => saved(id, id === 'home' ? 'Câu hỏi trang chủ' : 'Câu hỏi của bảng A'));
+      renderAt('/home'); await openPanel();
+      expect(await within(panel()).findByText('Câu hỏi trang chủ')).toBeInTheDocument();
+      expect(mocks.fetchChatConversation).toHaveBeenCalledWith('home');
+      expect(within(panel()).queryByText('Câu hỏi của bảng A')).not.toBeInTheDocument();
+    });
   });
 });
 

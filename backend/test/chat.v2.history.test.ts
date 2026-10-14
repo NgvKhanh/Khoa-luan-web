@@ -47,6 +47,18 @@ describe('persistent chatbot history', () => {
     expect(b.status === 'OK' && b.source.scope).toEqual({ kind: 'BOARD', boardId: f.board.id });
     expect((await history(first.conversationId, f.owner.cookie)).body.data.turns).toHaveLength(2);
   });
+  it('lists the page each conversation was last asked from (board / home), without leaking session state', async () => {
+    const f = await seedChatV2();
+    const onBoard = await agent().post('/api/chat/v2/messages').set('Cookie', f.owner.cookie).send({ message: 'bảng này gồm những ai', scope: { kind: 'BOARD', boardId: f.board.id } });
+    expect(onBoard.status).toBe(200);
+    const home = await ask(f.owner.cookie, 'bảng 1234 gồm những ai');
+    const list = await agent().get('/api/chat/v2/conversations').set('Cookie', f.owner.cookie);
+    const byId = new Map<string, Record<string, unknown>>(list.body.data.conversations.map((c: { id: string }) => [c.id, c as Record<string, unknown>]));
+    expect(byId.get(onBoard.body.data.conversationId)?.scope).toEqual({ kind: 'BOARD', boardId: f.board.id });
+    expect(byId.get(home.conversationId)?.scope).toEqual({ kind: 'MY' });
+    // chi tra loai trang + id, khong tra trang thai phien (bindings, queries...)
+    for (const c of list.body.data.conversations) expect(c).not.toHaveProperty('state');
+  });
   it('restores a pending clarification after a restart', async () => {
     const f = await seedChatV2();
     const first = await persistentMessage(f.owner.id, { message: 'Trong bảng 1234 công việc nào đã thay đổi?', scope: MY }, { now: V2_NOW, sessions: new V2SessionStore(), available: false });

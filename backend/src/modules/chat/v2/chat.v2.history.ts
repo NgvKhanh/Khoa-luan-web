@@ -176,11 +176,19 @@ export async function persistentMore(userId: string, input: z.infer<typeof v2Mor
   ]);
   return reply;
 }
+/** Trang ma cau hoi CUOI CUNG cua hoi thoai duoc gui tu (chi kind + id, khong lo them trang thai phien). */
+function savedUiScope(state: unknown): ChatScopeInput {
+  const ui = (state as { uiScope?: { kind?: string; boardId?: unknown; workspaceId?: unknown } } | null)?.uiScope;
+  if (ui?.kind === 'BOARD' && typeof ui.boardId === 'string') return { kind: 'BOARD', boardId: ui.boardId };
+  if (ui?.kind === 'WORKSPACE' && typeof ui.workspaceId === 'string') return { kind: 'WORKSPACE', workspaceId: ui.workspaceId };
+  return { kind: 'MY' };
+}
 export async function listConversations(userId: string, page: number) {
   const rows = await prisma.chatConversation.findMany({ where: { userId }, orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }], skip: (page - 1) * 20, take: 21,
-    select: { id: true, title: true, createdAt: true, updatedAt: true, _count: { select: { turns: true } } },
+    select: { id: true, title: true, createdAt: true, updatedAt: true, state: true, _count: { select: { turns: true } } },
   });
-  return { page, hasMore: rows.length > 20, conversations: rows.slice(0, 20).map(({ _count, ...row }) => ({ ...row, turnCount: _count.turns })) };
+  // `scope`: giao dien chi khoi phuc hoi thoai KHI MO TRO LY khi hoi thoai do thuoc dung bang / trang dang mo
+  return { page, hasMore: rows.length > 20, conversations: rows.slice(0, 20).map(({ _count, state, ...row }) => ({ ...row, turnCount: _count.turns, scope: savedUiScope(state) })) };
 }
 export async function conversationHistory(userId: string, id: string, before: number | undefined, now: Date) {
   const conversation = await owned(userId, id);
