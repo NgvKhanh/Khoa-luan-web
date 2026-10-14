@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1031" height="470" viewBox="0 0 1031 470" font-family="Arial, Helvetica, sans-serif">
+<rect width="1031" height="470" fill="#FFFFFF"/>
+<rect x="225.5" y="22.0" width="544.8" height="426.0" fill="none" stroke="#000" stroke-width="1.4"/>
+<text x="497.9" y="44.0" font-size="14" font-weight="bold" text-anchor="middle" dominant-baseline="central">Hệ thống TaskFlow</text>
+<line x1="77.5" y1="235.0" x2="259.5" y2="92.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="235.0" x2="259.5" y2="166.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="444.1" y1="166.0" x2="547.4" y2="166.0" stroke="#333333" stroke-width="1.2" stroke-dasharray="6 4"/>
+<polyline points="537.6,171.2 547.4,166.0 537.6,160.8" fill="none" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="235.0" x2="259.5" y2="240.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="444.1" y1="240.0" x2="547.4" y2="240.0" stroke="#333333" stroke-width="1.2" stroke-dasharray="6 4"/>
+<polyline points="537.6,245.2 547.4,240.0 537.6,234.8" fill="none" stroke="#333333" stroke-width="1.2"/>
+<line x1="866.3" y1="316.6" x2="736.3" y2="321.4" stroke="#333333" stroke-width="1.2"/>
+<line x1="571.0" y1="301.5" x2="411.6" y2="256.8" stroke="#333333" stroke-width="1.2" stroke-dasharray="6 4"/>
+<polyline points="422.3,254.4 411.6,256.8 419.5,264.4" fill="none" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="235.0" x2="259.5" y2="314.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="235.0" x2="259.5" y2="388.0" stroke="#333333" stroke-width="1.2"/>
+<ellipse cx="351.8" cy="92.0" rx="92.3" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="351.8" y="92.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Nhập mô tả dự án</text>
+<ellipse cx="351.8" cy="166.0" rx="92.3" ry="30.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="351.8" y="158.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Tải lên tài liệu</text><text x="351.8" y="174.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">mô tả (DOCX/PDF)</text>
+<ellipse cx="641.8" cy="166.0" rx="94.5" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="641.8" y="166.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Trích xuất văn bản từ tài liệu</text>
+<ellipse cx="351.8" cy="240.0" rx="92.3" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="351.8" y="240.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Sinh kế hoạch bảng</text>
+<ellipse cx="641.8" cy="240.0" rx="94.5" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="641.8" y="240.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Phân tích mô tả bằng bộ luật</text>
+<ellipse cx="641.8" cy="321.4" rx="94.5" ry="30.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="641.8" y="313.4" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Sinh kế hoạch bằng</text><text x="641.8" y="329.4" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">mô hình ngôn ngữ lớn</text>
+<ellipse cx="351.8" cy="314.0" rx="92.3" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="351.8" y="314.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Xem và chỉnh sửa kế hoạch</text>
+<ellipse cx="351.8" cy="388.0" rx="92.3" ry="30.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="351.8" y="380.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Áp dụng kế hoạch</text><text x="351.8" y="396.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">để tạo bảng</text>
+<circle cx="60.5" cy="218.0" r="9" fill="#FFFFFF" stroke="#000" stroke-width="1.5"/><line x1="60.5" y1="227.0" x2="60.5" y2="251.0" stroke="#000" stroke-width="1.5"/><line x1="44.5" y1="235.0" x2="76.5" y2="235.0" stroke="#000" stroke-width="1.5"/><line x1="60.5" y1="251.0" x2="47.5" y2="271.0" stroke="#000" stroke-width="1.5"/><line x1="60.5" y1="251.0" x2="73.5" y2="271.0" stroke="#000" stroke-width="1.5"/><rect x="23.0" y="275.0" width="75.0" height="20.0" fill="#FFFFFF"/><text x="60.5" y="285.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Người dùng</text>
+<rect x="866.3" y="291.0" width="138.0" height="46.0" fill="#FFFFFF" stroke="#000" stroke-width="1.3"/><text x="935.3" y="305.0" font-size="11" text-anchor="middle" dominant-baseline="central">«hệ thống ngoài»</text><text x="935.3" y="323.0" font-size="13" font-weight="bold" font-style="normal" text-anchor="middle" dominant-baseline="central">Dịch vụ AI (Gemini)</text>
+<rect x="469.7" y="158.0" width="52.0" height="16" fill="#FFFFFF" opacity="0.92"/>
+<text x="495.7" y="166.0" font-size="11" text-anchor="middle" dominant-baseline="central">«include»</text>
+<rect x="469.7" y="232.0" width="52.0" height="16" fill="#FFFFFF" opacity="0.92"/>
+<text x="495.7" y="240.0" font-size="11" text-anchor="middle" dominant-baseline="central">«include»</text>
+<rect x="465.8" y="271.2" width="51.0" height="16" fill="#FFFFFF" opacity="0.92"/>
+<text x="491.3" y="279.2" font-size="11" text-anchor="middle" dominant-baseline="central">«extend»</text>
+</svg>

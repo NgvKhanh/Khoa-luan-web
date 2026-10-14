@@ -1,0 +1,1870 @@
+[
+ {
+  "key": "uc00_tong_quat",
+  "code": "",
+  "title": "Biểu đồ use case tổng quát",
+  "caption": "Biểu đồ use case tổng quát của hệ thống TaskFlow",
+  "intro": "Biểu đồ use case tổng quát thể hiện toàn bộ nhóm chức năng của hệ thống TaskFlow và hai tác nhân chính: Khách (chưa đăng nhập) và Người dùng (đã đăng nhập). Ở mức tổng quát, mọi người dùng đã đăng nhập được gộp chung thành tác nhân Người dùng; quyền cụ thể theo vai trò trong không gian làm việc và trong bảng (Người xem, Thành viên, Quản trị viên, Chủ sở hữu) được thể hiện ở các biểu đồ phân rã. Các dịch vụ bên ngoài mà hệ thống dùng (Google, dịch vụ email, Unsplash, dịch vụ AI) và bộ lập lịch chạy ngầm được xem là một phần của hệ thống nên không vẽ thành tác nhân. Mỗi use case tổng quát được phân rã chi tiết ở các mục tiếp theo.",
+  "notes": [
+   "Người dùng đã đăng nhập cũng xem được bảng công khai; Khách chỉ xem được bảng có chế độ hiển thị Công khai.",
+   "Không phải Người dùng nào cũng thực hiện được mọi thao tác trong một use case: ví dụ chỉ Quản trị viên bảng được duyệt yêu cầu tham gia, chỉ Chủ sở hữu bảng được xoá bảng. Phân quyền chi tiết xem ở biểu đồ phân rã của từng use case."
+  ],
+  "png": "png/uc00_tong_quat.png",
+  "width": 571,
+  "height": 934,
+  "actors": [
+   {
+    "name": "Khách",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Người dùng",
+    "kind": "human",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC01",
+    "name": "Xác thực tài khoản",
+    "actors": [
+     "Khách"
+    ],
+    "relation": "",
+    "desc": "Đăng ký, đăng nhập (email/mật khẩu hoặc Google), xác minh email, quên và đặt lại mật khẩu, đăng xuất."
+   },
+   {
+    "code": "UC02",
+    "name": "Xem bảng công khai",
+    "actors": [
+     "Khách"
+    ],
+    "relation": "",
+    "desc": "Xem bảng ở chế độ công khai, chỉ đọc, không cần đăng nhập."
+   },
+   {
+    "code": "UC03",
+    "name": "Quản lý tài khoản cá nhân",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Xem/cập nhật hồ sơ, ảnh đại diện, đổi mật khẩu, chọn giao diện sáng/tối."
+   },
+   {
+    "code": "UC04",
+    "name": "Quản lý không gian làm việc",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Tạo không gian, quản lý thành viên và vai trò, xem tổng quan công việc của không gian."
+   },
+   {
+    "code": "UC05",
+    "name": "Quản lý bảng",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Tạo, xem, lọc, thống kê, đổi hình nền, lưu trữ, xoá bảng; cấu hình nhãn, trường tùy chỉnh, mẫu thẻ, luật tự động và lịch tạo thẻ định kỳ."
+   },
+   {
+    "code": "UC06",
+    "name": "Chia sẻ và phân quyền bảng",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Mời thành viên, liên kết mời, duyệt yêu cầu tham gia, đổi vai trò, chế độ hiển thị."
+   },
+   {
+    "code": "UC07",
+    "name": "Quản lý danh sách công việc",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Thêm, đổi tên, gắn trạng thái, sắp xếp, sao chép, lưu trữ danh sách (cột)."
+   },
+   {
+    "code": "UC08",
+    "name": "Quản lý thẻ công việc",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Thêm, sửa, di chuyển, đổi trạng thái, lưu trữ thẻ; giao thành viên, gắn nhãn, checklist, đính kèm tệp, bình luận và nhắc tên."
+   },
+   {
+    "code": "UC09",
+    "name": "Tra cứu và theo dõi công việc",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Tìm kiếm nhanh/nâng cao, xem công việc của tôi, lịch công việc, bảng điều khiển cá nhân."
+   },
+   {
+    "code": "UC10",
+    "name": "Quản lý thông báo",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Nhận thông báo thời gian thực, đánh dấu đã đọc, cấu hình kênh nhận; nhắc hạn và email tổng hợp."
+   },
+   {
+    "code": "UC11",
+    "name": "Sinh bảng tự động bằng AI",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Từ mô tả dự án (văn bản, DOCX, PDF) sinh kế hoạch bảng, cho chỉnh sửa rồi tạo bảng."
+   },
+   {
+    "code": "UC12",
+    "name": "Gợi ý phân công công việc",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Gợi ý người phụ trách phù hợp cho thẻ và lập kế hoạch chia việc cho cả danh sách."
+   },
+   {
+    "code": "UC13",
+    "name": "Hỏi đáp với trợ lý ảo",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Hỏi đáp bằng ngôn ngữ tự nhiên về tình hình công việc trong phạm vi được phép."
+   }
+  ]
+ },
+ {
+  "key": "uc01_xac_thuc",
+  "code": "UC01",
+  "title": "Phân rã use case Xác thực tài khoản",
+  "caption": "Biểu đồ use case phân rã: Xác thực tài khoản",
+  "intro": "Nhóm chức năng giúp Khách tạo tài khoản và đăng nhập vào hệ thống, đồng thời giúp Người dùng bảo vệ tài khoản (xác minh email, đặt lại mật khẩu). Xác thực dùng JWT lưu trong cookie httpOnly.",
+  "notes": [],
+  "png": "png/uc01_xac_thuc.png",
+  "width": 1014,
+  "height": 610,
+  "actors": [
+   {
+    "name": "Khách",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Người dùng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Google",
+    "kind": "system",
+    "desc": ""
+   },
+   {
+    "name": "Dịch vụ email",
+    "kind": "system",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC01.1",
+    "name": "Đăng nhập",
+    "actors": [
+     "Khách"
+    ],
+    "relation": "",
+    "desc": "Đăng nhập bằng email và mật khẩu; thành công thì hệ thống cấp JWT lưu trong cookie httpOnly. Có giới hạn số lần thử."
+   },
+   {
+    "code": "UC01.2",
+    "name": "Đăng nhập bằng Google",
+    "actors": [
+     "Google"
+    ],
+    "relation": "«extend» UC01.1",
+    "desc": "Xác thực qua tài khoản Google; nếu email chưa có tài khoản thì hệ thống tự tạo tài khoản và không gian cá nhân."
+   },
+   {
+    "code": "UC01.3",
+    "name": "Đăng ký tài khoản",
+    "actors": [
+     "Khách",
+     "Dịch vụ email"
+    ],
+    "relation": "",
+    "desc": "Nhập họ tên, email, mật khẩu (tối thiểu 6 ký tự); hệ thống tạo tài khoản, tạo sẵn không gian làm việc cá nhân và gửi email xác minh."
+   },
+   {
+    "code": "UC01.4",
+    "name": "Xác minh email",
+    "actors": [
+     "Khách"
+    ],
+    "relation": "",
+    "desc": "Mở liên kết trong email để xác minh địa chỉ; mã xác minh chỉ dùng một lần và có thời hạn. Chưa xác minh vẫn dùng được hệ thống (chỉ hiện banner nhắc)."
+   },
+   {
+    "code": "UC01.5",
+    "name": "Quên mật khẩu",
+    "actors": [
+     "Khách",
+     "Dịch vụ email"
+    ],
+    "relation": "",
+    "desc": "Nhập email để nhận liên kết đặt lại mật khẩu; hệ thống không tiết lộ email đó có tồn tại hay không."
+   },
+   {
+    "code": "UC01.6",
+    "name": "Đặt lại mật khẩu",
+    "actors": [
+     "Khách"
+    ],
+    "relation": "",
+    "desc": "Đặt mật khẩu mới qua liên kết trong email; mọi phiên đăng nhập cũ bị thu hồi."
+   },
+   {
+    "code": "UC01.7",
+    "name": "Gửi lại email xác minh",
+    "actors": [
+     "Người dùng",
+     "Dịch vụ email"
+    ],
+    "relation": "",
+    "desc": "Người dùng chưa xác minh yêu cầu gửi lại email xác minh từ banner nhắc."
+   },
+   {
+    "code": "UC01.8",
+    "name": "Đăng xuất",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Xoá cookie phiên và ngắt kết nối thời gian thực."
+   }
+  ]
+ },
+ {
+  "key": "uc02_cong_khai",
+  "code": "UC02",
+  "title": "Phân rã use case Xem bảng công khai",
+  "caption": "Biểu đồ use case phân rã: Xem bảng công khai",
+  "intro": "Bảng ở chế độ Công khai có thể được xem qua đường dẫn mà không cần đăng nhập, ở chế độ chỉ đọc tuyệt đối (không kéo-thả, không bình luận); email thành viên được ẩn.",
+  "notes": [
+   "Người dùng đã đăng nhập cũng thực hiện được các use case này."
+  ],
+  "png": "png/uc02_cong_khai.png",
+  "width": 484,
+  "height": 314,
+  "actors": [
+   {
+    "name": "Khách",
+    "kind": "human",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC02.1",
+    "name": "Xem bảng công khai",
+    "actors": [
+     "Khách"
+    ],
+    "relation": "",
+    "desc": "Xem các danh sách và thẻ của bảng công khai."
+   },
+   {
+    "code": "UC02.2",
+    "name": "Xem chi tiết thẻ công khai",
+    "actors": [
+     "Khách"
+    ],
+    "relation": "",
+    "desc": "Xem nhãn, ngày, thành viên, mô tả, checklist, bình luận của thẻ ở chế độ chỉ đọc."
+   },
+   {
+    "code": "UC02.3",
+    "name": "Tải tệp đính kèm",
+    "actors": [
+     "Khách"
+    ],
+    "relation": "",
+    "desc": "Tải tệp đính kèm của thẻ thuộc bảng công khai."
+   }
+  ]
+ },
+ {
+  "key": "uc03_tai_khoan",
+  "code": "UC03",
+  "title": "Phân rã use case Quản lý tài khoản cá nhân",
+  "caption": "Biểu đồ use case phân rã: Quản lý tài khoản cá nhân",
+  "intro": "Người dùng xem và cập nhật thông tin cá nhân của mình. Hồ sơ năng lực phục vụ gợi ý phân công được trình bày ở UC12.",
+  "notes": [],
+  "png": "png/uc03_tai_khoan.png",
+  "width": 790,
+  "height": 388,
+  "actors": [
+   {
+    "name": "Người dùng",
+    "kind": "human",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC03.1",
+    "name": "Xem hồ sơ cá nhân",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Xem tên, email, ảnh đại diện, số bảng, số bảng yêu thích và ngày tham gia."
+   },
+   {
+    "code": "UC03.2",
+    "name": "Cập nhật thông tin cá nhân",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Sửa tên hiển thị; email chỉ đọc."
+   },
+   {
+    "code": "UC03.3",
+    "name": "Thay đổi ảnh đại diện",
+    "actors": [],
+    "relation": "«extend» UC03.2",
+    "desc": "Tải ảnh lên làm ảnh đại diện hoặc gỡ ảnh hiện tại."
+   },
+   {
+    "code": "UC03.4",
+    "name": "Đổi mật khẩu",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Nhập mật khẩu hiện tại và mật khẩu mới; hệ thống thu hồi các phiên và kết nối thời gian thực cũ (tokenVersion)."
+   },
+   {
+    "code": "UC03.5",
+    "name": "Tuỳ chỉnh giao diện sáng/tối",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Chọn chế độ Sáng, Tối hoặc Theo hệ thống."
+   }
+  ]
+ },
+ {
+  "key": "uc04_khong_gian",
+  "code": "UC04",
+  "title": "Phân rã use case Quản lý không gian làm việc",
+  "caption": "Biểu đồ use case phân rã: Quản lý không gian làm việc",
+  "intro": "Mỗi bảng thuộc đúng một không gian làm việc; mỗi người dùng có sẵn một không gian cá nhân. Quyền trong không gian chia theo ba vai trò Chủ sở hữu, Quản trị viên, Thành viên.",
+  "notes": [],
+  "png": "png/uc04_khong_gian.png",
+  "width": 1016,
+  "height": 906,
+  "actors": [
+   {
+    "name": "Người dùng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Thành viên không gian",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Quản trị viên không gian",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Chủ sở hữu không gian",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Dịch vụ email",
+    "kind": "system",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC04.1",
+    "name": "Tạo không gian làm việc",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Tạo không gian mới; người tạo trở thành Chủ sở hữu."
+   },
+   {
+    "code": "UC04.2",
+    "name": "Xem và chuyển đổi không gian",
+    "actors": [
+     "Thành viên không gian"
+    ],
+    "relation": "",
+    "desc": "Xem danh sách không gian mình tham gia và chuyển nhanh giữa các không gian."
+   },
+   {
+    "code": "UC04.3",
+    "name": "Xem tổng quan không gian",
+    "actors": [
+     "Thành viên không gian"
+    ],
+    "relation": "",
+    "desc": "Xem số liệu thẻ (tổng, quá hạn, chưa giao, đã xong), lọc theo người phụ trách/trạng thái và các bảng trong không gian."
+   },
+   {
+    "code": "UC04.4",
+    "name": "Xem danh sách thành viên",
+    "actors": [
+     "Thành viên không gian"
+    ],
+    "relation": "",
+    "desc": "Xem các thành viên và vai trò của họ trong không gian."
+   },
+   {
+    "code": "UC04.5",
+    "name": "Rời khỏi không gian",
+    "actors": [
+     "Thành viên không gian"
+    ],
+    "relation": "",
+    "desc": "Tự rời khỏi không gian (Chủ sở hữu không rời được)."
+   },
+   {
+    "code": "UC04.6",
+    "name": "Đổi tên không gian",
+    "actors": [
+     "Quản trị viên không gian"
+    ],
+    "relation": "",
+    "desc": "Đổi tên không gian làm việc."
+   },
+   {
+    "code": "UC04.7",
+    "name": "Thêm thành viên vào không gian",
+    "actors": [
+     "Quản trị viên không gian"
+    ],
+    "relation": "",
+    "desc": "Thêm người dùng đã có tài khoản theo email và chọn vai trò."
+   },
+   {
+    "code": "UC04.8",
+    "name": "Mời qua email người chưa có tài khoản",
+    "actors": [
+     "Dịch vụ email"
+    ],
+    "relation": "«extend» UC04.7",
+    "desc": "Nếu email chưa có tài khoản, hệ thống gửi email mời đăng ký."
+   },
+   {
+    "code": "UC04.9",
+    "name": "Thay đổi vai trò thành viên",
+    "actors": [
+     "Quản trị viên không gian"
+    ],
+    "relation": "",
+    "desc": "Đổi giữa Quản trị viên và Thành viên (không đổi được vai trò của Chủ sở hữu)."
+   },
+   {
+    "code": "UC04.10",
+    "name": "Xoá thành viên khỏi không gian",
+    "actors": [
+     "Quản trị viên không gian"
+    ],
+    "relation": "",
+    "desc": "Xoá một thành viên (không xoá được Chủ sở hữu)."
+   },
+   {
+    "code": "UC04.11",
+    "name": "Chuyển quyền sở hữu không gian",
+    "actors": [
+     "Chủ sở hữu không gian"
+    ],
+    "relation": "",
+    "desc": "Chuyển vai trò Chủ sở hữu cho một thành viên khác (không áp dụng cho không gian cá nhân)."
+   },
+   {
+    "code": "UC04.12",
+    "name": "Xoá không gian làm việc",
+    "actors": [
+     "Chủ sở hữu không gian"
+    ],
+    "relation": "",
+    "desc": "Xoá không gian (không xoá được không gian cá nhân)."
+   }
+  ]
+ },
+ {
+  "key": "uc05a_bang",
+  "code": "UC05",
+  "title": "Phân rã use case Quản lý bảng (phần 1: thao tác trên bảng)",
+  "caption": "Biểu đồ use case phân rã: Quản lý bảng (phần 1 - thao tác trên bảng)",
+  "intro": "Bảng là nơi tổ chức công việc theo các danh sách (cột) và thẻ. Quyền trên bảng phụ thuộc vai trò: Người xem bảng chỉ xem, Thành viên bảng được sửa nội dung, Chủ sở hữu bảng được lưu trữ và xoá bảng.",
+  "notes": [
+   "Thành viên bảng gồm vai trò MEMBER, ADMIN của bảng và thành viên không gian khi bảng ở chế độ hiển thị Không gian làm việc.",
+   "Chủ sở hữu bảng đồng thời là Quản trị viên bảng (xem UC06). Nhóm chức năng này không có use case riêng của Quản trị viên bảng nên biểu đồ vẽ tắt Chủ sở hữu bảng kế thừa Thành viên bảng."
+  ],
+  "png": "png/uc05a_bang.png",
+  "width": 1032,
+  "height": 1146,
+  "actors": [
+   {
+    "name": "Người dùng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Người xem bảng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Thành viên bảng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Chủ sở hữu bảng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Unsplash",
+    "kind": "system",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC05.1",
+    "name": "Tạo bảng mới",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Đặt tên, chọn không gian làm việc và hình nền (màu hoặc ảnh Unsplash); người tạo là Chủ sở hữu bảng."
+   },
+   {
+    "code": "UC05.2",
+    "name": "Tạo bảng từ mẫu",
+    "actors": [],
+    "relation": "«extend» UC05.1",
+    "desc": "Dùng mẫu có sẵn của hệ thống hoặc mẫu tự lưu để dựng sẵn các cột và thẻ."
+   },
+   {
+    "code": "UC05.3",
+    "name": "Xem danh sách bảng",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Xem các bảng theo nhóm: yêu thích, từng không gian làm việc, bảng đã lưu trữ."
+   },
+   {
+    "code": "UC05.4",
+    "name": "Xem nội dung bảng",
+    "actors": [
+     "Người xem bảng"
+    ],
+    "relation": "",
+    "desc": "Xem các danh sách và thẻ của bảng; cập nhật thời gian thực khi người khác thay đổi."
+   },
+   {
+    "code": "UC05.5",
+    "name": "Chuyển chế độ xem Kanban / bảng biểu",
+    "actors": [],
+    "relation": "«extend» UC05.4",
+    "desc": "Chuyển giữa dạng cột Kanban và dạng bảng biểu có sắp xếp theo cột."
+   },
+   {
+    "code": "UC05.6",
+    "name": "Lọc thẻ trên bảng",
+    "actors": [
+     "Người xem bảng"
+    ],
+    "relation": "",
+    "desc": "Lọc theo từ khoá, thành viên, nhãn, trạng thái, hạn (quá hạn, ngày mai, trong tuần)."
+   },
+   {
+    "code": "UC05.7",
+    "name": "Xem thống kê bảng",
+    "actors": [
+     "Người xem bảng"
+    ],
+    "relation": "",
+    "desc": "Xem tổng số thẻ, số hoàn thành, quá hạn, tiến độ từng danh sách, thống kê theo trạng thái và theo thành viên."
+   },
+   {
+    "code": "UC05.8",
+    "name": "Xem nhật ký hoạt động bảng",
+    "actors": [
+     "Người xem bảng"
+    ],
+    "relation": "",
+    "desc": "Xem lịch sử thao tác trên bảng (ai, làm gì, khi nào)."
+   },
+   {
+    "code": "UC05.9",
+    "name": "Theo dõi bảng",
+    "actors": [
+     "Người xem bảng"
+    ],
+    "relation": "",
+    "desc": "Bật/tắt theo dõi để nhận thông báo về thay đổi trong bảng."
+   },
+   {
+    "code": "UC05.10",
+    "name": "Xuất bảng ra tệp JSON",
+    "actors": [
+     "Người xem bảng"
+    ],
+    "relation": "",
+    "desc": "Tải toàn bộ dữ liệu bảng về máy dưới dạng tệp JSON."
+   },
+   {
+    "code": "UC05.11",
+    "name": "Cập nhật tên bảng",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Sửa tên bảng trực tiếp trên thanh tiêu đề."
+   },
+   {
+    "code": "UC05.12",
+    "name": "Thay đổi hình nền bảng",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Đổi màu nền, tải ảnh nền lên hoặc gỡ ảnh nền."
+   },
+   {
+    "code": "UC05.13",
+    "name": "Chọn ảnh nền từ Unsplash",
+    "actors": [
+     "Unsplash"
+    ],
+    "relation": "«extend» UC05.12",
+    "desc": "Tìm và chọn ảnh từ thư viện Unsplash (ghi nhận lượt tải theo yêu cầu của Unsplash)."
+   },
+   {
+    "code": "UC05.14",
+    "name": "Đánh dấu sao bảng",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Đưa bảng vào mục Yêu thích để truy cập nhanh."
+   },
+   {
+    "code": "UC05.15",
+    "name": "Lưu bảng thành mẫu",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Lưu cấu trúc cột và thẻ của bảng thành mẫu dùng lại trong không gian."
+   },
+   {
+    "code": "UC05.16",
+    "name": "Quản lý mục đã lưu trữ",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Xem thẻ và danh sách đã lưu trữ; khôi phục hoặc xoá vĩnh viễn."
+   },
+   {
+    "code": "UC05.17",
+    "name": "Lưu trữ / khôi phục bảng",
+    "actors": [
+     "Chủ sở hữu bảng"
+    ],
+    "relation": "",
+    "desc": "Ẩn bảng khỏi danh sách đang dùng hoặc khôi phục lại."
+   },
+   {
+    "code": "UC05.18",
+    "name": "Xoá bảng",
+    "actors": [
+     "Chủ sở hữu bảng"
+    ],
+    "relation": "",
+    "desc": "Xoá bảng (có hộp thoại xác nhận riêng); thành viên đang mở bảng được điều hướng ra ngoài."
+   }
+  ]
+ },
+ {
+  "key": "uc05b_cau_hinh_tu_dong_hoa",
+  "code": "UC05",
+  "title": "Phân rã use case Quản lý bảng (phần 2: cấu hình và tự động hoá)",
+  "caption": "Biểu đồ use case phân rã: Quản lý bảng (phần 2 - cấu hình và tự động hoá)",
+  "intro": "Phần 2 của Quản lý bảng. Thành viên bảng định nghĩa các thành phần dùng chung của bảng (nhãn, trường tùy chỉnh, mẫu thẻ) và các quy tắc tự động. Bộ lập lịch của máy chủ chạy định kỳ để tạo thẻ theo lịch đã đặt.",
+  "notes": [],
+  "png": "png/uc05b_cau_hinh_tu_dong_hoa.png",
+  "width": 810,
+  "height": 581,
+  "actors": [
+   {
+    "name": "Thành viên bảng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Bộ lập lịch",
+    "kind": "system",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC05.19",
+    "name": "Quản lý nhãn của bảng",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Thêm, sửa tên/màu, xoá nhãn (bảng 10 màu dùng chung)."
+   },
+   {
+    "code": "UC05.20",
+    "name": "Quản lý trường tùy chỉnh",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Thêm, đổi tên, xoá trường kiểu Văn bản, Số, Ngày, Hộp kiểm, Danh sách thả xuống."
+   },
+   {
+    "code": "UC05.21",
+    "name": "Quản lý lựa chọn của trường thả xuống",
+    "actors": [],
+    "relation": "«extend» UC05.20",
+    "desc": "Thêm, sửa, xoá các lựa chọn của trường kiểu danh sách thả xuống."
+   },
+   {
+    "code": "UC05.22",
+    "name": "Quản lý mẫu thẻ",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Tạo và xoá mẫu thẻ của bảng."
+   },
+   {
+    "code": "UC05.23",
+    "name": "Quản lý luật tự động hoá",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Tạo luật: điều kiện (thẻ được tạo / thẻ được chuyển vào danh sách X) và tối đa 5 hành động (đánh dấu xong, gắn nhãn, giao thành viên); sửa, xoá luật."
+   },
+   {
+    "code": "UC05.24",
+    "name": "Bật / tắt luật tự động",
+    "actors": [],
+    "relation": "«extend» UC05.23",
+    "desc": "Tạm ngưng hoặc kích hoạt lại một luật."
+   },
+   {
+    "code": "UC05.25",
+    "name": "Quản lý lịch tạo thẻ định kỳ",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Đặt lịch cho một danh sách: tần suất ngày/tuần/tháng, giờ tạo, mẫu thẻ, ngày dừng; xoá lịch."
+   },
+   {
+    "code": "UC05.26",
+    "name": "Tạm dừng / tiếp tục lịch định kỳ",
+    "actors": [],
+    "relation": "«extend» UC05.25",
+    "desc": "Tạm dừng hoặc tiếp tục một lịch tạo thẻ."
+   },
+   {
+    "code": "UC05.27",
+    "name": "Tự động tạo thẻ theo lịch",
+    "actors": [
+     "Bộ lập lịch"
+    ],
+    "relation": "",
+    "desc": "Đến giờ, hệ thống tạo thẻ mới vào danh sách theo lịch (dùng mẫu thẻ nếu có)."
+   }
+  ]
+ },
+ {
+  "key": "uc06_chia_se",
+  "code": "UC06",
+  "title": "Phân rã use case Chia sẻ và phân quyền bảng",
+  "caption": "Biểu đồ use case phân rã: Chia sẻ và phân quyền bảng",
+  "intro": "Bảng có bốn vai trò: Chủ sở hữu, Quản trị viên, Thành viên, Người xem. Quản trị viên bảng gồm vai trò ADMIN, Chủ sở hữu bảng và Chủ sở hữu/Quản trị viên của không gian chứa bảng.",
+  "notes": [
+   "Biểu đồ lược bỏ Người xem bảng: Thành viên bảng kế thừa Người xem bảng (xem UC05), Người xem bảng kế thừa Người dùng. Người xem bảng cũng xem được thành viên và tự rời khỏi bảng."
+  ],
+  "png": "png/uc06_chia_se.png",
+  "width": 1037,
+  "height": 915,
+  "actors": [
+   {
+    "name": "Người dùng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Thành viên bảng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Quản trị viên bảng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Chủ sở hữu bảng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Dịch vụ email",
+    "kind": "system",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC06.1",
+    "name": "Xem trước lời mời tham gia bảng",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Mở liên kết mời để xem tên và hình nền bảng trước khi tham gia."
+   },
+   {
+    "code": "UC06.2",
+    "name": "Gửi yêu cầu tham gia bảng",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Gửi yêu cầu tham gia; Quản trị viên bảng nhận thông báo thời gian thực để duyệt."
+   },
+   {
+    "code": "UC06.3",
+    "name": "Xem thành viên và người đang trực tuyến",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Xem danh sách thành viên, vai trò và ai đang mở bảng."
+   },
+   {
+    "code": "UC06.4",
+    "name": "Rời khỏi bảng",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Tự rời khỏi bảng (Chủ sở hữu không rời được)."
+   },
+   {
+    "code": "UC06.5",
+    "name": "Mời thành viên vào bảng",
+    "actors": [
+     "Quản trị viên bảng"
+    ],
+    "relation": "",
+    "desc": "Mời theo email và chọn vai trò (Quản trị viên, Thành viên, Người xem)."
+   },
+   {
+    "code": "UC06.6",
+    "name": "Gửi lời mời qua email",
+    "actors": [
+     "Dịch vụ email"
+    ],
+    "relation": "«extend» UC06.5",
+    "desc": "Nếu email chưa có tài khoản, hệ thống gửi email kèm liên kết tham gia."
+   },
+   {
+    "code": "UC06.7",
+    "name": "Quản lý liên kết mời",
+    "actors": [
+     "Quản trị viên bảng"
+    ],
+    "relation": "",
+    "desc": "Tạo, sao chép hoặc vô hiệu hoá liên kết mời tham gia bảng."
+   },
+   {
+    "code": "UC06.8",
+    "name": "Duyệt / từ chối yêu cầu tham gia",
+    "actors": [
+     "Quản trị viên bảng"
+    ],
+    "relation": "",
+    "desc": "Chấp nhận hoặc từ chối các yêu cầu tham gia đang chờ."
+   },
+   {
+    "code": "UC06.9",
+    "name": "Thay đổi vai trò thành viên",
+    "actors": [
+     "Quản trị viên bảng"
+    ],
+    "relation": "",
+    "desc": "Đổi vai trò của thành viên trong bảng."
+   },
+   {
+    "code": "UC06.10",
+    "name": "Xoá thành viên khỏi bảng",
+    "actors": [
+     "Quản trị viên bảng"
+    ],
+    "relation": "",
+    "desc": "Xoá thành viên; người bị xoá mất quyền truy cập ngay, kể cả kết nối thời gian thực."
+   },
+   {
+    "code": "UC06.11",
+    "name": "Thay đổi chế độ hiển thị bảng",
+    "actors": [
+     "Quản trị viên bảng"
+    ],
+    "relation": "",
+    "desc": "Chọn Riêng tư, Không gian làm việc hoặc Công khai (chỉ đọc)."
+   },
+   {
+    "code": "UC06.12",
+    "name": "Chuyển quyền sở hữu bảng",
+    "actors": [
+     "Chủ sở hữu bảng"
+    ],
+    "relation": "",
+    "desc": "Chuyển vai trò Chủ sở hữu cho một thành viên khác của bảng."
+   }
+  ]
+ },
+ {
+  "key": "uc07_danh_sach",
+  "code": "UC07",
+  "title": "Phân rã use case Quản lý danh sách công việc",
+  "caption": "Biểu đồ use case phân rã: Quản lý danh sách công việc",
+  "intro": "Danh sách là một cột trên bảng Kanban. Mỗi danh sách có thể gắn một trạng thái công việc (Chưa làm, Đang làm, Chờ duyệt, Hoàn thành, Bị chặn); thẻ nằm trong cột nào sẽ mang trạng thái của cột đó.",
+  "notes": [],
+  "png": "png/uc07_danh_sach.png",
+  "width": 809,
+  "height": 832,
+  "actors": [
+   {
+    "name": "Người xem bảng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Thành viên bảng",
+    "kind": "human",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC07.1",
+    "name": "Theo dõi danh sách",
+    "actors": [
+     "Người xem bảng"
+    ],
+    "relation": "",
+    "desc": "Bật/tắt theo dõi để nhận thông báo về thẻ trong danh sách."
+   },
+   {
+    "code": "UC07.2",
+    "name": "Thêm danh sách",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Thêm cột mới vào cuối bảng; hệ thống đoán trạng thái theo tên cột nếu người dùng không chọn."
+   },
+   {
+    "code": "UC07.3",
+    "name": "Đổi tên danh sách",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Sửa tên cột."
+   },
+   {
+    "code": "UC07.4",
+    "name": "Gắn trạng thái cho danh sách",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "«include» UC07.5",
+    "desc": "Chọn trạng thái cho cột hoặc để cột tự do."
+   },
+   {
+    "code": "UC07.5",
+    "name": "Đồng bộ trạng thái thẻ theo cột",
+    "actors": [],
+    "relation": "được UC07.4, UC07.7 bao hàm («include»)",
+    "desc": "Cập nhật trạng thái của mọi thẻ trong cột theo trạng thái của cột."
+   },
+   {
+    "code": "UC07.6",
+    "name": "Thay đổi vị trí danh sách",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Kéo-thả cột hoặc chuyển cột lên đầu/cuối bảng."
+   },
+   {
+    "code": "UC07.7",
+    "name": "Chuyển toàn bộ thẻ sang danh sách khác",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "«include» UC07.5",
+    "desc": "Chuyển tất cả thẻ của cột sang cột khác trong bảng."
+   },
+   {
+    "code": "UC07.8",
+    "name": "Sao chép danh sách",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Tạo bản sao của cột cùng các thẻ trong cột."
+   },
+   {
+    "code": "UC07.9",
+    "name": "Sắp xếp thẻ trong danh sách",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Sắp xếp theo ngày tạo (mới/cũ), theo tên hoặc đưa thẻ đã xong xuống cuối."
+   },
+   {
+    "code": "UC07.10",
+    "name": "Xoá tất cả thẻ trong danh sách",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Xoá mọi thẻ trong cột (có xác nhận)."
+   },
+   {
+    "code": "UC07.11",
+    "name": "Lưu trữ danh sách",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Ẩn cột khỏi bảng; khôi phục hoặc xoá vĩnh viễn ở mục lưu trữ (UC05.16)."
+   }
+  ]
+ },
+ {
+  "key": "uc08a_the",
+  "code": "UC08",
+  "title": "Phân rã use case Quản lý thẻ công việc (phần 1: thao tác trên thẻ)",
+  "caption": "Biểu đồ use case phân rã: Quản lý thẻ công việc (phần 1 - thao tác trên thẻ)",
+  "intro": "Thẻ là một công việc cụ thể, gồm tiêu đề, mô tả, ngày bắt đầu, hạn hoàn thành, trạng thái và ảnh bìa. Trạng thái thẻ và cột chứa thẻ được giữ đồng bộ hai chiều.",
+  "notes": [],
+  "png": "png/uc08a_the.png",
+  "width": 804,
+  "height": 906,
+  "actors": [
+   {
+    "name": "Người xem bảng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Thành viên bảng",
+    "kind": "human",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC08.1",
+    "name": "Xem chi tiết thẻ",
+    "actors": [
+     "Người xem bảng"
+    ],
+    "relation": "",
+    "desc": "Mở cửa sổ chi tiết thẻ: thông tin, checklist, tệp, bình luận và lịch sử hoạt động."
+   },
+   {
+    "code": "UC08.2",
+    "name": "Theo dõi thẻ",
+    "actors": [
+     "Người xem bảng"
+    ],
+    "relation": "",
+    "desc": "Bật/tắt theo dõi để nhận thông báo khi thẻ thay đổi."
+   },
+   {
+    "code": "UC08.3",
+    "name": "Đặt nhắc hạn cho thẻ",
+    "actors": [
+     "Người xem bảng"
+    ],
+    "relation": "",
+    "desc": "Chọn các mốc nhắc trước hạn (riêng cho từng người)."
+   },
+   {
+    "code": "UC08.4",
+    "name": "Thêm thẻ mới",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Thêm thẻ vào cuối một danh sách; thẻ nhận trạng thái của danh sách."
+   },
+   {
+    "code": "UC08.5",
+    "name": "Tạo thẻ từ mẫu thẻ",
+    "actors": [],
+    "relation": "«extend» UC08.4",
+    "desc": "Tạo thẻ theo mẫu thẻ đã lưu (kèm mô tả, checklist)."
+   },
+   {
+    "code": "UC08.6",
+    "name": "Di chuyển thẻ",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "«include» UC08.9",
+    "desc": "Kéo-thả thẻ trong/giữa các cột, hoặc chuyển sang bảng khác."
+   },
+   {
+    "code": "UC08.7",
+    "name": "Thực thi luật tự động hoá",
+    "actors": [],
+    "relation": "«extend» UC08.4, UC08.6",
+    "desc": "Khi có luật khớp (thẻ được tạo / được chuyển vào cột X), hệ thống tự đánh dấu xong, gắn nhãn hoặc giao thành viên."
+   },
+   {
+    "code": "UC08.8",
+    "name": "Thay đổi trạng thái thẻ",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "«include» UC08.9",
+    "desc": "Đổi trạng thái hoặc đánh dấu hoàn thành; thẻ tự chuyển sang cột mang trạng thái đó (nếu có)."
+   },
+   {
+    "code": "UC08.9",
+    "name": "Đồng bộ trạng thái thẻ với cột",
+    "actors": [],
+    "relation": "được UC08.6, UC08.8 bao hàm («include»)",
+    "desc": "Giữ trạng thái thẻ khớp với trạng thái của cột chứa thẻ."
+   },
+   {
+    "code": "UC08.10",
+    "name": "Cập nhật thông tin thẻ",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Sửa tiêu đề, mô tả (Markdown), ngày bắt đầu, hạn hoàn thành, ảnh bìa."
+   },
+   {
+    "code": "UC08.11",
+    "name": "Sao chép thẻ",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Tạo bản sao của thẻ trong danh sách được chọn."
+   },
+   {
+    "code": "UC08.12",
+    "name": "Lưu thẻ thành mẫu",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Lưu thẻ làm mẫu thẻ dùng lại trong bảng."
+   },
+   {
+    "code": "UC08.13",
+    "name": "Lưu trữ thẻ",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Ẩn thẻ khỏi bảng; khôi phục hoặc xoá vĩnh viễn ở mục lưu trữ."
+   },
+   {
+    "code": "UC08.14",
+    "name": "Xoá thẻ",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Xoá thẻ khỏi bảng."
+   }
+  ]
+ },
+ {
+  "key": "uc08b_cong_tac",
+  "code": "UC08",
+  "title": "Phân rã use case Quản lý thẻ công việc (phần 2: cộng tác trên thẻ)",
+  "caption": "Biểu đồ use case phân rã: Quản lý thẻ công việc (phần 2 - cộng tác trên thẻ)",
+  "intro": "Phần 2 của Quản lý thẻ công việc. Các thao tác cộng tác diễn ra trong cửa sổ chi tiết thẻ. Mọi thay đổi được ghi vào lịch sử hoạt động và đồng bộ thời gian thực tới những người đang mở bảng.",
+  "notes": [],
+  "png": "png/uc08b_cong_tac.png",
+  "width": 805,
+  "height": 692,
+  "actors": [
+   {
+    "name": "Thành viên bảng",
+    "kind": "human",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC08.15",
+    "name": "Quản lý thành viên của thẻ",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Giao hoặc gỡ người phụ trách (một thẻ có thể có nhiều người); người được giao nhận thông báo."
+   },
+   {
+    "code": "UC08.16",
+    "name": "Gắn / gỡ nhãn cho thẻ",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Chọn nhãn màu của bảng cho thẻ; có thể tạo nhãn mới ngay tại đây."
+   },
+   {
+    "code": "UC08.17",
+    "name": "Nhập giá trị trường tùy chỉnh",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Nhập giá trị cho các trường do bảng định nghĩa (văn bản, số, ngày, hộp kiểm, danh sách thả xuống)."
+   },
+   {
+    "code": "UC08.18",
+    "name": "Quản lý checklist",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Thêm/xoá checklist, thêm/sửa/xoá/đánh dấu mục, kéo-thả sắp xếp mục; xem phần trăm hoàn thành."
+   },
+   {
+    "code": "UC08.19",
+    "name": "Giao người và đặt hạn cho mục checklist",
+    "actors": [],
+    "relation": "«extend» UC08.18",
+    "desc": "Chỉ định người thực hiện và hạn riêng cho từng mục."
+   },
+   {
+    "code": "UC08.20",
+    "name": "Chuyển mục checklist thành thẻ",
+    "actors": [],
+    "relation": "«extend» UC08.18",
+    "desc": "Tách một mục checklist thành thẻ mới trong cùng danh sách."
+   },
+   {
+    "code": "UC08.21",
+    "name": "Quản lý tệp đính kèm",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Tải tệp lên thẻ, xem trước ảnh, tải về, xoá tệp; quyền tải tệp được kiểm tra theo quyền xem bảng."
+   },
+   {
+    "code": "UC08.22",
+    "name": "Đặt ảnh đính kèm làm ảnh bìa",
+    "actors": [],
+    "relation": "«extend» UC08.21",
+    "desc": "Chọn một ảnh đính kèm làm ảnh bìa của thẻ."
+   },
+   {
+    "code": "UC08.23",
+    "name": "Bình luận trên thẻ",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Viết bình luận; thành viên của thẻ và người đang theo dõi thẻ/danh sách/bảng nhận thông báo."
+   },
+   {
+    "code": "UC08.24",
+    "name": "Nhắc tên thành viên (@mention)",
+    "actors": [],
+    "relation": "«extend» UC08.23",
+    "desc": "Gõ @ để chọn thành viên; người được nhắc nhận thông báo."
+   },
+   {
+    "code": "UC08.25",
+    "name": "Trả lời bình luận",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Trả lời một bình luận (luồng một cấp); tác giả bình luận gốc nhận thông báo. Xoá bình luận gốc vẫn giữ các trả lời."
+   },
+   {
+    "code": "UC08.26",
+    "name": "Sửa / xoá bình luận của mình",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Chỉ tác giả được sửa hoặc xoá bình luận của mình."
+   }
+  ]
+ },
+ {
+  "key": "uc09_tra_cuu",
+  "code": "UC09",
+  "title": "Phân rã use case Tra cứu và theo dõi công việc",
+  "caption": "Biểu đồ use case phân rã: Tra cứu và theo dõi công việc",
+  "intro": "Các chức năng giúp người dùng nắm được công việc của mình trên mọi bảng mà họ có quyền xem.",
+  "notes": [],
+  "png": "png/uc09_tra_cuu.png",
+  "width": 795,
+  "height": 544,
+  "actors": [
+   {
+    "name": "Người dùng",
+    "kind": "human",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC09.1",
+    "name": "Tìm kiếm nhanh",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Gõ từ khoá trên thanh tiêu đề để tìm bảng và thẻ (phím tắt /)."
+   },
+   {
+    "code": "UC09.2",
+    "name": "Tìm kiếm nâng cao",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Lọc thẻ xuyên bảng theo từ khoá, người phụ trách, trạng thái, nhãn, quá hạn, khoảng ngày hết hạn; có phân trang."
+   },
+   {
+    "code": "UC09.3",
+    "name": "Quản lý bộ lọc đã lưu",
+    "actors": [],
+    "relation": "«extend» UC09.2",
+    "desc": "Lưu bộ lọc hiện tại, áp dụng lại hoặc xoá bộ lọc đã lưu."
+   },
+   {
+    "code": "UC09.4",
+    "name": "Xem công việc của tôi",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Xem các thẻ được giao cho mình, nhóm theo hạn (quá hạn, hôm nay, trong tuần, sau này, không có hạn)."
+   },
+   {
+    "code": "UC09.5",
+    "name": "Xem lịch công việc",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Xem thẻ và mục checklist có hạn theo tháng hoặc tuần."
+   },
+   {
+    "code": "UC09.6",
+    "name": "Đổi hạn bằng kéo-thả trên lịch",
+    "actors": [],
+    "relation": "«extend» UC09.5",
+    "desc": "Kéo thẻ sang ngày khác để đổi hạn (cần quyền sửa bảng chứa thẻ)."
+   },
+   {
+    "code": "UC09.7",
+    "name": "Xem bảng điều khiển cá nhân",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Xem số bảng, số thẻ được giao, quá hạn, đến hạn trong tuần, mục cần chú ý, truy cập nhanh."
+   },
+   {
+    "code": "UC09.8",
+    "name": "Xem nhật ký hoạt động của tôi",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Xem các thao tác mình đã thực hiện, có liên kết tới bảng liên quan."
+   }
+  ]
+ },
+ {
+  "key": "uc10_thong_bao",
+  "code": "UC10",
+  "title": "Phân rã use case Quản lý thông báo",
+  "caption": "Biểu đồ use case phân rã: Quản lý thông báo",
+  "intro": "Thông báo được tạo khi có sự kiện liên quan tới người dùng (được giao thẻ, được nhắc tên, bình luận, thay đổi thành viên, yêu cầu tham gia...). Bộ lập lịch của máy chủ chạy định kỳ để gửi nhắc hạn và email tổng hợp.",
+  "notes": [],
+  "png": "png/uc10_thong_bao.png",
+  "width": 744,
+  "height": 633,
+  "actors": [
+   {
+    "name": "Người dùng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Bộ lập lịch",
+    "kind": "system",
+    "desc": ""
+   },
+   {
+    "name": "Dịch vụ email",
+    "kind": "system",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC10.1",
+    "name": "Xem danh sách thông báo",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Mở chuông thông báo xem danh sách, có thể chỉ hiện thông báo chưa đọc."
+   },
+   {
+    "code": "UC10.2",
+    "name": "Đánh dấu thông báo đã đọc",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Đánh dấu một thông báo hoặc tất cả là đã đọc."
+   },
+   {
+    "code": "UC10.3",
+    "name": "Mở nội dung liên quan",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Bấm vào thông báo để đi tới đúng thẻ, bảng hoặc không gian liên quan."
+   },
+   {
+    "code": "UC10.4",
+    "name": "Nhận thông báo thời gian thực",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Thông báo mới được đẩy ngay qua Socket.IO, số chưa đọc cập nhật tức thì."
+   },
+   {
+    "code": "UC10.5",
+    "name": "Cấu hình tuỳ chọn nhận thông báo",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Bật/tắt từng nhóm thông báo trong ứng dụng, email nhắc hạn và email tổng hợp hằng ngày."
+   },
+   {
+    "code": "UC10.6",
+    "name": "Gửi nhắc hạn công việc",
+    "actors": [
+     "Bộ lập lịch",
+     "Dịch vụ email"
+    ],
+    "relation": "",
+    "desc": "Đến mốc nhắc trước hạn, hệ thống tạo thông báo và gửi email nhắc (nếu người dùng bật)."
+   },
+   {
+    "code": "UC10.7",
+    "name": "Gửi email tổng hợp hằng ngày",
+    "actors": [
+     "Bộ lập lịch",
+     "Dịch vụ email"
+    ],
+    "relation": "",
+    "desc": "Mỗi 24 giờ gom các thông báo trong ngày gửi thành một email cho người đã bật tuỳ chọn."
+   }
+  ]
+ },
+ {
+  "key": "uc11_ai_sinh_bang",
+  "code": "UC11",
+  "title": "Phân rã use case Sinh bảng tự động bằng AI",
+  "caption": "Biểu đồ use case phân rã: Sinh bảng tự động bằng AI",
+  "intro": "Người dùng mô tả dự án, hệ thống đề xuất kế hoạch gồm các danh sách và thẻ (kèm hạn). Bộ luật luôn chạy; mô hình ngôn ngữ lớn chỉ được gọi khi đã cấu hình, nếu lỗi thì kế hoạch vẫn được tạo bằng bộ luật.",
+  "notes": [],
+  "png": "png/uc11_ai_sinh_bang.png",
+  "width": 1031,
+  "height": 470,
+  "actors": [
+   {
+    "name": "Người dùng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Dịch vụ AI (Gemini)",
+    "kind": "system",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC11.1",
+    "name": "Nhập mô tả dự án",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Nhập văn bản mô tả dự án, chọn không gian làm việc và khoảng thời gian thực hiện."
+   },
+   {
+    "code": "UC11.2",
+    "name": "Tải lên tài liệu mô tả (DOCX/PDF)",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "«include» UC11.3",
+    "desc": "Tải tệp DOCX hoặc PDF thay cho việc gõ mô tả; hệ thống dùng thẳng nội dung tệp, người dùng không cần gõ lại."
+   },
+   {
+    "code": "UC11.3",
+    "name": "Trích xuất văn bản từ tài liệu",
+    "actors": [],
+    "relation": "được UC11.2 bao hàm («include»)",
+    "desc": "Máy chủ đọc phần chữ trong tệp (tối đa 20 000 ký tự) và dùng làm đầu vào cho bước sinh kế hoạch."
+   },
+   {
+    "code": "UC11.4",
+    "name": "Sinh kế hoạch bảng",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "«include» UC11.5",
+    "desc": "Hệ thống phân tích mô tả và đề xuất danh sách, thẻ, ngày hạn kèm các cảnh báo cần kiểm tra."
+   },
+   {
+    "code": "UC11.5",
+    "name": "Phân tích mô tả bằng bộ luật",
+    "actors": [],
+    "relation": "được UC11.4 bao hàm («include»)",
+    "desc": "Nhận diện tiêu đề, gạch đầu dòng, ngày tháng, tên thành viên để dựng kế hoạch."
+   },
+   {
+    "code": "UC11.6",
+    "name": "Sinh kế hoạch bằng mô hình ngôn ngữ lớn",
+    "actors": [
+     "Dịch vụ AI (Gemini)"
+    ],
+    "relation": "«extend» UC11.4",
+    "desc": "Khi đã cấu hình khoá API, gọi Gemini để hiểu mô tả dạng văn xuôi; kết quả được kiểm tra theo lược đồ JSON."
+   },
+   {
+    "code": "UC11.7",
+    "name": "Xem và chỉnh sửa kế hoạch",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Sửa tên danh sách, thẻ, ngày; bỏ chọn thẻ không cần; xem các cảnh báo."
+   },
+   {
+    "code": "UC11.8",
+    "name": "Áp dụng kế hoạch để tạo bảng",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Tạo bảng mới gồm các danh sách và thẻ đã chọn; mỗi kế hoạch chỉ áp dụng được một lần."
+   }
+  ]
+ },
+ {
+  "key": "uc12_phan_cong",
+  "code": "UC12",
+  "title": "Phân rã use case Gợi ý phân công công việc",
+  "caption": "Biểu đồ use case phân rã: Gợi ý phân công công việc",
+  "intro": "Hệ thống xếp hạng người phù hợp để nhận thẻ dựa trên bốn thành phần: kinh nghiệm (độ tương đồng nội dung thẻ cũ), độ tin cậy (tỉ lệ đúng hạn), khả dụng (khối lượng đang làm) và hồ sơ tự khai. Trọng số được học từ lựa chọn thực tế của người dùng. Gợi ý chỉ là đề xuất, việc giao thẻ luôn do con người quyết định.",
+  "notes": [
+   "Quản trị viên bảng cũng là Thành viên bảng (xem UC06); tác nhân này được đặt bên phải để các đường nối không cắt nhau."
+  ],
+  "png": "png/uc12_phan_cong.png",
+  "width": 1029,
+  "height": 897,
+  "actors": [
+   {
+    "name": "Thành viên bảng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Người dùng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Thành viên không gian",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Quản trị viên không gian",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Quản trị viên bảng",
+    "kind": "human",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC12.1",
+    "name": "Xem gợi ý người phụ trách cho thẻ",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "«include» UC12.3",
+    "desc": "Xem danh sách người phù hợp nhất kèm điểm từng thành phần, cảnh báo (quá tải, tạm nghỉ) và bằng chứng."
+   },
+   {
+    "code": "UC12.2",
+    "name": "Lập kế hoạch phân công cho danh sách",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "«include» UC12.3",
+    "desc": "Chia các thẻ chưa có người nhận của một danh sách cho các thành viên (chỉ xem trước)."
+   },
+   {
+    "code": "UC12.3",
+    "name": "Tính điểm và xếp hạng ứng viên",
+    "actors": [],
+    "relation": "được UC12.1, UC12.2 bao hàm («include»)",
+    "desc": "Tính bốn thành phần điểm cho từng ứng viên rồi tổng hợp theo trọng số của không gian."
+   },
+   {
+    "code": "UC12.4",
+    "name": "Giao thẻ theo gợi ý",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "«include» UC12.6",
+    "desc": "Chọn một người trong danh sách gợi ý để giao thẻ."
+   },
+   {
+    "code": "UC12.5",
+    "name": "Áp dụng kế hoạch phân công",
+    "actors": [
+     "Thành viên bảng"
+    ],
+    "relation": "",
+    "desc": "Đổi người hoặc bỏ chọn từng thẻ rồi áp dụng; hệ thống giao các thẻ đã chọn."
+   },
+   {
+    "code": "UC12.6",
+    "name": "Ghi nhận lựa chọn để học trọng số",
+    "actors": [],
+    "relation": "được UC12.4 bao hàm («include»)",
+    "desc": "Lưu người thực sự được chọn; khi đủ số lượt phản hồi, hệ thống điều chỉnh trọng số của không gian."
+   },
+   {
+    "code": "UC12.7",
+    "name": "Xem CV của thành viên",
+    "actors": [
+     "Quản trị viên bảng"
+    ],
+    "relation": "",
+    "desc": "Chủ hoặc quản trị viên của một bảng có người đó (hoặc của không gian chứa bảng) tải CV để tham khảo khi giao việc; chỉ xem được khi chủ CV bật dùng hồ sơ cho gợi ý."
+   },
+   {
+    "code": "UC12.8",
+    "name": "Khai báo hồ sơ năng lực",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Tự khai kỹ năng, công việc đã làm; bật/tắt việc dùng hồ sơ cho gợi ý."
+   },
+   {
+    "code": "UC12.9",
+    "name": "Tải lên CV",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "«include» UC12.10",
+    "desc": "Tải CV dạng PDF/DOCX (tối đa 5 MB) để gợi ý dùng thẳng nội dung tệp; có thể thay hoặc xoá CV."
+   },
+   {
+    "code": "UC12.10",
+    "name": "Trích xuất văn bản từ CV",
+    "actors": [],
+    "relation": "được UC12.9 bao hàm («include»)",
+    "desc": "Máy chủ đọc chữ trong CV (không gọi AI) và lưu lại để so khớp khi gợi ý; muốn đổi nội dung thì thay tệp CV."
+   },
+   {
+    "code": "UC12.11",
+    "name": "Cập nhật hồ sơ làm việc",
+    "actors": [
+     "Thành viên không gian"
+    ],
+    "relation": "",
+    "desc": "Đặt số thẻ làm song song tối đa (1-30) và thời gian tạm nghỉ của chính mình trong không gian."
+   },
+   {
+    "code": "UC12.12",
+    "name": "Xem trọng số phân công",
+    "actors": [
+     "Thành viên không gian"
+    ],
+    "relation": "",
+    "desc": "Xem trọng số đang dùng, lịch sử thay đổi và số liệu phản hồi."
+   },
+   {
+    "code": "UC12.13",
+    "name": "Điều chỉnh trọng số phân công",
+    "actors": [
+     "Quản trị viên không gian"
+    ],
+    "relation": "",
+    "desc": "Đặt bốn trọng số (mỗi số trong khoảng 0,05-0,70, tổng bằng 1)."
+   },
+   {
+    "code": "UC12.14",
+    "name": "Đặt lại trọng số mặc định",
+    "actors": [
+     "Quản trị viên không gian"
+    ],
+    "relation": "",
+    "desc": "Đưa trọng số về mặc định và đặt lại bộ đếm phản hồi."
+   }
+  ]
+ },
+ {
+  "key": "uc13_tro_ly",
+  "code": "UC13",
+  "title": "Phân rã use case Hỏi đáp với trợ lý ảo",
+  "caption": "Biểu đồ use case phân rã: Hỏi đáp với trợ lý ảo",
+  "intro": "Trợ lý ảo trả lời câu hỏi bằng tiếng Việt về tình hình công việc (thẻ quá hạn, tiến độ, khối lượng của thành viên, danh mục bảng/không gian, lịch sử thay đổi...). Đây là chức năng tiện ích của sản phẩm, không thuộc hai cơ chế nghiên cứu của khóa luận. Câu trả lời chỉ dùng dữ liệu trong phạm vi người dùng có quyền xem.",
+  "notes": [],
+  "png": "png/uc13_tro_ly.png",
+  "width": 1028,
+  "height": 388,
+  "actors": [
+   {
+    "name": "Người dùng",
+    "kind": "human",
+    "desc": ""
+   },
+   {
+    "name": "Dịch vụ AI (Gemini)",
+    "kind": "system",
+    "desc": ""
+   }
+  ],
+  "useCases": [
+   {
+    "code": "UC13.1",
+    "name": "Xác định phạm vi hỏi đáp",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "",
+    "desc": "Phạm vi mặc định theo trang đang mở (công việc của tôi, một không gian hoặc một bảng); có thể nêu rõ tên bảng hay không gian ngay trong câu hỏi."
+   },
+   {
+    "code": "UC13.2",
+    "name": "Đặt câu hỏi về công việc",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "«include» UC13.3, UC13.4",
+    "desc": "Gõ câu hỏi bằng ngôn ngữ tự nhiên; có thể hỏi tiếp dựa trên ngữ cảnh câu trước."
+   },
+   {
+    "code": "UC13.3",
+    "name": "Hiểu câu hỏi và lập kế hoạch truy vấn",
+    "actors": [
+     "Dịch vụ AI (Gemini)"
+    ],
+    "relation": "được UC13.2 bao hàm («include»)",
+    "desc": "Mô hình ngôn ngữ xác định ý định, khoảng thời gian, đối tượng được hỏi và chọn công cụ truy vấn phù hợp."
+   },
+   {
+    "code": "UC13.4",
+    "name": "Truy vấn dữ liệu trong phạm vi",
+    "actors": [],
+    "relation": "được UC13.2, UC13.5, UC13.6 bao hàm («include»)",
+    "desc": "Các công cụ truy vấn do máy chủ thực thi đếm, liệt kê, thống kê thẻ và nhật ký; quyền được kiểm tra lại ở mỗi lượt."
+   },
+   {
+    "code": "UC13.5",
+    "name": "Trả lời câu hỏi làm rõ",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "«include» UC13.4",
+    "desc": "Khi câu hỏi mơ hồ (trùng tên người, chưa rõ không gian), người dùng chọn một phương án."
+   },
+   {
+    "code": "UC13.6",
+    "name": "Xem thêm kết quả",
+    "actors": [
+     "Người dùng"
+    ],
+    "relation": "«include» UC13.4",
+    "desc": "Xem trang tiếp theo của danh sách kết quả."
+   }
+  ]
+ }
+]

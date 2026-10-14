@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="484" height="314" viewBox="0 0 484 314" font-family="Arial, Helvetica, sans-serif">
+<rect width="484" height="314" fill="#FFFFFF"/>
+<rect x="209.5" y="22.0" width="252.0" height="270.0" fill="none" stroke="#000" stroke-width="1.4"/>
+<text x="335.5" y="44.0" font-size="14" font-weight="bold" text-anchor="middle" dominant-baseline="central">Hệ thống TaskFlow</text>
+<line x1="61.5" y1="161.0" x2="243.5" y2="92.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="61.5" y1="161.0" x2="243.5" y2="166.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="61.5" y1="161.0" x2="243.5" y2="240.0" stroke="#333333" stroke-width="1.2"/>
+<ellipse cx="335.5" cy="92.0" rx="92.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="335.5" y="92.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Xem bảng công khai</text>
+<ellipse cx="335.5" cy="166.0" rx="92.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="335.5" y="166.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Xem chi tiết thẻ công khai</text>
+<ellipse cx="335.5" cy="240.0" rx="92.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="335.5" y="240.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Tải tệp đính kèm</text>
+<circle cx="44.5" cy="144.0" r="9" fill="#FFFFFF" stroke="#000" stroke-width="1.5"/><line x1="44.5" y1="153.0" x2="44.5" y2="177.0" stroke="#000" stroke-width="1.5"/><line x1="28.5" y1="161.0" x2="60.5" y2="161.0" stroke="#000" stroke-width="1.5"/><line x1="44.5" y1="177.0" x2="31.5" y2="197.0" stroke="#000" stroke-width="1.5"/><line x1="44.5" y1="177.0" x2="57.5" y2="197.0" stroke="#000" stroke-width="1.5"/><rect x="23.0" y="201.0" width="43.0" height="20.0" fill="#FFFFFF"/><text x="44.5" y="211.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Khách</text>
+</svg>

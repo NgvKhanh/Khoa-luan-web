@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="571" height="934" viewBox="0 0 571 934" font-family="Arial, Helvetica, sans-serif">
+<rect width="571" height="934" fill="#FFFFFF"/>
+<rect x="290.5" y="22.0" width="258.0" height="890.0" fill="none" stroke="#000" stroke-width="1.4"/>
+<text x="419.5" y="44.0" font-size="14" font-weight="bold" text-anchor="middle" dominant-baseline="central">Hệ thống TaskFlow</text>
+<line x1="77.5" y1="119.0" x2="324.5" y2="92.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="119.0" x2="324.5" y2="156.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="637.4" x2="324.5" y2="220.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="637.4" x2="324.5" y2="284.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="637.4" x2="324.5" y2="348.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="637.4" x2="324.5" y2="412.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="637.4" x2="324.5" y2="476.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="637.4" x2="324.5" y2="540.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="637.4" x2="324.5" y2="604.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="637.4" x2="324.5" y2="668.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="637.4" x2="324.5" y2="732.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="637.4" x2="324.5" y2="796.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="77.5" y1="637.4" x2="324.5" y2="860.0" stroke="#333333" stroke-width="1.2"/>
+<ellipse cx="419.5" cy="92.0" rx="95.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="419.5" y="92.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Xác thực tài khoản</text>
+<ellipse cx="419.5" cy="156.0" rx="95.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="419.5" y="156.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Xem bảng công khai</text>
+<ellipse cx="419.5" cy="220.0" rx="95.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="419.5" y="220.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Quản lý tài khoản cá nhân</text>
+<ellipse cx="419.5" cy="284.0" rx="95.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="419.5" y="284.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Quản lý không gian làm việc</text>
+<ellipse cx="419.5" cy="348.0" rx="95.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="419.5" y="348.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Quản lý bảng</text>
+<ellipse cx="419.5" cy="412.0" rx="95.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="419.5" y="412.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Chia sẻ và phân quyền bảng</text>
+<ellipse cx="419.5" cy="476.0" rx="95.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="419.5" y="476.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Quản lý danh sách công việc</text>
+<ellipse cx="419.5" cy="540.0" rx="95.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="419.5" y="540.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Quản lý thẻ công việc</text>
+<ellipse cx="419.5" cy="604.0" rx="95.0" ry="30.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="419.5" y="596.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Tra cứu và</text><text x="419.5" y="612.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">theo dõi công việc</text>
+<ellipse cx="419.5" cy="668.0" rx="95.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="419.5" y="668.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Quản lý thông báo</text>
+<ellipse cx="419.5" cy="732.0" rx="95.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="419.5" y="732.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Sinh bảng tự động bằng AI</text>
+<ellipse cx="419.5" cy="796.0" rx="95.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="419.5" y="796.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Gợi ý phân công công việc</text>
+<ellipse cx="419.5" cy="860.0" rx="95.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="419.5" y="860.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Hỏi đáp với trợ lý ảo</text>
+<circle cx="60.5" cy="102.0" r="9" fill="#FFFFFF" stroke="#000" stroke-width="1.5"/><line x1="60.5" y1="111.0" x2="60.5" y2="135.0" stroke="#000" stroke-width="1.5"/><line x1="44.5" y1="119.0" x2="76.5" y2="119.0" stroke="#000" stroke-width="1.5"/><line x1="60.5" y1="135.0" x2="47.5" y2="155.0" stroke="#000" stroke-width="1.5"/><line x1="60.5" y1="135.0" x2="73.5" y2="155.0" stroke="#000" stroke-width="1.5"/><rect x="39.0" y="159.0" width="43.0" height="20.0" fill="#FFFFFF"/><text x="60.5" y="169.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Khách</text>
+<circle cx="60.5" cy="620.4" r="9" fill="#FFFFFF" stroke="#000" stroke-width="1.5"/><line x1="60.5" y1="629.4" x2="60.5" y2="653.4" stroke="#000" stroke-width="1.5"/><line x1="44.5" y1="637.4" x2="76.5" y2="637.4" stroke="#000" stroke-width="1.5"/><line x1="60.5" y1="653.4" x2="47.5" y2="673.4" stroke="#000" stroke-width="1.5"/><line x1="60.5" y1="653.4" x2="73.5" y2="673.4" stroke="#000" stroke-width="1.5"/><rect x="23.0" y="677.4" width="75.0" height="20.0" fill="#FFFFFF"/><text x="60.5" y="687.4" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Người dùng</text>
+</svg>

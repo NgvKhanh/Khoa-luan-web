@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="744" height="633" viewBox="0 0 744 633" font-family="Arial, Helvetica, sans-serif">
+<rect width="744" height="633" fill="#FFFFFF"/>
+<rect x="246.0" y="22.0" width="252.0" height="588.8" fill="none" stroke="#000" stroke-width="1.4"/>
+<text x="372.0" y="44.0" font-size="14" font-weight="bold" text-anchor="middle" dominant-baseline="central">Hệ thống TaskFlow</text>
+<line x1="98.0" y1="249.8" x2="280.0" y2="92.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="98.0" y1="249.8" x2="280.0" y2="166.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="98.0" y1="249.8" x2="280.0" y2="240.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="98.0" y1="249.8" x2="280.0" y2="314.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="98.0" y1="249.8" x2="280.0" y2="388.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="136.0" y1="503.6" x2="280.0" y2="476.8" stroke="#333333" stroke-width="1.2"/>
+<line x1="608.0" y1="492.9" x2="464.0" y2="476.8" stroke="#333333" stroke-width="1.2"/>
+<line x1="136.0" y1="524.0" x2="280.0" y2="550.8" stroke="#333333" stroke-width="1.2"/>
+<line x1="608.0" y1="513.3" x2="464.0" y2="550.8" stroke="#333333" stroke-width="1.2"/>
+<ellipse cx="372.0" cy="92.0" rx="92.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="372.0" y="92.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Xem danh sách thông báo</text>
+<ellipse cx="372.0" cy="166.0" rx="92.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="372.0" y="166.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Đánh dấu thông báo đã đọc</text>
+<ellipse cx="372.0" cy="240.0" rx="92.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="372.0" y="240.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Mở nội dung liên quan</text>
+<ellipse cx="372.0" cy="314.0" rx="92.0" ry="30.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="372.0" y="306.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Nhận thông báo</text><text x="372.0" y="322.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">thời gian thực</text>
+<ellipse cx="372.0" cy="388.0" rx="92.0" ry="30.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="372.0" y="380.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Cấu hình tuỳ chọn</text><text x="372.0" y="396.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">nhận thông báo</text>
+<ellipse cx="372.0" cy="476.8" rx="92.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="372.0" y="476.8" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Gửi nhắc hạn công việc</text>
+<ellipse cx="372.0" cy="550.8" rx="92.0" ry="30.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="372.0" y="542.8" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Gửi email tổng hợp</text><text x="372.0" y="558.8" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">hằng ngày</text>
+<circle cx="81.0" cy="232.8" r="9" fill="#FFFFFF" stroke="#000" stroke-width="1.5"/><line x1="81.0" y1="241.8" x2="81.0" y2="265.8" stroke="#000" stroke-width="1.5"/><line x1="65.0" y1="249.8" x2="97.0" y2="249.8" stroke="#000" stroke-width="1.5"/><line x1="81.0" y1="265.8" x2="68.0" y2="285.8" stroke="#000" stroke-width="1.5"/><line x1="81.0" y1="265.8" x2="94.0" y2="285.8" stroke="#000" stroke-width="1.5"/><rect x="43.5" y="289.8" width="75.0" height="20.0" fill="#FFFFFF"/><text x="81.0" y="299.8" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Người dùng</text>
+<rect x="26.0" y="490.8" width="110.0" height="46.0" fill="#FFFFFF" stroke="#000" stroke-width="1.3"/><text x="81.0" y="504.8" font-size="11" text-anchor="middle" dominant-baseline="central">«hệ thống ngoài»</text><text x="81.0" y="522.8" font-size="13" font-weight="bold" font-style="normal" text-anchor="middle" dominant-baseline="central">Bộ lập lịch</text>
+<rect x="608.0" y="476.0" width="110.0" height="46.0" fill="#FFFFFF" stroke="#000" stroke-width="1.3"/><text x="663.0" y="490.0" font-size="11" text-anchor="middle" dominant-baseline="central">«hệ thống ngoài»</text><text x="663.0" y="508.0" font-size="13" font-weight="bold" font-style="normal" text-anchor="middle" dominant-baseline="central">Dịch vụ email</text>
+</svg>

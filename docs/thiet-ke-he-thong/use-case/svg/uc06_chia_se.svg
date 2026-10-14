@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1037" height="915" viewBox="0 0 1037 915" font-family="Arial, Helvetica, sans-serif">
+<rect width="1037" height="915" fill="#FFFFFF"/>
+<rect x="244.0" y="22.0" width="546.1" height="870.0" fill="none" stroke="#000" stroke-width="1.4"/>
+<text x="517.0" y="44.0" font-size="14" font-weight="bold" text-anchor="middle" dominant-baseline="central">Hệ thống TaskFlow</text>
+<line x1="79.0" y1="276.2" x2="79.0" y2="203.1" stroke="#333333" stroke-width="1.2"/>
+<polygon points="79.0,190.0 86.5,203.0 71.5,203.0" fill="#FFFFFF" stroke="#333333" stroke-width="1.2"/>
+<line x1="79.0" y1="557.4" x2="79.0" y2="373.2" stroke="#333333" stroke-width="1.2"/>
+<polygon points="79.0,360.2 86.5,373.2 71.5,373.2" fill="#FFFFFF" stroke="#333333" stroke-width="1.2"/>
+<line x1="79.0" y1="809.0" x2="79.0" y2="654.4" stroke="#333333" stroke-width="1.2"/>
+<polygon points="79.0,641.4 86.5,654.4 71.5,654.4" fill="#FFFFFF" stroke="#333333" stroke-width="1.2"/>
+<line x1="96.0" y1="132.0" x2="278.0" y2="100.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="96.0" y1="132.0" x2="278.0" y2="174.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="96.0" y1="302.2" x2="278.0" y2="248.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="96.0" y1="302.2" x2="278.0" y2="322.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="96.0" y1="583.4" x2="278.0" y2="396.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="900.1" y1="396.0" x2="756.1" y2="396.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="572.1" y1="396.0" x2="470.2" y2="396.0" stroke="#333333" stroke-width="1.2" stroke-dasharray="6 4"/>
+<polyline points="479.9,390.8 470.2,396.0 479.9,401.2" fill="none" stroke="#333333" stroke-width="1.2"/>
+<line x1="96.0" y1="583.4" x2="278.0" y2="470.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="96.0" y1="583.4" x2="278.0" y2="544.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="96.0" y1="583.4" x2="278.0" y2="618.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="96.0" y1="583.4" x2="278.0" y2="692.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="96.0" y1="583.4" x2="278.0" y2="766.0" stroke="#333333" stroke-width="1.2"/>
+<line x1="96.0" y1="835.0" x2="278.0" y2="840.0" stroke="#333333" stroke-width="1.2"/>
+<ellipse cx="374.1" cy="100.0" rx="96.1" ry="30.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="374.1" y="92.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Xem trước lời mời</text><text x="374.1" y="108.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">tham gia bảng</text>
+<ellipse cx="374.1" cy="174.0" rx="96.1" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="374.1" y="174.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Gửi yêu cầu tham gia bảng</text>
+<ellipse cx="374.1" cy="248.0" rx="96.1" ry="30.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="374.1" y="240.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Xem thành viên và</text><text x="374.1" y="256.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">người đang trực tuyến</text>
+<ellipse cx="374.1" cy="322.0" rx="96.1" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="374.1" y="322.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Rời khỏi bảng</text>
+<ellipse cx="374.1" cy="396.0" rx="96.1" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="374.1" y="396.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Mời thành viên vào bảng</text>
+<ellipse cx="664.1" cy="396.0" rx="92.0" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="664.1" y="396.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Gửi lời mời qua email</text>
+<ellipse cx="374.1" cy="470.0" rx="96.1" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="374.1" y="470.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Quản lý liên kết mời</text>
+<ellipse cx="374.1" cy="544.0" rx="96.1" ry="30.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="374.1" y="536.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Duyệt / từ chối</text><text x="374.1" y="552.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">yêu cầu tham gia</text>
+<ellipse cx="374.1" cy="618.0" rx="96.1" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="374.1" y="618.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Thay đổi vai trò thành viên</text>
+<ellipse cx="374.1" cy="692.0" rx="96.1" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="374.1" y="692.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Xoá thành viên khỏi bảng</text>
+<ellipse cx="374.1" cy="766.0" rx="96.1" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="374.1" y="766.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Thay đổi chế độ hiển thị bảng</text>
+<ellipse cx="374.1" cy="840.0" rx="96.1" ry="22.0" fill="#F2F7FC" stroke="#1F4E79" stroke-width="1.4"/>
+<text x="374.1" y="840.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Chuyển quyền sở hữu bảng</text>
+<circle cx="79.0" cy="115.0" r="9" fill="#FFFFFF" stroke="#000" stroke-width="1.5"/><line x1="79.0" y1="124.0" x2="79.0" y2="148.0" stroke="#000" stroke-width="1.5"/><line x1="63.0" y1="132.0" x2="95.0" y2="132.0" stroke="#000" stroke-width="1.5"/><line x1="79.0" y1="148.0" x2="66.0" y2="168.0" stroke="#000" stroke-width="1.5"/><line x1="79.0" y1="148.0" x2="92.0" y2="168.0" stroke="#000" stroke-width="1.5"/><rect x="41.5" y="172.0" width="75.0" height="20.0" fill="#FFFFFF"/><text x="79.0" y="182.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Người dùng</text>
+<circle cx="79.0" cy="285.2" r="9" fill="#FFFFFF" stroke="#000" stroke-width="1.5"/><line x1="79.0" y1="294.2" x2="79.0" y2="318.2" stroke="#000" stroke-width="1.5"/><line x1="63.0" y1="302.2" x2="95.0" y2="302.2" stroke="#000" stroke-width="1.5"/><line x1="79.0" y1="318.2" x2="66.0" y2="338.2" stroke="#000" stroke-width="1.5"/><line x1="79.0" y1="318.2" x2="92.0" y2="338.2" stroke="#000" stroke-width="1.5"/><rect x="28.0" y="342.2" width="102.0" height="20.0" fill="#FFFFFF"/><text x="79.0" y="352.2" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Thành viên bảng</text>
+<circle cx="79.0" cy="566.4" r="9" fill="#FFFFFF" stroke="#000" stroke-width="1.5"/><line x1="79.0" y1="575.4" x2="79.0" y2="599.4" stroke="#000" stroke-width="1.5"/><line x1="63.0" y1="583.4" x2="95.0" y2="583.4" stroke="#000" stroke-width="1.5"/><line x1="79.0" y1="599.4" x2="66.0" y2="619.4" stroke="#000" stroke-width="1.5"/><line x1="79.0" y1="599.4" x2="92.0" y2="619.4" stroke="#000" stroke-width="1.5"/><rect x="23.0" y="623.4" width="112.0" height="20.0" fill="#FFFFFF"/><text x="79.0" y="633.4" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Quản trị viên bảng</text>
+<circle cx="79.0" cy="818.0" r="9" fill="#FFFFFF" stroke="#000" stroke-width="1.5"/><line x1="79.0" y1="827.0" x2="79.0" y2="851.0" stroke="#000" stroke-width="1.5"/><line x1="63.0" y1="835.0" x2="95.0" y2="835.0" stroke="#000" stroke-width="1.5"/><line x1="79.0" y1="851.0" x2="66.0" y2="871.0" stroke="#000" stroke-width="1.5"/><line x1="79.0" y1="851.0" x2="92.0" y2="871.0" stroke="#000" stroke-width="1.5"/><rect x="25.0" y="875.0" width="108.0" height="20.0" fill="#FFFFFF"/><text x="79.0" y="885.0" font-size="13" font-weight="normal" font-style="normal" text-anchor="middle" dominant-baseline="central">Chủ sở hữu bảng</text>
+<rect x="900.1" y="373.0" width="110.0" height="46.0" fill="#FFFFFF" stroke="#000" stroke-width="1.3"/><text x="955.1" y="387.0" font-size="11" text-anchor="middle" dominant-baseline="central">«hệ thống ngoài»</text><text x="955.1" y="405.0" font-size="13" font-weight="bold" font-style="normal" text-anchor="middle" dominant-baseline="central">Dịch vụ email</text>
+<rect x="495.6" y="388.0" width="51.0" height="16" fill="#FFFFFF" opacity="0.92"/>
+<text x="521.1" y="396.0" font-size="11" text-anchor="middle" dominant-baseline="central">«extend»</text>
+</svg>
