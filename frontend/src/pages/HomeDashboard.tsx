@@ -279,7 +279,7 @@ export default function HomeDashboard() {
                             <span className="min-w-0 flex-1 truncate text-slate-800 dark:text-slate-100">
                               {c.title}
                             </span>
-                            <span className="shrink-0 text-xs text-slate-400">
+                            <span className="max-w-[45%] shrink-0 truncate text-xs text-slate-400">
                               {c.list.board.name}
                             </span>
                           </Link>

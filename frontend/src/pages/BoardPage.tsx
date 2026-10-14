@@ -43,6 +43,7 @@ import ListColumn from '../components/board/ListColumn';
 import ListColumnOverlay from '../components/board/ListColumnOverlay';
 import ShortcutsHelp from '../components/board/ShortcutsHelp';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { LogoMark } from '../components/Logo';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
 import { SkeletonColumns, SkeletonRegion } from '../components/Skeleton';
@@ -709,152 +710,153 @@ export default function BoardPage() {
     : { backgroundColor: board.color };
 
   return (
-    <div className="board-canvas flex h-full flex-col" style={canvasStyle}>
+    <div className="board-canvas @container flex h-full min-w-0 flex-col" style={canvasStyle}>
       {/* Thanh ten bang */}
-      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 bg-gradient-to-b from-black/35 to-black/5 px-4 py-2 backdrop-blur-sm">
-        <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-white/20 text-white">
-          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor">
-            <rect x="3" y="4" width="8" height="16" rx="1" />
-            <rect x="13" y="4" width="8" height="10" rx="1" />
-          </svg>
-        </span>
-        {editing && !readOnly ? (
-          <form onSubmit={onNameSubmit}>
-            <input
-              autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={saveName}
-              onKeyDown={onNameKeyDown}
-              className="rounded bg-white px-2 py-1 text-lg font-bold text-slate-900 focus:outline-none"
-            />
-          </form>
-        ) : (
-          <button
-            type="button"
-            disabled={readOnly}
-            onClick={() => {
-              setDraft(board.name);
-              setEditing(true);
-            }}
-            className="max-w-[calc(100vw-9rem)] truncate rounded px-2 py-1 text-lg font-bold text-white drop-shadow-sm enabled:hover:bg-white/20 sm:max-w-md"
-          >
-            {board.name}
-          </button>
-        )}
-
-        {board.workspaceName && (
-          <button
-            type="button"
-            onClick={() => navigate(`/workspaces/${board.workspaceId}`)}
-            title="Mở không gian làm việc"
-            className="hidden max-w-[10rem] items-center gap-1 truncate rounded bg-white/20 px-2 py-1 text-xs font-medium text-white hover:bg-white/30 sm:flex"
-          >
-            <svg viewBox="0 0 24 24" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 8a3 3 0 100-6 3 3 0 000 6zM3 20a6 6 0 0112 0M17 8a3 3 0 100-6M15 20a6 6 0 019-5" />
-            </svg>
-            <span className="truncate">{board.workspaceName}</span>
-          </button>
-        )}
-
-        {!readOnly && (
-          <StarButton
-            starred={Boolean(board.isStarred)}
-            onToggle={() => toggleStar(board.id)}
-            className={`rounded p-1 ${
-              board.isStarred ? '' : 'text-white hover:bg-white/20'
-            }`}
-          />
-        )}
-
-        <button
-          type="button"
-          disabled={watchBusy}
-          onClick={toggleBoardWatch}
-          title={isWatchingBoard ? 'Đang theo dõi bảng' : 'Theo dõi bảng'}
-          className={`flex items-center gap-1 rounded px-2 py-1 text-xs font-medium disabled:opacity-60 ${
-            isWatchingBoard
-              ? 'bg-white/30 text-white'
-              : 'text-white hover:bg-white/20'
-          }`}
-        >
-          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
-          <span className="hidden sm:inline">
-            {isWatchingBoard ? 'Đang theo dõi' : 'Theo dõi'}
+      <div className="flex shrink-0 flex-col gap-2 bg-gradient-to-b from-black/35 to-black/5 px-4 py-2 backdrop-blur-sm @min-[72rem]:flex-row @min-[72rem]:items-center">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 @min-[72rem]:flex-nowrap">
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-white/20 text-white">
+            <LogoMark variant="white" className="h-5 w-5" />
           </span>
-        </button>
-
-        {canManageBoard && (
-          <div className="relative">
+          {editing && !readOnly ? (
+            <form onSubmit={onNameSubmit} className="min-w-0 flex-1">
+              <input
+                autoFocus
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={saveName}
+                onKeyDown={onNameKeyDown}
+                className="w-full min-w-0 rounded bg-white px-2 py-1 text-lg font-bold text-slate-900 focus:outline-none"
+              />
+            </form>
+          ) : (
             <button
               type="button"
-              data-visibility-trigger
-              onClick={() => setVisMenuOpen((v) => !v)}
-              title="Khả năng hiển thị"
-              className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-white/25 px-2 py-1 text-xs font-medium text-white hover:bg-white/40"
+              disabled={readOnly}
+              onClick={() => {
+                setDraft(board.name);
+                setEditing(true);
+              }}
+              title={board.name}
+              className="min-w-0 flex-1 truncate rounded px-2 py-1 text-left text-lg font-bold text-white drop-shadow-sm enabled:hover:bg-white/20"
             >
-              {board.visibility === 'PUBLIC' ? (
-                <>
-                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="9" />
-                    <path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18" />
-                  </svg>
-                  Công khai
-                </>
-              ) : board.visibility === 'WORKSPACE' ? (
-                <>
-                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M9 8a3 3 0 100-6 3 3 0 000 6zM3 20a6 6 0 0112 0M17 8a3 3 0 100-6M15 20a6 6 0 019-5" />
-                  </svg>
-                  Không gian làm việc
-                </>
-              ) : (
-                <>
-                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="4" y="11" width="16" height="10" rx="2" />
-                    <path d="M8 11V7a4 4 0 018 0v4" />
-                  </svg>
-                  Riêng tư
-                </>
-              )}
+              {board.name}
             </button>
-            {visMenuOpen && (
-              <BoardVisibilityMenu
-                value={board.visibility}
-                onChange={handleSetVisibility}
-                onClose={() => setVisMenuOpen(false)}
-              />
-            )}
-          </div>
-        )}
+          )}
 
-        {board.visibility === 'PUBLIC' && (
+          {board.workspaceName && (
+            <button
+              type="button"
+              onClick={() => navigate(`/workspaces/${board.workspaceId}`)}
+              title="Mở không gian làm việc"
+              className="hidden max-w-[10rem] shrink-0 items-center gap-1 truncate rounded bg-white/20 px-2 py-1 text-xs font-medium text-white hover:bg-white/30 sm:flex"
+            >
+              <svg viewBox="0 0 24 24" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 8a3 3 0 100-6 3 3 0 000 6zM3 20a6 6 0 0112 0M17 8a3 3 0 100-6M15 20a6 6 0 019-5" />
+              </svg>
+              <span className="truncate">{board.workspaceName}</span>
+            </button>
+          )}
+
+          {!readOnly && (
+            <StarButton
+              starred={Boolean(board.isStarred)}
+              onToggle={() => toggleStar(board.id)}
+              className={`shrink-0 rounded p-1 ${
+                board.isStarred ? '' : 'text-white hover:bg-white/20'
+              }`}
+            />
+          )}
+
           <button
             type="button"
-            onClick={async () => {
-              const url = `${window.location.origin}/public/boards/${board.id}`;
-              try {
-                await navigator.clipboard.writeText(url);
-                setPublicLinkCopied(true);
-                setTimeout(() => setPublicLinkCopied(false), 2000);
-              } catch {
-                /* trinh duyet chan clipboard */
-              }
-            }}
-            title="Bất kỳ ai có liên kết này đều xem được, không cần đăng nhập"
-            className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-white/25 px-2 py-1 text-xs font-medium text-white hover:bg-white/40"
+            disabled={watchBusy}
+            onClick={toggleBoardWatch}
+            title={isWatchingBoard ? 'Đang theo dõi bảng' : 'Theo dõi bảng'}
+            className={`flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs font-medium disabled:opacity-60 ${
+              isWatchingBoard
+                ? 'bg-white/30 text-white'
+                : 'text-white hover:bg-white/20'
+            }`}
           >
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1" />
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+              <circle cx="12" cy="12" r="3" />
             </svg>
-            {publicLinkCopied ? 'Đã sao chép!' : 'Sao chép liên kết công khai'}
+            <span className="hidden sm:inline">
+              {isWatchingBoard ? 'Đang theo dõi' : 'Theo dõi'}
+            </span>
           </button>
-        )}
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {canManageBoard && (
+            <div className="relative">
+              <button
+                type="button"
+                data-visibility-trigger
+                onClick={() => setVisMenuOpen((v) => !v)}
+                title="Khả năng hiển thị"
+                className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-white/25 px-2 py-1 text-xs font-medium text-white hover:bg-white/40"
+              >
+                {board.visibility === 'PUBLIC' ? (
+                  <>
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="9" />
+                      <path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18" />
+                    </svg>
+                    Công khai
+                  </>
+                ) : board.visibility === 'WORKSPACE' ? (
+                  <>
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 8a3 3 0 100-6 3 3 0 000 6zM3 20a6 6 0 0112 0M17 8a3 3 0 100-6M15 20a6 6 0 019-5" />
+                    </svg>
+                    Không gian làm việc
+                  </>
+                ) : (
+                  <>
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="4" y="11" width="16" height="10" rx="2" />
+                      <path d="M8 11V7a4 4 0 018 0v4" />
+                    </svg>
+                    Riêng tư
+                  </>
+                )}
+              </button>
+              {visMenuOpen && (
+                <BoardVisibilityMenu
+                  value={board.visibility}
+                  onChange={handleSetVisibility}
+                  onClose={() => setVisMenuOpen(false)}
+                />
+              )}
+            </div>
+          )}
+
+          {board.visibility === 'PUBLIC' && (
+            <button
+              type="button"
+              onClick={async () => {
+                const url = `${window.location.origin}/public/boards/${board.id}`;
+                try {
+                  await navigator.clipboard.writeText(url);
+                  setPublicLinkCopied(true);
+                  setTimeout(() => setPublicLinkCopied(false), 2000);
+                } catch {
+                  /* trinh duyet chan clipboard */
+                }
+              }}
+              title="Bất kỳ ai có liên kết này đều xem được, không cần đăng nhập"
+              className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-white/25 px-2 py-1 text-xs font-medium text-white hover:bg-white/40"
+            >
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1" />
+              </svg>
+              {publicLinkCopied ? 'Đã sao chép!' : 'Sao chép liên kết công khai'}
+            </button>
+          )}
+
+        </div>
+
+        <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2 @min-[72rem]:shrink-0 @min-[72rem]:flex-nowrap">
           <div className="flex items-center gap-0.5 rounded bg-white/20 p-0.5">
             <button
               type="button"
@@ -878,9 +880,9 @@ export default function BoardPage() {
             </button>
           </div>
 
-                    {/* Nhóm công cụ của bảng: thống kê, lọc, hoạt động, trường, tự động hoá, lưu trữ, ảnh nền */}
-          <div role="toolbar" aria-label="Công cụ của bảng" className="flex items-center gap-0.5 rounded-lg bg-white/15 p-0.5">
-  <div className="relative">
+          {/* Nhóm công cụ của bảng: thống kê, lọc, hoạt động, trường, tự động hoá, lưu trữ, ảnh nền */}
+          <div role="toolbar" aria-label="Công cụ của bảng" className="flex shrink-0 items-center gap-0.5 rounded-lg bg-white/15 p-0.5">
+            <div className="relative">
               <button
                 type="button"
                 data-stats-trigger

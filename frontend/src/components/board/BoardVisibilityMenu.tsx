@@ -80,7 +80,7 @@ export default function BoardVisibilityMenu({
   return createPortal(
     <div
       ref={ref}
-      className="tf-menu-in fixed right-3 top-14 z-50 w-80 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-slate-800 dark:text-slate-100 shadow-2xl"
+      className="tf-menu-in fixed right-3 top-14 z-50 w-80 max-w-[calc(100vw-1.5rem)] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-slate-800 dark:text-slate-100 shadow-2xl"
     >
       <div className="flex items-center px-1.5 pb-1">
         <p className="flex-1 text-center text-sm font-semibold">
