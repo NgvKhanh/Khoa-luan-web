@@ -67,14 +67,14 @@ export async function getWorkspaceOverview(
     prisma.card.count({
       where: { ...baseWhere, isDone: false, dueDate: { lt: now } },
     }),
-    prisma.card.count({ where: { ...baseWhere, members: { none: {} } } }),
+    prisma.card.count({ where: { AND: [baseWhere, { members: { none: {} } }] } }),
   ]);
 
   const statusWhere =
     status === 'overdue'
       ? { ...baseWhere, isDone: false, dueDate: { lt: now } }
       : status === 'unassigned'
-        ? { ...baseWhere, members: { none: {} } }
+        ? { AND: [baseWhere, { members: { none: {} } }] }
         : status === 'done'
           ? { ...baseWhere, isDone: true }
           : baseWhere;

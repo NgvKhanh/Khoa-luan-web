@@ -1,25 +1,13 @@
-import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useBoards } from '../context/BoardsContext';
 import { useWorkspaces } from '../context/WorkspacesContext';
-import { assetUrl } from '../lib/assets';
-import type { Board } from '../types/board';
+import { NAV_ITEMS, boardSwatchStyle, useWorkspaceOpenState } from '../lib/sidebarNav';
 import NavDrawer from './nav/NavDrawer';
 
 const ACTIVE =
   'flex items-center gap-3 rounded px-3 py-2 text-sm bg-primary-soft font-semibold text-primary-ink';
 const INACTIVE =
   'flex items-center gap-3 rounded px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700';
-
-// Mỗi mục điều hướng chính: nhãn, đích đến (route có sẵn) và nét vẽ biểu tượng
-const NAV_ITEMS = [
-  { to: '/home', label: 'Tổng quan', end: false, icon: 'M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10' },
-  { to: '/my-cards', label: 'Công việc của tôi', end: false, icon: 'M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11' },
-  { to: '/calendar', label: 'Lịch', end: false, icon: 'M5 4h14a2 2 0 012 2v13a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zM3 10h18M8 2v4M16 2v4' },
-  { to: '/boards', label: 'Tất cả bảng', end: true, icon: 'M4 4h6v16H4zM14 4h6v10h-6z' },
-  { to: '/templates', label: 'Mẫu', end: false, icon: 'M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zM3 9h18M9 9v11' },
-  { to: '/search', label: 'Tìm kiếm nâng cao', end: false, icon: 'M11 4a7 7 0 100 14 7 7 0 000-14zM21 21l-4.3-4.3' },
-] as const;
 
 function NavIcon({ path }: { path: string }) {
   return (
@@ -29,51 +17,12 @@ function NavIcon({ path }: { path: string }) {
   );
 }
 
-function boardSwatchStyle(b: Board) {
-  return b.backgroundImage
-    ? {
-        backgroundImage: `url(${assetUrl(b.backgroundImage)})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }
-    : { backgroundColor: b.color };
-}
-
-// Trạng thái đóng/mở từng không gian, nhớ trên trình duyệt này. Chưa có ghi nhận thì
-// không gian đang chọn được mở, các không gian khác đóng.
-const OPEN_KEY = 'taskflow_sidebar_workspaces';
-function loadOpenState(): Record<string, boolean> {
-  try {
-    const raw = localStorage.getItem(OPEN_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : {};
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, boolean>) : {};
-  } catch {
-    return {};
-  }
-}
-
 // Nội dung điều hướng: dùng chung cho sidebar desktop và ngăn điều hướng trên điện thoại
 export function SidebarContent() {
   const { boards } = useBoards();
   const { workspaces, currentWorkspaceId, setCurrentWorkspaceId } = useWorkspaces();
   const starred = boards.filter((b) => b.isStarred);
-  const [openState, setOpenState] = useState<Record<string, boolean>>(loadOpenState);
-
-  function isOpen(id: string): boolean {
-    return openState[id] ?? id === currentWorkspaceId;
-  }
-
-  function setOpen(id: string, open: boolean) {
-    setOpenState((cur) => {
-      const next = { ...cur, [id]: open };
-      try {
-        localStorage.setItem(OPEN_KEY, JSON.stringify(next));
-      } catch {
-        // trình duyệt chặn lưu trữ: chỉ mất khả năng nhớ giữa các lần mở
-      }
-      return next;
-    });
-  }
+  const { isOpen, setOpen } = useWorkspaceOpenState(currentWorkspaceId);
 
   return (
     <>

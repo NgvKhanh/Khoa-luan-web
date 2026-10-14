@@ -1,697 +1,406 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import AssignWeightsPanel from '../components/AssignWeightsPanel';
-import Avatar from '../components/Avatar';
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ConfirmDialog from '../components/ConfirmDialog';
+import CreateBoardDialog from '../components/board/CreateBoardDialog';
+import WorkspaceBoardsPanel from '../components/workspace/WorkspaceBoardsPanel';
+import WorkspaceMembersPanel, { type AssignableRole } from '../components/workspace/WorkspaceMembersPanel';
+import WorkspaceSettingsPanel from '../components/workspace/WorkspaceSettingsPanel';
+import { FOCUS, PANEL, PRIMARY_BUTTON, SECONDARY_BUTTON, roleLabel } from '../components/workspace/workspaceUi';
+import { WorkspaceIcon } from '../components/workspace/WorkspaceIcon';
+import { Skeleton, SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
 import { useWorkspaces } from '../context/WorkspacesContext';
-import { assetUrl } from '../lib/assets';
 import {
-  addWorkspaceMember,
-  changeWorkspaceMemberRole,
-  deleteWorkspace,
-  fetchWorkspace,
-  fetchWorkspaceMembers,
-  fetchWorkspaceOverview,
-  removeWorkspaceMember,
-  transferWorkspaceOwnership,
-  updateWorkspace,
-  type OverviewStatusFilter,
-  type WorkspaceOverview,
+  addWorkspaceMember, changeWorkspaceMemberRole, deleteWorkspace, fetchWorkspace,
+  fetchWorkspaceMembers, fetchWorkspaceOverview, removeWorkspaceMember,
+  transferWorkspaceOwnership, updateWorkspace,
+  type OverviewStatusFilter, type WorkspaceOverview,
 } from '../lib/api/workspace';
-import { userCvUrl } from '../lib/api/assign';
 import { getErrorMessage } from '../lib/errorMessage';
-import { logError } from '../lib/logError';
 import { socket } from '../lib/socket';
 import { useCvAccess } from '../lib/useCvAccess';
+import type { Board } from '../types/board';
 import type { Workspace, WorkspaceMember } from '../types/workspace';
-import { Skeleton, SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-}
+const TABS = [
+  { id: 'boards', label: 'Bảng & tiến độ', icon: 'M4 4h6v16H4zM14 4h6v10h-6z' },
+  { id: 'members', label: 'Thành viên & quyền', icon: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
+  { id: 'settings', label: 'Cài đặt', icon: 'M4 7h16M4 17h16M8 4v6M16 14v6' },
+] as const;
+type Tab = typeof TABS[number]['id'];
 
-const STATUS_OPTIONS: { value: OverviewStatusFilter; label: string }[] = [
-  { value: 'all', label: 'Tất cả' },
-  { value: 'overdue', label: 'Quá hạn' },
-  { value: 'unassigned', label: 'Chưa giao' },
-  { value: 'done', label: 'Đã hoàn thành' },
-];
-
-type AssignableRole = 'ADMIN' | 'MEMBER';
-
-function roleLabel(r: WorkspaceMember['role']): string {
-  if (r === 'OWNER') return 'Chủ không gian';
-  if (r === 'ADMIN') return 'Quản trị viên';
-  return 'Thành viên';
-}
-
+// Remount on workspace changes so drafts, filters and pending requests stay with their workspace.
 export default function WorkspaceSettingsPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
+  return workspaceId ? <WorkspaceSettingsContent key={workspaceId} workspaceId={workspaceId} /> : null;
+}
+
+function WorkspaceSettingsContent({ workspaceId }: { workspaceId: string }) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const tab: Tab = TABS.find((item) => item.id === tabParam)?.id ?? 'boards';
+  const tabId = useId();
   const { user } = useAuth();
-  const { boards } = useBoards();
-  const { reload: reloadWorkspaces, removeWorkspace } = useWorkspaces();
+  const { boards, isLoading: boardsLoading, error: boardsError, reload: reloadBoards, upsertBoard } = useBoards();
+  const { reload: reloadWorkspaces, removeWorkspace, setCurrentWorkspaceId } = useWorkspaces();
 
   const [ws, setWs] = useState<Workspace | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
-  // Nut "Xem CV" canh thanh vien: may chu quyet dinh ai minh xem duoc (chu / quan tri bang chung, hoac khong gian chua bang)
-  const cvIds = useCvAccess(members.map((m) => m.userId));
+  const [membersLoading, setMembersLoading] = useState(true);
+  const [membersError, setMembersError] = useState<string | null>(null);
+  const cvIds = useCvAccess(members.map((member) => member.userId), tab === 'members' && !membersError);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
   const [overview, setOverview] = useState<WorkspaceOverview | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<OverviewStatusFilter>('all');
-
   const [nameDraft, setNameDraft] = useState('');
-  const [editingName, setEditingName] = useState(false);
-
+  const savedName = useRef('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<AssignableRole>('MEMBER');
   const [busy, setBusy] = useState(false);
-
+  const [createOpen, setCreateOpen] = useState(false);
+  const createRef = useRef<HTMLDivElement>(null);
+  const createButtonRef = useRef<HTMLButtonElement>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [transferTarget, setTransferTarget] = useState<WorkspaceMember | null>(
-    null
-  );
+  const [removeTarget, setRemoveTarget] = useState<WorkspaceMember | null>(null);
+  const [transferTarget, setTransferTarget] = useState<WorkspaceMember | null>(null);
+  const requestSequences = useRef({ workspace: 0, members: 0, overview: 0 });
 
-  const load = useCallback(() => {
-    if (!workspaceId) return;
-    fetchWorkspace(workspaceId)
-      .then(setWs)
-      .catch((err) =>
-        setLoadError(getErrorMessage(err, 'Không tải được không gian này.'))
-      );
-    fetchWorkspaceMembers(workspaceId)
-      .then(setMembers)
-      .catch(logError('WorkspaceSettings: tai thanh vien'));
+  const loadWorkspace = useCallback(() => {
+    const seq = ++requestSequences.current.workspace;
+    fetchWorkspace(workspaceId).then((data) => {
+      if (seq !== requestSequences.current.workspace) return;
+      const previousName = savedName.current;
+      setNameDraft((draft) => draft === previousName ? data.name : draft);
+      savedName.current = data.name;
+      setWs(data);
+      setLoadError(null);
+    }).catch((error) => {
+      if (seq === requestSequences.current.workspace) setLoadError(getErrorMessage(error, 'Không tải được không gian này.'));
+    });
   }, [workspaceId]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  // Realtime: thanh vien doi -> tai lai
-  useEffect(() => {
-    const onChanged = () => load();
-    socket.on('workspace:changed', onChanged);
-    return () => {
-      socket.off('workspace:changed', onChanged);
-    };
-  }, [load]);
+  const loadMembers = useCallback(() => {
+    const seq = ++requestSequences.current.members;
+    fetchWorkspaceMembers(workspaceId).then((data) => {
+      if (seq === requestSequences.current.members) setMembers(data);
+    }).catch((error) => {
+      if (seq === requestSequences.current.members) setMembersError(getErrorMessage(error, 'Không tải được thành viên.'));
+    }).finally(() => {
+      if (seq === requestSequences.current.members) setMembersLoading(false);
+    });
+  }, [workspaceId]);
 
   const loadOverview = useCallback(() => {
-    if (!workspaceId) return;
-    fetchWorkspaceOverview(workspaceId, {
-      assigneeId: assigneeFilter || undefined,
-      status: statusFilter,
-    })
+    const seq = ++requestSequences.current.overview;
+    fetchWorkspaceOverview(workspaceId, { assigneeId: assigneeFilter || undefined, status: statusFilter })
       .then((data) => {
-        setOverview(data);
-        setOverviewError(null);
-      })
-      .catch((err) =>
-        setOverviewError(getErrorMessage(err, 'Không tải được tổng quan.'))
-      );
+        if (seq === requestSequences.current.overview) setOverview(data);
+      }).catch((error) => {
+        if (seq === requestSequences.current.overview) setOverviewError(getErrorMessage(error, 'Không tải được tổng quan.'));
+      }).finally(() => {
+        if (seq === requestSequences.current.overview) setOverviewLoading(false);
+      });
   }, [workspaceId, assigneeFilter, statusFilter]);
 
   useEffect(() => {
+    loadWorkspace();
+    loadMembers();
+    const sequences = requestSequences.current;
+    return () => { sequences.workspace++; sequences.members++; };
+  }, [loadWorkspace, loadMembers]);
+
+  useEffect(() => {
     loadOverview();
+    const sequences = requestSequences.current;
+    return () => { sequences.overview++; };
   }, [loadOverview]);
+
+  useEffect(() => {
+    if (ws?.id) setCurrentWorkspaceId(ws.id);
+  }, [ws?.id, setCurrentWorkspaceId]);
+
+  useEffect(() => {
+    function onChanged(event?: { workspaceId?: string }) {
+      if (event?.workspaceId && event.workspaceId !== workspaceId) return;
+      loadWorkspace();
+      setMembersLoading(true);
+      setMembersError(null);
+      loadMembers();
+      setOverviewLoading(true);
+      setOverviewError(null);
+      loadOverview();
+    }
+    socket.on('workspace:changed', onChanged);
+    return () => { socket.off('workspace:changed', onChanged); };
+  }, [workspaceId, loadWorkspace, loadMembers, loadOverview]);
+
+  useEffect(() => {
+    if (!createOpen) return;
+    function onDown(event: MouseEvent) {
+      if (!createRef.current?.contains(event.target as Node)) setCreateOpen(false);
+    }
+    function onKey(event: globalThis.KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setCreateOpen(false);
+        createButtonRef.current?.focus();
+      }
+    }
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [createOpen]);
 
   const myRole = ws?.myRole ?? 'MEMBER';
   const isOwner = myRole === 'OWNER';
-  const canManage = myRole === 'OWNER' || myRole === 'ADMIN';
-  const wsBoards = boards.filter((b) => b.workspaceId === workspaceId);
+  const canManage = isOwner || myRole === 'ADMIN';
+  const wsBoards = boards.filter((board) => board.workspaceId === workspaceId);
 
-  async function saveName(e: FormEvent) {
-    e.preventDefault();
-    if (!workspaceId || !nameDraft.trim() || busy) return;
-    setBusy(true);
-    setActionError(null);
-    try {
-      const updated = await updateWorkspace(workspaceId, nameDraft.trim());
-      setWs((cur) => (cur ? { ...cur, name: updated.name } : cur));
-      setEditingName(false);
-      void reloadWorkspaces();
-    } catch (err) {
-      setActionError(getErrorMessage(err, 'Không đổi được tên.'));
-    } finally {
-      setBusy(false);
-    }
+  function refreshMembers() {
+    setMembersLoading(true);
+    setMembersError(null);
+    loadMembers();
   }
 
-  async function submitInvite(e: FormEvent) {
-    e.preventDefault();
-    if (!workspaceId || !inviteEmail.trim() || busy) return;
+  function refreshOverview() {
+    setOverviewLoading(true);
+    setOverviewError(null);
+    loadOverview();
+  }
+
+  function filterAssignee(id: string) {
+    if (id === assigneeFilter) return;
+    setAssigneeFilter(id);
+    setOverviewLoading(true);
+    setOverviewError(null);
+  }
+
+  function filterStatus(status: OverviewStatusFilter) {
+    if (status === statusFilter) return;
+    setStatusFilter(status);
+    setOverviewLoading(true);
+    setOverviewError(null);
+  }
+
+  function selectTab(next: Tab) {
+    setSearchParams((previous) => {
+      const params = new URLSearchParams(previous);
+      if (next === 'boards') params.delete('tab');
+      else params.set('tab', next);
+      return params;
+    }, { replace: true });
+    setCreateOpen(false);
+    setActionError(null);
+    setNotice(null);
+  }
+
+  function onTabKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    let next: number;
+    if (event.key === 'ArrowRight') next = (index + 1) % TABS.length;
+    else if (event.key === 'ArrowLeft') next = (index + TABS.length - 1) % TABS.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = TABS.length - 1;
+    else return;
+    event.preventDefault();
+    selectTab(TABS[next].id);
+    document.getElementById(`${tabId}-${TABS[next].id}`)?.focus();
+  }
+
+  async function runAction(action: () => Promise<void>, fallback: string) {
+    if (busy) return;
     setBusy(true);
     setActionError(null);
     setNotice(null);
-    try {
-      const res = await addWorkspaceMember(
-        workspaceId,
-        inviteEmail.trim(),
-        inviteRole
-      );
+    try { await action(); }
+    catch (error) { setActionError(getErrorMessage(error, fallback)); }
+    finally { setBusy(false); }
+  }
+
+  function saveName(event: FormEvent) {
+    event.preventDefault();
+    if (!canManage || ws?.isPersonal || !nameDraft.trim()) return;
+    void runAction(async () => {
+      const updated = await updateWorkspace(workspaceId, nameDraft.trim());
+      requestSequences.current.workspace++;
+      savedName.current = updated.name;
+      setNameDraft(updated.name);
+      setWs((current) => current ? { ...current, name: updated.name } : current);
+      setNotice('Đã cập nhật tên không gian.');
+      void reloadWorkspaces();
+      void reloadBoards();
+    }, 'Không đổi được tên.');
+  }
+
+  function submitInvite(event: FormEvent) {
+    event.preventDefault();
+    if (!canManage || !inviteEmail.trim()) return;
+    void runAction(async () => {
+      const result = await addWorkspaceMember(workspaceId, inviteEmail.trim(), inviteRole);
       setInviteEmail('');
-      if (res.kind === 'invited') {
-        setNotice(
-          `${res.email} chưa có tài khoản — đã gửi email mời đăng ký TaskFlow.`
-        );
-      } else {
-        setMembers((cur) =>
-          cur.some((m) => m.userId === res.member.userId)
-            ? cur.map((m) => (m.userId === res.member.userId ? res.member : m))
-            : [...cur, res.member]
-        );
-      }
+      setNotice(result.kind === 'invited'
+        ? `Đã gửi email mời đăng ký tới ${result.email}. Người này chưa được thêm vào không gian.`
+        : `Đã thêm ${result.member.user.name} vào không gian. Các bảng riêng tư vẫn cần lời mời riêng.`);
+      loadMembers();
+      loadWorkspace();
       void reloadWorkspaces();
-    } catch (err) {
-      setActionError(getErrorMessage(err, 'Không thêm được thành viên.'));
-    } finally {
-      setBusy(false);
-    }
+    }, 'Không thêm được thành viên.');
   }
 
-  async function changeRole(userId: string, role: AssignableRole) {
-    if (!workspaceId) return;
-    const prev = members;
-    setMembers((cur) =>
-      cur.map((m) => (m.userId === userId ? { ...m, role } : m))
-    );
-    try {
-      await changeWorkspaceMemberRole(workspaceId, userId, role);
-    } catch (err) {
-      setMembers(prev);
-      setActionError(getErrorMessage(err, 'Không đổi được vai trò.'));
-    }
-  }
-
-  async function removeMember(userId: string) {
-    if (!workspaceId) return;
-    const prev = members;
-    setMembers((cur) => cur.filter((m) => m.userId !== userId));
-    try {
-      await removeWorkspaceMember(workspaceId, userId);
+  function changeRole(userId: string, role: AssignableRole) {
+    if (!canManage) return;
+    void runAction(async () => {
+      const updated = await changeWorkspaceMemberRole(workspaceId, userId, role);
+      requestSequences.current.members++;
+      setMembers((current) => current.map((member) => member.userId === userId ? updated : member));
+      setNotice(`Đã đổi vai trò của ${updated.user.name} thành ${roleLabel(role)}.`);
+      loadWorkspace();
       void reloadWorkspaces();
-    } catch (err) {
-      setMembers(prev);
-      setActionError(getErrorMessage(err, 'Không xoá được thành viên.'));
-    }
+      void reloadBoards();
+    }, 'Không đổi được vai trò.');
   }
 
-  async function doTransfer() {
-    if (!workspaceId || !transferTarget) return;
-    setBusy(true);
-    setActionError(null);
-    try {
-      await transferWorkspaceOwnership(workspaceId, transferTarget.userId);
+  function doRemove() {
+    if (!canManage || !removeTarget) return;
+    const target = removeTarget;
+    void runAction(async () => {
+      await removeWorkspaceMember(workspaceId, target.userId);
+      // Invalidate any list request started before the member was removed.
+      requestSequences.current.members++;
+      setMembers((current) => current.filter((member) => member.userId !== target.userId));
+      setRemoveTarget(null);
+      if (assigneeFilter === target.userId) filterAssignee('');
+      setNotice(`Đã xóa ${target.user.name} khỏi không gian.`);
+      loadMembers();
+      loadWorkspace();
+      void reloadWorkspaces();
+    }, 'Không xóa được thành viên.').then(() => setRemoveTarget(null));
+  }
+
+  function doTransfer() {
+    if (!isOwner || ws?.isPersonal || !transferTarget) return;
+    const target = transferTarget;
+    void runAction(async () => {
+      await transferWorkspaceOwnership(workspaceId, target.userId);
       setTransferTarget(null);
-      setNotice(`Đã chuyển quyền sở hữu cho ${transferTarget.user.name}.`);
-      load();
+      setNotice(`Đã chuyển quyền sở hữu cho ${target.user.name}.`);
+      loadWorkspace();
+      loadMembers();
       void reloadWorkspaces();
-    } catch (err) {
-      setActionError(getErrorMessage(err, 'Không chuyển được quyền sở hữu.'));
-    } finally {
-      setBusy(false);
-    }
+      void reloadBoards();
+    }, 'Không chuyển được quyền sở hữu.').then(() => setTransferTarget(null));
   }
 
-  async function doLeave() {
-    if (!workspaceId || !user) return;
-    setBusy(true);
-    try {
+  function doLeave() {
+    if (!user || isOwner) return;
+    void runAction(async () => {
       await removeWorkspaceMember(workspaceId, user.id);
       removeWorkspace(workspaceId);
       void reloadWorkspaces();
+      void reloadBoards();
       navigate('/boards', { replace: true });
-    } catch (err) {
-      setActionError(getErrorMessage(err, 'Không rời được không gian.'));
-      setBusy(false);
-      setConfirmLeave(false);
-    }
+    }, 'Không rời được không gian.');
+    setConfirmLeave(false);
   }
 
-  async function doDelete() {
-    if (!workspaceId) return;
-    setBusy(true);
-    try {
+  function doDelete() {
+    if (!isOwner || ws?.isPersonal) return;
+    void runAction(async () => {
       await deleteWorkspace(workspaceId);
       removeWorkspace(workspaceId);
       void reloadWorkspaces();
+      void reloadBoards();
       navigate('/boards', { replace: true });
-    } catch (err) {
-      setActionError(getErrorMessage(err, 'Không xoá được không gian.'));
-      setBusy(false);
-      setConfirmDelete(false);
-    }
+    }, 'Không xóa được không gian.');
+    setConfirmDelete(false);
   }
 
-  if (loadError) {
-    return (
-      <div className="mx-auto max-w-3xl">
-        <p className="text-sm text-red-600">{loadError}</p>
-        <Link to="/boards" className="mt-3 inline-block text-sm text-primary-ink hover:underline">
-          Về trang chủ
-        </Link>
-      </div>
-    );
+  function onCreated(board: Board) {
+    upsertBoard(board);
+    setCreateOpen(false);
+    setNotice(`Đã tạo bảng “${board.name}” trong không gian này.`);
+    loadWorkspace();
+    refreshOverview();
+    void reloadWorkspaces();
+    createButtonRef.current?.focus();
   }
-  if (!ws) {
-    return (
-      <SkeletonRegion label="Đang tải không gian làm việc…" className="flex flex-col gap-3">
-        <Skeleton className="h-6 w-56" />
-        <SkeletonRows rows={4} boxed />
-      </SkeletonRegion>
-    );
-  }
+
+  if (loadError) return (
+    <div className={PANEL}>
+      <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">{loadError}</p>
+      <button type="button" onClick={loadWorkspace} className={`mt-4 ${SECONDARY_BUTTON}`}>Thử tải lại không gian</button>
+      <Link to="/boards" className={`ml-3 rounded text-sm text-primary-ink ${FOCUS}`}>Về danh sách bảng</Link>
+    </div>
+  );
+  if (!ws) return <SkeletonRegion label="Đang tải không gian làm việc…" className="space-y-4"><Skeleton className="h-16 w-64" /><SkeletonRows rows={4} boxed /></SkeletonRegion>;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-8">
-      {/* Tieu de */}
-      <div>
-        <div className="flex items-center gap-3">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary text-lg font-bold text-white">
-            {ws.name.slice(0, 1).toUpperCase()}
-          </span>
-          {editingName ? (
-            <form onSubmit={saveName} className="flex flex-1 gap-2">
-              <input
-                autoFocus
-                value={nameDraft}
-                onChange={(e) => setNameDraft(e.target.value)}
-                className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-lg font-semibold focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-800"
-              />
-              <button
-                type="submit"
-                disabled={busy}
-                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
-              >
-                Lưu
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditingName(false)}
-                className="rounded-lg px-2 py-1.5 text-sm text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
-              >
-                Huỷ
-              </button>
-            </form>
-          ) : (
-            <div className="flex flex-1 items-center gap-2">
-              <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-                {ws.name}
-              </h1>
-              {ws.isPersonal && (
-                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-700 dark:text-slate-300">
-                  cá nhân
-                </span>
-              )}
-              {canManage && !ws.isPersonal && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNameDraft(ws.name);
-                    setEditingName(true);
-                  }}
-                  className="text-xs font-medium text-primary-ink hover:underline"
-                >
-                  Đổi tên
-                </button>
-              )}
-            </div>
-          )}
+    <div className="mx-auto max-w-5xl space-y-5">
+      <Link to="/boards" className={`inline-flex items-center gap-1.5 rounded text-xs font-medium text-slate-500 hover:text-primary-ink dark:text-slate-400 ${FOCUS}`}><WorkspaceIcon path="M15 18l-6-6 6-6" className="h-3.5 w-3.5" />Tất cả các bảng</Link>
+
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[var(--brand-accent)] to-primary text-lg font-bold text-white shadow-sm sm:h-14 sm:w-14">{ws.name.slice(0, 1).toLocaleUpperCase('vi')}</span>
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-400">{ws.isPersonal ? 'Không gian cá nhân' : 'Không gian nhóm'}</p>
+            <h1 className="mt-1 break-words text-xl font-bold text-slate-900 sm:text-2xl dark:text-slate-100">{ws.name}</h1>
+            <p className="mt-1.5 text-xs leading-5 text-slate-500 dark:text-slate-400">{wsBoards.length} bảng truy cập được · {ws.memberCount ?? members.length} thành viên · {roleLabel(myRole)}</p>
+          </div>
         </div>
-        <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
-          {members.length} thành viên · {ws.boardCount ?? wsBoards.length} bảng ·
-          Vai trò của bạn: {roleLabel(myRole)}
-        </p>
+        {tab === 'boards' && <div ref={createRef} className="relative w-full shrink-0 sm:w-auto">
+          <button ref={createButtonRef} type="button" disabled={busy} aria-expanded={createOpen} aria-controls="workspace-create-board" onClick={() => setCreateOpen((value) => !value)} className={`w-full ${PRIMARY_BUTTON}`}><WorkspaceIcon path="M12 5v14M5 12h14" />Tạo bảng mới</button>
+          <div id="workspace-create-board" hidden={!createOpen} className="absolute right-0 top-[calc(100%+8px)] z-40">
+            {createOpen && <CreateBoardDialog workspaceId={ws.id} onClose={() => { setCreateOpen(false); createButtonRef.current?.focus(); }} onCreated={onCreated} className="tf-menu-in max-w-[calc(100vw-2rem)]" />}
+          </div>
+        </div>}
+      </header>
+
+      <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">{ws.isPersonal ? 'Theo dõi các bảng và công việc của bạn ở một nơi. Thành viên và cấu hình cộng tác nằm trong các mục riêng.' : 'Theo dõi tiến độ các bảng, quản lý thành viên và thiết lập cách cộng tác của nhóm.'}</p>
+
+      <div role="tablist" aria-label="Quản lý không gian" className="grid grid-cols-[1.1fr_1.4fr_0.7fr] gap-1 border-b border-slate-200 sm:flex dark:border-slate-700">
+        {TABS.map((item, index) => <button key={item.id} id={`${tabId}-${item.id}`} type="button" role="tab" aria-selected={tab === item.id} aria-controls={`${tabId}-panel-${item.id}`} tabIndex={tab === item.id ? 0 : -1} onKeyDown={(event) => onTabKey(event, index)} onClick={() => selectTab(item.id)} className={`flex min-w-0 items-center justify-center gap-2 border-b-2 px-2 py-3 text-[11px] font-semibold transition-colors sm:px-4 sm:text-sm ${FOCUS} ${tab === item.id ? 'border-primary text-primary-ink' : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}><WorkspaceIcon path={item.icon} className="hidden h-4 w-4 sm:block" />{item.label}</button>)}
       </div>
 
-      {actionError && <p className="text-sm text-red-600">{actionError}</p>}
-      {notice && (
-        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-          {notice}
-        </p>
-      )}
+      {actionError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">{actionError}</p>}
+      {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">{notice}</p>}
 
-      {/* Tong quan */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Tổng quan
-          </h2>
-          <button
-            type="button"
-            onClick={loadOverview}
-            className="text-xs font-medium text-primary-ink hover:underline"
-          >
-            Làm mới
-          </button>
-        </div>
+      {TABS.map((item) => <div key={item.id} role="tabpanel" id={`${tabId}-panel-${item.id}`} aria-labelledby={`${tabId}-${item.id}`} hidden={tab !== item.id} tabIndex={0} className={`rounded-xl ${FOCUS}`}>
+        {tab === item.id && <>
+          {item.id === 'boards' && <WorkspaceBoardsPanel
+            boards={wsBoards} boardCount={ws.boardCount} boardsLoading={boardsLoading} boardsError={boardsError}
+            onReloadBoards={() => void reloadBoards()}
+            onCreate={() => { setCreateOpen(true); createButtonRef.current?.scrollIntoView({ block: 'nearest' }); }}
+            overview={overview} overviewLoading={overviewLoading} overviewError={overviewError} onReloadOverview={refreshOverview}
+            members={members} assigneeFilter={assigneeFilter} onAssigneeFilter={filterAssignee}
+            statusFilter={statusFilter} onStatusFilter={filterStatus}
+          />}
+          {item.id === 'members' && <WorkspaceMembersPanel
+            workspace={ws} members={members} loading={membersLoading} error={membersError} onReload={refreshMembers}
+            userId={user?.id} canManage={canManage} isOwner={isOwner} cvIds={cvIds} busy={busy}
+            inviteEmail={inviteEmail} onInviteEmail={setInviteEmail} inviteRole={inviteRole} onInviteRole={setInviteRole}
+            onInvite={submitInvite} onChangeRole={changeRole} onRemove={setRemoveTarget} onTransfer={setTransferTarget}
+          />}
+          {item.id === 'settings' && <WorkspaceSettingsPanel
+            workspace={ws} canManage={canManage} isOwner={isOwner} busy={busy}
+            nameDraft={nameDraft} onNameDraft={setNameDraft} onSaveName={saveName}
+            onLeave={() => setConfirmLeave(true)} onDelete={() => setConfirmDelete(true)}
+          />}
+        </>}
+      </div>)}
 
-        {overviewError ? (
-          <p className="text-sm text-red-600">{overviewError}</p>
-        ) : !overview ? (
-          <SkeletonRegion label="Đang tải tổng quan…">
-            <SkeletonRows rows={3} />
-          </SkeletonRegion>
-        ) : (
-          <>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Tổng số thẻ</p>
-                <p className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-                  {overview.stats.total}
-                </p>
-              </div>
-              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Quá hạn</p>
-                <p className="text-xl font-semibold text-red-600">
-                  {overview.stats.overdue}
-                </p>
-              </div>
-              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Chưa giao</p>
-                <p className="text-xl font-semibold text-amber-600">
-                  {overview.stats.unassigned}
-                </p>
-              </div>
-              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Đã hoàn thành</p>
-                <p className="text-xl font-semibold text-emerald-600">
-                  {overview.stats.done}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <select
-                value={assigneeFilter}
-                onChange={(e) => setAssigneeFilter(e.target.value)}
-                className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
-              >
-                <option value="">Mọi người phụ trách</option>
-                {members.map((m) => (
-                  <option key={m.userId} value={m.userId}>
-                    {m.user.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={statusFilter}
-                onChange={(e) =>
-                  setStatusFilter(e.target.value as OverviewStatusFilter)
-                }
-                className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
-              >
-                {STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {overview.cards.length === 0 ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Không có thẻ nào khớp bộ lọc.
-              </p>
-            ) : (
-              <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800">
-                {overview.cards.map((c) => (
-                  <li key={c.id}>
-                    <Link
-                      to={`/boards/${c.list.boardId}`}
-                      className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50"
-                    >
-                      <span
-                        className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border-2 ${
-                          c.isDone
-                            ? 'border-emerald-600 bg-emerald-600 text-white'
-                            : 'border-slate-300'
-                        }`}
-                      >
-                        {c.isDone && (
-                          <svg
-                            viewBox="0 0 24 24"
-                            className="h-2.5 w-2.5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          >
-                            <path d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span
-                          className={`block text-sm ${
-                            c.isDone
-                              ? 'text-slate-400 line-through'
-                              : 'text-slate-800 dark:text-slate-100'
-                          }`}
-                        >
-                          {c.title}
-                        </span>
-                        <span className="mt-0.5 block text-xs text-slate-400">
-                          {c.list.board.name} · {c.list.name}
-                          {c.dueDate && ` · hạn ${fmtDate(c.dueDate)}`}
-                          {c.members.length > 0 &&
-                            ` · ${c.members.map((m) => m.user.name).join(', ')}`}
-                        </span>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        )}
-      </section>
-
-      {/* Thanh vien */}
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Thành viên
-        </h2>
-
-        {canManage && (
-          <form onSubmit={submitInvite} className="flex gap-2">
-            <input
-              type="email"
-              required
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="Nhập địa chỉ email"
-              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-800"
-            />
-            <select
-              value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value as AssignableRole)}
-              className="rounded-lg border border-slate-300 px-2 py-2 text-sm focus:border-primary focus:outline-none dark:border-slate-600 dark:bg-slate-800"
-            >
-              <option value="MEMBER">Thành viên</option>
-              <option value="ADMIN">Quản trị viên</option>
-            </select>
-            <button
-              type="submit"
-              disabled={busy || !inviteEmail.trim()}
-              className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
-            >
-              Mời
-            </button>
-          </form>
-        )}
-
-        <ul className="flex flex-col gap-1">
-          {members.map((m) => {
-            const isSelf = m.userId === user?.id;
-            const editable = canManage && m.role !== 'OWNER';
-            return (
-              <li
-                key={m.id}
-                className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
-              >
-                <Avatar
-                  id={m.userId}
-                  name={m.user.name}
-                  avatarUrl={m.user.avatarUrl}
-                  className="h-9 w-9 text-xs"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
-                    {m.user.name}
-                    {isSelf && (
-                      <span className="text-slate-400"> (bạn)</span>
-                    )}
-                  </p>
-                  <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                    {m.user.email}
-                  </p>
-                </div>
-
-                {cvIds.has(m.userId) && (
-                  <a
-                    href={userCvUrl(m.userId)}
-                    download
-                    aria-label={`Xem CV của ${m.user.name}`}
-                    className="shrink-0 rounded px-2 py-1 text-xs font-medium text-primary-ink hover:bg-slate-100 dark:hover:bg-slate-700"
-                  >
-                    Xem CV
-                  </a>
-                )}
-
-                {editable ? (
-                  <select
-                    value={m.role}
-                    onChange={(e) =>
-                      changeRole(m.userId, e.target.value as AssignableRole)
-                    }
-                    className="rounded-lg border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-800"
-                  >
-                    <option value="MEMBER">Thành viên</option>
-                    <option value="ADMIN">Quản trị viên</option>
-                  </select>
-                ) : (
-                  <span className="text-sm text-slate-500 dark:text-slate-400">
-                    {roleLabel(m.role)}
-                  </span>
-                )}
-
-                {isOwner && !isSelf && m.role !== 'OWNER' && (
-                  <button
-                    type="button"
-                    onClick={() => setTransferTarget(m)}
-                    className="rounded px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
-                  >
-                    Chuyển quyền
-                  </button>
-                )}
-                {editable && (
-                  <button
-                    type="button"
-                    onClick={() => removeMember(m.userId)}
-                    className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                  >
-                    Xoá
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-
-      {/* Goi y phan cong: trong so cua nhom, tu hoc, cau hinh lam viec cua chinh minh */}
-      <AssignWeightsPanel workspaceId={ws.id} canManage={canManage} />
-
-      {/* Bang trong khong gian */}
-      <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Bảng trong không gian ({ws.boardCount ?? wsBoards.length})
-        </h2>
-        {typeof ws.boardCount === 'number' && ws.boardCount > wsBoards.length && (
-          <p className="text-xs text-slate-400 dark:text-slate-500">
-            Có {ws.boardCount - wsBoards.length} bảng riêng tư bạn không có quyền
-            xem (chỉ thành viên của bảng đó mới thấy).
-          </p>
-        )}
-        {wsBoards.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {ws.boardCount ? 'Bạn chưa có quyền xem bảng nào.' : 'Chưa có bảng nào.'}
-          </p>
-        ) : (
-          <ul className="grid gap-2 sm:grid-cols-2">
-            {wsBoards.map((b) => (
-              <li key={b.id}>
-                <Link
-                  to={`/boards/${b.id}`}
-                  className="flex items-center gap-3 rounded-lg border border-slate-200 p-2 hover:border-primary dark:border-slate-700"
-                >
-                  <span
-                    className="h-8 w-12 shrink-0 rounded bg-cover bg-center"
-                    style={
-                      b.backgroundImage
-                        ? { backgroundImage: `url(${assetUrl(b.backgroundImage)})` }
-                        : { backgroundColor: b.color }
-                    }
-                  />
-                  <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
-                    {b.name}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* Vung nguy hiem */}
-      <section className="flex flex-col gap-2 border-t border-slate-200 pt-5 dark:border-slate-700">
-        {!isOwner && (
-          <button
-            type="button"
-            onClick={() => setConfirmLeave(true)}
-            className="w-fit rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
-          >
-            Rời khỏi không gian
-          </button>
-        )}
-        {isOwner && !ws.isPersonal && (
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(true)}
-            className="w-fit rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
-          >
-            Xoá không gian
-          </button>
-        )}
-      </section>
-
-      <ConfirmDialog
-        open={transferTarget != null}
-        title="Chuyển quyền sở hữu không gian"
-        message={
-          transferTarget
-            ? `${transferTarget.user.name} sẽ trở thành chủ không gian. Bạn sẽ bị hạ xuống Quản trị viên.`
-            : undefined
-        }
-        confirmLabel="Chuyển quyền"
-        danger
-        busy={busy}
-        onConfirm={doTransfer}
-        onCancel={() => setTransferTarget(null)}
-      />
-      <ConfirmDialog
-        open={confirmLeave}
-        title="Rời khỏi không gian?"
-        message="Bạn sẽ mất quyền truy cập các bảng chia sẻ theo không gian này."
-        confirmLabel="Rời khỏi"
-        danger
-        busy={busy}
-        onConfirm={doLeave}
-        onCancel={() => setConfirmLeave(false)}
-      />
-      <ConfirmDialog
-        open={confirmDelete}
-        title="Xoá không gian?"
-        message={`Không gian "${ws.name}" sẽ bị xoá. Chỉ xoá được khi không còn bảng nào bên trong.`}
-        confirmLabel="Xoá không gian"
-        danger
-        busy={busy}
-        onConfirm={doDelete}
-        onCancel={() => setConfirmDelete(false)}
-      />
+      <ConfirmDialog open={removeTarget !== null} title="Xóa thành viên khỏi không gian?" message={removeTarget ? `${removeTarget.user.name} sẽ mất quyền truy cập qua không gian. Quyền được cấp trực tiếp trong từng bảng được giữ lại.` : undefined} confirmLabel="Xóa thành viên" danger busy={busy} onConfirm={doRemove} onCancel={() => setRemoveTarget(null)} />
+      <ConfirmDialog open={transferTarget !== null} title="Chuyển quyền sở hữu không gian" message={transferTarget ? `${transferTarget.user.name} sẽ trở thành chủ không gian. Bạn sẽ trở thành quản trị viên.` : undefined} confirmLabel="Chuyển quyền" danger busy={busy} onConfirm={doTransfer} onCancel={() => setTransferTarget(null)} />
+      <ConfirmDialog open={confirmLeave} title="Rời khỏi không gian?" message="Bạn sẽ mất quyền truy cập qua không gian. Quyền được cấp trực tiếp trong từng bảng được giữ lại." confirmLabel="Rời khỏi" danger busy={busy} onConfirm={doLeave} onCancel={() => setConfirmLeave(false)} />
+      <ConfirmDialog open={confirmDelete} title="Xóa không gian?" message={`Chỉ xóa được không gian “${ws.name}” khi không còn bảng bên trong.`} confirmLabel="Xóa không gian" danger busy={busy} onConfirm={doDelete} onCancel={() => setConfirmDelete(false)} />
     </div>
   );
 }

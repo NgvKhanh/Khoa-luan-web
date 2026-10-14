@@ -70,6 +70,16 @@ describe('GET /api/workspaces/:id/overview', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.cards).toHaveLength(1);
     expect(res.body.data.cards[0].id).toBe(assignedCard.id);
+    expect(res.body.data.stats.total).toBe(1);
+    expect(res.body.data.stats.unassigned).toBe(0);
+
+    // Selecting "unassigned" must not discard the assignee filter and expose unrelated cards.
+    const unassigned = await agent()
+      .get(`/api/workspaces/${ws.id}/overview?assigneeId=${member.id}&status=unassigned`)
+      .set('Cookie', owner.cookie);
+    expect(unassigned.status).toBe(200);
+    expect(unassigned.body.data.cards).toEqual([]);
+    expect(unassigned.body.data.stats.unassigned).toBe(0);
   });
 
   it('nguoi khong thuoc khong gian bi tu choi -> 403', async () => {

@@ -57,7 +57,7 @@ beforeEach(() => {
 });
 
 describe('Sidebar - điều hướng chính', () => {
-  it('có đủ sáu mục, đúng đích đến, trong đó "Công việc của tôi" và "Lịch" đã ra ngoài menu tài khoản', () => {
+  it('có đủ năm mục, đúng đích đến, trong đó "Công việc của tôi" và "Lịch" đã ra ngoài menu tài khoản', () => {
     renderSidebar();
     const nav = screen.getByRole('navigation', { name: 'Điều hướng chính' });
     const items = within(nav).getAllByRole('link');
@@ -67,7 +67,6 @@ describe('Sidebar - điều hướng chính', () => {
       ['Lịch', '/calendar'],
       ['Tất cả bảng', '/boards'],
       ['Mẫu', '/templates'],
-      ['Tìm kiếm nâng cao', '/search'],
     ]);
   });
 

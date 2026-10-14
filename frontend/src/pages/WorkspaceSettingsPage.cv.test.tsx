@@ -35,7 +35,7 @@ vi.mock('../lib/api/workspace', () => ({
 }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { id: 'u-owner', name: 'Chu Nhom' } }) }));
 vi.mock('../context/BoardsContext', () => ({ useBoards: () => ({ boards: [] }) }));
-vi.mock('../context/WorkspacesContext', () => ({ useWorkspaces: () => ({ reload: vi.fn(), removeWorkspace: vi.fn() }) }));
+vi.mock('../context/WorkspacesContext', () => ({ useWorkspaces: () => ({ reload: vi.fn(), removeWorkspace: vi.fn(), setCurrentWorkspaceId: vi.fn() }) }));
 vi.mock('../lib/socket', () => ({ socket: { on: vi.fn(), off: vi.fn() } }));
 vi.mock('../components/AssignWeightsPanel', () => ({ default: () => null }));
 
@@ -43,7 +43,7 @@ import WorkspaceSettingsPage from './WorkspaceSettingsPage';
 
 function setup() {
   render(
-    <MemoryRouter initialEntries={['/workspaces/w1']}>
+    <MemoryRouter initialEntries={['/workspaces/w1?tab=members']}>
       <Routes>
         <Route path="/workspaces/:workspaceId" element={<WorkspaceSettingsPage />} />
       </Routes>
@@ -69,7 +69,7 @@ describe('WorkspaceSettingsPage - nut "Xem CV" o danh sach thanh vien', () => {
   it('may chu khong cho ai -> khong co nut nao, danh sach van hien day du', async () => {
     fetchCvAccess.mockResolvedValue([]);
     setup();
-    await screen.findAllByText('Lan Nguyen'); // ten co o ca danh sach thanh vien lan bo loc nguoi nhan
+    await screen.findAllByText('Lan Nguyen');
     await waitFor(() => expect(fetchCvAccess).toHaveBeenCalled());
     expect(screen.getAllByText('Binh Tran').length).toBeGreaterThan(0);
     expect(screen.queryByRole('link', { name: /Xem CV/ })).not.toBeInTheDocument();
