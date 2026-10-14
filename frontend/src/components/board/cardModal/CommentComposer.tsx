@@ -71,6 +71,8 @@ export default function CommentComposer({
       <input
         ref={inputRef}
         value={text}
+        // Khop gioi han cua server (commentSchema.text toi da 5000 ky tu)
+        maxLength={5000}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Escape' && onCancel) {

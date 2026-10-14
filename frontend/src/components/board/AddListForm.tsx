@@ -1,4 +1,8 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
+import { getErrorMessage } from '../../lib/errorMessage';
+
+// Khop gioi han cua server (list.schema: ten toi da 100 ky tu)
+const MAX_NAME = 100;
 
 interface Props {
   onAdd: (name: string) => Promise<void>;
@@ -25,7 +29,7 @@ export default function AddListForm({ onAdd }: Props) {
       await onAdd(value);
       setName(''); // giu form mo de them nhieu danh sach lien tiep
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thêm được danh sách.');
+      setError(getErrorMessage(err, 'Không thêm được danh sách.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -60,6 +64,7 @@ export default function AddListForm({ onAdd }: Props) {
       <input
         autoFocus
         value={name}
+        maxLength={MAX_NAME}
         disabled={isSubmitting}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={onKeyDown}

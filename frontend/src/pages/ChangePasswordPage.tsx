@@ -52,8 +52,9 @@ export default function ChangePasswordPage() {
         onSubmit={submit}
         className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800"
       >
-        <label className={label}>Mật khẩu hiện tại</label>
+        <label htmlFor="pw-current" className={label}>Mật khẩu hiện tại</label>
         <input
+          id="pw-current"
           type="password"
           value={current}
           onChange={(e) => setCurrent(e.target.value)}
@@ -61,8 +62,9 @@ export default function ChangePasswordPage() {
           className={field}
         />
 
-        <label className={label}>Mật khẩu mới</label>
+        <label htmlFor="pw-new" className={label}>Mật khẩu mới</label>
         <input
+          id="pw-new"
           type="password"
           value={next}
           onChange={(e) => setNext(e.target.value)}
@@ -70,8 +72,9 @@ export default function ChangePasswordPage() {
           className={field}
         />
 
-        <label className={label}>Xác nhận mật khẩu mới</label>
+        <label htmlFor="pw-confirm" className={label}>Xác nhận mật khẩu mới</label>
         <input
+          id="pw-confirm"
           type="password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}

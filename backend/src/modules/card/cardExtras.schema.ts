@@ -7,22 +7,22 @@ export const addCardMemberSchema = z.object({
 });
 
 export const addChecklistSchema = z.object({
-  title: z.string().trim().max(200).optional(),
+  title: z.string().trim().max(200, 'Ten checklist qua dai').optional(),
   // Sao chep cac muc tu 1 checklist khac cua cung the
   copyFromChecklistId: z.string().min(1).optional(),
 });
 
 export const updateChecklistSchema = z.object({
-  title: z.string().trim().min(1, 'Tieu de trong').max(200),
+  title: z.string().trim().min(1, 'Tieu de trong').max(200, 'Ten checklist qua dai'),
 });
 
 export const addChecklistItemSchema = z.object({
-  content: z.string().trim().min(1, 'Noi dung trong').max(500),
+  content: z.string().trim().min(1, 'Noi dung trong').max(500, 'Noi dung muc qua dai'),
 });
 
 export const updateChecklistItemSchema = z
   .object({
-    content: z.string().trim().min(1).max(500).optional(),
+    content: z.string().trim().min(1, 'Noi dung trong').max(500, 'Noi dung muc qua dai').optional(),
     isDone: z.boolean().optional(),
     // string userId -> chi dinh; null -> bo chi dinh
     assigneeId: z.string().min(1).nullable().optional(),
@@ -38,7 +38,7 @@ export const reorderChecklistItemsSchema = z.object({
 });
 
 export const commentSchema = z.object({
-  text: z.string().trim().min(1, 'Binh luan trong').max(5000),
+  text: z.string().trim().min(1, 'Binh luan trong').max(5000, 'Binh luan qua dai'),
 });
 
 // Tao binh luan: co parentId = tra loi binh luan do (sua binh luan van dung commentSchema)
@@ -47,13 +47,13 @@ export const createCommentSchema = commentSchema.extend({
 });
 
 export const createLabelSchema = z.object({
-  name: z.string().trim().max(50).optional(),
+  name: z.string().trim().max(50, 'Ten nhan qua dai').optional(),
   color: hexColor,
 });
 
 export const updateLabelSchema = z
   .object({
-    name: z.string().trim().max(50).optional(),
+    name: z.string().trim().max(50, 'Ten nhan qua dai').optional(),
     color: hexColor.optional(),
   })
   .refine((d) => Object.keys(d).length > 0, {

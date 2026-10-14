@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { endOfLocalDayIso, formatViDate, isPausedNow, toLocalDateInput } from './assignDates';
+import { endOfLocalDayIso, formatViDate, isPausedNow, startOfLocalDayIso, toLocalDateInput } from './assignDates';
 
 // Cac phep kiem KHONG phu thuoc mui gio cua may chay test (tren Windows bien TZ cua Node khong doi duoc): moi ky vong
 // duoc dung tu cac ham lay thanh phan DIA PHUONG (getHours...), khong viet cung chuoi UTC.
@@ -77,5 +77,23 @@ describe('formatViDate', () => {
   it('khong hop le -> chuoi rong', () => {
     expect(formatViDate('rac')).toBe('');
     expect(formatViDate('')).toBe('');
+  });
+});
+
+describe('startOfLocalDayIso', () => {
+  it('00:00:00.000 dau ngay theo gio dia phuong', () => {
+    expect(startOfLocalDayIso('2026-10-05')).toBe(new Date(2026, 9, 5, 0, 0, 0, 0).toISOString());
+  });
+  it('ngay khong ton tai / sai dinh dang -> null', () => {
+    expect(startOfLocalDayIso('2026-02-30')).toBeNull();
+    expect(startOfLocalDayIso('2026-13-01')).toBeNull();
+    expect(startOfLocalDayIso('05/10/2026')).toBeNull();
+    expect(startOfLocalDayIso('')).toBeNull();
+  });
+  it('dau ngay < cuoi ngay cung ngay, va chi cach nhau < 24h', () => {
+    const a = new Date(startOfLocalDayIso('2026-10-05')!).getTime();
+    const b = new Date(endOfLocalDayIso('2026-10-05')!).getTime();
+    expect(b).toBeGreaterThan(a);
+    expect(b - a).toBeLessThan(25 * 3600_000);
   });
 });

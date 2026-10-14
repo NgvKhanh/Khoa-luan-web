@@ -50,12 +50,13 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
   // tren cung tab) vao request tiep theo. Co aliveRef nay de dung han hang doi
   // ngay khi provider khong con "song" nua, khong doi ket qua request dang bay.
   const aliveRef = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // StrictMode chay lai setup sau cleanup; provider van dang duoc su dung.
+    aliveRef.current = true;
+    return () => {
       aliveRef.current = false;
-    },
-    []
-  );
+    };
+  }, []);
 
   // Hang doi + "khoa" GHI SAO theo TUNG BANG: dam bao chi co TOI DA 1 request
   // setBoardStar dang bay cho 1 bang tai 1 thoi diem. Neu ban truoc chi chan

@@ -35,6 +35,7 @@ export function AddItemInput({
         value={v}
         onChange={(e) => setV(e.target.value)}
         onBlur={() => !v.trim() && setOpen(false)}
+        maxLength={500}
         placeholder="Thêm một mục..."
         className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-primary focus:outline-none"
       />

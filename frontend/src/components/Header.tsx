@@ -287,6 +287,7 @@ function BoardSearch() {
         ref={inputRef}
         type="text"
         value={q}
+        aria-label="Tìm kiếm bảng"
         placeholder="Tìm kiếm bảng..."
         onChange={(e) => {
           setQ(e.target.value);

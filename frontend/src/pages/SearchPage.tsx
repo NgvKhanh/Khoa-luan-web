@@ -14,6 +14,7 @@ import {
 import { CARD_STATUS_ORDER, STATUS_META } from '../lib/cardStatus';
 import { getErrorMessage } from '../lib/errorMessage';
 import { logError } from '../lib/logError';
+import { endOfLocalDayIso, startOfLocalDayIso, toLocalDateInput } from '../lib/assignDates';
 import StatusBadge from '../components/board/StatusBadge';
 import EmptyState from '../components/EmptyState';
 import { SkeletonRegion, SkeletonRows } from '../components/Skeleton';
@@ -157,6 +158,7 @@ export default function SearchPage() {
       <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
         <input
           type="text"
+          aria-label="Từ khoá"
           value={filters.q ?? ''}
           onChange={(e) => updateFilter('q', e.target.value || undefined)}
           placeholder="Từ khoá (tiêu đề, mô tả)..."
@@ -165,6 +167,7 @@ export default function SearchPage() {
 
         <div className="flex flex-wrap gap-2">
           <select
+            aria-label="Người phụ trách"
             value={filters.assignee ?? ''}
             onChange={(e) =>
               updateFilter(
@@ -180,6 +183,7 @@ export default function SearchPage() {
           </select>
 
           <select
+            aria-label="Trạng thái hoàn thành"
             value={filters.status ?? 'all'}
             onChange={(e) =>
               updateFilter('status', e.target.value as StatusFilter)
@@ -193,6 +197,7 @@ export default function SearchPage() {
 
           <input
             type="text"
+            aria-label="Tên nhãn"
             value={filters.labelName ?? ''}
             onChange={(e) => updateFilter('labelName', e.target.value || undefined)}
             placeholder="Tên nhãn..."
@@ -245,11 +250,14 @@ export default function SearchPage() {
           <span>Hạn từ</span>
           <input
             type="date"
-            value={filters.dueFrom ? filters.dueFrom.slice(0, 10) : ''}
+            aria-label="Hạn từ ngày"
+            value={toLocalDateInput(filters.dueFrom ?? null)}
             onChange={(e) =>
+              // Ranh gioi theo GIO DIA PHUONG (khong phai UTC): han luc 05:00 sang 21/10
+              // o Viet Nam la ngay 21, khong phai ngay 20 nhu khi cat chuoi UTC
               updateFilter(
                 'dueFrom',
-                e.target.value ? `${e.target.value}T00:00:00.000Z` : undefined
+                (e.target.value && startOfLocalDayIso(e.target.value)) || undefined
               )
             }
             className="rounded-lg border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
@@ -257,11 +265,12 @@ export default function SearchPage() {
           <span>đến</span>
           <input
             type="date"
-            value={filters.dueTo ? filters.dueTo.slice(0, 10) : ''}
+            aria-label="Hạn đến ngày"
+            value={toLocalDateInput(filters.dueTo ?? null)}
             onChange={(e) =>
               updateFilter(
                 'dueTo',
-                e.target.value ? `${e.target.value}T23:59:59.000Z` : undefined
+                (e.target.value && endOfLocalDayIso(e.target.value)) || undefined
               )
             }
             className="rounded-lg border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"

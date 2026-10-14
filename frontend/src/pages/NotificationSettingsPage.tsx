@@ -13,16 +13,20 @@ function Toggle({
   checked,
   onChange,
   disabled,
+  label,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
+  /** Ten doc duoc cho trinh doc man hinh (cong tac khong co chu hien thi). */
+  label: string;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-40 ${
@@ -104,6 +108,7 @@ export default function NotificationSettingsPage() {
             <p className={rowDesc}>Bình luận, gán người, di chuyển, đổi hạn...</p>
           </div>
           <Toggle
+            label="Hoạt động trên thẻ: thông báo trong ứng dụng"
             checked={pref.cardInApp}
             disabled={savingKey === 'cardInApp'}
             onChange={(v) => toggle('cardInApp', v)}
@@ -115,6 +120,7 @@ export default function NotificationSettingsPage() {
             <p className={rowDesc}>Thêm thành viên, đổi vai trò, yêu cầu tham gia...</p>
           </div>
           <Toggle
+            label="Bảng và không gian làm việc: thông báo trong ứng dụng"
             checked={pref.boardInApp}
             disabled={savingKey === 'boardInApp'}
             onChange={(v) => toggle('boardInApp', v)}
@@ -126,6 +132,7 @@ export default function NotificationSettingsPage() {
             <p className={rowDesc}>Theo lời nhắc bạn đặt trên từng thẻ.</p>
           </div>
           <Toggle
+            label="Nhắc hạn thẻ: thông báo trong ứng dụng"
             checked={pref.dueReminderInApp}
             disabled={savingKey === 'dueReminderInApp'}
             onChange={(v) => toggle('dueReminderInApp', v)}
@@ -143,6 +150,7 @@ export default function NotificationSettingsPage() {
             <p className={rowDesc}>Gửi ngay theo thời điểm bạn đã hẹn nhắc, không gộp lại.</p>
           </div>
           <Toggle
+            label="Gửi email khi sắp đến hạn"
             checked={pref.dueReminderEmail}
             disabled={savingKey === 'dueReminderEmail'}
             onChange={(v) => toggle('dueReminderEmail', v)}
@@ -162,6 +170,7 @@ export default function NotificationSettingsPage() {
             </p>
           </div>
           <Toggle
+            label="Email tóm tắt hằng ngày"
             checked={pref.dailyDigestEnabled}
             disabled={savingKey === 'dailyDigestEnabled'}
             onChange={(v) => toggle('dailyDigestEnabled', v)}
@@ -172,6 +181,7 @@ export default function NotificationSettingsPage() {
             <p className={rowTitle}>Gồm hoạt động trên thẻ</p>
           </div>
           <Toggle
+            label="Email tóm tắt: gồm hoạt động trên thẻ"
             checked={pref.cardEmailDigest}
             disabled={!pref.dailyDigestEnabled || savingKey === 'cardEmailDigest'}
             onChange={(v) => toggle('cardEmailDigest', v)}
@@ -182,6 +192,7 @@ export default function NotificationSettingsPage() {
             <p className={rowTitle}>Gồm hoạt động bảng &amp; không gian</p>
           </div>
           <Toggle
+            label="Email tóm tắt: gồm hoạt động bảng và không gian"
             checked={pref.boardEmailDigest}
             disabled={!pref.dailyDigestEnabled || savingKey === 'boardEmailDigest'}
             onChange={(v) => toggle('boardEmailDigest', v)}

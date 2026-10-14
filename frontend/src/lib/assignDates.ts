@@ -17,6 +17,18 @@ export function endOfLocalDayIso(dateStr: string): string | null {
   return t.toISOString();
 }
 
+/** "2026-10-05" (ngay dia phuong) -> ISO cua 00:00:00.000 dau ngay do; chuoi khong phai ngay lich that -> null. */
+export function startOfLocalDayIso(dateStr: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const t = new Date(y, mo - 1, d, 0, 0, 0, 0);
+  if (t.getFullYear() !== y || t.getMonth() !== mo - 1 || t.getDate() !== d) return null;
+  return t.toISOString();
+}
+
 /** ISO -> "YYYY-MM-DD" theo gio dia phuong (gia tri cho o input type="date"); null / khong hop le -> "". */
 export function toLocalDateInput(iso: string | null): string {
   if (!iso) return '';

@@ -373,7 +373,7 @@ const setWatch = defineOp<'SET_WATCH'>({
     }
     return { ok: true };
   },
-  async apply({ tx, ctx, state, effects, index }, op) {
+  async apply({ tx, ctx, state, index }, op) {
     // giong setCardWatch / setListWatch / setBoardWatch: upsert hoac xoa dong Watch cua chinh nguoi dung
     const watch = op.params.watch === true;
     const target = String(op.params.target);

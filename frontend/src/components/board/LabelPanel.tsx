@@ -34,6 +34,8 @@ function ColorGrid({
         <button
           key={c}
           type="button"
+          aria-label={`Màu ${c}`}
+          aria-pressed={value === c}
           onClick={() => onPick(c)}
           className="grid h-7 place-items-center rounded"
           style={{ backgroundColor: c }}
@@ -112,6 +114,7 @@ export default function LabelPanel({
                 autoFocus
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}
+                maxLength={50}
                 placeholder="Tên nhãn (tuỳ chọn)"
                 className="mb-2 w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-primary focus:outline-none"
               />
@@ -189,6 +192,7 @@ export default function LabelPanel({
             autoFocus
             value={draftName}
             onChange={(e) => setDraftName(e.target.value)}
+            maxLength={50}
             placeholder="Tên nhãn (tuỳ chọn)"
             className="mb-2 w-full rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm focus:border-primary focus:outline-none"
           />

@@ -1,4 +1,5 @@
 import { act, render, screen } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Board } from '../types/board';
 
@@ -64,6 +65,42 @@ function Probe() {
     </div>
   );
 }
+
+describe('dau sao duoc luu va khoi phuc sau khi tai lai trang trong StrictMode', () => {
+  it('gui yeu cau luu sao va giu dung trang thai qua cac lan mount lai', async () => {
+    seedBoards = [makeBoard('A', false)];
+    setBoardStarMock.mockClear();
+    setBoardStarMock.mockImplementationOnce(async (id: string, starred: boolean) => {
+      seedBoards = [makeBoard(id, starred)];
+    });
+
+    const page = () => (
+      <StrictMode>
+        <BoardsProvider>
+          <Probe />
+        </BoardsProvider>
+      </StrictMode>
+    );
+    const first = render(page());
+    await screen.findByTestId('star-A');
+    await act(async () => screen.getByTestId('star-A').click());
+    expect(setBoardStarMock).toHaveBeenCalledWith('A', true);
+
+    first.unmount();
+    const second = render(page());
+    await screen.findByText('A:starred');
+
+    setBoardStarMock.mockImplementationOnce(async (id: string, starred: boolean) => {
+      seedBoards = [makeBoard(id, starred)];
+    });
+    await act(async () => screen.getByTestId('star-A').click());
+    expect(setBoardStarMock).toHaveBeenLastCalledWith('A', false);
+
+    second.unmount();
+    render(page());
+    await screen.findByText('A:unstarred');
+  });
+});
 
 // Van de moi #5: toggleStar() doc bien closure "next" NGAY SAU khi goi
 // setState(updater) - thu tu nay khong duoc React dam bao, nen khi co 2 luot

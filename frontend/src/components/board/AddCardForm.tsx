@@ -1,4 +1,8 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
+import { getErrorMessage } from '../../lib/errorMessage';
+
+// Khop gioi han cua server (createCardSchema.title)
+const MAX_TITLE = 500;
 
 interface Props {
   onAdd: (title: string) => Promise<void>;
@@ -33,7 +37,9 @@ export default function AddCardForm({ onAdd, open, onOpenChange }: Props) {
       await onAdd(value);
       setTitle(''); // giu form mo de them nhieu the lien tiep
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thêm được thẻ.');
+      // Lay thong diep cua server (vd "Noi dung the qua dai"), khong hien
+      // "Request failed with status code 400" cua axios
+      setError(getErrorMessage(err, 'Không thêm được thẻ.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -71,6 +77,7 @@ export default function AddCardForm({ onAdd, open, onOpenChange }: Props) {
         autoFocus
         rows={2}
         value={title}
+        maxLength={MAX_TITLE}
         disabled={isSubmitting}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={onKeyDown}
