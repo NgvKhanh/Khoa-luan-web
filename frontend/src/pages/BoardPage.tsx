@@ -149,6 +149,13 @@ export default function BoardPage() {
   // Bang cong khai ma minh chua phai thanh vien -> tai truc tiep theo id
   const [fetchedBoard, setFetchedBoard] = useState<Board | null>(null);
   const [fetchBoardError, setFetchBoardError] = useState<string | null>(null);
+  // Bang DANG MO ngay luc nay. Cac thao tac bat dong bo khong nam trong effect (tai lai danh sach sau khi keo
+  // tha, theo doi bang, chuyen chu bang) doi phan hoi xong moi ghi state: neu nguoi dung da sang bang khac
+  // thi phan hoi cua bang cu khong duoc de len bang moi.
+  const currentBoardIdRef = useRef(boardId);
+  useEffect(() => {
+    currentBoardIdRef.current = boardId;
+  }, [boardId]);
   const hasMemberBoard = memberBoard !== undefined;
   // Luon tai chi tiet bang tu backend (ke ca khi minh la thanh vien) de lay
   // canEdit / canManage do backend tinh - frontend khong tu suy doan quyen nua.
@@ -197,7 +204,7 @@ export default function BoardPage() {
     try {
       await setBoardWatch(board.id, !isWatchingBoard);
       const fresh = await fetchBoard(board.id);
-      setFetchedBoard(fresh);
+      if (currentBoardIdRef.current === board.id) setFetchedBoard(fresh);
     } catch (err) {
       logError('BoardPage: theo doi bang')(err);
     } finally {
@@ -265,10 +272,13 @@ export default function BoardPage() {
   const pendingReloadRef = useRef(false);
 
   function reloadLists() {
-    if (boardId)
-      fetchBoardLists(boardId)
-        .then(setLists)
-        .catch(logError('BoardPage: tai lai danh sach'));
+    if (!boardId) return;
+    const requested = boardId;
+    fetchBoardLists(requested)
+      .then((data) => {
+        if (currentBoardIdRef.current === requested) setLists(data);
+      })
+      .catch(logError('BoardPage: tai lai danh sach'));
   }
 
   const {
@@ -329,6 +339,7 @@ export default function BoardPage() {
       fetchBoardMembers(boardId).catch(() => members),
       fetchBoard(boardId).catch(() => null),
     ]);
+    if (currentBoardIdRef.current !== boardId) return; // da sang bang khac trong luc cho
     setMembers(nextMembers);
     if (nextBoard) {
       patchBoard(nextBoard);

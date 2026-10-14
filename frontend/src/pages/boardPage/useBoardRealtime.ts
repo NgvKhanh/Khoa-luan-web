@@ -44,6 +44,15 @@ export function useBoardRealtime({
   useEffect(() => {
     if (!boardId) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    // Effect nay thuoc ve MOT bang. Khi doi bang / roi trang, cleanup go listener + huy timer nhung cac
+    // request da bay van se tra ve va goi setLists / setMembers / setFetchedBoard cua bang MOI -> danh sach
+    // cua bang cu de len bang dang mo. Co "stale" bat o cleanup, moi phan hoi den muon deu bi bo qua.
+    let stale = false;
+    const ifCurrent =
+      <T>(apply: (value: T) => void) =>
+      (value: T) => {
+        if (!stale) apply(value);
+      };
     setOnlineIds([]);
 
     const doReloadLists = () => {
@@ -53,7 +62,7 @@ export function useBoardRealtime({
         return;
       }
       fetchBoardLists(boardId)
-        .then(setLists)
+        .then(ifCurrent(setLists))
         .catch(logError('BoardPage realtime: tai danh sach'));
     };
 
@@ -63,15 +72,17 @@ export function useBoardRealtime({
     };
     const onMetaChanged = () => {
       fetchBoard(boardId)
-        .then((b) => {
-          patchBoard(b);
-          setFetchedBoard((prev) => (prev ? b : prev));
-        })
+        .then(
+          ifCurrent((b: Board) => {
+            patchBoard(b);
+            setFetchedBoard((prev) => (prev ? b : prev));
+          })
+        )
         .catch(logError('BoardPage realtime: tai chi tiet bang'));
     };
     const onMembersChanged = () => {
       fetchBoardMembers(boardId)
-        .then(setMembers)
+        .then(ifCurrent(setMembers))
         .catch(logError('BoardPage realtime: tai thanh vien'));
       // Vai tro cua CHINH minh co the vua doi (thang/ha cap, chuyen chu bang)
       // -> canManage/canEdit cua bang cung phai tai lai theo, khong chi doi
@@ -102,6 +113,7 @@ export function useBoardRealtime({
     socket.on('connect', onConnect);
 
     return () => {
+      stale = true;
       clearTimeout(timer);
       socket.emit('leave-board', boardId);
       socket.off('board:lists-changed', onListsChanged);
