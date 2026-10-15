@@ -1,4 +1,6 @@
 import {
+  useEffect,
+  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -8,13 +10,18 @@ import {
 import {
   KeyboardSensor,
   PointerSensor,
+  closestCenter,
   closestCorners,
+  getFirstCollision,
+  pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type UniqueIdentifier,
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { moveCard } from '../../lib/api/card';
@@ -27,19 +34,66 @@ export function listIdFromDnd(id: string): string | null {
   return id.startsWith('list-') ? id.slice('list-'.length) : null;
 }
 
-// Khi keo 1 COT: chi xet va cham voi cac cot khac (bo qua the ben trong)
-// -> "over" luon la 1 cot, hoat hinh + tha dung. Keo the thi giu mac dinh.
-export const collisionDetectionStrategy: CollisionDetection = (args) => {
-  if (args.active.data.current?.type === 'list') {
-    return closestCorners({
-      ...args,
-      droppableContainers: args.droppableContainers.filter((c) =>
-        String(c.id).startsWith('list-')
-      ),
-    });
-  }
-  return closestCorners(args);
-};
+interface CollisionState {
+  // Dich den cuoi cung da tim thay (dung khi con tro tam thoi khong nam tren gi ca)
+  lastOverId: UniqueIdentifier | null;
+  // Vua doi cot trong khung hinh nay: bo cuc con lech 1 nhip, giu dich den cu thay vi nhay lung tung
+  recentlyMovedToNewList: boolean;
+}
+
+/**
+ * Phat hien va cham khi keo (cong thuc "nhieu container" cua dnd-kit):
+ *  - keo 1 COT: chi xet cac cot khac (bo qua the ben trong) -> "over" luon la 1 cot;
+ *  - keo THE: xet theo VI TRI CON TRO truoc, khong theo cac goc cua the dang keo. Truoc day dung
+ *    closestCorners cho moi thu: ngay sau khi the doi cot, hinh chu nhat cua the lai gan cot cu hon ->
+ *    "over" dao lai -> handleDragOver chuyen nguoc -> lap vo han ("Maximum update depth exceeded").
+ */
+export function createCollisionDetection(
+  getLists: () => BoardList[],
+  state: CollisionState
+): CollisionDetection {
+  return (args) => {
+    if (args.active.data.current?.type === 'list') {
+      return closestCorners({
+        ...args,
+        droppableContainers: args.droppableContainers.filter((c) =>
+          String(c.id).startsWith('list-')
+        ),
+      });
+    }
+
+    const pointerHits = pointerWithin(args);
+    const hits = pointerHits.length > 0 ? pointerHits : rectIntersection(args);
+    let overId = getFirstCollision(hits, 'id');
+
+    if (overId != null) {
+      // Trung 1 cot dang co the: chon the gan tam nhat trong cot do (cot rong thi giu nguyen cot)
+      const listId = listIdFromDnd(String(overId));
+      if (listId) {
+        const cardIds = new Set(
+          getLists()
+            .find((l) => l.id === listId)
+            ?.cards.map((c) => c.id)
+        );
+        if (cardIds.size > 0) {
+          const nearest = closestCenter({
+            ...args,
+            droppableContainers: args.droppableContainers.filter(
+              (c) => c.id !== overId && cardIds.has(String(c.id))
+            ),
+          });
+          overId = getFirstCollision(nearest, 'id') ?? overId;
+        }
+      }
+      state.lastOverId = overId;
+      return [{ id: overId }];
+    }
+
+    // Con tro dang o khe giua cac cot, hoac the vua doi cot lam bo cuc lech: giu dich den gan nhat
+    if (state.recentlyMovedToNewList) state.lastOverId = args.active.id;
+    return state.lastOverId != null ? [{ id: state.lastOverId }] : [];
+  };
+}
 
 interface Options {
   lists: BoardList[];
@@ -79,6 +133,37 @@ export function useBoardDnd({
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  // Phat hien va cham: doc danh sach MOI NHAT qua ref nen ham nay giu nguyen giua cac lan render
+  const listsRef = useRef(lists);
+  listsRef.current = lists;
+  const collisionStateRef = useRef<CollisionState>({
+    lastOverId: null,
+    recentlyMovedToNewList: false,
+  });
+  const collisionDetection = useMemo(
+    () => createCollisionDetection(() => listsRef.current, collisionStateRef.current),
+    []
+  );
+  // Sau khi the doi cot, den khung hinh ke tiep bo cuc da on dinh -> thoi giu dich den cu
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      collisionStateRef.current.recentlyMovedToNewList = false;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [lists]);
+  // Lan chuyen cot gan nhat: chan viec chuyen NGUOC ngay lap tuc (xem handleDragOver)
+  const lastMoveRef = useRef<{
+    cardId: string;
+    from: string;
+    to: string;
+    at: number;
+  } | null>(null);
+  const resetCollisionState = () => {
+    collisionStateRef.current.lastOverId = null;
+    collisionStateRef.current.recentlyMovedToNewList = false;
+    lastMoveRef.current = null;
+  };
 
   const findListIdByCard = (cardId: string): string | undefined =>
     lists.find((l) => l.cards.some((c) => c.id === cardId))?.id;
@@ -121,6 +206,7 @@ export function useBoardDnd({
     const { active } = event;
     const type = active.data.current?.type;
     draggingRef.current = true;
+    resetCollisionState();
     document.body.style.cursor = 'grabbing';
     if (type === 'list') {
       const id = listIdFromDnd(active.id as string);
@@ -150,6 +236,22 @@ export function useBoardDnd({
         : (listIdFromDnd(overId) ?? undefined);
 
     if (!fromListId || !toListId || fromListId === toListId) return;
+
+    // Chong "bong ban": vua chuyen A -> B ma ngay lap tuc lai doi B -> A (nhanh hon tay nguoi nhieu) la do
+    // dich den dao qua dao lai sau moi lan ve lai, khong phai nguoi dung. Bo qua de vong lap tu tat.
+    const now = Date.now();
+    const last = lastMoveRef.current;
+    if (
+      last &&
+      last.cardId === activeId &&
+      last.from === toListId &&
+      last.to === fromListId &&
+      now - last.at < 80
+    ) {
+      return;
+    }
+    lastMoveRef.current = { cardId: activeId, from: fromListId, to: toListId, at: now };
+    collisionStateRef.current.recentlyMovedToNewList = true;
 
     setLists((prev) => {
       const fromList = prev.find((l) => l.id === fromListId);
@@ -187,6 +289,7 @@ export function useBoardDnd({
     const type = active.data.current?.type;
     setActiveCard(null);
     setActiveList(null);
+    resetCollisionState();
     endDragCursor();
     afterDragSettled();
     // Tha ra ngoai (khong co diem tha) -> tra state ve nhu truoc khi keo
@@ -278,6 +381,7 @@ export function useBoardDnd({
   function handleDragCancel() {
     setActiveCard(null);
     setActiveList(null);
+    resetCollisionState();
     endDragCursor();
     afterDragSettled();
     restoreDragSnapshot();
@@ -285,6 +389,7 @@ export function useBoardDnd({
 
   return {
     sensors,
+    collisionDetection,
     activeCard,
     activeList,
     handleDragStart,

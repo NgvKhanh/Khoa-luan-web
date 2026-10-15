@@ -100,10 +100,7 @@ import type { BoardList } from '../types/list';
 import { useBoardRealtime } from './boardPage/useBoardRealtime';
 import { useCardHighlights } from './boardPage/useCardHighlights';
 import { useBoardShortcuts } from './boardPage/useBoardShortcuts';
-import {
-  collisionDetectionStrategy,
-  useBoardDnd,
-} from './boardPage/useBoardDnd';
+import { useBoardDnd } from './boardPage/useBoardDnd';
 
 // Nut tren thanh cong cu cua bang: chi hien icon cho do chiem cho, chu nam o
 // title/aria-label. Tach rieng phan hinh dang va phan mau nen - de chung mot
@@ -287,6 +284,7 @@ export default function BoardPage() {
 
   const {
     sensors,
+    collisionDetection,
     activeCard,
     activeList,
     handleDragStart,
@@ -1176,7 +1174,7 @@ export default function BoardPage() {
         <CardHighlightContext.Provider value={cardHighlights}>
           <DndContext
             sensors={sensors}
-            collisionDetection={collisionDetectionStrategy}
+            collisionDetection={collisionDetection}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
