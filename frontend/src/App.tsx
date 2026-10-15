@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import PageLoading from './components/PageLoading';
 import BoardViewLayout from './layouts/BoardViewLayout';
 import MainLayout from './layouts/MainLayout';
@@ -22,6 +22,7 @@ const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'));
 const MyActivityPage = lazy(() => import('./pages/MyActivityPage'));
 const MyCardsPage = lazy(() => import('./pages/MyCardsPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const NotificationSettingsPage = lazy(() => import('./pages/NotificationSettingsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const TemplatesPage = lazy(() => import('./pages/TemplatesPage'));
@@ -29,6 +30,7 @@ const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const SearchPage = lazy(() => import('./pages/SearchPage'));
 const WorkspaceSettingsPage = lazy(() => import('./pages/WorkspaceSettingsPage'));
 
+// Dia chi khong khop trang nao -> trang 404 (giu nguyen dia chi tren thanh dia chi, khong tu chuyen huong).
 function UnknownRoute() {
   const { user, isLoading } = useAuth();
   if (isLoading) {
@@ -41,7 +43,18 @@ function UnknownRoute() {
       </div>
     );
   }
-  return <Navigate to={user ? '/boards' : '/'} replace />;
+  // Khach: trang 404 doc lap (khong co Header / Sidebar de dung)
+  if (!user) return <NotFoundPage standalone />;
+  // Da dang nhap: 404 nam trong khung ung dung (Header + Sidebar) de nguoi dung di tiep duoc ngay
+  return (
+    <Routes>
+      <Route element={<ProtectedRoute />}>
+        <Route element={<MainLayout />}>
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Route>
+    </Routes>
+  );
 }
 
 function App() {

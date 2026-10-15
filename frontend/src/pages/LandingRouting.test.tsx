@@ -124,7 +124,7 @@ describe('Landing page and workspace entry', () => {
     expect(trigger).toHaveFocus();
   });
 
-  it('waits for the session before redirecting an unknown route for a member', async () => {
+  it('waits for the session, then shows the 404 page for a member without changing the address', async () => {
     mocks.isLoading = true;
     const view = open('/mistyped-path');
     expect(screen.getByText('Đang kiểm tra đăng nhập…')).toHaveAttribute('role', 'status');
@@ -132,12 +132,22 @@ describe('Landing page and workspace entry', () => {
     mocks.user = USER;
     mocks.isLoading = false;
     view.rerender(appAt('/mistyped-path'));
+    expect(await screen.findByRole('heading', { name: 'Không tìm thấy trang' })).toBeInTheDocument();
+    expect(screen.getByText('/mistyped-path', { selector: 'code' })).toBeInTheDocument();
+    // Dia chi khong bi doi sang /boards
+    expect(screen.getByTestId('location')).toHaveTextContent('/mistyped-path');
+    fireEvent.click(screen.getByRole('link', { name: 'Về danh sách bảng' }));
     expect(await screen.findByRole('heading', { name: 'Danh sách bảng của bạn' })).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('/boards');
   });
 
-  it('returns guests to the public landing for an unknown route', async () => {
+  it('shows a standalone 404 page to guests with a way back to the landing', async () => {
     open('/mistyped-path');
+    expect(await screen.findByRole('heading', { name: 'Không tìm thấy trang' })).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/mistyped-path');
+    // Khong mount du lieu khong gian / bang cho khach
+    expect(mocks.workspacesMounted).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('link', { name: 'Về trang chủ' }));
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Công việc rõ ràng.');
     expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/);
   });
