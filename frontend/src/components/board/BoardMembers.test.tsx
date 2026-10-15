@@ -155,6 +155,25 @@ describe('BoardMembers - chia se bang', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('menu vai tro nam ngoai danh sach cuon (khong bi cat o dong cuoi); doi vai tro xong thi hop chia se van mo', async () => {
+    const user = userEvent.setup();
+    const props = setup();
+    await user.click(screen.getByRole('button', { name: 'Chia sẻ bảng' }));
+    const list = screen.getByText('Thanh Vien').closest('ul')!;
+    const memberRow = screen.getByText('Thanh Vien').closest('li')!;
+    await user.click(within(memberRow).getByRole('button', { name: 'Thành viên' }));
+
+    const viewerOption = screen.getByRole('button', { name: 'Người xem' });
+    // Neu menu nam trong <ul overflow-y-auto> thi dong cuoi se bi cat va khong cuon toi duoc
+    expect(list.contains(viewerOption)).toBe(false);
+
+    await user.click(viewerOption);
+    expect(props.onChangeRole).toHaveBeenCalledWith('u-1', 'VIEWER');
+    // Menu duoc dua ra body nen bam vao do khong duoc tinh la bam ra ngoai hop chia se
+    expect(screen.getByRole('heading', { name: 'Chia sẻ bảng' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Xoá khỏi bảng' })).not.toBeInTheDocument();
+  });
+
   it('tai lai danh sach yeu cau khi co su kien realtime board:join-requests-changed', async () => {
     setup();
     // Lan dau: fetch ngay khi mount (canManage = true)

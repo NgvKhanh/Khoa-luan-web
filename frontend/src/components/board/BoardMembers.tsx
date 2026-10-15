@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -49,9 +50,43 @@ function RoleMenu({
   onTransferOwnership: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Danh sach thanh vien co overflow-y-auto nen menu dat trong do bi cat (nhat la dong cuoi) va
+  // lop nen fixed chan luon con lan chuot -> dua menu ra body, dat theo nut; thieu cho phia duoi thi lat len tren.
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    const trigger = triggerRef.current;
+    const menu = menuRef.current;
+    if (!trigger || !menu) return;
+    const rect = trigger.getBoundingClientRect();
+    const gap = 4;
+    const margin = 8;
+    const below = rect.bottom + gap;
+    const fitsBelow = below + menu.offsetHeight + margin <= window.innerHeight;
+    setPos({
+      top: fitsBelow ? below : Math.max(margin, rect.top - gap - menu.offsetHeight),
+      right: Math.max(margin, window.innerWidth - rect.right),
+    });
+  }, [open]);
+
+  // Menu dang fixed: doi kich thuoc cua so thi vi tri cu khong con dung nua
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener('resize', close);
+    return () => window.removeEventListener('resize', close);
+  }, [open]);
+
   return (
-    <div className="relative">
+    <div>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
@@ -61,59 +96,68 @@ function RoleMenu({
           <path d="M6 9l6 6 6-6" />
         </svg>
       </button>
-      {open && (
-        <>
-          <button
-            type="button"
-            aria-label="Đóng"
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-40 cursor-default"
-          />
-          <div className="tf-menu-in absolute right-0 top-9 z-50 w-44 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-xl">
-            {(['ADMIN', 'MEMBER', 'VIEWER'] as AssignableRole[]).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => {
-                  onChangeRole(r);
-                  setOpen(false);
-                }}
-                className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
-              >
-                {r === 'ADMIN' ? 'Quản trị viên' : r === 'MEMBER' ? 'Thành viên' : 'Người xem'}
-                {member.role === r && (
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 text-primary-ink" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </button>
-            ))}
-            <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
-            {canTransferOwnership && (
-              <button
-                type="button"
-                onClick={() => {
-                  onTransferOwnership();
-                  setOpen(false);
-                }}
-                className="w-full rounded px-2 py-1.5 text-left text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
-              >
-                Chuyển quyền sở hữu
-              </button>
-            )}
+      {open &&
+        createPortal(
+          <>
+            {/* data-members-popover: de panel chia se biet cu bam vao day khong phai la bam ra ngoai */}
             <button
               type="button"
-              onClick={() => {
-                onRemove();
-                setOpen(false);
-              }}
-              className="w-full rounded px-2 py-1.5 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+              aria-label="Đóng"
+              data-members-popover
+              onClick={() => setOpen(false)}
+              className="fixed inset-0 z-[60] cursor-default"
+            />
+            <div
+              ref={menuRef}
+              data-members-popover
+              style={pos ?? { top: 0, right: 0, visibility: 'hidden' }}
+              className="tf-menu-in fixed z-[61] max-h-[calc(100vh-16px)] w-44 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-xl"
             >
-              {isSelf ? 'Rời khỏi bảng' : 'Xoá khỏi bảng'}
-            </button>
-          </div>
-        </>
-      )}
+              {(['ADMIN', 'MEMBER', 'VIEWER'] as AssignableRole[]).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => {
+                    onChangeRole(r);
+                    setOpen(false);
+                  }}
+                  className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+                >
+                  {r === 'ADMIN' ? 'Quản trị viên' : r === 'MEMBER' ? 'Thành viên' : 'Người xem'}
+                  {member.role === r && (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 text-primary-ink" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+              <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
+              {canTransferOwnership && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onTransferOwnership();
+                    setOpen(false);
+                  }}
+                  className="w-full rounded px-2 py-1.5 text-left text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+                >
+                  Chuyển quyền sở hữu
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  onRemove();
+                  setOpen(false);
+                }}
+                className="w-full rounded px-2 py-1.5 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+              >
+                {isSelf ? 'Rời khỏi bảng' : 'Xoá khỏi bảng'}
+              </button>
+            </div>
+          </>,
+          document.body
+        )}
     </div>
   );
 }
@@ -234,7 +278,9 @@ export default function BoardMembers({
       const t = e.target as Node;
       const inRoot = rootRef.current?.contains(t);
       const inPanel = panelRef.current?.contains(t);
-      if (!inRoot && !inPanel) setOpen(false);
+      // Menu vai tro duoc dua ra body (portal) nen khong nam trong panelRef
+      const inPopover = t instanceof Element && t.closest('[data-members-popover]');
+      if (!inRoot && !inPanel && !inPopover) setOpen(false);
     };
     document.addEventListener('keydown', onKey);
     document.addEventListener('mousedown', onDown);
