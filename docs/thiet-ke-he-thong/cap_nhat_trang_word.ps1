@@ -2,14 +2,17 @@
 #   1) cap nhat Muc luc (TOC) de co cac de muc cua Chuong 3
 #   2) dien so trang cho cac muc "Bang 3.x" / "Hinh 3.x" trong DANH MUC BANG / DANH MUC HINH (thay dau "...")
 #   3) luu lai tep .docx va xuat them ban .pdf canh ben de xem truoc
-# Chay:  powershell -ExecutionPolicy Bypass -File cap_nhat_trang_word.ps1 [duong_dan_tep.docx]
+# Chay:  powershell -ExecutionPolicy Bypass -File cap_nhat_trang_word.ps1 [duong_dan_tep.docx] [-CaptionFile tep.json]
 # Tep chi chua ky tu ASCII; chu tieng Viet doc tu _chu_thich_chuong3.json (UTF-8) do tao_chuong3.py ghi ra.
+# Sau sua_chuong12.py thi dung -CaptionFile _chu_thich_v3.json (moi chu thich bang/hinh cua chuong 1-3).
 param(
-    [string]$DocPath = (Join-Path $PSScriptRoot "..\bao-cao\Khoa_luan_NguyenVanKhanh_11236129_Chuong1-3.docx")
+    [string]$DocPath = (Join-Path $PSScriptRoot "..\bao-cao\Khoa_luan_NguyenVanKhanh_11236129_Chuong1-3.docx"),
+    [string]$CaptionFile = ""
 )
 $ErrorActionPreference = "Stop"
 $DocPath = (Resolve-Path $DocPath).Path
 $capFile = Join-Path $PSScriptRoot "_chu_thich_chuong3.json"
+if ($CaptionFile -ne "") { $capFile = (Resolve-Path $CaptionFile).Path }
 if (-not (Test-Path $capFile)) { throw "Thieu $capFile - hay chay tao_chuong3.py truoc" }
 $captions = (Get-Content -Raw -Encoding UTF8 $capFile | ConvertFrom-Json).captions
 $ellipsis = [string][char]0x2026

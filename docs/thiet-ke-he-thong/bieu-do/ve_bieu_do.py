@@ -1965,6 +1965,46 @@ e.note(20, 830, "AiRun còn tham chiếu Workspace và Board (FK workspaceId, bo
                 "AiRun và AssignRun vừa phục vụ chức năng, vừa là nhật ký thực nghiệm cho Chương 6.")
 OUT.append((e.key, e.svg()))
 
+# ---------- H1.1 (chương 1): vị trí của hai cơ chế hỗ trợ quyết định trong TaskFlow ----------
+# Nhánh cơ chế 2 theo mã thật: assign.score.ts (chấm từng thành phần), assign.plan.ts (chia việc theo đợt),
+# assign.learn.ts (học trọng số từ lựa chọn) - không có bước "xếp hạng lại theo tải".
+YEL = "#FFF6D9"
+b = Board2D("h11_vi_tri_hai_co_che", 920, 540)
+b.group(20, 20, 880, 140, "Cơ chế 1: Sinh bảng từ mô tả dự án", fill="#F3F7FC")
+b.box("mota", 40, 52, 130, 86, "Mô tả dự án tiếng Việt")
+b.box("luat", 195, 52, 290, 38, "Tầng luật: thời gian, lập lịch, bất biến", bold=False)
+b.box("llm", 195, 100, 290, 38, "Tầng LLM ràng buộc lược đồ (Gemini + Zod)", bold=False)
+b.box("hn", 510, 52, 160, 86, "Hợp nhất thành BoardPlan (kèm sourceLine)")
+b.box("xt", 695, 52, 185, 86, "Xem trước và xác nhận", fill=YEL)
+b.link("mota", "right", "luat", "left", ta=19 / 86)
+b.link("mota", "right", "llm", "left", ta=67 / 86)
+b.link("luat", "right", "hn", "left", tb=19 / 86)
+b.link("llm", "right", "hn", "left", tb=67 / 86)
+b.link("hn", "right", "xt", "left")
+b.box("nt", 200, 200, 520, 72, "Nền tảng TaskFlow (môi trường thực nghiệm)", [
+    "Không gian làm việc → bảng → danh sách → thẻ; lịch sử thẻ, người thực hiện, hạn, nhật ký hoạt động",
+    "Phân quyền, cập nhật thời gian thực, thông báo, tự động hóa, trợ lý ảo",
+], fill="#F4F4F4", stroke="#666666")
+b.link("xt", "bottom", "nt", "top", tb=360 / 520, via=[(787.5, 175), (560, 175)], label="ghi bảng (một giao dịch)",
+       lpos=(674, 175))
+b.group(20, 320, 880, 200, "Cơ chế 2: Gợi ý người thực hiện", fill="#F3FAF3")
+b.box("the", 40, 356, 130, 88, "Thẻ mới", ["hoặc các thẻ chưa có người trong một danh sách"])
+b.box("th", 200, 356, 150, 88, "Truy hồi K công việc tương tự", ["và đối chiếu hồ sơ tự khai"])
+b.box("cham", 370, 356, 190, 88, "Chấm từng thành phần", ["kinh nghiệm, độ ổn định,", "khả năng tiếp nhận, hồ sơ;",
+                                                         "mức đủ dữ liệu, bằng chứng"])
+b.box("xh", 580, 356, 170, 88, "Xếp hạng theo trọng số của nhóm", ["chia việc theo đợt, cộng dồn tải"])
+b.box("ql", 770, 356, 110, 88, "Người quản lý quyết định", fill=YEL)
+b.box("hoc", 580, 466, 170, 40, "Học trọng số từ lựa chọn", bold=False)
+b.link("the", "right", "th", "left")
+b.link("th", "right", "cham", "left")
+b.link("cham", "right", "xh", "left")
+b.link("xh", "right", "ql", "left")
+b.link("ql", "bottom", "hoc", "right", via=[(825, 486)])
+b.link("hoc", "top", "xh", "bottom")
+b.link("nt", "bottom", "th", "top", ta=75 / 520, dash="6,4", label="dữ liệu lịch sử", lpos=(275, 303))
+b.link("ql", "top", "nt", "right", via=[(825, 236)], label="giao người; lựa chọn và\nkết quả được ghi nhận", lpos=(825, 292))
+OUT.append((b.key, b.svg()))
+
 
 def chrome():
     for p in [os.environ.get("CHROME_PATH"), "C:/Program Files/Google/Chrome/Application/chrome.exe",
