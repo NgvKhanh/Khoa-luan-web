@@ -1,3 +1,4 @@
+import { memo, useCallback, useRef } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { assetUrl } from '../../lib/assets';
@@ -56,43 +57,19 @@ function DoneCircle({ done }: { done: boolean }) {
   );
 }
 
-export default function CardItem({
-  card,
-  listStatus = null,
-  onToggleDone,
-  onRequestDelete,
-  onOpen,
-  overlay,
-  readOnly = false,
-}: Props) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    setActivatorNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: card.id,
-    data: { type: 'card', listId: card.listId },
-    disabled: overlay || readOnly,
-  });
-  const highlight = useCardHighlight(card.id);
+// Gio dinh dang ngay han: tao Intl.DateTimeFormat MOT lan (toLocaleDateString tao bo dinh dang moi moi lan goi -
+// lang phi khi ve lai ~75 the moi lan dnd-kit doi trang thai).
+const DUE_DATE_FORMAT = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit' });
 
-  // Bao dnd-kit biet dau la "tay cam" keo. Nho vay KeyboardSensor chi nhan
-  // Enter/Space khi dung chinh the dang duoc focus - bam Enter tren cac nut
-  // ben trong (danh dau xong / luu tru) se khong khoi dong luot keo "ma".
-  const setRefs = (node: HTMLElement | null) => {
-    setNodeRef(node);
-    setActivatorNodeRef(node);
-  };
+interface BodyProps {
+  card: Card;
+  listStatus: CardStatus | null;
+  onToggleDone: (card: Card) => void;
+}
 
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    transition,
-  };
-
+// Phan noi dung cua the (nhan, tieu de, huy hieu...) tach rieng va memo: useSortable lam CardItem ve lai moi khi dnd-kit
+// doi trang thai (bat dau keo, doi "over", chuyen cot). Noi dung khong doi thi khong can dung lai cay nay.
+const CardBody = memo(function CardBody({ card, listStatus, onToggleDone }: BodyProps) {
   const checklistItems = card.checklists?.flatMap((c) => c.items) ?? [];
   const clDone = checklistItems.filter((i) => i.isDone).length;
   const commentCount = card.comments?.length ?? 0;
@@ -107,14 +84,14 @@ export default function CardItem({
     attachmentCount > 0 ||
     (card.members?.length ?? 0) > 0;
 
-  const body = (
+  return (
     <>
       <button
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
-          onToggleDone?.(card);
+          onToggleDone(card);
         }}
         aria-label={card.isDone ? 'Bỏ đánh dấu hoàn thành' : 'Đánh dấu hoàn thành'}
         title={card.isDone ? 'Bỏ đánh dấu hoàn thành' : 'Đánh dấu hoàn thành'}
@@ -161,10 +138,7 @@ export default function CardItem({
                   <rect x="3" y="4" width="18" height="18" rx="2" />
                   <path d="M3 10h18M8 2v4M16 2v4" />
                 </svg>
-                {new Date(card.dueDate).toLocaleDateString('vi-VN', {
-                  day: '2-digit',
-                  month: '2-digit',
-                })}
+                {DUE_DATE_FORMAT.format(new Date(card.dueDate))}
               </span>
             )}
             {checklistItems.length > 0 && (
@@ -215,6 +189,48 @@ export default function CardItem({
       </div>
     </>
   );
+});
+
+export default function CardItem({
+  card,
+  listStatus = null,
+  onToggleDone,
+  onRequestDelete,
+  onOpen,
+  overlay,
+  readOnly = false,
+}: Props) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: card.id,
+    data: { type: 'card', listId: card.listId },
+    disabled: overlay || readOnly,
+  });
+  const highlight = useCardHighlight(card.id);
+  // Ham cua cha tao lai moi lan BoardPage ve; giu mot ham co dinh de CardBody (memo) khong phai ve lai theo.
+  const onToggleDoneRef = useRef(onToggleDone);
+  onToggleDoneRef.current = onToggleDone;
+  const handleToggleDone = useCallback((c: Card) => onToggleDoneRef.current?.(c), []);
+
+  // Bao dnd-kit biet dau la "tay cam" keo. Nho vay KeyboardSensor chi nhan
+  // Enter/Space khi dung chinh the dang duoc focus - bam Enter tren cac nut
+  // ben trong (danh dau xong / luu tru) se khong khoi dong luot keo "ma".
+  const setRefs = (node: HTMLElement | null) => {
+    setNodeRef(node);
+    setActivatorNodeRef(node);
+  };
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+  };
 
   const hasCover = Boolean(card.coverImageUrl || card.coverColor);
 
@@ -222,7 +238,9 @@ export default function CardItem({
     return (
       <div className="overflow-hidden rotate-3 scale-[1.03] cursor-grabbing rounded-lg bg-white text-sm shadow-2xl ring-1 ring-black/5 dark:bg-slate-700 dark:ring-white/10">
         <CardCover card={card} />
-        <div className="flex gap-2 px-3 py-2">{body}</div>
+        <div className="flex gap-2 px-3 py-2">
+        <CardBody card={card} listStatus={listStatus} onToggleDone={handleToggleDone} />
+      </div>
       </div>
     );
   }
@@ -245,7 +263,9 @@ export default function CardItem({
       }
     >
       {!isDragging && hasCover && <CardCover card={card} />}
-      <div className="flex gap-2 px-3 py-2">{body}</div>
+      <div className="flex gap-2 px-3 py-2">
+        <CardBody card={card} listStatus={listStatus} onToggleDone={handleToggleDone} />
+      </div>
 
       {onRequestDelete && (
         <button

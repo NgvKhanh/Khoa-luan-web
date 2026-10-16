@@ -23,6 +23,13 @@ body {
   color: #e2e8f0;
 }
 
+/* Dang keo the / cot: tat lam mo nen cua cac cot. Vat nang dang bay tren ca bang (DragOverlay) lam trinh duyet phai
+   tinh lai lop mo o MOI khung hinh; cot da dac 95% nen khong thay khac biet. */
+.tf-dragging .tf-list-col {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
 /* Thanh cuon ngang cua board cho giong Trello (nen mo, thumb sang) */
 .board-scroll::-webkit-scrollbar {
   height: 14px;

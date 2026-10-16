@@ -100,6 +100,7 @@ import type { BoardList } from '../types/list';
 import { useBoardRealtime } from './boardPage/useBoardRealtime';
 import { useCardHighlights } from './boardPage/useCardHighlights';
 import { useBoardShortcuts } from './boardPage/useBoardShortcuts';
+import { useStableCallback } from '../lib/useStableCallback';
 import { useBoardDnd } from './boardPage/useBoardDnd';
 
 // Nut tren thanh cong cu cua bang: chi hien icon cho do chiem cho, chu nam o
@@ -685,6 +686,27 @@ export default function BoardPage() {
     }
   }
 
+  // Cac ham truyen xuong ListColumn (da memo): neu tao lai moi lan BoardPage ve thi memo vo tac dung, ma BoardPage ve
+  // lai moi khi the doi cot trong luc keo. Ham co dinh luon goi ban moi nhat cua no.
+  const stableListHandlers = {
+    onApplyCardTemplate: useStableCallback(handleApplyCardTemplate),
+    onRename: useStableCallback(handleRenameList),
+    onRequestDeleteList: useStableCallback((l: BoardList) => setDeleteTarget({ kind: 'list', list: l })),
+    onAddCard: useStableCallback(handleAddCard),
+    onToggleCardDone: useStableCallback(handleToggleCardDone),
+    onRequestDeleteCard: useStableCallback(handleArchiveCard),
+    onCopyList: useStableCallback(handleCopyList),
+    onMoveList: useStableCallback(handleMoveList),
+    onMoveAllCards: useStableCallback(handleMoveAllCards),
+    onSortList: useStableCallback(handleSortList),
+    onSetListStatus: useStableCallback(handleSetListStatus),
+    onRequestDeleteAllCards: useStableCallback((l: BoardList) => setDeleteTarget({ kind: 'cards-in-list', list: l })),
+    onAssignApplied: useStableCallback(reloadLists),
+  };
+  // Chi id + ten cot cho menu "Di chuyen tat ca the": mang nay chi doi khi them / xoa / doi ten cot, khong doi khi the doi cot
+  const listOptionsKey = lists.map((l) => `${l.id}\u0000${l.name}`).join('\u0001');
+  const listOptions = useMemo(() => lists.map((l) => ({ id: l.id, name: l.name })), [listOptionsKey]);
+
   if (isLoading) {
     return (
       <SkeletonRegion label="Đang tải bảng…" className="overflow-hidden p-4">
@@ -1182,7 +1204,7 @@ export default function BoardPage() {
           >
             <div
               className={`board-scroll flex min-h-0 flex-1 items-start gap-3 overflow-x-auto p-3 ${
-                activeCard || activeList ? 'select-none' : ''
+                activeCard || activeList ? 'tf-dragging select-none' : ''
               }`}
             >
               <SortableContext
@@ -1193,26 +1215,10 @@ export default function BoardPage() {
                   <ListColumn
                     key={list.id}
                     list={list}
-                    allLists={lists}
+                    allLists={listOptions}
                     readOnly={readOnly}
-                    onApplyCardTemplate={handleApplyCardTemplate}
-                    onRename={handleRenameList}
-                    onRequestDeleteList={(l) =>
-                      setDeleteTarget({ kind: 'list', list: l })
-                    }
-                    onAddCard={handleAddCard}
-                    onToggleCardDone={handleToggleCardDone}
-                    onRequestDeleteCard={handleArchiveCard}
                     onOpenCard={setOpenCardId}
-                    onCopyList={handleCopyList}
-                    onMoveList={handleMoveList}
-                    onMoveAllCards={handleMoveAllCards}
-                    onSortList={handleSortList}
-                    onSetListStatus={handleSetListStatus}
-                    onRequestDeleteAllCards={(l) =>
-                      setDeleteTarget({ kind: 'cards-in-list', list: l })
-                    }
-                    onAssignApplied={reloadLists}
+                    {...stableListHandlers}
                   />
                 ))}
               </SortableContext>

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { memo, useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react';
 import {
   SortableContext,
   useSortable,
@@ -22,7 +22,8 @@ import { SkeletonRegion, SkeletonRows } from '../Skeleton';
 
 interface Props {
   list: BoardList;
-  allLists: BoardList[];
+  // Chi can id + ten (menu "Di chuyen tat ca the"). Cha truyen mang gon, ben vung khi the doi cot, de cot khong ve lai.
+  allLists: ReadonlyArray<Pick<BoardList, 'id' | 'name'>>;
   readOnly?: boolean;
   onRename: (listId: string, name: string) => void;
   onRequestDeleteList: (list: BoardList) => void;
@@ -54,7 +55,7 @@ const ITEM =
 const SUB_ITEM =
   'w-full rounded px-2 py-1.5 text-left text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700';
 
-export default function ListColumn({
+function ListColumn({
   list,
   allLists,
   readOnly = false,
@@ -103,6 +104,8 @@ export default function ListColumn({
     null
   );
   const [templateError, setTemplateError] = useState<string | null>(null);
+  // Mang id the ben vung: SortableContext coi mang moi la "danh sach doi" va lam ca cot ve lai
+  const cardIds = useMemo(() => list.cards.map((c) => c.id), [list.cards]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -196,7 +199,7 @@ export default function ListColumn({
       className={
         isDragging
           ? 'flex max-h-full w-[272px] shrink-0 flex-col rounded-xl border-2 border-dashed border-white/60 bg-white/20 [&>*]:invisible'
-          : 'flex max-h-full w-[272px] shrink-0 flex-col rounded-xl bg-[#f1f2f4]/95 shadow-sm backdrop-blur-sm dark:bg-slate-800/95'
+          : 'tf-list-col flex max-h-full w-[272px] shrink-0 flex-col rounded-xl bg-[#f1f2f4]/95 shadow-sm backdrop-blur-sm dark:bg-slate-800/95'
       }
     >
       {/* Header - cung la tay cam de keo cot */}
@@ -577,7 +580,7 @@ export default function ListColumn({
       {/* Vung the - cao theo noi dung, tu cuon khi cham tran chieu cao cot */}
       <div className="list-scroll flex min-h-[4px] flex-col gap-2 overflow-y-auto overscroll-contain px-2 py-0.5">
         <SortableContext
-          items={list.cards.map((c) => c.id)}
+          items={cardIds}
           strategy={verticalListSortingStrategy}
         >
           {list.cards.map((card) => (
@@ -623,3 +626,5 @@ export default function ListColumn({
     </div>
   );
 }
+
+export default memo(ListColumn);
