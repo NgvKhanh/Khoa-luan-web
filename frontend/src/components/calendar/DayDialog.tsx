@@ -22,6 +22,10 @@ const ROW =
   'flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-700';
 
 // Toàn bộ việc của một ngày: ô lịch chỉ chứa được vài dòng nên phần còn lại xem ở đây.
+// Bấm đúp vào "+N nữa": lần bấm thứ hai rơi trúng lớp nền của hộp vừa mở và đóng nó ngay, nhìn như không có gì hiện ra.
+// Trong khoảng này sau khi mở, lớp nền bỏ qua thao tác bấm (nhanh hơn nhịp đóng hộp có chủ ý của người dùng).
+const BACKDROP_IGNORE_MS = 400;
+
 export default function DayDialog({
   day,
   isToday,
@@ -32,6 +36,7 @@ export default function DayDialog({
   onClose,
 }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const openedAt = useRef(Date.now());
 
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -63,7 +68,7 @@ export default function DayDialog({
     <div
       className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget && Date.now() - openedAt.current >= BACKDROP_IGNORE_MS) onClose();
       }}
     >
       <div

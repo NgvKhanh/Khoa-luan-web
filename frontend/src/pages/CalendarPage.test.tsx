@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -159,6 +159,27 @@ describe('CalendarPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Xem 1 việc ngày 20/10' }));
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Đóng' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('does not close right away when the opening click was a double-click that lands on the backdrop', async () => {
+    const user = userEvent.setup();
+    mocks.fetchCalendarCards.mockResolvedValue({
+      cards: [card('c1', 'Một', 20)],
+      checklistItems: [],
+    });
+    renderCalendar();
+    await screen.findByText('Một');
+
+    await user.click(screen.getByRole('button', { name: 'Xem 1 việc ngày 20/10' }));
+    const backdrop = screen.getByRole('dialog').parentElement!;
+    // Lần bấm thứ hai của cú bấm đúp: ngay sau khi hộp mở
+    fireEvent.mouseDown(backdrop);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    // Người dùng chủ ý bấm ra ngoài sau đó: đóng bình thường
+    vi.setSystemTime(Date.now() + 1000);
+    fireEvent.mouseDown(backdrop);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
