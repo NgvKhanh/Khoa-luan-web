@@ -44,6 +44,31 @@ export function dueNote(dueIso: string | null, now: Date): { text: string; tone:
   return null;
 }
 
+export type AttentionBucket = Extract<Bucket, 'overdue' | 'today' | 'week'>;
+
+export const ATTENTION_BUCKETS: AttentionBucket[] = ['overdue', 'today', 'week'];
+
+/**
+ * Khoi "Can chu y" o trang Tong quan: the CHUA xong co han roi vao Quá hạn / Hôm nay / Trong 7 ngày tới.
+ * The vua tick xong ngay tren trang (`keepIds`) van o lai nhom cu de nguoi dung thay ket qua va bo tick duoc.
+ * Giu nguyen thu tu dau vao (API da xep theo han tang dan); bo nhom rong.
+ */
+export function attentionGroups<T extends { id: string; isDone: boolean; dueDate: string | null }>(
+  cards: T[],
+  now: Date,
+  keepIds: ReadonlySet<string> = new Set()
+): { bucket: AttentionBucket; items: T[] }[] {
+  const map = new Map<AttentionBucket, T[]>();
+  for (const c of cards) {
+    if (c.isDone && !keepIds.has(c.id)) continue;
+    const b = bucketOf(c.dueDate, now);
+    if (b !== 'overdue' && b !== 'today' && b !== 'week') continue;
+    if (!map.has(b)) map.set(b, []);
+    map.get(b)!.push(c);
+  }
+  return ATTENTION_BUCKETS.filter((b) => map.has(b)).map((b) => ({ bucket: b, items: map.get(b)! }));
+}
+
 export { fold };
 
 export function matchesTitle(title: string, query: string): boolean {

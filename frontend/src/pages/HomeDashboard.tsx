@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Avatar from '../components/Avatar';
 import { CreateBoardMenu } from '../components/Header';
+import AttentionList from '../components/home/AttentionList';
 import { Skeleton, SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
 import { activityPhrase } from '../lib/activityText';
 import { assetUrl } from '../lib/assets';
 import { fetchHomeActivity, type HomeActivity } from '../lib/api/board';
-import { fetchMyCards, type MyCard } from '../lib/api/card';
+import { fetchMyCards, updateCard, type MyCard } from '../lib/api/card';
 import { getErrorMessage } from '../lib/errorMessage';
 import { useCountUp } from '../lib/useCountUp';
 import { getRecentBoards } from '../lib/recentBoards';
@@ -103,21 +104,6 @@ function BoardTile({
   );
 }
 
-const DUE_GROUPS: { key: string; label: string; cls: string }[] = [
-  { key: 'overdue', label: 'Quá hạn', cls: 'text-red-600' },
-  { key: 'today', label: 'Hôm nay', cls: 'text-amber-600' },
-  { key: 'week', label: 'Trong tuần', cls: 'text-slate-600 dark:text-slate-300' },
-];
-
-function bucketOf(c: MyCard): string | null {
-  if (c.isDone || !c.dueDate) return null;
-  const due = new Date(c.dueDate).getTime();
-  if (due < Date.now()) return 'overdue';
-  if (due <= endOfToday()) return 'today';
-  if (due <= endOfWeek()) return 'week';
-  return null;
-}
-
 // Số liệu ở đầu trang: có dữ liệu thì đếm lên; đang tải hiện khung chờ (không hiện 0);
 // tải lỗi hiện dấu gạch ngang thay vì số 0 gây hiểu nhầm.
 function StatValue({ value, loading, failed }: { value: number; loading: boolean; failed: boolean }) {
@@ -136,16 +122,45 @@ export default function HomeDashboard() {
   const [activity, setActivity] = useState<HomeActivity[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // "Qua han" / "hom nay" o khoi Can chu y tinh theo thoi diem tai the gan nhat
+  const [now, setNow] = useState(() => new Date());
+  // The vua tick tren trang nay: giu lai trong khoi Can chu y (gach ngang) de bo tick duoc
+  const [keepIds, setKeepIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const applyCards = useCallback((cards: MyCard[]) => {
+    setMyCards(cards);
+    setNow(new Date());
+  }, []);
 
   useEffect(() => {
     Promise.all([fetchMyCards(), fetchHomeActivity()])
       .then(([cards, acts]) => {
-        setMyCards(cards);
+        applyCards(cards);
         setActivity(acts);
       })
       .catch((err) => setError(getErrorMessage(err, 'Không tải được trang chủ.')))
       .finally(() => setLoading(false));
-  }, []);
+  }, [applyCards]);
+
+  // Tick xong / mo lai ngay tren trang: doi giao dien truoc, loi thi tra lai nhu cu
+  const toggleDone = useCallback(
+    async (card: MyCard) => {
+      const next = !card.isDone;
+      setActionError(null);
+      setKeepIds((cur) => new Set(cur).add(card.id));
+      setMyCards((cur) => cur.map((c) => (c.id === card.id ? { ...c, isDone: next } : c)));
+      try {
+        await updateCard(card.id, { isDone: next });
+        // Danh dau xong co the chuyen the sang cot "Hoan thanh": tai lai de cot / trang thai dung
+        fetchMyCards().then(applyCards).catch(() => undefined);
+      } catch (err) {
+        setMyCards((cur) => cur.map((c) => (c.id === card.id ? { ...c, isDone: card.isDone } : c)));
+        setActionError(getErrorMessage(err, 'Không cập nhật được thẻ.'));
+      }
+    },
+    [applyCards]
+  );
 
   const assigned = myCards.filter((c) => !c.isDone);
   const overdue = assigned.filter(
@@ -156,16 +171,6 @@ export default function HomeDashboard() {
     const d = new Date(c.dueDate).getTime();
     return d >= Date.now() && d <= endOfWeek();
   }).length;
-
-  const attention = useMemo(() => {
-    const map: Record<string, MyCard[]> = {};
-    for (const c of myCards) {
-      const b = bucketOf(c);
-      if (b) (map[b] ??= []).push(c);
-    }
-    return map;
-  }, [myCards]);
-  const hasAttention = DUE_GROUPS.some((g) => (attention[g.key]?.length ?? 0) > 0);
 
   const recent = useMemo(() => {
     const ids = getRecentBoards();
@@ -245,51 +250,20 @@ export default function HomeDashboard() {
             </Link>
           }
         >
+          {actionError && (
+            <p role="alert" className="mb-2 text-sm text-red-600">
+              {actionError}
+            </p>
+          )}
           {loading ? (
             <SkeletonRegion label="Đang tải thẻ cần chú ý…">
               <SkeletonRows rows={3} />
             </SkeletonRegion>
-          ) : !hasAttention ? (
-            <EmptyState
-              compact
-              icon="calendar"
-              title="Không có thẻ nào sắp đến hạn."
-              description="Việc gần hạn của bạn đã xử lý xong."
-            />
+          ) : error ? (
+            // Tai loi: khong hien "khong co the nao" de khoi hieu nham la da xu ly xong
+            <p className="text-sm text-slate-500 dark:text-slate-400">Không tải được danh sách thẻ.</p>
           ) : (
-            <div className="flex flex-col gap-4">
-              {DUE_GROUPS.map((g) => {
-                const items = attention[g.key] ?? [];
-                if (items.length === 0) return null;
-                return (
-                  <div key={g.key}>
-                    <p
-                      className={`mb-1.5 text-xs font-semibold uppercase tracking-wide ${g.cls}`}
-                    >
-                      {g.label} ({items.length})
-                    </p>
-                    <ul className="flex flex-col gap-1">
-                      {items.slice(0, 5).map((c) => (
-                        <li key={c.id}>
-                          <Link
-                            to={`/boards/${c.list.boardId}`}
-                            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
-                          >
-                            <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full border-2 border-slate-300" />
-                            <span className="min-w-0 flex-1 truncate text-slate-800 dark:text-slate-100">
-                              {c.title}
-                            </span>
-                            <span className="max-w-[45%] shrink-0 truncate text-xs text-slate-400">
-                              {c.list.board.name}
-                            </span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                );
-              })}
-            </div>
+            <AttentionList cards={myCards} now={now} keepIds={keepIds} onToggleDone={(c) => void toggleDone(c)} />
           )}
         </Section>
 

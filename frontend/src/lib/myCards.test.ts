@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bucketOf, dueNote, fold, matchesTitle } from './myCards';
+import { attentionGroups, bucketOf, dueNote, fold, matchesTitle } from './myCards';
 
 // Giữa trưa thứ Tư 14/10/2026 theo giờ máy: tránh lệch ngày khi đổi sang ISO
 const NOW = new Date(2026, 9, 14, 12, 0, 0);
@@ -41,5 +41,30 @@ describe('lọc theo tên', () => {
     expect(matchesTitle('Mời và chốt 3 diễn giả chính', 'DIEN GIA')).toBe(true);
     expect(matchesTitle('Mời và chốt 3 diễn giả chính', 'tài trợ')).toBe(false);
     expect(matchesTitle('bất kỳ', '   ')).toBe(true);
+  });
+});
+
+describe('attentionGroups (khối Cần chú ý ở Tổng quan)', () => {
+  const c = (id: string, dueDate: string | null, isDone = false) => ({ id, dueDate, isDone });
+
+  it('chỉ lấy thẻ chưa xong ở 3 nhóm quá hạn / hôm nay / 7 ngày tới, đúng thứ tự nhóm, giữ thứ tự thẻ', () => {
+    const groups = attentionGroups(
+      [c('week', at(16)), c('late2', at(12)), c('later', at(30)), c('none', null), c('late1', at(13)), c('today', at(14, 18)), c('done', at(10), true)],
+      NOW
+    );
+    expect(groups.map((g) => [g.bucket, g.items.map((x) => x.id)])).toEqual([
+      ['overdue', ['late2', 'late1']],
+      ['today', ['today']],
+      ['week', ['week']],
+    ]);
+  });
+
+  it('thẻ vừa tick xong trên trang (keepIds) vẫn ở lại nhóm cũ; thẻ xong từ trước thì không', () => {
+    const groups = attentionGroups([c('a', at(12), true), c('b', at(11), true)], NOW, new Set(['a']));
+    expect(groups).toEqual([{ bucket: 'overdue', items: [c('a', at(12), true)] }]);
+  });
+
+  it('không có thẻ nào cần chú ý thì trả mảng rỗng', () => {
+    expect(attentionGroups([c('x', null), c('y', at(30))], NOW)).toEqual([]);
   });
 });
