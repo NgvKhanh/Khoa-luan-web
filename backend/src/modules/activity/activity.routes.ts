@@ -29,12 +29,12 @@ router.get(
   })
 );
 
-// GET /api/activities/home -> nhat ky gop tren moi bang cua toi
+// GET /api/activities/home -> nhat ky gop tren moi bang cua toi; ?scope=others -> chi viec nguoi khac lam
 router.get(
   '/home',
   asyncHandler(async (req, res) => {
     if (!req.user) throw new AppError('Ban chua dang nhap', 401);
-    const activities = await listHomeActivity(req.user.id);
+    const activities = await listHomeActivity(req.user.id, { excludeSelf: req.query.scope === 'others' });
     res.json({ success: true, data: { activities } });
   })
 );

@@ -96,8 +96,9 @@ export async function listBoardActivity(boardId: string) {
   return rows.map(redactMovedCard);
 }
 
-// Nhat ky hoat dong tren TAT CA cac bang user tham gia (ke ca nguoi khac lam)
-export async function listHomeActivity(userId: string) {
+// Nhat ky hoat dong tren TAT CA cac bang user tham gia (ke ca nguoi khac lam).
+// excludeSelf: chi lay viec NGUOI KHAC lam (trang Tong quan, tab "Người khác").
+export async function listHomeActivity(userId: string, opts: { excludeSelf?: boolean } = {}) {
   const memberships = await prisma.boardMember.findMany({
     where: { userId, deletedAt: null, board: { deletedAt: null, archivedAt: null } },
     select: { boardId: true },
@@ -106,7 +107,7 @@ export async function listHomeActivity(userId: string) {
   if (boardIds.length === 0) return [];
 
   const rows = await prisma.activity.findMany({
-    where: { boardId: { in: boardIds } },
+    where: { boardId: { in: boardIds }, ...(opts.excludeSelf ? { userId: { not: userId } } : {}) },
     orderBy: { createdAt: 'desc' },
     take: 30,
     include: {

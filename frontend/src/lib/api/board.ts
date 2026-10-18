@@ -63,14 +63,19 @@ export async function fetchBoardActivity(
   return res.data.data.activities;
 }
 
-export interface HomeActivity extends BoardActivity {
+export interface HomeActivity extends Omit<BoardActivity, 'card'> {
   board: { id: string; name: string } | null;
+  // title = null khi the da chuyen sang bang khac sau khi ghi nhat ky (server che ten)
+  card: { id: string; title: string | null } | null;
 }
 
-// Nhat ky gop tren moi bang cua toi (ke ca nguoi khac lam)
-export async function fetchHomeActivity(): Promise<HomeActivity[]> {
+export type HomeActivityScope = 'all' | 'others';
+
+// Nhat ky gop tren moi bang cua toi; 'others' = chi viec nguoi khac lam
+export async function fetchHomeActivity(scope: HomeActivityScope = 'all'): Promise<HomeActivity[]> {
   const res = await api.get<{ data: { activities: HomeActivity[] } }>(
-    '/activities/home'
+    '/activities/home',
+    scope === 'others' ? { params: { scope } } : undefined
   );
   return res.data.data.activities;
 }

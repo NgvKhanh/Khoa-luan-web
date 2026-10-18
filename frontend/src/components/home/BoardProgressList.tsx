@@ -5,6 +5,7 @@ import { assetUrl } from '../../lib/assets';
 import { BOARD_TABS, boardsForTab, workByBoard, type BoardTab } from '../../lib/homeBoards';
 import { getRecentBoards } from '../../lib/recentBoards';
 import type { Board } from '../../types/board';
+import Segmented from './Segmented';
 
 const TAB_KEY = 'tf.home.boardTab';
 
@@ -45,22 +46,8 @@ export default function BoardProgressList({ boards, cards, now }: { boards: Boar
 
   return (
     <>
-      <div role="group" aria-label="Lọc bảng" className="mb-3 inline-flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-900/60">
-        {BOARD_TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            aria-pressed={tab === t.key}
-            onClick={() => choose(t.key)}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-              tab === t.key
-                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
-                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="mb-3">
+        <Segmented label="Lọc bảng" options={BOARD_TABS} value={tab} onChange={choose} />
       </div>
 
       {shown.length === 0 ? (

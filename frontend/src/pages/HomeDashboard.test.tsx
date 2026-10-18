@@ -190,6 +190,68 @@ describe('Tổng quan: Bạn đã hoàn thành', () => {
   });
 });
 
+describe('Tổng quan: Hoạt động gần đây', () => {
+  const at = (day: number, hour: number, minute = 0) => new Date(2026, 9, day, hour, minute).toISOString();
+  const act = (
+    id: string,
+    user: { id: string; name: string },
+    type: string,
+    data: Record<string, string>,
+    card: { id: string; title: string } | null,
+    createdAt: string
+  ) => ({ id, type, data, createdAt, user: { ...user, avatarUrl: null }, card, board: { id: 'b1', name: 'Talk show' } });
+  const HA = { id: 'u2', name: 'Trần Thu Hà' };
+  const ME = { id: 'u1', name: 'Khanh Quoc' };
+  const ROWS = [
+    act('a1', HA, 'comment.create', {}, { id: 'c1', title: 'Lấy báo giá âm thanh' }, at(14, 11, 45)),
+    act('a2', ME, 'card.status', { from: 'IN_PROGRESS', to: 'REVIEW' }, { id: 'c2', title: 'Chốt khách mời' }, at(13, 16)),
+    act('a3', ME, 'card.move', { fromList: 'Đang làm', toList: 'Chờ duyệt' }, { id: 'c2', title: 'Chốt khách mời' }, at(13, 15, 59)),
+    act('a4', HA, 'card.create', { listName: 'Cần làm' }, { id: 'c3', title: 'Duyệt kịch bản' }, at(10, 9)),
+  ];
+  const section = () => screen.getByRole('heading', { name: 'Hoạt động gần đây' }).closest('section') as HTMLElement;
+
+  it('nhóm theo ngày, việc của mình ghi "Bạn", tên thẻ mở thẳng thẻ, gộp thao tác liền nhau trên cùng thẻ', async () => {
+    mocks.fetchHomeActivity.mockResolvedValue(ROWS);
+    renderPage();
+    const box = section();
+    const today = await within(box).findByRole('region', { name: 'Hôm nay' });
+    expect(within(today).getByText('Trần Thu Hà')).toBeInTheDocument();
+    expect(within(today).getByRole('link', { name: 'Lấy báo giá âm thanh' })).toHaveAttribute('href', '/boards/b1?card=c1');
+    expect(within(today).getByText('15 phút trước')).toBeInTheDocument();
+
+    const yesterday = within(box).getByRole('region', { name: 'Hôm qua' });
+    expect(within(yesterday).getByText('Bạn')).toBeInTheDocument();
+    expect(within(yesterday).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(yesterday).getByText(/\+1 thao tác khác trên thẻ này/)).toBeInTheDocument();
+    expect(within(box).getByRole('region', { name: 'Thứ Bảy, 10/10' })).toBeInTheDocument();
+    expect(mocks.fetchHomeActivity).toHaveBeenCalledWith('all');
+  });
+
+  it('chọn "Người khác": tải lại theo phạm vi, nhớ lựa chọn; trống thì có nút xem cả việc của mình', async () => {
+    mocks.fetchHomeActivity.mockResolvedValueOnce(ROWS).mockResolvedValueOnce([]);
+    const user = userEvent.setup();
+    renderPage();
+    const box = section();
+    await within(box).findByRole('region', { name: 'Hôm nay' });
+    await user.click(within(box).getByRole('button', { name: 'Người khác' }));
+    expect(mocks.fetchHomeActivity).toHaveBeenLastCalledWith('others');
+    expect(localStorage.getItem('tf.home.activityScope')).toBe('others');
+    expect(await within(box).findByText('Chưa có ai khác hoạt động trên các bảng của bạn.')).toBeInTheDocument();
+
+    mocks.fetchHomeActivity.mockResolvedValueOnce(ROWS);
+    await user.click(within(box).getByRole('button', { name: 'Xem cả hoạt động của bạn' }));
+    expect(mocks.fetchHomeActivity).toHaveBeenLastCalledWith('all');
+    expect(await within(box).findByRole('region', { name: 'Hôm nay' })).toBeInTheDocument();
+  });
+
+  it('tải lỗi chỉ báo trong khối, các khối khác vẫn chạy', async () => {
+    mocks.fetchHomeActivity.mockRejectedValue(new Error('500'));
+    renderPage();
+    expect(await within(section()).findByText('Không tải được hoạt động gần đây.')).toBeInTheDocument();
+    expect(await screen.findByRole('checkbox', { name: 'Đánh dấu hoàn thành thẻ Chốt khách mời' })).toBeInTheDocument();
+  });
+});
+
 describe('Tổng quan: khối Cần chú ý', () => {
   it('chia nhóm quá hạn / hôm nay / 7 ngày tới, ghi rõ hạn, bấm tên thẻ mở đúng thẻ', async () => {
     renderPage();

@@ -1,21 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import Avatar from '../components/Avatar';
 import { CreateBoardMenu } from '../components/Header';
+import ActivityFeed from '../components/home/ActivityFeed';
 import AttentionList from '../components/home/AttentionList';
 import BoardProgressList from '../components/home/BoardProgressList';
 import CompletionChart from '../components/home/CompletionChart';
+import HomeSection from '../components/home/HomeSection';
 import StatTiles from '../components/home/StatTiles';
 import WeekStrip from '../components/home/WeekStrip';
 import { SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
-import { activityPhrase } from '../lib/activityText';
-import { fetchHomeActivity, type HomeActivity } from '../lib/api/board';
 import { fetchMyCards, updateCard, type MyCard } from '../lib/api/card';
 import { getErrorMessage } from '../lib/errorMessage';
 import { homeStats } from '../lib/homeStats';
-import EmptyState from '../components/EmptyState';
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -31,45 +29,15 @@ function firstName(name?: string): string {
   return parts[parts.length - 1] ?? name;
 }
 
-function timeAgo(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return 'vừa xong';
-  if (s < 3600) return `${Math.floor(s / 60)} phút trước`;
-  if (s < 86400) return `${Math.floor(s / 3600)} giờ trước`;
-  if (s < 604800) return `${Math.floor(s / 86400)} ngày trước`;
-  return new Date(iso).toLocaleDateString('vi-VN');
-}
+const linkCls = 'text-xs font-medium text-primary-ink hover:underline';
 
-function Section({
-  title,
-  action,
-  className = '',
-  children,
-}: {
-  title: string;
-  action?: React.ReactNode;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 ${className}`}>
-      <div className="mb-3 flex items-center">
-        <h2 className="flex-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
-          {title}
-        </h2>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
+// Trang Tong quan (/home). Cac khoi 1-5 tinh tu danh sach the duoc giao (/cards/mine, tai mot lan o day);
+// khoi 6 (hoat dong) tu tai theo pham vi rieng.
 export default function HomeDashboard() {
   const { user } = useAuth();
   const { boards, isLoading: boardsLoading } = useBoards();
 
   const [myCards, setMyCards] = useState<MyCard[]>([]);
-  const [activity, setActivity] = useState<HomeActivity[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   // "Qua han" / "hom nay" / "tuan nay" tinh theo thoi diem tai the gan nhat
@@ -84,12 +52,9 @@ export default function HomeDashboard() {
   }, []);
 
   useEffect(() => {
-    Promise.all([fetchMyCards(), fetchHomeActivity()])
-      .then(([cards, acts]) => {
-        applyCards(cards);
-        setActivity(acts);
-      })
-      .catch((err) => setError(getErrorMessage(err, 'Không tải được trang chủ.')))
+    fetchMyCards()
+      .then(applyCards)
+      .catch((err) => setError(getErrorMessage(err, 'Không tải được thẻ của bạn.')))
       .finally(() => setLoading(false));
   }, [applyCards]);
 
@@ -144,10 +109,10 @@ export default function HomeDashboard() {
 
       {/* 2. Hom nay + 7 ngay toi */}
       {!error && (
-        <Section
+        <HomeSection
           title="7 ngày tới"
           action={
-            <Link to="/calendar" className="text-xs font-medium text-primary-ink hover:underline">
+            <Link to="/calendar" className={linkCls}>
               Mở lịch
             </Link>
           }
@@ -159,127 +124,75 @@ export default function HomeDashboard() {
           ) : (
             <WeekStrip cards={myCards} now={now} />
           )}
-        </Section>
+        </HomeSection>
       )}
 
       {/* Tu 1280px: cot chinh (can chu y + bang cua ban) va cot phu (hoan thanh + hoat dong) ti le 2:1 */}
       <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-3">
-      <div className="flex min-w-0 flex-col gap-5 xl:col-span-2">
-        {/* 3. Can chu y */}
-        <Section
-          title="Cần chú ý"
-          action={
-            <Link
-              to="/my-cards"
-              className="text-xs font-medium text-primary-ink hover:underline"
-            >
-              Xem tất cả
-            </Link>
-          }
-        >
-          {actionError && (
-            <p role="alert" className="mb-2 text-sm text-red-600">
-              {actionError}
-            </p>
-          )}
-          {loading ? (
-            <SkeletonRegion label="Đang tải thẻ cần chú ý…">
-              <SkeletonRows rows={3} />
-            </SkeletonRegion>
-          ) : error ? (
-            // Tai loi: khong hien "khong co the nao" de khoi hieu nham la da xu ly xong
-            <p className="text-sm text-slate-500 dark:text-slate-400">Không tải được danh sách thẻ.</p>
-          ) : (
-            <AttentionList cards={myCards} now={now} keepIds={keepIds} onToggleDone={(c) => void toggleDone(c)} />
-          )}
-        </Section>
-
-        {/* 4. Bang cua ban: tien do + viec cua minh tren tung bang */}
-        <Section
-          title="Bảng của bạn"
-          action={
-            <Link to="/boards" className="text-xs font-medium text-primary-ink hover:underline">
-              Tất cả bảng
-            </Link>
-          }
-        >
-          {loading || boardsLoading ? (
-            <SkeletonRegion label="Đang tải bảng của bạn…">
-              <SkeletonRows rows={3} />
-            </SkeletonRegion>
-          ) : (
-            <BoardProgressList boards={boards} cards={myCards} now={now} />
-          )}
-        </Section>
-      </div>
-
-      {/* Cot phu: 5. da hoan thanh theo tuan, 6. hoat dong gan day (khung cao co han + thanh cuon rieng: cuon het
-          danh sach khong keo ca trang theo) */}
-      <div className="flex min-w-0 flex-col gap-5 xl:col-span-1">
-        {!error && (
-          <Section title="Bạn đã hoàn thành">
+        <div className="flex min-w-0 flex-col gap-5 xl:col-span-2">
+          {/* 3. Can chu y */}
+          <HomeSection
+            title="Cần chú ý"
+            action={
+              <Link to="/my-cards" className={linkCls}>
+                Xem tất cả
+              </Link>
+            }
+          >
+            {actionError && (
+              <p role="alert" className="mb-2 text-sm text-red-600">
+                {actionError}
+              </p>
+            )}
             {loading ? (
-              <SkeletonRegion label="Đang tải số thẻ đã hoàn thành…">
+              <SkeletonRegion label="Đang tải thẻ cần chú ý…">
+                <SkeletonRows rows={3} />
+              </SkeletonRegion>
+            ) : error ? (
+              // Tai loi: khong hien "khong co the nao" de khoi hieu nham la da xu ly xong
+              <p className="text-sm text-slate-500 dark:text-slate-400">Không tải được danh sách thẻ.</p>
+            ) : (
+              <AttentionList cards={myCards} now={now} keepIds={keepIds} onToggleDone={(c) => void toggleDone(c)} />
+            )}
+          </HomeSection>
+
+          {/* 4. Bang cua ban: tien do + viec cua minh tren tung bang */}
+          <HomeSection
+            title="Bảng của bạn"
+            action={
+              <Link to="/boards" className={linkCls}>
+                Tất cả bảng
+              </Link>
+            }
+          >
+            {loading || boardsLoading ? (
+              <SkeletonRegion label="Đang tải bảng của bạn…">
                 <SkeletonRows rows={3} />
               </SkeletonRegion>
             ) : (
-              <CompletionChart cards={myCards} now={now} />
+              <BoardProgressList boards={boards} cards={myCards} now={now} />
             )}
-          </Section>
-        )}
+          </HomeSection>
+        </div>
 
-        <Section
-          title="Hoạt động gần đây"
-          className="flex max-h-[32rem] flex-col"
-        >
-          {loading ? (
-            <SkeletonRegion label="Đang tải hoạt động gần đây…">
-              <SkeletonRows rows={5} />
-            </SkeletonRegion>
-          ) : activity.length === 0 ? (
-            <EmptyState compact icon="activity" title="Chưa có hoạt động nào." />
-          ) : (
-            <ul
-              aria-label="Hoạt động gần đây"
-              tabIndex={0}
-              className="tf-scroll -mr-3 flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pr-3 focus-visible:outline-2 focus-visible:outline-primary"
-            >
-              {activity.map((a) => (
-                <li key={a.id} className="flex gap-2">
-                  <Avatar
-                    id={a.user.id}
-                    name={a.user.name}
-                    avatarUrl={a.user.avatarUrl}
-                    className="h-6 w-6 text-[10px]"
-                  />
-                  <p className="text-xs text-slate-600 dark:text-slate-300">
-                    <span className="font-semibold text-slate-700 dark:text-slate-100">
-                      {a.user.name}
-                    </span>{' '}
-                    {activityPhrase(a)}
-                    {a.card && (
-                      <span className="text-slate-500"> — “{a.card.title}”</span>
-                    )}
-                    {a.board && (
-                      <>
-                        {' · '}
-                        <Link
-                          to={`/boards/${a.board.id}`}
-                          className="text-primary-ink hover:underline"
-                        >
-                          {a.board.name}
-                        </Link>
-                      </>
-                    )}
-                    <br />
-                    <span className="text-slate-400">{timeAgo(a.createdAt)}</span>
-                  </p>
-                </li>
-              ))}
-            </ul>
+        {/* Cot phu */}
+        <div className="flex min-w-0 flex-col gap-5 xl:col-span-1">
+          {/* 5. Da hoan thanh theo tuan */}
+          {!error && (
+            <HomeSection title="Bạn đã hoàn thành">
+              {loading ? (
+                <SkeletonRegion label="Đang tải số thẻ đã hoàn thành…">
+                  <SkeletonRows rows={3} />
+                </SkeletonRegion>
+              ) : (
+                <CompletionChart cards={myCards} now={now} />
+              )}
+            </HomeSection>
           )}
-        </Section>
-      </div>
+
+          {/* 6. Hoat dong gan day */}
+          <ActivityFeed />
+        </div>
       </div>
     </div>
   );
