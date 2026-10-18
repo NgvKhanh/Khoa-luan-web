@@ -34,6 +34,30 @@ export function dayLabel(iso: string, now: Date): string {
   return `${weekdayName(d)} ${dd}/${mm}`;
 }
 
+/**
+ * Dai ngay o trang Tong quan: hom nay + 7 ngay ke tiep (cung pham vi voi o "Đến hạn 7 ngày tới" va nhom
+ * "Trong 7 ngày tới"). Moi o la cac the CHUA xong co han roi dung ngay do; the tre tu truoc hom nay dem rieng.
+ */
+export function weekAhead<T extends { isDone: boolean; dueDate: string | null }>(
+  cards: T[],
+  now: Date
+): { days: { date: Date; cards: T[] }[]; overdueBefore: number } {
+  const days = Array.from({ length: 8 }, (_, i) => {
+    const date = startOfDay(now);
+    date.setDate(date.getDate() + i);
+    return { date, cards: [] as T[] };
+  });
+  let overdueBefore = 0;
+  for (const c of cards) {
+    if (c.isDone || !c.dueDate) continue;
+    const diff = dayDiff(now, new Date(c.dueDate));
+    if (diff < 0) overdueBefore += 1;
+    else if (diff < days.length) days[diff].cards.push(c);
+  }
+  for (const d of days) d.cards.sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
+  return { days, overdueBefore };
+}
+
 export interface HomeStats {
   /** The chua xong. */
   open: number;

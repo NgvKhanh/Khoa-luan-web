@@ -4,6 +4,7 @@ import Avatar from '../components/Avatar';
 import { CreateBoardMenu } from '../components/Header';
 import AttentionList from '../components/home/AttentionList';
 import StatTiles from '../components/home/StatTiles';
+import WeekStrip from '../components/home/WeekStrip';
 import { SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
@@ -182,6 +183,26 @@ export default function HomeDashboard() {
 
       {/* 1. So lieu co ngu canh */}
       <StatTiles stats={stats} now={now} loading={loading} failed={Boolean(error)} />
+
+      {/* 2. Hom nay + 7 ngay toi */}
+      {!error && (
+        <Section
+          title="7 ngày tới"
+          action={
+            <Link to="/calendar" className="text-xs font-medium text-primary-ink hover:underline">
+              Mở lịch
+            </Link>
+          }
+        >
+          {loading ? (
+            <SkeletonRegion label="Đang tải lịch 7 ngày tới…">
+              <SkeletonRows rows={2} />
+            </SkeletonRegion>
+          ) : (
+            <WeekStrip cards={myCards} now={now} />
+          )}
+        </Section>
+      )}
 
       {/* Tu 1280px: cot chinh (can xu ly + truy cap nhanh) va cot phu (hoat dong) ti le 2:1 */}
       <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-3">

@@ -86,6 +86,20 @@ describe('Tổng quan: số liệu đầu trang', () => {
   });
 });
 
+describe('Tổng quan: dải 7 ngày tới', () => {
+  it('ô hôm nay có số thẻ trễ từ trước; mỗi ô ghi thẻ đến hạn ngày đó, bấm mở thẳng thẻ', async () => {
+    renderPage();
+    const strip = screen.getByRole('heading', { name: '7 ngày tới' }).closest('section') as HTMLElement;
+    const today = await within(strip).findByRole('listitem', { name: 'Hôm nay 14/10: 1 thẻ đến hạn' });
+    expect(within(today).getByRole('link', { name: '+1 quá hạn' })).toHaveAttribute('href', '/my-cards');
+    expect(within(today).getByRole('link', { name: /Chốt khách mời/ })).toHaveAttribute('href', '/boards/b1?card=c2');
+    const sat = within(strip).getByRole('listitem', { name: 'T7 17/10: 1 thẻ đến hạn' });
+    expect(within(sat).getByRole('link', { name: /Duyệt kịch bản/ })).toHaveAttribute('href', '/boards/b1?card=c3');
+    expect(within(strip).getAllByRole('listitem', { name: /thẻ đến hạn$/ })).toHaveLength(8);
+    expect(within(strip).getByRole('link', { name: 'Mở lịch' })).toHaveAttribute('href', '/calendar');
+  });
+});
+
 describe('Tổng quan: khối Cần chú ý', () => {
   it('chia nhóm quá hạn / hôm nay / 7 ngày tới, ghi rõ hạn, bấm tên thẻ mở đúng thẻ', async () => {
     renderPage();

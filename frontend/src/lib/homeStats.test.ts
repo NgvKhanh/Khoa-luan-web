@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayDiff, dayLabel, homeStats, startOfWeek } from './homeStats';
+import { dayDiff, dayLabel, homeStats, startOfWeek, weekAhead } from './homeStats';
 
 // Giữa trưa thứ Tư 14/10/2026 theo giờ máy
 const NOW = new Date(2026, 9, 14, 12, 0, 0);
@@ -77,5 +77,34 @@ describe('homeStats', () => {
       doneThisWeek: 0,
       doneLastWeek: 0,
     });
+  });
+});
+
+describe('weekAhead (dải 7 ngày tới)', () => {
+  it('8 ô từ hôm nay; thẻ chưa xong xếp theo ngày hạn và giờ; thẻ trễ từ trước hôm nay đếm riêng', () => {
+    const cards = [
+      { id: 'late', isDone: false, dueDate: at(12) },
+      { id: 'today-late', isDone: false, dueDate: at(14, 8) }, // quá giờ nhưng vẫn là hạn hôm nay
+      { id: 'today-pm', isDone: false, dueDate: at(14, 18) },
+      { id: 'sat-pm', isDone: false, dueDate: at(17, 15) },
+      { id: 'sat-am', isDone: false, dueDate: at(17, 8) },
+      { id: 'day7', isDone: false, dueDate: at(21) },
+      { id: 'day8', isDone: false, dueDate: at(22) }, // ngoài phạm vi
+      { id: 'done', isDone: true, dueDate: at(15) },
+      { id: 'nodue', isDone: false, dueDate: null },
+    ];
+    const { days, overdueBefore } = weekAhead(cards, NOW);
+    expect(overdueBefore).toBe(1);
+    expect(days.map((d) => d.date)).toEqual(Array.from({ length: 8 }, (_, i) => new Date(2026, 9, 14 + i)));
+    expect(days.map((d) => d.cards.map((c) => c.id))).toEqual([
+      ['today-late', 'today-pm'],
+      [],
+      [],
+      ['sat-am', 'sat-pm'],
+      [],
+      [],
+      [],
+      ['day7'],
+    ]);
   });
 });
