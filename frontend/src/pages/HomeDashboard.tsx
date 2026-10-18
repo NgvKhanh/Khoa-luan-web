@@ -3,18 +3,17 @@ import { Link } from 'react-router-dom';
 import Avatar from '../components/Avatar';
 import { CreateBoardMenu } from '../components/Header';
 import AttentionList from '../components/home/AttentionList';
+import BoardProgressList from '../components/home/BoardProgressList';
 import StatTiles from '../components/home/StatTiles';
 import WeekStrip from '../components/home/WeekStrip';
 import { SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
 import { activityPhrase } from '../lib/activityText';
-import { assetUrl } from '../lib/assets';
 import { fetchHomeActivity, type HomeActivity } from '../lib/api/board';
 import { fetchMyCards, updateCard, type MyCard } from '../lib/api/card';
 import { getErrorMessage } from '../lib/errorMessage';
 import { homeStats } from '../lib/homeStats';
-import { getRecentBoards } from '../lib/recentBoards';
 import EmptyState from '../components/EmptyState';
 
 function greeting(): string {
@@ -64,42 +63,9 @@ function Section({
   );
 }
 
-function BoardTile({
-  id,
-  name,
-  color,
-  backgroundImage,
-}: {
-  id: string;
-  name: string;
-  color: string;
-  backgroundImage: string | null;
-}) {
-  return (
-    <Link
-      to={`/boards/${id}`}
-      className="group relative flex h-16 items-end overflow-hidden rounded-lg p-2 text-sm font-semibold text-white shadow-sm ring-1 ring-black/5"
-      style={
-        backgroundImage
-          ? {
-              backgroundImage: `url(${assetUrl(backgroundImage)})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-            }
-          : { backgroundColor: color }
-      }
-    >
-      <span className="absolute inset-0 bg-black/20 transition group-hover:bg-black/30" />
-      <span className="relative line-clamp-2 leading-tight drop-shadow">
-        {name}
-      </span>
-    </Link>
-  );
-}
-
 export default function HomeDashboard() {
   const { user } = useAuth();
-  const { boards } = useBoards();
+  const { boards, isLoading: boardsLoading } = useBoards();
 
   const [myCards, setMyCards] = useState<MyCard[]>([]);
   const [activity, setActivity] = useState<HomeActivity[]>([]);
@@ -150,15 +116,6 @@ export default function HomeDashboard() {
 
   const stats = useMemo(() => homeStats(myCards, now), [myCards, now]);
 
-  const recent = useMemo(() => {
-    const ids = getRecentBoards();
-    return ids
-      .map((id) => boards.find((b) => b.id === id))
-      .filter((b): b is (typeof boards)[number] => Boolean(b))
-      .slice(0, 6);
-  }, [boards]);
-  const starred = boards.filter((b) => b.isStarred).slice(0, 6);
-
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -204,10 +161,10 @@ export default function HomeDashboard() {
         </Section>
       )}
 
-      {/* Tu 1280px: cot chinh (can xu ly + truy cap nhanh) va cot phu (hoat dong) ti le 2:1 */}
+      {/* Tu 1280px: cot chinh (can chu y + bang cua ban) va cot phu (hoan thanh + hoat dong) ti le 2:1 */}
       <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-3">
       <div className="flex min-w-0 flex-col gap-5 xl:col-span-2">
-        {/* 2. Can chu y */}
+        {/* 3. Can chu y */}
         <Section
           title="Cần chú ý"
           action={
@@ -236,54 +193,26 @@ export default function HomeDashboard() {
           )}
         </Section>
 
-        {/* 3. Truy cap nhanh */}
-        {(recent.length > 0 || starred.length > 0) && (
-          <Section title="Truy cập nhanh">
-            {recent.length > 0 && (
-              <>
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Xem gần đây
-                </p>
-                <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {recent.map((b) => (
-                    <BoardTile
-                      key={b.id}
-                      id={b.id}
-                      name={b.name}
-                      color={b.color}
-                      backgroundImage={b.backgroundImage}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-            {starred.length > 0 && (
-              <>
-                <p className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-amber-400" fill="currentColor">
-                    <path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.8 6.1 20.5l1.2-6.5L2.5 9.4l6.6-.9z" />
-                  </svg>
-                  Đánh dấu sao
-                </p>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {starred.map((b) => (
-                    <BoardTile
-                      key={b.id}
-                      id={b.id}
-                      name={b.name}
-                      color={b.color}
-                      backgroundImage={b.backgroundImage}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-          </Section>
-        )}
-
+        {/* 4. Bang cua ban: tien do + viec cua minh tren tung bang */}
+        <Section
+          title="Bảng của bạn"
+          action={
+            <Link to="/boards" className="text-xs font-medium text-primary-ink hover:underline">
+              Tất cả bảng
+            </Link>
+          }
+        >
+          {loading || boardsLoading ? (
+            <SkeletonRegion label="Đang tải bảng của bạn…">
+              <SkeletonRows rows={3} />
+            </SkeletonRegion>
+          ) : (
+            <BoardProgressList boards={boards} cards={myCards} now={now} />
+          )}
+        </Section>
       </div>
 
-      {/* 4. Hoat dong gan day: khung cao co han + thanh cuon rieng (cuon het danh sach khong keo ca
+      {/* 6. Hoat dong gan day: khung cao co han + thanh cuon rieng (cuon het danh sach khong keo ca
           trang theo); man hinh rong thi dung yen ben phai khi cuon cot trai */}
       <div className="min-w-0 xl:sticky xl:top-6 xl:col-span-1">
         <Section

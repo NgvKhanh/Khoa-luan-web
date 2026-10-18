@@ -3,13 +3,19 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MyCard } from '../lib/api/card';
+import type { Board } from '../types/board';
 import HomeDashboard from './HomeDashboard';
 
-const mocks = vi.hoisted(() => ({ fetchMyCards: vi.fn(), updateCard: vi.fn(), fetchHomeActivity: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  fetchMyCards: vi.fn(),
+  updateCard: vi.fn(),
+  fetchHomeActivity: vi.fn(),
+  boards: [] as Board[],
+}));
 vi.mock('../lib/api/card', () => ({ fetchMyCards: mocks.fetchMyCards, updateCard: mocks.updateCard }));
 vi.mock('../lib/api/board', () => ({ fetchHomeActivity: mocks.fetchHomeActivity }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { id: 'u1', name: 'Khanh Quoc' } }) }));
-vi.mock('../context/BoardsContext', () => ({ useBoards: () => ({ boards: [] }) }));
+vi.mock('../context/BoardsContext', () => ({ useBoards: () => ({ boards: mocks.boards, isLoading: false }) }));
 vi.mock('../components/Header', () => ({ CreateBoardMenu: () => null }));
 
 // Giữa trưa thứ Tư 14/10/2026 theo giờ máy
@@ -54,8 +60,31 @@ const attention = () => screen.getByRole('heading', { name: 'Cần chú ý' }).c
 const stat = (label: string) => screen.getByText(label, { selector: 'button span' }).closest('button') as HTMLElement;
 const overdueStat = () => stat('Quá hạn');
 
+function board(id: string, name: string, over: Partial<Board> = {}): Board {
+  return {
+    id,
+    ownerId: 'u1',
+    workspaceId: 'w1',
+    name,
+    color: '#4f46e5',
+    backgroundImage: null,
+    visibility: 'WORKSPACE',
+    createdAt: '2026-09-01T00:00:00Z',
+    updatedAt: '2026-10-01T00:00:00Z',
+    workspaceName: 'Ban tổ chức',
+    cardCount: 0,
+    doneCount: 0,
+    ...over,
+  };
+}
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'], now: NOW });
+  localStorage.clear();
+  mocks.boards = [
+    board('b1', 'Talk show', { cardCount: 70, doneCount: 49, updatedAt: '2026-10-10T00:00:00Z' }),
+    board('b2', 'Marketing', { isStarred: true, cardCount: 0, updatedAt: '2026-10-12T00:00:00Z' }),
+  ];
   mocks.fetchMyCards.mockResolvedValue(CARDS);
   mocks.fetchHomeActivity.mockResolvedValue([]);
   mocks.updateCard.mockResolvedValue({});
@@ -97,6 +126,38 @@ describe('Tổng quan: dải 7 ngày tới', () => {
     expect(within(sat).getByRole('link', { name: /Duyệt kịch bản/ })).toHaveAttribute('href', '/boards/b1?card=c3');
     expect(within(strip).getAllByRole('listitem', { name: /thẻ đến hạn$/ })).toHaveLength(8);
     expect(within(strip).getByRole('link', { name: 'Mở lịch' })).toHaveAttribute('href', '/calendar');
+  });
+});
+
+describe('Tổng quan: Bảng của bạn', () => {
+  const section = () => screen.getByRole('heading', { name: 'Bảng của bạn' }).closest('section') as HTMLElement;
+
+  it('chưa mở bảng nào thì "Gần đây" lấy bảng cập nhật gần nhất; có tiến độ và việc của mình trên từng bảng', async () => {
+    renderPage();
+    const box = section();
+    const links = await within(box).findAllByRole('link', { name: /^(Talk show|Marketing)$/ });
+    expect(links.map((l) => l.textContent)).toEqual(['Marketing', 'Talk show']);
+    expect(within(box).getByRole('progressbar', { name: 'Tiến độ bảng Talk show' })).toHaveAttribute('aria-valuenow', '70');
+    expect(within(box).getByText('49/70')).toBeInTheDocument();
+    expect(within(box).getByText('Chưa có thẻ')).toBeInTheDocument();
+    // 4 thẻ mở của mình trên Talk show, 1 quá hạn
+    expect(within(box).getByText(/4 thẻ của bạn/)).toBeInTheDocument();
+    expect(within(box).getByText(/1 quá hạn/)).toBeInTheDocument();
+  });
+
+  it('đổi tab: Có sao / Có việc của bạn; nhớ tab đã chọn', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const box = section();
+    await user.click(await within(box).findByRole('button', { name: 'Có sao' }));
+    expect(within(box).getByRole('button', { name: 'Có sao' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(box).getByRole('link', { name: 'Marketing' })).toBeInTheDocument();
+    expect(within(box).queryByRole('link', { name: 'Talk show' })).not.toBeInTheDocument();
+
+    await user.click(within(box).getByRole('button', { name: 'Có việc của bạn' }));
+    expect(within(box).getByRole('link', { name: 'Talk show' })).toHaveAttribute('href', '/boards/b1');
+    expect(within(box).queryByRole('link', { name: 'Marketing' })).not.toBeInTheDocument();
+    expect(localStorage.getItem('tf.home.boardTab')).toBe('mine');
   });
 });
 
