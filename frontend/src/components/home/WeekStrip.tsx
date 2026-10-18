@@ -26,15 +26,20 @@ export default function WeekStrip({ cards, now }: { cards: MyCard[]; now: Date }
                 isToday ? 'border-primary/40 bg-primary-soft' : 'border-slate-200 dark:border-slate-700'
               }`}
             >
-              <p className="flex items-baseline gap-1 text-xs">
-                <span className={isToday ? 'font-semibold text-primary-ink' : 'font-medium text-slate-600 dark:text-slate-300'}>
+              <p className="flex flex-wrap items-baseline gap-x-1 text-xs">
+                <span
+                  className={`whitespace-nowrap ${isToday ? 'font-semibold text-primary-ink' : 'font-medium text-slate-600 dark:text-slate-300'}`}
+                >
                   {isToday ? 'Hôm nay' : weekdayShort(date)}
                 </span>
-                <span className="tabular-nums text-slate-400">{ddmm(date)}</span>
+                <span className="whitespace-nowrap tabular-nums text-slate-400">{ddmm(date)}</span>
               </p>
 
               {isToday && overdueBefore > 0 && (
-                <Link to="/my-cards" className="text-xs font-medium text-red-700 hover:underline dark:text-red-300">
+                <Link
+                  to="/my-cards"
+                  className="whitespace-nowrap text-[11px] font-medium text-red-700 hover:underline sm:text-xs dark:text-red-300"
+                >
                   +{overdueBefore} quá hạn
                 </Link>
               )}

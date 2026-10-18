@@ -75,13 +75,13 @@ export default function StatTiles({
           key={t.label}
           type="button"
           onClick={() => navigate(t.to)}
-          className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:shadow dark:border-slate-700 dark:bg-slate-800"
+          className="flex flex-col justify-start rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:shadow dark:border-slate-700 dark:bg-slate-800"
         >
           <span className="block text-xs text-slate-500 dark:text-slate-400">{t.label}</span>
           <span className={`mt-1 block text-2xl font-bold ${t.valueClass ?? 'text-slate-900 dark:text-slate-100'}`}>
             <StatValue value={t.value} loading={loading} failed={failed} />
           </span>
-          <span className="mt-0.5 block min-h-4 truncate text-xs text-slate-500 dark:text-slate-400">
+          <span className="mt-0.5 block min-h-4 text-xs text-slate-500 dark:text-slate-400">
             {loading ? <Skeleton className="h-3 w-20" /> : failed ? '' : t.note}
           </span>
         </button>

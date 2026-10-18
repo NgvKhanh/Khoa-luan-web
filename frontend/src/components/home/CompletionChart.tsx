@@ -12,7 +12,7 @@ function weekRange(start: Date): string {
 
 const PLOT_PX = 88;
 
-// Cot theo tuan (mot chuoi, mot mau): cot tuan nay dam, cac tuan truoc nhat hon. Re chuot / cham vao cot hien so the +
+// Cot theo tuan (mot chuoi): cot tuan nay mau thuong hieu, cac tuan truoc mau xam trung tinh. Re chuot / cham vao cot hien so the +
 // khoang ngay; ban phim: Tab vao bieu do roi mui ten trai/phai. Bang an ben duoi cho trinh doc man hinh doc du so lieu.
 export default function CompletionChart({ cards, now }: { cards: MyCard[]; now: Date }) {
   const data = useMemo(() => weeklyDone(cards, now), [cards, now]);
@@ -75,7 +75,7 @@ export default function CompletionChart({ cards, now }: { cards: MyCard[]; now: 
               )}
               <span
                 className={`tf-bar-in block w-full max-w-6 rounded-t ${
-                  current ? 'bg-primary' : 'bg-primary/35 dark:bg-primary/45'
+                  current ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-600'
                 } ${active === i ? 'opacity-80' : ''}`}
                 style={{ height: h }}
               />
@@ -83,17 +83,10 @@ export default function CompletionChart({ cards, now }: { cards: MyCard[]; now: 
           );
         })}
       </div>
-      <div aria-hidden="true" className="mt-1 flex gap-1">
-        {data.weeks.map((w, i) => (
-          <span
-            key={w.start.getTime()}
-            className={`min-w-0 flex-1 truncate text-center text-[11px] tabular-nums ${
-              i === last ? 'font-semibold text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'
-            }`}
-          >
-            {i === last ? 'Tuần này' : ddmm(w.start)}
-          </span>
-        ))}
+      {/* Moc thoi gian chi ghi hai dau (8 nhan duoi 8 cot hep se chen nhau); tung tuan xem qua re chuot / bang an */}
+      <div aria-hidden="true" className="mt-1 flex justify-between text-[11px] tabular-nums">
+        <span className="text-slate-400 dark:text-slate-500">{ddmm(data.weeks[0].start)}</span>
+        <span className="font-semibold text-slate-700 dark:text-slate-200">Tuần này</span>
       </div>
 
       <p className="sr-only" aria-live="polite">
