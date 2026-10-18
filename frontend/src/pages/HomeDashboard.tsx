@@ -4,6 +4,7 @@ import Avatar from '../components/Avatar';
 import { CreateBoardMenu } from '../components/Header';
 import AttentionList from '../components/home/AttentionList';
 import BoardProgressList from '../components/home/BoardProgressList';
+import CompletionChart from '../components/home/CompletionChart';
 import StatTiles from '../components/home/StatTiles';
 import WeekStrip from '../components/home/WeekStrip';
 import { SkeletonRegion, SkeletonRows } from '../components/Skeleton';
@@ -212,12 +213,24 @@ export default function HomeDashboard() {
         </Section>
       </div>
 
-      {/* 6. Hoat dong gan day: khung cao co han + thanh cuon rieng (cuon het danh sach khong keo ca
-          trang theo); man hinh rong thi dung yen ben phai khi cuon cot trai */}
-      <div className="min-w-0 xl:sticky xl:top-6 xl:col-span-1">
+      {/* Cot phu: 5. da hoan thanh theo tuan, 6. hoat dong gan day (khung cao co han + thanh cuon rieng: cuon het
+          danh sach khong keo ca trang theo) */}
+      <div className="flex min-w-0 flex-col gap-5 xl:col-span-1">
+        {!error && (
+          <Section title="Bạn đã hoàn thành">
+            {loading ? (
+              <SkeletonRegion label="Đang tải số thẻ đã hoàn thành…">
+                <SkeletonRows rows={3} />
+              </SkeletonRegion>
+            ) : (
+              <CompletionChart cards={myCards} now={now} />
+            )}
+          </Section>
+        )}
+
         <Section
           title="Hoạt động gần đây"
-          className="flex max-h-[28rem] flex-col xl:max-h-[calc(100dvh-8rem)]"
+          className="flex max-h-[32rem] flex-col"
         >
           {loading ? (
             <SkeletonRegion label="Đang tải hoạt động gần đây…">

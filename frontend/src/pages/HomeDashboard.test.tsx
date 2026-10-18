@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -158,6 +158,35 @@ describe('Tổng quan: Bảng của bạn', () => {
     expect(within(box).getByRole('link', { name: 'Talk show' })).toHaveAttribute('href', '/boards/b1');
     expect(within(box).queryByRole('link', { name: 'Marketing' })).not.toBeInTheDocument();
     expect(localStorage.getItem('tf.home.boardTab')).toBe('mine');
+  });
+});
+
+describe('Tổng quan: Bạn đã hoàn thành', () => {
+  const section = () => screen.getByRole('heading', { name: 'Bạn đã hoàn thành' }).closest('section') as HTMLElement;
+
+  it('bảng số liệu theo tuần (cho trình đọc màn hình) + tỉ lệ đúng hạn; phím mũi tên xem từng tuần', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const box = section();
+    const table = await within(box).findByRole('table');
+    const rows = within(table).getAllByRole('row').slice(1);
+    expect(rows).toHaveLength(8);
+    expect(rows[7]).toHaveTextContent('Tuần này (12/10 – 18/10)1');
+    expect(rows[6]).toHaveTextContent('05/10 – 11/101');
+    expect(rows[0]).toHaveTextContent('24/08 – 30/080');
+    // c5 xong ngày 13 nhưng hạn ngày 9: trễ; c6 không có hạn nên không tính
+    expect(within(box).getByText(/Đúng hạn 0\/1 thẻ có hạn/)).toBeInTheDocument();
+
+    act(() => within(box).getByLabelText(/Biểu đồ số thẻ hoàn thành/).focus());
+    expect(within(box).getByText('1 thẻ, tuần 12/10 – 18/10')).toBeInTheDocument();
+    await user.keyboard('{ArrowLeft}');
+    expect(within(box).getByText('1 thẻ, tuần 05/10 – 11/10')).toBeInTheDocument();
+  });
+
+  it('8 tuần không xong thẻ nào thì ghi một dòng thay cho biểu đồ', async () => {
+    mocks.fetchMyCards.mockResolvedValue(CARDS.filter((c) => !c.isDone));
+    renderPage();
+    expect(await within(section()).findByText('Chưa có thẻ nào của bạn hoàn thành trong 8 tuần qua.')).toBeInTheDocument();
   });
 });
 

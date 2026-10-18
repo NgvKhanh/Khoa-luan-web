@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayDiff, dayLabel, homeStats, startOfWeek, weekAhead } from './homeStats';
+import { dayDiff, dayLabel, homeStats, startOfWeek, weekAhead, weeklyDone } from './homeStats';
 
 // Giữa trưa thứ Tư 14/10/2026 theo giờ máy
 const NOW = new Date(2026, 9, 14, 12, 0, 0);
@@ -106,5 +106,28 @@ describe('weekAhead (dải 7 ngày tới)', () => {
       [],
       ['day7'],
     ]);
+  });
+});
+
+describe('weeklyDone (biểu đồ đã hoàn thành)', () => {
+  it('8 tuần tính từ thứ Hai, tuần này ở cuối; đếm theo completedAt; tỉ lệ đúng hạn chỉ trên thẻ có hạn', () => {
+    const done = (completedAt: string, dueDate: string | null = null) => ({ isDone: true, completedAt, dueDate });
+    const r = weeklyDone(
+      [
+        done(at(14, 11), at(15)), // tuần này, đúng hạn
+        done(at(12, 0), at(10)), // tuần này (0h thứ Hai), trễ
+        done(at(11, 23)), // Chủ nhật tuần trước, không có hạn
+        done(new Date(2026, 7, 24, 0, 0).toISOString(), at(1)), // thứ Hai đầu tiên của 8 tuần
+        done(new Date(2026, 7, 23, 23, 0).toISOString(), at(1)), // trước 8 tuần: bỏ qua
+        { isDone: false, completedAt: null, dueDate: at(13) },
+        { isDone: true, completedAt: null, dueDate: at(13) }, // thiếu completedAt: bỏ qua
+      ],
+      NOW
+    );
+    expect(r.weeks.map((w) => w.start)).toEqual(
+      Array.from({ length: 8 }, (_, i) => new Date(2026, 7, 24 + 7 * i))
+    );
+    expect(r.weeks.map((w) => w.count)).toEqual([1, 0, 0, 0, 0, 0, 1, 2]);
+    expect(r).toMatchObject({ withDue: 3, onTime: 2 });
   });
 });

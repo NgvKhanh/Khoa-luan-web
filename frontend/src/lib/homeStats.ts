@@ -58,6 +58,43 @@ export function weekAhead<T extends { isDone: boolean; dueDate: string | null }>
   return { days, overdueBefore };
 }
 
+export interface WeeklyDone {
+  /** Tu cu den moi; o cuoi la tuan dang chay. */
+  weeks: { start: Date; count: number }[];
+  /** Trong cac the xong o cac tuan tren: so the co han, va so the xong truoc/dung han. */
+  withDue: number;
+  onTime: number;
+}
+
+/** So the cua minh hoan thanh moi tuan (theo completedAt) trong `weeks` tuan gan nhat + ti le dung han. */
+export function weeklyDone(
+  cards: Pick<MyCard, 'isDone' | 'dueDate' | 'completedAt'>[],
+  now: Date,
+  weeks = 8
+): WeeklyDone {
+  const current = startOfWeek(now);
+  const list = Array.from({ length: weeks }, (_, i) => {
+    const start = new Date(current);
+    start.setDate(start.getDate() - 7 * (weeks - 1 - i));
+    return { start, count: 0 };
+  });
+  const from = list[0].start.getTime();
+  let withDue = 0;
+  let onTime = 0;
+  for (const c of cards) {
+    if (!c.isDone || !c.completedAt) continue;
+    const t = new Date(c.completedAt).getTime();
+    if (!(t >= from)) continue;
+    const idx = Math.min(Math.floor(dayDiff(list[0].start, new Date(t)) / 7), weeks - 1);
+    list[idx].count += 1;
+    if (c.dueDate) {
+      withDue += 1;
+      if (t <= new Date(c.dueDate).getTime()) onTime += 1;
+    }
+  }
+  return { weeks: list, withDue, onTime };
+}
+
 export interface HomeStats {
   /** The chua xong. */
   open: number;
