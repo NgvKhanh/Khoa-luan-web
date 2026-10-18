@@ -1,7 +1,4 @@
 const paths = {
-  arrow: 'M4 12h16m-6-6 6 6-6 6',
-  chevron: 'm9 5 7 7-7 7',
-  sparkles: 'm12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3ZM20 2v4m-2-2h4',
   board: 'M3 4h18v16H3V4Zm6 0v16m6-16v16',
   calendar:
     'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z',
@@ -13,7 +10,6 @@ const paths = {
   plus: 'M12 5v14M5 12h14',
   menu: 'M4 6h16M4 12h16M4 18h16',
   close: 'm6 6 12 12M6 18 18 6',
-  play: 'm8 5 11 7-11 7V5Z',
   layers: 'm12 3 10 5-10 5L2 8l10-5ZM2 12l10 5 10-5M2 16l10 5 10-5',
 } as const;
 

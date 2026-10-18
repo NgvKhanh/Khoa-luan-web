@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Logo from '../components/Logo';
-import AiPlanPreview from '../components/landing/AiPlanPreview';
 import BoardPreview from '../components/landing/BoardPreview';
 import LandingIcon from '../components/landing/LandingIcon';
 import { useAuth } from '../context/AuthContext';
@@ -9,39 +8,73 @@ import './LandingPage.css';
 
 const navigation = [
   { label: 'Tính năng', href: '#tinh-nang' },
-  { label: 'TaskFlow & AI', href: '#lap-ke-hoach-ai' },
-  { label: 'Cách hoạt động', href: '#cach-hoat-dong' },
+  { label: 'Câu hỏi thường gặp', href: '#cau-hoi' },
 ];
+
+// Mo ta dung chuc nang dang chay (doi chuc nang thi sua o day)
+const features = [
+  {
+    icon: 'board' as const,
+    title: 'Bảng Kanban',
+    body: 'Mỗi dự án là một bảng gồm các cột và thẻ. Cột gắn với trạng thái công việc, kéo thẻ sang cột khác thì trạng thái đổi theo. Thẻ có hạn, nhãn, checklist, tệp đính kèm và bình luận.',
+  },
+  {
+    icon: 'calendar' as const,
+    title: 'Lịch và dạng bảng',
+    body: 'Ngoài Kanban, có thể xem thẻ theo lịch hoặc dạng bảng biểu, lọc theo từ khoá, thành viên, trạng thái, nhãn và hạn.',
+  },
+  {
+    icon: 'team' as const,
+    title: 'Làm việc nhóm',
+    body: 'Mời thành viên qua email hoặc liên kết, phân quyền theo vai trò. Thay đổi trên bảng hiện ngay cho mọi người đang mở, có thông báo khi được giao việc hoặc được nhắc tên.',
+  },
+  {
+    icon: 'layers' as const,
+    title: 'Tạo bảng từ mô tả',
+    body: 'Dán mô tả dự án hoặc tải tài liệu lên, AI đề xuất các cột và công việc. Bạn xem lại, sửa hoặc bỏ bớt rồi mới tạo bảng.',
+  },
+  {
+    icon: 'chart' as const,
+    title: 'Gợi ý người phụ trách',
+    body: 'Với mỗi việc, thành viên được xếp hạng theo kỹ năng, việc tương tự đã làm và số việc đang mở, kèm lý do. Người quyết định vẫn là bạn.',
+  },
+  {
+    icon: 'message' as const,
+    title: 'Trợ lý hỏi đáp',
+    body: 'Hỏi bằng tiếng Việt về việc của bạn hay tiến độ nhóm, hoặc nhờ tạo thẻ, đổi hạn, giao việc. Thao tác nhiều bước hoặc xoá dữ liệu luôn hiện bản xem trước để bạn xác nhận.',
+  },
+];
+
 const questions = [
   {
-    question: 'TaskFlow phù hợp với ai?',
+    question: 'TaskFlow dùng cho ai?',
     answer:
-      'Bạn có thể dùng TaskFlow để quản lý công việc cá nhân, làm đồ án hoặc phối hợp trong nhóm. Mỗi dự án có thể được tổ chức thành một bảng riêng, với các danh sách và thẻ công việc phù hợp với quy trình của bạn.',
+      'Cho cá nhân hoặc nhóm nhỏ cần theo dõi công việc theo dự án, ví dụ đồ án môn học, ban tổ chức sự kiện hay nhóm phát triển phần mềm. Mỗi dự án là một bảng riêng trong không gian làm việc của nhóm.',
   },
   {
-    question: 'Tôi có cần dùng AI để tạo bảng không?',
+    question: 'Bắt đầu như thế nào?',
     answer:
-      'Không bắt buộc. Bạn có thể tự tạo bảng, sử dụng mẫu có sẵn hoặc nhờ AI hỗ trợ lập kế hoạch từ mô tả và tài liệu. Với kế hoạch được gợi ý, bạn có thể xem lại, chỉnh sửa và chọn công việc trước khi tạo bảng.',
+      'Tạo tài khoản, tạo một bảng (bảng trống, từ mẫu có sẵn hoặc từ mô tả), rồi mời thành viên vào bảng và thêm công việc.',
   },
   {
-    question: 'Gợi ý phân công hoạt động như thế nào?',
+    question: 'Không dùng AI có được không?',
     answer:
-      'TaskFlow kết hợp thông tin kỹ năng, lịch sử làm việc và khối lượng công việc để gợi ý người phù hợp. Bạn có thể xem lý do gợi ý và chủ động quyết định người nhận việc.',
+      'Được. Các chức năng AI đều là tùy chọn, bạn có thể tự tạo và sắp xếp bảng như bình thường.',
   },
   {
-    question: 'Làm sao để bắt đầu làm việc cùng nhóm?',
+    question: 'Gợi ý người phụ trách dựa vào đâu?',
     answer:
-      'Tạo tài khoản, tạo không gian làm việc và một bảng cho dự án. Sau đó, mời thành viên tham gia, thêm công việc và phân công. Cả nhóm có thể theo dõi tiến độ, bình luận và cập nhật công việc trong cùng một nơi.',
+      'Dựa vào kỹ năng thành viên khai trong hồ sơ, những việc tương tự họ đã làm và số việc họ đang có. Mỗi gợi ý ghi rõ lý do, bạn có thể chọn người khác.',
   },
   {
-    question: 'Chatbot trợ lý có thể giúp tôi những gì?',
+    question: 'Trợ lý được phép làm gì?',
     answer:
-      'Hỏi bằng tiếng Việt để tra cứu công việc, việc sắp đến hạn, thứ tự ưu tiên, tiến độ nhóm và khối lượng công việc. Trợ lý trả lời trong phạm vi bạn được phép xem, kèm liên kết tới thẻ khi có kết quả. Trợ lý hiện hỗ trợ tra cứu, chưa tự tạo hoặc chỉnh sửa công việc.',
+      'Trợ lý chỉ thấy dữ liệu trong phạm vi bạn được xem. Nó có thể tạo thẻ, chuyển cột, đặt hạn hay giao việc theo yêu cầu của bạn; thao tác nhiều bước, xoá dữ liệu hoặc đổi quyền chỉ chạy sau khi bạn bấm Áp dụng trên bản xem trước.',
   },
   {
-    question: 'Tôi có thể chia sẻ bảng với người ngoài nhóm không?',
+    question: 'Có chia sẻ bảng cho người ngoài nhóm được không?',
     answer:
-      'Bạn có thể bật chế độ công khai nếu có quyền quản lý bảng và gửi liên kết để người khác xem mà không cần đăng nhập. Bản công khai chỉ cho phép xem. Trong nhóm, những thay đổi trên bảng được cập nhật theo thời gian thực để mọi người cùng theo dõi tiến độ.',
+      'Có. Người quản lý bảng có thể bật chế độ công khai và gửi liên kết; người nhận xem được mà không cần đăng nhập nhưng không sửa được.',
   },
 ];
 
@@ -50,8 +83,6 @@ export default function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLButtonElement>(null);
   const menuPanelRef = useRef<HTMLElement>(null);
-  const destination = user ? '/boards' : '/register';
-  const actionLabel = user ? 'Vào không gian làm việc' : 'Bắt đầu sử dụng';
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -91,7 +122,7 @@ export default function LandingPage() {
               window.scrollTo({ top: 0 });
             }}
           >
-            <Logo markClassName="h-9 w-9" textClassName="text-[23px] font-bold tracking-tight" />
+            <Logo markClassName="h-8 w-8" textClassName="text-xl font-bold tracking-tight" />
           </Link>
           <nav className="tf-desktop-nav" aria-label="Điều hướng giới thiệu">
             {navigation.map((item) => (
@@ -106,9 +137,8 @@ export default function LandingPage() {
                 Đăng nhập
               </Link>
             )}
-            <Link to={destination} className="tf-button tf-button-primary tf-header-cta">
+            <Link to={user ? '/boards' : '/register'} className="tf-button tf-button-primary tf-header-cta">
               {user ? 'Mở TaskFlow' : 'Bắt đầu ngay'}
-              <LandingIcon name="arrow" />
             </Link>
             <button
               ref={menuRef}
@@ -132,13 +162,11 @@ export default function LandingPage() {
               {navigation.map((item) => (
                 <a key={item.href} href={item.href} onClick={() => setMenuOpen(false)}>
                   {item.label}
-                  <LandingIcon name="chevron" />
                 </a>
               ))}
               {!user && (
                 <Link to="/login" onClick={() => setMenuOpen(false)}>
                   Đăng nhập
-                  <LandingIcon name="arrow" />
                 </Link>
               )}
             </nav>
@@ -150,318 +178,52 @@ export default function LandingPage() {
         <section className="tf-hero" aria-labelledby="hero-title">
           <div className="tf-wrap tf-hero-grid">
             <div className="tf-hero-copy">
-              <div className="tf-eyebrow-pill">
-                <span className="tf-online-dot" />
-                Không gian cho những ý tưởng lớn
-              </div>
-              <h1 id="hero-title">
-                Công việc rõ ràng.
-                <br />
-                <span>
-                  Cả nhóm
-                  <br className="tf-hero-break" /> cùng tiến.
-                </span>
-              </h1>
+              <h1 id="hero-title">Quản lý công việc nhóm trên bảng Kanban</h1>
               <p className="tf-hero-description">
-                Từ ý tưởng đầu tiên đến công việc hoàn thành. Lập kế hoạch, phối hợp và theo dõi
-                tiến độ cùng TaskFlow.
+                TaskFlow giúp chia dự án thành từng thẻ việc, giao người phụ trách, đặt hạn và theo
+                dõi tiến độ cùng cả nhóm. Kèm theo là vài công cụ AI: tạo bảng từ mô tả, gợi ý người
+                phù hợp cho từng việc và trợ lý hỏi đáp bằng tiếng Việt.
               </p>
               <div className="tf-hero-actions">
-                <Link to={destination} className="tf-button tf-button-primary">
-                  {actionLabel}
-                  <LandingIcon name="arrow" />
-                </Link>
-                <a href="#lap-ke-hoach-ai" className="tf-button tf-button-secondary">
-                  <LandingIcon name="play" />
-                  Khám phá cách hoạt động
-                </a>
-              </div>
-              <div className="tf-hero-footnote">
-                <span>
-                  <LandingIcon name="check" />
-                  Dễ bắt đầu
-                </span>
-                <span>
-                  <LandingIcon name="check" />
-                  Linh hoạt cho cả nhóm
-                </span>
+                {user ? (
+                  <Link to="/boards" className="tf-button tf-button-primary">
+                    Vào không gian làm việc
+                  </Link>
+                ) : (
+                  <>
+                    <Link to="/register" className="tf-button tf-button-primary">
+                      Tạo tài khoản
+                    </Link>
+                    <Link to="/login" className="tf-button tf-button-secondary">
+                      Đăng nhập
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
             <div className="tf-hero-visual">
-              <div className="tf-visual-orbit" aria-hidden="true" />
-              <div className="tf-preview-top-label">
-                <span />
-                <span>Ý tưởng có chỗ. Công việc có hướng.</span>
-                <LandingIcon name="sparkles" />
-              </div>
               <BoardPreview />
-              <div className="tf-preview-callout">
-                <span className="tf-callout-icon">
-                  <LandingIcon name="check" />
-                </span>
-                <div>
-                  <strong>Từng bước nhỏ. Tiến độ rõ.</strong>
-                  <span>Cùng nhìn thấy điều gì đang tiếp theo.</span>
-                </div>
-                <span className="tf-callout-sparkle" aria-hidden="true">
-                  ✧
-                </span>
-              </div>
             </div>
-          </div>
-          <div className="tf-wrap tf-use-cases">
-            <span>CHO MỌI CÁCH BẠN LÀM VIỆC</span>
-            <p>
-              <LandingIcon name="layers" />
-              Dự án cá nhân
-            </p>
-            <p>
-              <LandingIcon name="team" />
-              Cộng tác nhóm
-            </p>
-            <p>
-              <LandingIcon name="board" />
-              Đồ án & học tập
-            </p>
-            <p>
-              <LandingIcon name="sparkles" />Ý tưởng mới
-            </p>
           </div>
         </section>
 
         <section id="tinh-nang" className="tf-section tf-wrap" aria-labelledby="features-title">
-          <div className="tf-section-heading">
-            <p className="tf-eyebrow">BỚT PHÂN TÁN, THÊM TẬP TRUNG</p>
-            <h2 id="features-title">
-              Mọi thứ cần thiết.
-              <br />
-              Cùng một không gian.
-            </h2>
-            <p>
-              Không phải tìm công việc ở một nơi, trao đổi ở một nơi khác.
-              <br className="tf-desktop-break" /> Đưa cả nhóm và kế hoạch về cùng một nhịp.
-            </p>
-          </div>
+          <h2 id="features-title">Tính năng chính</h2>
           <div className="tf-feature-grid">
-            <article className="tf-feature-card">
-              <span className="tf-feature-icon tf-feature-cyan">
-                <LandingIcon name="board" />
-              </span>
-              <h3>Nhìn rõ việc. Nắm rõ tiến độ.</h3>
-              <p>
-                Sắp xếp công việc trên bảng Kanban. Kéo thả thẻ qua từng giai đoạn và cùng nhóm theo
-                dõi các cập nhật theo thời gian thực.
-              </p>
-              <div className="tf-feature-visual tf-mini-flow" aria-hidden="true">
-                <div>
-                  <i />
-                  <span>Cần làm</span>
-                  <b />
-                  <b />
-                </div>
-                <div>
-                  <i />
-                  <span>Đang làm</span>
-                  <b />
-                  <b />
-                </div>
-                <div>
-                  <i />
-                  <span>Hoàn thành</span>
-                  <b>
-                    <LandingIcon name="check" />
-                  </b>
-                  <b>
-                    <LandingIcon name="check" />
-                  </b>
-                </div>
-              </div>
-            </article>
-            <article className="tf-feature-card">
-              <span className="tf-feature-icon tf-feature-purple">
-                <LandingIcon name="team" />
-              </span>
-              <h3>Công việc phù hợp, đúng người.</h3>
-              <p>
-                Gợi ý phân công dựa trên kỹ năng, lịch sử làm việc và khối lượng công việc. Quyết
-                định vẫn ở bạn.
-              </p>
-              <div className="tf-feature-visual tf-mini-person" aria-hidden="true">
-                <span className="tf-person tf-person-purple">HA</span>
-                <div>
-                  <strong>Hà Anh</strong>
-                  <p>Thiết kế giao diện · Figma</p>
-                </div>
-                <span className="tf-match-badge">
-                  <LandingIcon name="sparkles" />
-                  Gợi ý phù hợp
-                </span>
-              </div>
-            </article>
-            <article className="tf-feature-card">
-              <span className="tf-feature-icon tf-feature-orange">
-                <LandingIcon name="calendar" />
-              </span>
-              <h3>Cùng nhịp với từng thời hạn.</h3>
-              <p>
-                Theo dõi lịch, hạn hoàn thành và cập nhật từ đồng đội. Những việc cần chú ý luôn có
-                chỗ để tìm.
-              </p>
-              <div className="tf-feature-visual tf-mini-schedule" aria-hidden="true">
-                <div>
-                  <span>
-                    22<small>TH10</small>
-                  </span>
-                  <p>
-                    Hoàn thiện giao diện<small>Đang thực hiện</small>
-                  </p>
-                  <i />
-                </div>
-                <div>
-                  <span>
-                    24<small>TH10</small>
-                  </span>
-                  <p>
-                    Kiểm thử sản phẩm<small>Sắp đến hạn</small>
-                  </p>
-                  <i />
-                </div>
-              </div>
-            </article>
-          </div>
-          <article className="tf-assistant-feature" aria-labelledby="assistant-feature-title">
-            <div className="tf-assistant-copy">
-              <p className="tf-eyebrow">
-                <LandingIcon name="message" />
-                CHATBOT TRỢ LÝ CÔNG VIỆC
-              </p>
-              <h3 id="assistant-feature-title">Hỏi tự nhiên. Nắm rõ việc cần làm.</h3>
-              <p>
-                Tra cứu công việc, xem việc cần ưu tiên và tổng kết tiến độ nhóm bằng tiếng Việt.
-                Câu trả lời dựa trên dữ liệu bạn được phép xem, có liên kết tới công việc liên quan.
-              </p>
-              <Link to={destination} className="tf-text-link">
-                {user ? 'Vào TaskFlow để hỏi trợ lý' : 'Bắt đầu với trợ lý'}
-                <LandingIcon name="arrow" />
-              </Link>
-            </div>
-            <div
-              className="tf-assistant-question"
-              role="group"
-              aria-label="Ví dụ câu hỏi cho trợ lý"
-            >
-              <span>CÂU HỎI BẠN CÓ THỂ HỎI</span>
-              <blockquote>“Hôm nay tôi nên xử lý gì trước?”</blockquote>
-              <p>
-                <LandingIcon name="check" />
-                Tìm việc quá hạn, đến hạn và những việc tiếp theo.
-              </p>
-            </div>
-          </article>
-        </section>
-
-        <section id="lap-ke-hoach-ai" className="tf-ai-section" aria-labelledby="ai-title">
-          <div className="tf-wrap tf-ai-grid">
-            <div className="tf-ai-copy">
-              <p className="tf-eyebrow">
-                <LandingIcon name="sparkles" />
-                AI, CÙNG BẠN BẮT ĐẦU
-              </p>
-              <h2 id="ai-title">
-                Bạn có ý tưởng.
-                <br />
-                Cùng biến nó thành
-                <br />
-                <span>một kế hoạch.</span>
-              </h2>
-              <p>
-                Không còn phải bắt đầu từ một bảng trống. Mô tả điều bạn muốn làm, để TaskFlow hỗ
-                trợ chia nhỏ thành những công việc cụ thể.
-              </p>
-              <ul className="tf-ai-benefits">
-                <li>
-                  <span>
-                    <LandingIcon name="check" />
-                  </span>
-                  <div>
-                    <strong>Bắt đầu từ mô tả hoặc tài liệu</strong>
-                    <p>Đưa yêu cầu của bạn vào một kế hoạch có cấu trúc.</p>
-                  </div>
-                </li>
-                <li>
-                  <span>
-                    <LandingIcon name="check" />
-                  </span>
-                  <div>
-                    <strong>Xem lại, chỉnh sửa, rồi triển khai</strong>
-                    <p>Chọn công việc phù hợp trước khi tạo bảng cho nhóm.</p>
-                  </div>
-                </li>
-              </ul>
-              <Link to={destination} className="tf-text-link">
-                {user ? 'Tạo kế hoạch của bạn' : 'Bắt đầu với ý tưởng của bạn'}
-                <LandingIcon name="arrow" />
-              </Link>
-            </div>
-            <AiPlanPreview />
-          </div>
-        </section>
-
-        <section id="cach-hoat-dong" className="tf-section tf-wrap" aria-labelledby="how-title">
-          <div className="tf-section-heading">
-            <p className="tf-eyebrow">TỪ Ý TƯỞNG ĐẾN HÀNH ĐỘNG</p>
-            <h2 id="how-title">
-              Bắt đầu đơn giản.
-              <br />
-              Tiến về phía trước, cùng nhau.
-            </h2>
-          </div>
-          <div className="tf-steps">
-            {[
-              {
-                number: '01',
-                icon: 'layers' as const,
-                title: 'Tạo không gian của bạn',
-                body: 'Một nơi cho dự án mới. Tạo bảng từ đầu, chọn mẫu hoặc nhận hỗ trợ từ AI.',
-              },
-              {
-                number: '02',
-                icon: 'team' as const,
-                title: 'Đưa cả nhóm vào cuộc',
-                body: 'Mời đồng đội, chia nhỏ công việc và phân công người phụ trách phù hợp.',
-              },
-              {
-                number: '03',
-                icon: 'chart' as const,
-                title: 'Cùng tiến tới hoàn thành',
-                body: 'Cập nhật tiến độ, trao đổi ngay trên thẻ và theo dõi những cột mốc tiếp theo.',
-              },
-            ].map((step) => (
-              <article key={step.number}>
-                <div className="tf-step-top">
-                  <span>{step.number}</span>
-                  <LandingIcon name={step.icon} />
-                </div>
-                <h3>{step.title}</h3>
-                <p>{step.body}</p>
+            {features.map((f) => (
+              <article key={f.title} className="tf-feature">
+                <h3>
+                  <LandingIcon name={f.icon} />
+                  {f.title}
+                </h3>
+                <p>{f.body}</p>
               </article>
             ))}
           </div>
         </section>
 
-        <section className="tf-faq-section tf-wrap" aria-labelledby="faq-title">
-          <div>
-            <p className="tf-eyebrow">BẠN CÓ THỂ ĐANG TÒ MÒ</p>
-            <h2 id="faq-title">
-              Một vài điều
-              <br />
-              trước khi bắt đầu.
-            </h2>
-            <p>
-              Hiểu thêm về cách TaskFlow
-              <br className="tf-desktop-break" /> đồng hành cùng công việc của bạn.
-            </p>
-          </div>
+        <section id="cau-hoi" className="tf-section tf-wrap tf-faq-section" aria-labelledby="faq-title">
+          <h2 id="faq-title">Câu hỏi thường gặp</h2>
           <div className="tf-faq-list">
             {questions.map((item) => (
               <details key={item.question}>
@@ -474,48 +236,29 @@ export default function LandingPage() {
             ))}
           </div>
         </section>
-
-        <section className="tf-wrap tf-closing-section" aria-labelledby="closing-title">
-          <div className="tf-closing">
-            <span className="tf-closing-decoration" aria-hidden="true" />
-            <div className="tf-closing-copy">
-              <p className="tf-eyebrow">Ý TƯỞNG TIẾP THEO ĐANG CHỜ BẠN</p>
-              <h2 id="closing-title">
-                Làm việc có hướng.
-                <br />
-                Cùng nhau đi xa.
-              </h2>
-              <p>Bắt đầu từ một công việc nhỏ, ngay hôm nay.</p>
-            </div>
-            <Link to={destination} className="tf-button tf-button-white">
-              {actionLabel}
-              <LandingIcon name="arrow" />
-            </Link>
-          </div>
-        </section>
       </main>
 
-      <footer className="tf-footer tf-wrap">
-        <div>
-          <Link
-            to="/"
-            className="tf-brand"
-            aria-label="TaskFlow — Về đầu trang"
-            onClick={() => window.scrollTo({ top: 0 })}
-          >
-            <Logo markClassName="h-8 w-8" textClassName="text-xl font-bold tracking-tight" />
-          </Link>
-          <p>Một không gian. Cùng nhau tiến bước.</p>
-        </div>
-        <nav aria-label="Liên kết cuối trang">
-          <a href="#tinh-nang">Tính năng</a>
-          <a href="#lap-ke-hoach-ai">TaskFlow & AI</a>
-          <a href="#cach-hoat-dong">Cách hoạt động</a>
-          <Link to={user ? '/boards' : '/login'}>{user ? 'Mở TaskFlow' : 'Đăng nhập'}</Link>
-        </nav>
-        <div className="tf-footer-bottom">
-          <span>© {new Date().getFullYear()} TaskFlow</span>
-          <span>Được xây dựng cho những điều bạn muốn hoàn thành.</span>
+      <footer className="tf-footer">
+        <div className="tf-wrap tf-footer-inner">
+          <div className="tf-footer-brand">
+            <Link
+              to="/"
+              className="tf-brand"
+              aria-label="TaskFlow — Về đầu trang"
+              onClick={() => window.scrollTo({ top: 0 })}
+            >
+              <Logo markClassName="h-7 w-7" textClassName="text-lg font-bold tracking-tight" />
+            </Link>
+            <span>© {new Date().getFullYear()} TaskFlow · Đồ án tốt nghiệp</span>
+          </div>
+          <nav aria-label="Liên kết cuối trang">
+            {navigation.map((item) => (
+              <a key={item.href} href={item.href}>
+                {item.label}
+              </a>
+            ))}
+            <Link to={user ? '/boards' : '/login'}>{user ? 'Mở TaskFlow' : 'Đăng nhập'}</Link>
+          </nav>
         </div>
       </footer>
     </div>

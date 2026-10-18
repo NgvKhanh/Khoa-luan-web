@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation, useParams } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { User } from '../types/auth';
@@ -100,9 +100,7 @@ describe('Landing page and workspace entry', () => {
     mocks.isLoading = true;
     open();
     expect(await screen.findByRole('link', { name: 'Bắt đầu ngay' })).toHaveAttribute('href', '/register');
-    screen.getAllByRole('link', { name: 'Bắt đầu sử dụng' }).forEach((link) => {
-      expect(link).toHaveAttribute('href', '/register');
-    });
+    expect(screen.getByRole('link', { name: 'Tạo tài khoản' })).toHaveAttribute('href', '/register');
     fireEvent.click(screen.getByRole('link', { name: 'Bắt đầu ngay' }));
     // Chuyen trang qua startTransition: vi tri chi doi sau khi trang (lazy) tai xong
     expect(await screen.findByRole('heading', { name: 'Tạo tài khoản' })).toBeInTheDocument();
@@ -148,13 +146,13 @@ describe('Landing page and workspace entry', () => {
     // Khong mount du lieu khong gian / bang cho khach
     expect(mocks.workspacesMounted).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('link', { name: 'Về trang chủ' }));
-    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Công việc rõ ràng.');
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Quản lý công việc nhóm trên bảng Kanban');
     expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/);
   });
 
   it('shows the public landing without mounting workspace data providers', async () => {
     open();
-    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Công việc rõ ràng.');
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Quản lý công việc nhóm trên bảng Kanban');
     expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/);
     expect(screen.getByRole('link', { name: 'Bắt đầu ngay' })).toHaveAttribute('href', '/register');
     expect(mocks.workspacesMounted).not.toHaveBeenCalled();
@@ -163,7 +161,7 @@ describe('Landing page and workspace entry', () => {
   it('keeps the landing for signed-in users and opens their boards from its CTA', async () => {
     mocks.user = USER;
     open();
-    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Công việc rõ ràng.');
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Quản lý công việc nhóm trên bảng Kanban');
     fireEvent.click(screen.getAllByRole('link', { name: 'Mở TaskFlow' })[0]);
     expect(
       await screen.findByRole('heading', { name: 'Danh sách bảng của bạn' })
@@ -171,7 +169,20 @@ describe('Landing page and workspace entry', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/boards');
   });
 
-  it('lets visitors switch preview views and inspect different example plans', async () => {
+  it('lists the main features and the FAQ, both reachable from the header', async () => {
+    open();
+    const features = (await screen.findByRole('heading', { name: 'Tính năng chính' })).closest('section') as HTMLElement;
+    expect(within(features).getAllByRole('article')).toHaveLength(6);
+    expect(within(features).getByRole('heading', { name: 'Trợ lý hỏi đáp' })).toBeInTheDocument();
+    const faq = screen.getByRole('heading', { name: 'Câu hỏi thường gặp' }).closest('section') as HTMLElement;
+    expect(faq).toHaveAttribute('id', 'cau-hoi');
+    expect(within(faq).getByText('Không dùng AI có được không?')).toBeInTheDocument();
+    const nav = screen.getByRole('navigation', { name: 'Điều hướng giới thiệu' });
+    expect(within(nav).getByRole('link', { name: 'Tính năng' })).toHaveAttribute('href', '#tinh-nang');
+    expect(within(nav).getByRole('link', { name: 'Câu hỏi thường gặp' })).toHaveAttribute('href', '#cau-hoi');
+  });
+
+  it('lets visitors switch the board preview between Kanban and calendar', async () => {
     open();
     fireEvent.click(await screen.findByRole('button', { name: 'Lịch' }));
     expect(
@@ -179,13 +190,6 @@ describe('Landing page and workspace entry', () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Bảng Kanban' }));
     expect(screen.getByRole('group', { name: 'Bảng Kanban minh họa' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Đồ án tốt nghiệp' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Xem kế hoạch mẫu' }));
-    expect(screen.getByRole('heading', { name: 'Báo cáo & bảo vệ' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Website bán hàng' }));
-    expect(screen.queryByRole('heading', { name: 'Báo cáo & bảo vệ' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Xem kế hoạch mẫu' }));
-    expect(screen.getByRole('heading', { name: 'Phát triển & tích hợp' })).toBeInTheDocument();
   });
 
   it('sends a regular login into the workspace instead of back to the landing', async () => {

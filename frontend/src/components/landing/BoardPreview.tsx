@@ -97,12 +97,7 @@ export default function BoardPreview() {
         </div>
         <div className="tf-preview-content">
           <div className="tf-preview-heading">
-            <div>
-              <p>DỰ ÁN CỦA NHÓM</p>
-              <h3>
-                Ra mắt website mới <span aria-hidden="true">✧</span>
-              </h3>
-            </div>
+            <h3>Ra mắt website mới</h3>
             <span
               className="tf-avatar-stack"
               role="img"
@@ -132,10 +127,7 @@ export default function BoardPreview() {
                 Lịch
               </button>
             </div>
-            <span className="tf-preview-filter">
-              <span className="tf-online-dot" />
-              Cùng nhau làm việc
-            </span>
+            <span className="tf-preview-filter">Lọc</span>
           </div>
           {view === 'board' ? (
             <div className="tf-kanban" role="group" aria-label="Bảng Kanban minh họa">
@@ -217,10 +209,6 @@ export default function BoardPreview() {
               </div>
             </div>
           )}
-          <div className="tf-preview-bottom">
-            <span className="tf-online-dot" />
-            Mọi cập nhật, trong cùng một không gian.<span>TaskFlow</span>
-          </div>
         </div>
       </div>
     </div>

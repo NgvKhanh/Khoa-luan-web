@@ -89,21 +89,10 @@
   gap: 8px;
   padding: 20px 16px 13px;
 }
-.landing-page .tf-preview-heading p {
-  font-size: 7px;
-  letter-spacing: 0.7px;
-  color: #9aa6b0;
-  margin-bottom: 5px;
-}
 .landing-page .tf-preview-heading h3 {
   font-size: 14px;
   font-weight: 650;
   letter-spacing: -0.3px;
-}
-.landing-page .tf-preview-heading h3 > span {
-  color: #d4aa49;
-  font-size: 19px;
-  padding-left: 4px;
 }
 .landing-page .tf-preview-toolbar {
   display: flex;
@@ -140,10 +129,6 @@
   gap: 4px;
   font-size: var(--tf-text-label);
   color: var(--tf-muted);
-}
-.landing-page .tf-preview-filter .tf-online-dot {
-  width: 4px;
-  height: 4px;
 }
 .landing-page .tf-kanban {
   display: grid;
@@ -292,23 +277,6 @@
 .landing-page .tf-sample-add .tf-icon {
   width: 11px;
   height: 11px;
-}
-.landing-page .tf-preview-bottom {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  border-top: 1px solid #edf1f4;
-  padding: 9px 12px;
-  font-size: 7px;
-  color: #9aa6ae;
-}
-.landing-page .tf-preview-bottom > span:last-child {
-  margin-left: auto;
-  font-weight: 600;
-}
-.landing-page .tf-preview-bottom .tf-online-dot {
-  width: 4px;
-  height: 4px;
 }
 .landing-page .tf-calendar-preview {
   background: #f8f9fc;
@@ -462,10 +430,6 @@
   .landing-page .tf-sample-add {
     font-size: 7px;
     gap: 2px;
-  }
-  .landing-page .tf-preview-bottom {
-    font-size: 6px;
-    padding: 8px;
   }
   .landing-page .tf-calendar-preview {
     padding: 14px 8px;
