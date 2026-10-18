@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import Avatar from '../components/Avatar';
 import { CreateBoardMenu } from '../components/Header';
 import AttentionList from '../components/home/AttentionList';
-import { Skeleton, SkeletonRegion, SkeletonRows } from '../components/Skeleton';
+import StatTiles from '../components/home/StatTiles';
+import { SkeletonRegion, SkeletonRows } from '../components/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { useBoards } from '../context/BoardsContext';
 import { activityPhrase } from '../lib/activityText';
@@ -11,7 +12,7 @@ import { assetUrl } from '../lib/assets';
 import { fetchHomeActivity, type HomeActivity } from '../lib/api/board';
 import { fetchMyCards, updateCard, type MyCard } from '../lib/api/card';
 import { getErrorMessage } from '../lib/errorMessage';
-import { useCountUp } from '../lib/useCountUp';
+import { homeStats } from '../lib/homeStats';
 import { getRecentBoards } from '../lib/recentBoards';
 import EmptyState from '../components/EmptyState';
 
@@ -36,15 +37,6 @@ function timeAgo(iso: string): string {
   if (s < 86400) return `${Math.floor(s / 3600)} giờ trước`;
   if (s < 604800) return `${Math.floor(s / 86400)} ngày trước`;
   return new Date(iso).toLocaleDateString('vi-VN');
-}
-
-function endOfToday(): number {
-  const d = new Date();
-  d.setHours(23, 59, 59, 999);
-  return d.getTime();
-}
-function endOfWeek(): number {
-  return endOfToday() + 7 * 86400 * 1000;
 }
 
 function Section({
@@ -104,25 +96,15 @@ function BoardTile({
   );
 }
 
-// Số liệu ở đầu trang: có dữ liệu thì đếm lên; đang tải hiện khung chờ (không hiện 0);
-// tải lỗi hiện dấu gạch ngang thay vì số 0 gây hiểu nhầm.
-function StatValue({ value, loading, failed }: { value: number; loading: boolean; failed: boolean }) {
-  const shown = useCountUp(value, { enabled: !loading });
-  if (loading) return <Skeleton className="h-8 w-10" />;
-  if (failed) return <>–</>;
-  return <>{shown}</>;
-}
-
 export default function HomeDashboard() {
   const { user } = useAuth();
   const { boards } = useBoards();
-  const navigate = useNavigate();
 
   const [myCards, setMyCards] = useState<MyCard[]>([]);
   const [activity, setActivity] = useState<HomeActivity[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  // "Qua han" / "hom nay" o khoi Can chu y tinh theo thoi diem tai the gan nhat
+  // "Qua han" / "hom nay" / "tuan nay" tinh theo thoi diem tai the gan nhat
   const [now, setNow] = useState(() => new Date());
   // The vua tick tren trang nay: giu lai trong khoi Can chu y (gach ngang) de bo tick duoc
   const [keepIds, setKeepIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -149,28 +131,23 @@ export default function HomeDashboard() {
       const next = !card.isDone;
       setActionError(null);
       setKeepIds((cur) => new Set(cur).add(card.id));
-      setMyCards((cur) => cur.map((c) => (c.id === card.id ? { ...c, isDone: next } : c)));
+      const completedAt = next ? new Date().toISOString() : null;
+      setMyCards((cur) => cur.map((c) => (c.id === card.id ? { ...c, isDone: next, completedAt } : c)));
       try {
         await updateCard(card.id, { isDone: next });
         // Danh dau xong co the chuyen the sang cot "Hoan thanh": tai lai de cot / trang thai dung
         fetchMyCards().then(applyCards).catch(() => undefined);
       } catch (err) {
-        setMyCards((cur) => cur.map((c) => (c.id === card.id ? { ...c, isDone: card.isDone } : c)));
+        setMyCards((cur) =>
+          cur.map((c) => (c.id === card.id ? { ...c, isDone: card.isDone, completedAt: card.completedAt } : c))
+        );
         setActionError(getErrorMessage(err, 'Không cập nhật được thẻ.'));
       }
     },
     [applyCards]
   );
 
-  const assigned = myCards.filter((c) => !c.isDone);
-  const overdue = assigned.filter(
-    (c) => c.dueDate && new Date(c.dueDate).getTime() < Date.now()
-  ).length;
-  const dueWeek = assigned.filter((c) => {
-    if (!c.dueDate) return false;
-    const d = new Date(c.dueDate).getTime();
-    return d >= Date.now() && d <= endOfWeek();
-  }).length;
+  const stats = useMemo(() => homeStats(myCards, now), [myCards, now]);
 
   const recent = useMemo(() => {
     const ids = getRecentBoards();
@@ -180,13 +157,6 @@ export default function HomeDashboard() {
       .slice(0, 6);
   }, [boards]);
   const starred = boards.filter((b) => b.isStarred).slice(0, 6);
-
-  const stats = [
-    { label: 'Bảng', value: boards.length, to: '/boards' },
-    { label: 'Thẻ được giao', value: assigned.length, to: '/my-cards', fromCards: true },
-    { label: 'Quá hạn', value: overdue, to: '/my-cards', danger: overdue > 0, fromCards: true },
-    { label: 'Đến hạn trong tuần', value: dueWeek, to: '/calendar', fromCards: true },
-  ];
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5">
@@ -210,30 +180,8 @@ export default function HomeDashboard() {
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      {/* 1. So lieu nhanh */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {stats.map((s) => (
-          <button
-            key={s.label}
-            type="button"
-            onClick={() => navigate(s.to)}
-            className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:shadow dark:border-slate-700 dark:bg-slate-800"
-          >
-            <p
-              className={`text-2xl font-bold ${
-                s.danger
-                  ? 'text-red-600'
-                  : 'text-slate-900 dark:text-slate-100'
-              }`}
-            >
-              <StatValue value={s.value} loading={Boolean(s.fromCards) && loading} failed={Boolean(s.fromCards) && Boolean(error)} />
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              {s.label}
-            </p>
-          </button>
-        ))}
-      </div>
+      {/* 1. So lieu co ngu canh */}
+      <StatTiles stats={stats} now={now} loading={loading} failed={Boolean(error)} />
 
       {/* Tu 1280px: cot chinh (can xu ly + truy cap nhanh) va cot phu (hoat dong) ti le 2:1 */}
       <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-3">

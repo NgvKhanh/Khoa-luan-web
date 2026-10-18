@@ -19,6 +19,7 @@ function card(id: string, title: string, over: Partial<MyCard> = {}, board = { i
     status: 'IN_PROGRESS',
     startDate: null,
     dueDate: null,
+    completedAt: null,
     coverColor: null,
     list: { id: `l-${board.id}`, name: 'Đang thực hiện', status: 'IN_PROGRESS', boardId: board.id, board },
     labels: [],

@@ -25,6 +25,7 @@ function card(id: string, title: string, over: Partial<MyCard> = {}): MyCard {
     status: 'IN_PROGRESS',
     startDate: null,
     dueDate: null,
+    completedAt: null,
     coverColor: null,
     list: { id: 'l1', name: 'Đang thực hiện', status: 'IN_PROGRESS', boardId: board.id, board },
     labels: [],
@@ -37,7 +38,8 @@ const CARDS: MyCard[] = [
   card('c2', 'Chốt khách mời', { dueDate: due(14, 18) }),
   card('c3', 'Duyệt kịch bản', { dueDate: due(17) }),
   card('c4', 'Viết biên bản', { dueDate: due(30) }),
-  card('c5', 'Đã xong từ trước', { isDone: true, status: 'DONE', dueDate: due(9) }),
+  card('c5', 'Đã xong từ trước', { isDone: true, status: 'DONE', dueDate: due(9), completedAt: due(13) }),
+  card('c6', 'Xong tuần trước', { isDone: true, status: 'DONE', completedAt: due(8) }),
 ];
 
 function renderPage() {
@@ -49,7 +51,8 @@ function renderPage() {
 }
 
 const attention = () => screen.getByRole('heading', { name: 'Cần chú ý' }).closest('section') as HTMLElement;
-const overdueStat = () => screen.getByText('Quá hạn', { selector: 'button p' }).closest('button') as HTMLElement;
+const stat = (label: string) => screen.getByText(label, { selector: 'button span' }).closest('button') as HTMLElement;
+const overdueStat = () => stat('Quá hạn');
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'], now: NOW });
@@ -60,6 +63,27 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.clearAllMocks();
+});
+
+describe('Tổng quan: số liệu đầu trang', () => {
+  it('mỗi ô có con số và ngữ cảnh đi kèm', async () => {
+    renderPage();
+    await waitFor(() => expect(within(stat('Thẻ đang mở')).getByText('4')).toBeInTheDocument());
+    expect(within(stat('Thẻ đang mở')).getByText('trên 1 bảng')).toBeInTheDocument();
+    expect(within(overdueStat()).getByText('1')).toBeInTheDocument();
+    expect(within(overdueStat()).getByText('trễ nhất 4 ngày')).toBeInTheDocument();
+    expect(within(stat('Đến hạn 7 ngày tới')).getByText('2')).toBeInTheDocument();
+    expect(within(stat('Đến hạn 7 ngày tới')).getByText('gần nhất hôm nay')).toBeInTheDocument();
+    expect(within(stat('Xong tuần này')).getByText('1')).toBeInTheDocument();
+    expect(within(stat('Xong tuần này')).getByText('tuần trước 1')).toBeInTheDocument();
+  });
+
+  it('tải lỗi thì hiện gạch ngang, không hiện số 0', async () => {
+    mocks.fetchMyCards.mockRejectedValue(new Error('500'));
+    renderPage();
+    await waitFor(() => expect(within(overdueStat()).getByText('–')).toBeInTheDocument());
+    expect(within(overdueStat()).queryByText('0')).not.toBeInTheDocument();
+  });
 });
 
 describe('Tổng quan: khối Cần chú ý', () => {
@@ -87,7 +111,7 @@ describe('Tổng quan: khối Cần chú ý', () => {
     // Lần tải lại sau khi lưu: server trả thẻ đã xong (đã chuyển sang cột Hoàn thành)
     mocks.fetchMyCards
       .mockResolvedValueOnce(CARDS)
-      .mockResolvedValue(CARDS.map((c) => (c.id === 'c1' ? { ...c, isDone: true, status: 'DONE' as const } : c)));
+      .mockResolvedValue(CARDS.map((c) => (c.id === 'c1' ? { ...c, isDone: true, status: 'DONE' as const, completedAt: due(14, 11) } : c)));
     const user = userEvent.setup();
     renderPage();
     const tick = await screen.findByRole('checkbox', { name: 'Đánh dấu hoàn thành thẻ Lấy báo giá âm thanh' });
@@ -104,6 +128,7 @@ describe('Tổng quan: khối Cần chú ý', () => {
     );
     expect(within(attention()).getAllByText('Đã xong')).not.toHaveLength(0);
     await waitFor(() => expect(within(overdueStat()).getByText('0')).toBeInTheDocument());
+    await waitFor(() => expect(within(stat('Xong tuần này')).getByText('2')).toBeInTheDocument());
   });
 
   it('lưu lỗi thì trả ô tick về như cũ và báo lỗi', async () => {

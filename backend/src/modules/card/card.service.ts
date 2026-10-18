@@ -188,6 +188,8 @@ export async function listMyCards(userId: string) {
       status: true,
       startDate: true,
       dueDate: true,
+      // Thoi diem danh dau xong: trang Tong quan dem "xong tuan nay" va ti le dung han
+      completedAt: true,
       coverColor: true,
       list: {
         select: {

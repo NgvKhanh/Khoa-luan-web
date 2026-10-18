@@ -31,6 +31,8 @@ export interface MyCard {
   status: CardStatus;
   startDate: string | null;
   dueDate: string | null;
+  /** Thoi diem danh dau xong lan gan nhat (null khi chua xong). */
+  completedAt: string | null;
   coverColor: string | null;
   list: {
     id: string;
