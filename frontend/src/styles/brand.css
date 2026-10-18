@@ -3,17 +3,10 @@
   --brand-primary: #4f46e5;
   --brand-primary-hover: #4338ca;
   --brand-accent: #06b6d4;
-  --brand-accent-deep: #0e7490;
   --brand-focus: #6366f1;
   --brand-ink: #172b3a;
   --brand-muted: #52616b;
   --brand-font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --brand-gradient: linear-gradient(
-    135deg,
-    var(--brand-accent-deep),
-    var(--brand-primary) 65%,
-    var(--brand-primary-hover)
-  );
   /* Nen nhat cua muc dang chon va chu nhan manh (chu can doc duoc tren nen sang/toi) */
   --brand-primary-soft: #eef2ff;
   --brand-primary-ink: #4338ca;

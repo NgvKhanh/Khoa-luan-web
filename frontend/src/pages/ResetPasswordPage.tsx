@@ -47,7 +47,7 @@ export default function ResetPasswordPage() {
   const footer = (
     <>
       Nhớ mật khẩu?{' '}
-      <Link to="/login" className="font-semibold text-white hover:underline">
+      <Link to="/login" className="font-semibold text-primary-ink hover:underline">
         Đăng nhập
       </Link>
     </>

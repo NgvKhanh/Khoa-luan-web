@@ -42,7 +42,7 @@ export default function LoginPage() {
           <Link
             to="/register"
             state={location.state}
-            className="font-semibold text-white hover:underline"
+            className="font-semibold text-primary-ink hover:underline"
           >
             Đăng ký
           </Link>

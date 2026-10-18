@@ -43,7 +43,7 @@ export default function RegisterPage() {
           <Link
             to="/login"
             state={location.state}
-            className="font-semibold text-white hover:underline"
+            className="font-semibold text-primary-ink hover:underline"
           >
             Đăng nhập
           </Link>

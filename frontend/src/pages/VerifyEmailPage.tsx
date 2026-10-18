@@ -45,14 +45,14 @@ export default function VerifyEmailPage() {
   const footer = user ? (
     <>
       Quay lại{' '}
-      <Link to="/boards" className="font-semibold text-white hover:underline">
+      <Link to="/boards" className="font-semibold text-primary-ink hover:underline">
         Trang chủ
       </Link>
     </>
   ) : (
     <>
       Tiếp tục{' '}
-      <Link to="/login" className="font-semibold text-white hover:underline">
+      <Link to="/login" className="font-semibold text-primary-ink hover:underline">
         Đăng nhập
       </Link>
     </>

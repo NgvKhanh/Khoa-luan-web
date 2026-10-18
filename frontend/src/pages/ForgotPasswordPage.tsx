@@ -33,7 +33,7 @@ export default function ForgotPasswordPage() {
       footer={
         <>
           Nhớ ra rồi?{' '}
-          <Link to="/login" className="font-semibold text-white hover:underline">
+          <Link to="/login" className="font-semibold text-primary-ink hover:underline">
             Đăng nhập
           </Link>
         </>
