@@ -24,8 +24,10 @@ export default function CompletionChart({ cards, now }: { cards: MyCard[]; now: 
     return <p className="text-sm text-slate-500 dark:text-slate-400">Chưa có thẻ nào của bạn hoàn thành trong 8 tuần qua.</p>;
   }
 
+  // `relative`: bang an / vung aria-live (sr-only = position:absolute) phai co khoi chua nam TRONG vung cuon <main>.
+  // Thieu no, chung tinh vi tri theo ca trang, keo dai tai lieu va lam ca khung ung dung cuon lo nen den ben duoi.
   return (
-    <>
+    <div className="relative">
       <div
         tabIndex={0}
         aria-label="Biểu đồ số thẻ hoàn thành theo tuần, dùng phím mũi tên trái phải để xem từng tuần"
@@ -117,6 +119,6 @@ export default function CompletionChart({ cards, now }: { cards: MyCard[]; now: 
           <span className="text-slate-500 dark:text-slate-400">({Math.round((data.onTime / data.withDue) * 100)}%)</span>
         </p>
       )}
-    </>
+    </div>
   );
 }

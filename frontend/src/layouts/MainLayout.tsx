@@ -20,7 +20,9 @@ export default function MainLayout() {
       <EmailVerifyBanner />
       <div className="flex min-h-0 flex-1">
         <Sidebar />
-        <main className="min-w-0 flex-1 overflow-y-auto bg-[var(--app-bg)]">
+        {/* relative: phan tu position:absolute ben trong (vd chu sr-only cho trinh doc man hinh) tinh vi tri theo
+            vung cuon nay; thieu no chung tinh theo ca trang, keo dai tai lieu -> ca khung cuon lo nen trong ben duoi */}
+        <main className="relative min-w-0 flex-1 overflow-y-auto bg-[var(--app-bg)]">
           {/* key theo duong dan: doi trang thi noi dung mo dan vao (chi doi do mo) */}
           <div
             key={pathname}
